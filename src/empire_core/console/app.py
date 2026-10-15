@@ -22,7 +22,16 @@ from prompt_toolkit.filters import Condition, has_focus, to_filter
 from prompt_toolkit.formatted_text import StyleAndTextTuples
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import KeyBindings, KeyPressEvent
-from prompt_toolkit.layout import ConditionalContainer, Float, FloatContainer, HSplit, Layout, VSplit, Window
+from prompt_toolkit.layout import (
+    AnyContainer,
+    ConditionalContainer,
+    Float,
+    FloatContainer,
+    HSplit,
+    Layout,
+    VSplit,
+    Window,
+)
 from prompt_toolkit.layout.controls import FormattedTextControl
 from prompt_toolkit.layout.dimension import Dimension
 from prompt_toolkit.layout.menus import CompletionsMenu
@@ -39,7 +48,7 @@ from empire_core.console.highlight import BANNER_MARK, OutputLexer
 from empire_core.console.pretty import pretty
 from empire_core.console.runner import CodeRunner, PaneWriter
 from empire_core.console.theme import STYLE
-from empire_core.console.widgets import Panel
+from empire_core.console.widgets import Panel, ScrollbarControl, text_scrollbar
 from empire_core.exceptions import EmpireError
 
 HISTORY = Path.home() / ".empire_console_history"
@@ -48,8 +57,19 @@ OUTPUT_CHARS = 200_000
 PAGE = 20
 SPINNER = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 
-CODE_KEYS = [("Enter", "run"), ("Tab", "complete"), ("F2", "frames"), ("F1", "help"), ("Ctrl-D", "quit")]
-FRAME_KEYS = [("↑↓", "select"), ("End", "follow"), ("r", "raw"), ("F3", "zoom"), ("F2", "code"), ("F1", "help")]
+CODE_KEYS = [("Enter", "run"), ("Tab", "complete"), ("Ctrl-arrows", "panes"), ("F1", "help"), ("Ctrl-D", "quit")]
+FRAME_KEYS = [
+    ("↑↓", "select"),
+    ("End", "follow"),
+    ("r", "raw"),
+    ("F3", "zoom"),
+    ("Ctrl-arrows", "panes"),
+    ("F1", "help"),
+]
+TEXT_KEYS = [("↑↓ PgUp PgDn", "scroll"), ("Home End", "top / bottom"), ("Ctrl-arrows", "panes"), ("F1", "help")]
+# Panes by where they sit, for Ctrl-arrows, and in F2's cycle order.
+GRID = (("output", "frames"), ("input", "detail"))
+CYCLE = ("input", "frames", "detail", "output")
 HELP = [
     ("Code", ""),
     ("Enter", "run once the statement is complete"),
@@ -57,8 +77,12 @@ HELP = [
     ("Tab / ↑↓", "complete / history"),
     ("Ctrl-C", "clear the input"),
     ("Ctrl-L", "clear the output"),
+    ("Panes", ""),
+    ("Ctrl-arrows", "move to the pane in that direction"),
+    ("F2 / Shift-F2", "next / previous pane"),
+    ("click, wheel", "focus a pane, scroll it or its scrollbar"),
+    ("Home / End", "top / bottom of Output and Detail"),
     ("Frames", ""),
-    ("F2", "switch between code and frames"),
     ("↑↓ PgUp PgDn", "select a frame (or click it)"),
     ("Home / End", "oldest frame / follow the newest"),
     ("r", "parsed model or raw payload"),
@@ -110,9 +134,10 @@ class Console:
         )
 
         python, json_lexer = PygmentsLexer(PythonLexer), PygmentsLexer(JsonLexer)
-        self.output = TextArea(read_only=True, wrap_lines=True, scrollbar=True, lexer=OutputLexer())
+        self.output = TextArea(read_only=True, wrap_lines=True, focus_on_click=True, lexer=OutputLexer())
         self.input = TextArea(
             multiline=True,
+            focus_on_click=True,
             lexer=python,
             completer=ThreadedCompleter(NamespaceCompleter(self.namespace)),
             complete_while_typing=True,
@@ -123,10 +148,15 @@ class Console:
         self.detail = TextArea(
             read_only=True,
             wrap_lines=False,
-            scrollbar=True,
+            focus_on_click=True,
             lexer=DynamicLexer(lambda: python if self._detail.model else json_lexer),
         )
         self.frame_list = FormattedTextControl(self.render_frame_list, focusable=True, get_cursor_position=self._cursor)
+        self.scrollbars = {
+            "output": text_scrollbar(self.output),
+            "frames": ScrollbarControl(self._list_position, self._list_scroll_to),
+            "detail": text_scrollbar(self.detail),
+        }
         self.application: Application[None] = Application(
             layout=Layout(self._layout(), focused_element=self.input),
             key_bindings=self._bindings(),
@@ -146,20 +176,24 @@ class Console:
     def output_text(self) -> str:
         return self.output.text
 
+    def panes(self) -> dict[str, TextArea | FormattedTextControl]:
+        return {"output": self.output, "input": self.input, "frames": self.frame_list, "detail": self.detail}
+
     def _layout(self) -> FloatContainer:
-        in_frames = has_focus(self.frame_list)
+        right_side = has_focus(self.frame_list) | has_focus(self.detail)
         code = HSplit(
             [
-                Panel(self.output, lambda: [("", "Output")], has_focus(self.output)),
+                Panel(self._scrolled(self.output, "output"), lambda: [("", "Output")], has_focus(self.output)),
                 Panel(self.input, self._input_title, has_focus(self.input)),
             ],
             width=Dimension(weight=1),
         )
         header = Window(FormattedTextControl([("class:frame.header", " " + HEADER)]), height=1)
+        frame_list = self._scrolled(Window(self.frame_list, wrap_lines=False), "frames")
         frames = HSplit(
             [
-                Panel(HSplit([header, Window(self.frame_list, wrap_lines=False)]), self._frames_title, in_frames),
-                Panel(self.detail, self._detail_title, has_focus(self.detail)),
+                Panel(HSplit([header, frame_list]), self._frames_title, has_focus(self.frame_list)),
+                Panel(self._scrolled(self.detail, "detail"), self._detail_title, has_focus(self.detail)),
             ],
             width=Dimension(weight=1),
         )
@@ -167,8 +201,8 @@ class Console:
             [
                 VSplit(
                     [
-                        ConditionalContainer(code, Condition(lambda: not (self.zoomed and in_frames()))),
-                        ConditionalContainer(frames, Condition(lambda: not (self.zoomed and not in_frames()))),
+                        ConditionalContainer(code, Condition(lambda: not (self.zoomed and right_side()))),
+                        ConditionalContainer(frames, Condition(lambda: not (self.zoomed and not right_side()))),
                     ]
                 ),
                 Window(FormattedTextControl(self.toolbar), height=1, style="class:toolbar"),
@@ -185,10 +219,14 @@ class Console:
             ],
         )
 
+    def _scrolled(self, body: AnyContainer, pane: str) -> VSplit:
+        return VSplit([body, Window(self.scrollbars[pane], width=1)])
+
     def _bindings(self) -> KeyBindings:
         keys = KeyBindings()
         in_input = has_focus(self.input)
         in_frames = has_focus(self.frame_list)
+        in_text = has_focus(self.output) | has_focus(self.detail)
         helping = Condition(lambda: self.show_help)
         # The menu opens while typing; Enter runs the input unless a completion is picked.
         picked = Condition(
@@ -204,9 +242,20 @@ class Console:
         def _(event: KeyPressEvent) -> None:
             self.show_help = False
 
-        @keys.add("f2")
+        # Terminals send Shift-F2 as F14.
+        for key, step in (("f2", 1), ("f14", -1)):
+            keys.add(key)(lambda _event, step=step: self._cycle_focus(step))
+
+        for key, rows, columns in (("c-up", -1, 0), ("c-down", 1, 0), ("c-left", 0, -1), ("c-right", 0, 1)):
+            keys.add(key)(lambda _event, rows=rows, columns=columns: self._move_focus(rows, columns))
+
+        @keys.add("home", filter=in_text)
         def _(event: KeyPressEvent) -> None:
-            event.app.layout.focus(self.frame_list if event.app.layout.has_focus(self.input) else self.input)
+            event.current_buffer.cursor_position = 0
+
+        @keys.add("end", filter=in_text)
+        def _(event: KeyPressEvent) -> None:
+            event.current_buffer.cursor_position = len(event.current_buffer.text)
 
         @keys.add("f3")
         def _(event: KeyPressEvent) -> None:
@@ -308,8 +357,12 @@ class Console:
         with self._pending_lock:
             text, self._pending = "".join(self._pending), []
         if text:
-            content = (self.output.text + text)[-OUTPUT_CHARS:]
-            self.output.buffer.set_document(Document(content, len(content)), bypass_readonly=True)
+            old = self.output.buffer
+            following = old.cursor_position >= len(old.text)
+            content = (old.text + text)[-OUTPUT_CHARS:]
+            dropped = len(old.text) + len(text) - len(content)
+            cursor = len(content) if following else max(old.cursor_position - dropped, 0)
+            self.output.buffer.set_document(Document(content, cursor), bypass_readonly=True)
         self._sync_detail()
 
     def close(self) -> None:
@@ -337,7 +390,13 @@ class Console:
         who = self.client.username or "no account"
         status = f" ● {who} " if online else f" ○ {who} offline "
         parts: StyleAndTextTuples = [("class:toolbar.online" if online else "class:toolbar.offline", status)]
-        for key, what in FRAME_KEYS if self.application.layout.has_focus(self.frame_list) else CODE_KEYS:
+        layout = self.application.layout
+        keys = CODE_KEYS
+        if layout.has_focus(self.frame_list):
+            keys = FRAME_KEYS
+        elif layout.has_focus(self.output) or layout.has_focus(self.detail):
+            keys = TEXT_KEYS
+        for key, what in keys:
             parts += [("class:toolbar.key", f" {key}"), ("class:toolbar", f" {what} ")]
         if self.runner.busy:
             elapsed = time.monotonic() - self.runner.started_at
@@ -385,6 +444,31 @@ class Console:
 
     def _finished(self, elapsed: float, ok: bool) -> None:
         self._queue_output(f"{'✓' if ok else '✗'} {duration_label(elapsed)}\n")
+
+    def _focused_pane(self) -> str:
+        layout = self.application.layout
+        return next((name for name, pane in self.panes().items() if layout.has_focus(pane)), "input")
+
+    def _cycle_focus(self, step: int) -> None:
+        current = CYCLE.index(self._focused_pane())
+        self.application.layout.focus(self.panes()[CYCLE[(current + step) % len(CYCLE)]])
+
+    def _move_focus(self, rows: int, columns: int) -> None:
+        focused = self._focused_pane()
+        row, column = next((r, c) for r, line in enumerate(GRID) for c, name in enumerate(line) if name == focused)
+        row = max(0, min(row + rows, len(GRID) - 1))
+        column = max(0, min(column + columns, len(GRID[0]) - 1))
+        self.application.layout.focus(self.panes()[GRID[row][column]])
+
+    def _list_position(self) -> tuple[int, int, int]:
+        rows = self.frames.visible()
+        return self._row_index(rows), 1, len(rows)
+
+    def _list_scroll_to(self, index: int) -> None:
+        rows = self.frames.visible()
+        if rows:
+            self.selected = rows[max(0, min(index, len(rows) - 1))]
+            self._sync_detail()
 
     def _output_width(self) -> int:
         info = self.output.window.render_info

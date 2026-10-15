@@ -7,6 +7,7 @@ from prompt_toolkit.application import create_app_session
 from prompt_toolkit.buffer import CompletionState
 from prompt_toolkit.completion import Completion
 from prompt_toolkit.data_structures import Point
+from prompt_toolkit.document import Document
 from prompt_toolkit.input import create_pipe_input
 from prompt_toolkit.layout.menus import CompletionsMenu
 from prompt_toolkit.mouse_events import MouseButton, MouseEvent, MouseEventType
@@ -100,15 +101,80 @@ def test_enter_accepts_a_selected_completion(tmp_path):
         assert ">>>" not in console.output_text
 
 
-def test_f2_toggles_between_input_and_frames(tmp_path):
+F2, SHIFT_F2 = "\x1bOQ", "\x1b[1;2Q"
+CTRL = {"up": "\x1b[1;5A", "down": "\x1b[1;5B", "right": "\x1b[1;5C", "left": "\x1b[1;5D"}
+
+
+def focused_after(console, pipe, keys):
+    pipe.send_text(keys + "\x04")
+    console.application.run()
+    layout = console.application.layout
+    return next(name for name, pane in console.panes().items() if layout.has_focus(pane))
+
+
+def test_f2_cycles_through_every_pane(tmp_path):
     with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
         console = make_console(tmp_path)
-        pipe.send_text("\x1bOQ\x1bOQ\x1bOQ\x04")
+        assert [focused_after(console, pipe, F2) for _ in range(4)] == ["frames", "detail", "output", "input"]
+        assert focused_after(console, pipe, SHIFT_F2) == "output"
+
+
+def test_ctrl_arrows_move_between_panes_by_position(tmp_path):
+    with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+        console = make_console(tmp_path)
+        steps = ["up", "right", "down", "left", "left", "down"]
+        assert [focused_after(console, pipe, CTRL[step]) for step in steps] == [
+            "output",
+            "frames",
+            "detail",
+            "input",
+            "input",
+            "input",
+        ]
+
+
+def test_clicking_a_text_pane_focuses_it(tmp_path):
+    with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+        console = make_console(tmp_path)
+        assert console.output.control.focus_on_click() and console.detail.control.focus_on_click()
+
+
+def test_home_and_end_jump_in_a_text_pane(tmp_path):
+    with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+        console = make_console(tmp_path)
+        console.detail.buffer.set_document(Document("a\nb\nc", 2), bypass_readonly=True)
+        console.application.layout.focus(console.detail)
+        pipe.send_text("\x1b[H\x04")
         console.application.run()
-        assert console.application.layout.has_focus(console.frame_list)
-        pipe.send_text("\x1bOQ\x04")
+        assert console.detail.buffer.cursor_position == 0
+        pipe.send_text("\x1b[F\x04")
         console.application.run()
-        assert console.application.layout.has_focus(console.input)
+        assert console.detail.buffer.cursor_position == len("a\nb\nc")
+
+
+def test_output_keeps_its_place_while_scrolled_back(tmp_path):
+    with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+        console = make_console(tmp_path)
+        console.flush()
+        console.output.buffer.cursor_position = 0
+        console.writer.write("more\n")
+        console.flush()
+        assert console.output.buffer.cursor_position == 0
+        console.output.buffer.cursor_position = len(console.output.text)
+        console.writer.write("again\n")
+        console.flush()
+        assert console.output.buffer.cursor_position == len(console.output.text)
+
+
+def test_text_scrollbar_jumps_where_clicked(tmp_path):
+    with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+        console = make_console(tmp_path)
+        text = "\n".join(str(i) for i in range(100))
+        console.detail.buffer.set_document(Document(text, 0), bypass_readonly=True)
+        bar = console.scrollbars["detail"]
+        bar.create_content(1, 10)
+        bar.mouse_handler(MouseEvent(Point(0, 9), MouseEventType.MOUSE_DOWN, MouseButton.LEFT, frozenset()))
+        assert console.detail.document.cursor_position_row > 80
 
 
 def frames_of(command, count):

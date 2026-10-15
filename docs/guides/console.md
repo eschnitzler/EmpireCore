@@ -38,19 +38,26 @@ the toolbar shows a timer while it runs. History is kept in `~/.empire_console_h
 ## Reading frames
 
 Each frame is one row: time, direction (`↑` sent, `↓` received), command, `✗` and the error code
-on a refusal, size, round-trip time for a reply, and the start of the payload. Press F2 to move
-to the frame list (or click a row), Up/Down/PgUp/PgDn to select, End to follow the newest frame
-again.
+on a refusal, size, round-trip time for a reply, and the start of the payload. Move to the
+frame list (Ctrl-→ from Output, or click a row), then Up/Down/PgUp/PgDn to select, Home for the
+oldest frame and End to follow the newest again.
 
 The detail pane shows the selected frame, or the newest one while following. A reply the library
 models is shown parsed into its response model, exactly as the client parses it; press `r` (or
 `:raw`) for the raw JSON payload. Frames without a model, sent frames and payloads that do not
 parse show raw, the last with a note saying why.
 
+Every pane takes focus and scrolls. Ctrl and an arrow moves to the pane in that direction, F2
+and Shift-F2 cycle through them, and a click focuses the pane under it. The mouse wheel scrolls
+the pane it is over; each pane's scrollbar can be clicked or dragged. In Output and Detail,
+arrows and PgUp/PgDn scroll and Home/End jump to the top or bottom. Output stays where you
+scrolled it while new output arrives, and follows again once you return to the end.
+
 | Key | Does |
 |-----|------|
 | F1 | Help |
-| F2 | Switch between code and frames |
+| Ctrl-arrows | Move to the pane in that direction |
+| F2 / Shift-F2 | Next / previous pane |
 | F3 | Zoom the focused side |
 | Ctrl-L | Clear the output |
 | Ctrl-D | Close the client and exit, as does `exit()` |
