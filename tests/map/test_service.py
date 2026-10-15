@@ -86,7 +86,7 @@ class TestScanAround:
         assert conn(client).request_payloads == [("gaa", {"KID": 0, "AX1": 497, "AY1": 497, "AX2": 503, "AY2": 503})]
         assert waits == [49]
         assert [(item.x, item.y) for item in result.items] == [(500, 501), (502, 502), (497, 500)]
-        assert list(result.objects) == [4242]
+        assert list(result.owners) == [4242]
         assert (result.kingdom, result.failed_chunks) == (Kingdom.GREEN, ())
 
     def test_item_types_keep_only_those_types(self):

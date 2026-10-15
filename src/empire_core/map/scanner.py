@@ -60,10 +60,10 @@ def _has_no_player(is_plot_row: Any, occupier_id: Any, owner_id: Any) -> bool | 
 
 
 class ScanResult(NamedTuple):
-    """What a scan read: ``items`` and ``objects`` stay empty when it handed each chunk to ``on_chunk``."""
+    """What a scan read: ``items`` and ``owners`` stay empty when it handed each chunk to ``on_chunk``."""
 
     items: list[MapAreaItem]
-    objects: dict[int, MapObject]
+    owners: dict[int, MapObject]
     kingdom: Kingdom
     failed_chunks: tuple[tuple[int, int], ...] = ()
     # Chunks that responded successfully AND contained map items. Feed these
@@ -80,11 +80,11 @@ class _ChunkResult(NamedTuple):
     ok: bool
     has_content: bool
     items: list[MapAreaItem]
-    objects: dict[int, MapObject]
+    owners: dict[int, MapObject]
 
 
-_FAILED = _ChunkResult(ok=False, has_content=False, items=[], objects={})
-_NOT_UNLOCKED = _ChunkResult(ok=False, has_content=False, items=[], objects={})
+_FAILED = _ChunkResult(ok=False, has_content=False, items=[], owners={})
+_NOT_UNLOCKED = _ChunkResult(ok=False, has_content=False, items=[], owners={})
 
 
 class _Connection(Protocol):
@@ -222,7 +222,7 @@ class MapScanner:
         oi_array = response.payload.get("OI", [])
         has_content = len(ai_array) > 0
         collected_items: list[MapAreaItem] = []
-        collected_objects: dict[int, MapObject] = {}
+        collected_owners: dict[int, MapObject] = {}
 
         # Collect matching items. One malformed entry must not cost us the
         # whole chunk (or, in scan_kingdom, every chunk collected so far), so
@@ -231,15 +231,15 @@ class MapScanner:
         # back ok=True with zero items, and the schema drift would hide
         # behind a "successful" empty scan. Per-entry detail stays at debug;
         # each chunk with skips gets one warning with counts and a sample.
-        skipped_objects = 0
+        skipped_owners = 0
         skipped_items = 0
         sample: object = None
 
         for raw_obj in oi_array:
             if not isinstance(raw_obj, dict):
-                skipped_objects += 1
+                skipped_owners += 1
                 sample = raw_obj if sample is None else sample
-                logger.debug("Chunk (%s, %s): skipping malformed map object %r", cx, cy, raw_obj)
+                logger.debug("Chunk (%s, %s): skipping malformed owner record %r", cx, cy, raw_obj)
                 continue
             if not js_truthy(raw_obj.get("OID")):
                 # CastleOtherPlayerData.parseOwnerInfo reads no record without an OID
@@ -247,13 +247,13 @@ class MapScanner:
             try:
                 obj = MapObject.model_validate(raw_obj)
             except Exception as e:
-                skipped_objects += 1
+                skipped_owners += 1
                 sample = raw_obj if sample is None else sample
-                logger.debug("Chunk (%s, %s): skipping invalid map object %r: %s", cx, cy, raw_obj, e)
+                logger.debug("Chunk (%s, %s): skipping invalid owner record %r: %s", cx, cy, raw_obj, e)
                 continue
             oid = obj.owner_id
             if oid:
-                collected_objects[oid] = obj
+                collected_owners[oid] = obj
 
         for raw_item in ai_array:
             # Short entries are normal, not drift: most of a live AI array is
@@ -293,18 +293,18 @@ class MapScanner:
                 continue
             collected_items.append(item)
 
-        if skipped_items or skipped_objects:
+        if skipped_items or skipped_owners:
             parts = []
             if skipped_items:
                 parts.append(f"{skipped_items}/{len(ai_array)} map items")
-            if skipped_objects:
-                parts.append(f"{skipped_objects}/{len(oi_array)} map objects")
+            if skipped_owners:
+                parts.append(f"{skipped_owners}/{len(oi_array)} owner records")
             logger.warning(
                 f"Chunk ({cx}, {cy}): skipped {' and '.join(parts)} that did not parse "
                 f"(server schema drift?); sample: {_truncated_repr(sample)}"
             )
 
-        return _ChunkResult(ok=True, has_content=has_content, items=collected_items, objects=collected_objects)
+        return _ChunkResult(ok=True, has_content=has_content, items=collected_items, owners=collected_owners)
 
     def scan_kingdom(
         self,
@@ -367,8 +367,8 @@ class MapScanner:
         chunk.
 
         ``on_chunk`` is called with each chunk that answered, empty ones too,
-        as ``on_chunk((cx, cy), items, objects)``, and the scan keeps nothing
-        of that chunk: ``ScanResult.items`` and ``ScanResult.objects`` come
+        as ``on_chunk((cx, cy), items, owners)``, and the scan keeps nothing
+        of that chunk: ``ScanResult.items`` and ``ScanResult.owners`` come
         back empty. A caller that keeps only what it needs from each chunk
         holds that, not the whole kingdom's rows and owner records, which
         every full garbage collection walks while they live. A failed chunk
@@ -569,7 +569,7 @@ class _Scan:
         self.error: BaseException | None = None
 
         self.items: list[MapAreaItem] = []
-        self.objects: dict[int, MapObject] = {}
+        self.owners: dict[int, MapObject] = {}
         self.failed: list[tuple[int, int]] = []
         self.content: list[tuple[int, int]] = []
         self.requests = 0
@@ -631,7 +631,7 @@ class _Scan:
         )
         return ScanResult(
             items=self.items,
-            objects=self.objects,
+            owners=self.owners,
             kingdom=self.kingdom,
             failed_chunks=tuple(failed),
             content_chunks=tuple(self.content),
@@ -666,7 +666,7 @@ class _Scan:
                         with self.lock:
                             aborted = self.error is not None or self.stopped == "interrupted"
                         if not aborted:
-                            self.on_chunk(chunk, result.items, result.objects)
+                            self.on_chunk(chunk, result.items, result.owners)
             except BaseException as e:
                 with self.lock:
                     self.active -= 1
@@ -713,7 +713,7 @@ class _Scan:
                 self.items_found += len(result.items)
                 if self.on_chunk is None:
                     self.items.extend(result.items)
-                    self.objects.update(result.objects)
+                    self.owners.update(result.owners)
                 if result.has_content:
                     self.content.append(chunk)
                 self._expand(chunk, result.has_content)

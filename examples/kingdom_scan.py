@@ -26,7 +26,7 @@ ITEM_TYPES = [MapItemType.CASTLE]
 
 def summarize(label: str, result: ScanResult) -> None:
     print(
-        f"{label}: {len(result.items)} items, {len(result.objects)} objects, "
+        f"{label}: {len(result.items)} items, {len(result.owners)} owners, "
         f"{len(result.content_chunks)} chunks with content, "
         f"{len(result.failed_chunks)} failed chunks"
     )
