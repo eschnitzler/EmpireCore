@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import multiprocessing
 import time
 from pathlib import Path
@@ -28,6 +29,8 @@ from types import SimpleNamespace
 from typing import Any
 
 from empire_core.enums import Kingdom
+from empire_core.map.models.world import MapSize
+from empire_core.map.pacing import MapAreaPacer
 from empire_core.map.scanner import MapScanner, scan_kingdom_with
 from empire_core.protocol.packet import Packet
 
@@ -40,6 +43,7 @@ class _SlowReply:
     def __init__(self, payload: dict[str, Any], rtt: float) -> None:
         self.connection = SimpleNamespace(connected=True)
         self.state = SimpleNamespace(get_castles=list)
+        self.map = SimpleNamespace(pacer=MapAreaPacer(lambda: math.inf), map_size=lambda kingdom: MapSize(1890, 1890))
         self.frame = f"%xt%gaa%1%0%{json.dumps(payload)}%".encode()
         self.rtt = rtt
 
