@@ -74,7 +74,12 @@ class TestScanAround:
         rows = [_dungeon(502, 502), [1, 503, 503, 4242], _dungeon(500, 501), _dungeon(497, 500)]
         client = make_client({"gaa": xt_packet("gaa", {"KID": 0, "AI": rows, "OI": [{"OID": 4242, "N": "x"}]})})
         waits: list[int] = []
-        monkeypatch.setattr(client.map.pacer, "wait", lambda tiles, cancel=None: waits.append(tiles) or False)
+
+        def wait(tiles, cancel=None):
+            waits.append(tiles)
+            return False
+
+        monkeypatch.setattr(client.map.pacer, "wait", wait)
 
         result = client.map.scan_around(500, 500, 3, Kingdom.GREEN)
 
