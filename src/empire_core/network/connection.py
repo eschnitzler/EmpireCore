@@ -13,6 +13,7 @@ import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass, field
+from enum import Enum
 
 import websocket
 
@@ -67,24 +68,43 @@ def _frame_command(frame: str) -> str | None:
     return match.group(1) if match else None
 
 
-def _summarize_frame(frame: str) -> str:
-    """Render an outbound frame in a form that is safe to log.
+class FrameDirection(Enum):
+    SENT = "sent"
+    RECEIVED = "received"
 
-    Auth frames carry the plaintext password, so their body is dropped
-    entirely; everything else is scrubbed for known credential keys and
-    truncated. Truncation alone is not protection: which fields land inside
-    the first ``LOG_FRAME_CHARS`` characters depends on payload key order.
+
+@dataclass(frozen=True)
+class Frame:
+    """One frame on the socket, as a frame listener gets it. ``text`` is already redacted."""
+
+    direction: FrameDirection
+    command: str | None
+    error_code: int
+    text: str
+    at: float
+
+
+def redact_frame(text: str, command: str | None) -> str:
+    """``text`` with its credentials masked; an auth command keeps nothing but its size.
+
+    Auth frames carry the plaintext password, and masking known keys alone is
+    not safe for them, so their whole body is dropped.
     """
-    command = _frame_command(frame)
     if command and command.lower() in AUTH_COMMANDS:
-        return f"<{command} auth frame redacted, {len(frame)} chars>"
-
-    safe = frame
+        return f"<{command} auth frame redacted, {len(text)} chars>"
     for pattern, replacement in _SECRET_PATTERNS:
-        safe = pattern.sub(replacement, safe)
-    if len(safe) > LOG_FRAME_CHARS:
-        safe = safe[:LOG_FRAME_CHARS] + "..."
-    return safe
+        text = pattern.sub(replacement, text)
+    return text
+
+
+def _summarize_frame(frame: str) -> str:
+    """An outbound frame, redacted and cut to ``LOG_FRAME_CHARS`` for the log.
+
+    Truncation alone is not protection: which fields land inside the first
+    ``LOG_FRAME_CHARS`` characters depends on payload key order.
+    """
+    safe = redact_frame(frame, _frame_command(frame))
+    return safe if len(safe) <= LOG_FRAME_CHARS else safe[:LOG_FRAME_CHARS] + "..."
 
 
 # Fallback zone for keepalive pings when the client doesn't inject one.
@@ -386,6 +406,8 @@ class Connection:
             logger.error(f"Send failed: {e}")
             raise NetworkError(f"Send failed: {e}") from e
 
+        self._emit_frame(FrameDirection.SENT, data, _frame_command(data), 0)
+
         # Logged after the send so nothing here can be mistaken for a send
         # failure. Frames carry credentials; see _summarize_frame.
         if logger.isEnabledFor(logging.DEBUG):
@@ -642,6 +664,29 @@ class Connection:
         """
         self._listeners.remove("disconnect", callback)
 
+    def add_frame_listener(self, callback: Callable[[Frame], None]) -> None:
+        """Call ``callback`` with every frame sent or received, redacted.
+
+        It runs on the sending thread or the receive thread, so it must not block.
+        An exception it raises is logged and never reaches the socket.
+        """
+        self._listeners.add("frame", callback)
+
+    def remove_frame_listener(self, callback: Callable[[Frame], None]) -> None:
+        """Remove a listener added with :meth:`add_frame_listener`; no-op if absent."""
+        self._listeners.remove("frame", callback)
+
+    def _emit_frame(self, direction: FrameDirection, text: str, command: str | None, error_code: int) -> None:
+        listeners = self._listeners.calls("frame")
+        if not listeners:
+            return
+        frame = Frame(direction, command, error_code, redact_frame(text, command), time.time())
+        for listener in listeners:
+            try:
+                listener(frame)
+            except Exception:
+                logger.exception("Error in frame listener")
+
     def _notify_disconnect(self, generation: int) -> None:
         """Fire the on_disconnect slot, then every registered listener, then the after_disconnect slot."""
         if self.on_disconnect is not None:
@@ -775,7 +820,9 @@ class Connection:
                 continue
             for raw in raws:
                 try:
-                    self._route_packet(Packet.from_bytes(raw.encode("utf-8")))
+                    packet = Packet.from_bytes(raw.encode("utf-8"))
+                    self._emit_frame(FrameDirection.RECEIVED, raw, packet.command_id, packet.error_code)
+                    self._route_packet(packet)
                 except Exception:
                     logger.exception("Dropping a packet that could not be parsed or routed")
 
