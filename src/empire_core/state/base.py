@@ -27,6 +27,7 @@ from empire_core.commanders.models.roster import CommanderRoster
 from empire_core.commanders.models.skills import SkillList
 from empire_core.events.models import SpecialEvent
 from empire_core.exceptions import StateNotLoadedError
+from empire_core.map.models.world import ServerInfoResponse
 from empire_core.messages.models import MessageInfo
 from empire_core.movements.models import MovementOwner
 from empire_core.movements.tracked import Movement
@@ -139,6 +140,9 @@ class StateBase:
         self.max_spies: MaxSpiesResponse | None = None
         # Owner records (O) from every movement packet so far, by player id
         self._owner_records: dict[int, MovementOwner] = {}
+
+        # The server info pushed when the connection opened, which names the world map's size
+        self.server_info: ServerInfoResponse | None = None
 
         # The last joined area, and the mines and resource carts last sent for it; swapped, never edited
         self.joined_area: JoinedArea | None = None

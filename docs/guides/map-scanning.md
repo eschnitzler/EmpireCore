@@ -6,7 +6,9 @@ description: Scan a kingdom for castles, outposts and capitals, and re-scan it c
 
 `client.map.scan_kingdom` finds a kingdom's castles, outposts, capitals and
 other map objects. It discovers the kingdom breadth-first from your castle's
-position, and a full scan can take a few minutes.
+position, up to the kingdom's edge, and a full scan can take a few minutes.
+`client.map.map_size(kingdom)` gives that edge in tiles: the server names the
+map's size when the connection opens, and Berimond's size is fixed.
 
 ```python
 from empire_core import Kingdom, MapItemType

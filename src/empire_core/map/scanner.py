@@ -11,6 +11,7 @@ from empire_core.enums import GGEError, Kingdom, MapItemType
 from empire_core.exceptions import CommandError, EmpireTimeoutError, NetworkError
 from empire_core.map.models.areas import GetMapAreaRequest, MapObject
 from empire_core.map.models.items import MapAreaItem
+from empire_core.map.models.world import MapSize
 from empire_core.map.pacing import MapAreaPacer
 from empire_core.protocol.js import js_int, js_truthy
 from empire_core.protocol.packet import Packet
@@ -112,6 +113,7 @@ class _State(Protocol):
 class _Map(Protocol):
     @property
     def pacer(self) -> MapAreaPacer: ...
+    def map_size(self, kingdom: Kingdom) -> MapSize: ...
 
 
 class _Client(Protocol):
@@ -130,7 +132,6 @@ class MapScanner:
     """Utility class to scan kingdom maps with dynamic boundary detection."""
 
     CHUNK_SIZE = 90  # Tiles a side; the client asks for at most 100 (GetMapAreaRequest)
-    MAX_COORD = 20  # Max chunk coordinate (20 * 90 = 1800, well beyond any map)
     # A chunk whose request times out, fails on the network or is refused with a
     # cooldown is asked again this many times, waiting RETRY_BACKOFF, then twice that.
     CHUNK_RETRIES = 2
@@ -320,7 +321,8 @@ class MapScanner:
     ) -> ScanResult:
         """
         Scan a kingdom map with dynamic boundary detection.
-        Uses BFS expansion from the bot's castle position.
+        Uses BFS expansion from the bot's castle position, never past the
+        kingdom's edge (:meth:`MapService.map_size <empire_core.map.service.MapService.map_size>`).
 
         ``item_types`` selects which map items are collected, and its two
         empty-ish values mean opposite things — the sentinel is inverted,
@@ -417,7 +419,7 @@ class MapScanner:
         ``include_unowned_types`` also matches scan_kingdom(): types listed
         there are collected even when they have no player owner.
 
-        Chunks are deduplicated and out-of-range coordinates skipped.
+        Chunks are deduplicated and those off the kingdom's map skipped.
         Unscanned chunks left over when ``timeout`` hits or ``cancel`` is set
         are reported in ``failed_chunks``; ``cancel`` is looked at between
         chunks, and ``on_chunk`` takes each chunk in place of the result, as
@@ -554,6 +556,9 @@ class _Scan:
         self.cancel = cancel
         self.on_chunk = on_chunk
         self.deadline = time.monotonic() + timeout
+        width, height = scanners[0].client.map.map_size(kingdom)
+        # The last chunk on each axis that holds a tile of the map
+        self.last_chunk = ((width - 1) // MapScanner.CHUNK_SIZE, (height - 1) // MapScanner.CHUNK_SIZE)
 
         self.lock = threading.Condition()
         self.hook_lock = threading.Lock()
@@ -639,7 +644,8 @@ class _Scan:
 
     def _add(self, chunk: tuple[int, int]) -> None:
         cx, cy = chunk
-        if chunk in self.enqueued or not (0 <= cx <= MapScanner.MAX_COORD and 0 <= cy <= MapScanner.MAX_COORD):
+        last_x, last_y = self.last_chunk
+        if chunk in self.enqueued or not (0 <= cx <= last_x and 0 <= cy <= last_y):
             return
         self.enqueued.add(chunk)
         self.frontier.append(chunk)

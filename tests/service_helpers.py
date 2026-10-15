@@ -16,6 +16,7 @@ from empire_core.enums import Kingdom
 from empire_core.events.models import SpecialEvent
 from empire_core.exceptions import EmpireTimeoutError, StateNotLoadedError
 from empire_core.gamedata import GameData
+from empire_core.map.models.world import MapSize, ServerInfoResponse
 from empire_core.network.connection import ResponseWaiter
 from empire_core.player import BoosterInfoResponse
 from empire_core.player.models.account import BoostedGlobalEffectsResponse
@@ -260,10 +261,14 @@ LOGIN_SECTIONS: dict[str, Any] = {
 }
 """The sections every login gbd brings, with nothing in them."""
 
+SERVER_INFO: dict[str, Any] = {"XML_EP": "787.03", "minNameSize": 3, "sectorCountX": 99, "sectorCountY": 99}
+"""The server info a connection opens with: a map of 99 by 99 sectors."""
+
 
 def logged_in_state(**sections: Any) -> GameState:
-    """A GameState fed a login gbd: :data:`LOGIN_SECTIONS` with ``sections`` replacing theirs."""
+    """A GameState fed the server info and a login gbd: :data:`LOGIN_SECTIONS` with ``sections`` replacing theirs."""
     state = GameState()
+    state.update_from_packet("nfo", SERVER_INFO)
     state.update_from_packet("gbd", {**LOGIN_SECTIONS, **sections})
     return state
 
@@ -297,6 +302,9 @@ class StubState:
 
     def get_castles(self) -> list[Castle]:
         return list(self.castles)
+
+    def get_map_size(self, kingdom: Kingdom) -> MapSize:
+        return ServerInfoResponse.model_validate(SERVER_INFO).map_size(kingdom)
 
     def get_commanders(self) -> CommanderRoster:
         if self.commanders is None:

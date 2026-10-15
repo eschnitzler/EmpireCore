@@ -379,6 +379,7 @@ from empire_core.map.models.owners import (
     OwnerCrest,
     OwnerFaction,
 )
+from empire_core.map.models.world import MapSize, ServerInfoResponse
 from empire_core.messages.models import (
     MAX_MAILBOX_ARCHIVE_SIZE,
     MAX_MAILBOX_BATTLE_AND_SPY_REPORTS,
@@ -652,6 +653,8 @@ __all__ = [
     "MapAreaItem",
     "GetMapAreaRequest",
     "GetMapAreaResponse",
+    "MapSize",
+    "ServerInfoResponse",
     "MapObject",
     "KingdomProtection",
     "AllianceCrest",
