@@ -124,7 +124,7 @@ class Detail:
     model: str | None = None
 
 
-def frame_detail(frame: Frame, *, parsed: bool = True) -> Detail:
+def frame_detail(frame: Frame, *, parsed: bool = True, width: int = 88) -> Detail:
     """A received frame parsed into its response model, as the client parses it; otherwise its raw payload."""
     try:
         payload = json.loads(_payload(frame.text))
@@ -139,7 +139,7 @@ def frame_detail(frame: Frame, *, parsed: bool = True) -> Detail:
         model = get_response_model(frame.command)
         name = model.__name__ if model else frame.command
         return Detail(f"# not parsed as {name}: {e.error_count()} validation error(s); raw payload below\n{raw}")
-    return Detail(pretty(response), type(response).__name__) if response is not None else Detail(raw)
+    return Detail(pretty(response, width=width), type(response).__name__) if response is not None else Detail(raw)
 
 
 def detail_title(row: Row) -> str:

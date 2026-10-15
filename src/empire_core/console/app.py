@@ -7,7 +7,6 @@ import logging
 import os
 import re
 import sys
-import threading
 import time
 from collections.abc import Callable
 from contextlib import redirect_stderr, redirect_stdout
@@ -67,7 +66,7 @@ from empire_core.console.frames import (
 )
 from empire_core.console.help import COLUMNS, GUTTER, column_width, help_column, help_size
 from empire_core.console.highlight import BANNER_MARK, OutputLexer
-from empire_core.console.pretty import pretty
+from empire_core.console.output import OutputLog
 from empire_core.console.runner import CodeRunner, PaneWriter
 from empire_core.console.theme import THEMES
 from empire_core.console.widgets import Panel, ScrollbarControl, TextPane, osc52, selected_text, text_scrollbar
@@ -75,7 +74,6 @@ from empire_core.exceptions import EmpireError
 
 HISTORY = Path.home() / ".empire_console_history"
 RENDER_ROWS = 500
-OUTPUT_CHARS = 200_000
 PAGE = 20
 NOTICE_SECONDS = 2.5
 SPINNER = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
@@ -132,11 +130,10 @@ class Console:
             "help": lambda _args: self.toggle_help(),
             "quit": lambda _args: self.quit(),
         }
-        self._pending: list[str] = []
-        self._pending_lock = threading.Lock()
+        self.output_log = OutputLog()
         self._cursor_row = 0
         self._signature_cache: tuple[tuple[str, int, int], str] | None = None
-        self._shown: tuple[Row | None, bool] = (None, False)
+        self._shown: tuple[Row | None, bool, int] = (None, False, 0)
         self._detail = Detail("")
         self._notice = ("", 0.0)
         self.writer = PaneWriter(self._queue_output)
@@ -144,7 +141,7 @@ class Console:
             self.namespace,
             self._queue_output,
             on_done=self._finished,
-            display=lambda value: pretty(value, width=self._output_width()),
+            show=self._show_result,
         )
 
         python, json_lexer = PygmentsLexer(PythonLexer), PygmentsLexer(JsonLexer)
@@ -372,7 +369,7 @@ class Console:
 
         @keys.add("c-l")
         def _(event: KeyPressEvent) -> None:
-            self.output.buffer.set_document(Document(""), bypass_readonly=True)
+            self.output_log.clear()
 
         @keys.add("c-d")
         def _(event: KeyPressEvent) -> None:
@@ -467,14 +464,16 @@ class Console:
 
     def flush(self) -> None:
         """Bring the panes up to date with other threads; runs on the render thread."""
-        with self._pending_lock:
-            text, self._pending = "".join(self._pending), []
-        if text:
+        content, changed = self.output_log.render(self.pane_widths()[0])
+        if changed:
             old = self.output.buffer
-            following = old.cursor_position >= len(old.text)
-            content = (old.text + text)[-OUTPUT_CHARS:]
-            dropped = len(old.text) + len(text) - len(content)
-            cursor = len(content) if following else max(old.cursor_position - dropped, 0)
+            if old.cursor_position >= len(old.text):
+                cursor = len(content)
+            else:
+                # Re-flowed text moves; keep the line the reader was on.
+                document = Document(content)
+                row = min(old.document.cursor_position_row, document.line_count - 1)
+                cursor = document.translate_row_col_to_index(row, 0)
             self.output.buffer.set_document(Document(content, cursor), bypass_readonly=True)
         self._sync_detail()
 
@@ -597,13 +596,19 @@ class Console:
             self.selected = rows[max(0, min(index, len(rows) - 1))]
             self._sync_detail()
 
-    def _output_width(self) -> int:
-        info = self.output.window.render_info
-        return info.window_width - 2 if info is not None else 88
+    def pane_widths(self) -> tuple[int, int]:
+        """The text widths of Output and Detail, from the layout: borders and a scrollbar take three."""
+        columns = self.application.output.get_size().columns
+        code = columns if self.zoomed else self._code_width()
+        frames = columns if self.zoomed else columns - code
+        return max(code - 3, 20), max(frames - 3, 20)
+
+    def _show_result(self, value: object) -> None:
+        self.output_log.show(value)
+        self.application.invalidate()
 
     def _queue_output(self, text: str) -> None:
-        with self._pending_lock:
-            self._pending.append(text)
+        self.output_log.write(text)
         self.application.invalidate()
 
     def _row_index(self, rows: list[Row]) -> int:
@@ -638,10 +643,11 @@ class Console:
         """Show the selected frame, or the newest one while following, unless it is already shown."""
         rows = self.frames.visible()
         row = self.selected if self.selected is not None else (rows[-1] if rows else None)
-        if self._shown[0] is row and self._shown[1] == self.raw:
+        width = self.pane_widths()[1]
+        if self._shown == (row, self.raw, width) or (row is None and self._shown[0] is None):
             return
-        self._shown = (row, self.raw)
-        self._detail = frame_detail(row.frame, parsed=not self.raw) if row is not None else Detail("")
+        self._shown = (row, self.raw, width)
+        self._detail = frame_detail(row.frame, parsed=not self.raw, width=width) if row is not None else Detail("")
         self.detail.buffer.set_document(Document(self._detail.text, 0), bypass_readonly=True)
 
     def _input_title(self) -> StyleAndTextTuples:

@@ -30,8 +30,8 @@ class PaneWriter(io.TextIOBase):
 class CodeRunner:
     """Runs one input at a time on a worker thread, in a namespace that persists between inputs.
 
-    The last statement of an input is echoed through ``display`` when it is an expression and not
-    None, and kept as ``_``, as the Python REPL does.
+    The last statement of an input, when it is an expression and not None, goes to ``show`` and
+    is kept as ``_``, as the Python REPL does; by default ``show`` writes its repr.
     ``on_done`` gets how long the input ran and whether it finished without an exception.
     """
 
@@ -40,12 +40,12 @@ class CodeRunner:
         namespace: dict[str, Any],
         write: Callable[[str], None],
         on_done: Callable[[float, bool], None] | None = None,
-        display: Callable[[Any], str] = repr,
+        show: Callable[[Any], None] | None = None,
     ) -> None:
         self.namespace = namespace
         self.started_at = 0.0
         self._write = write
-        self._display = display
+        self._show = show or (lambda value: write(repr(value) + "\n"))
         self._on_done = on_done
         self._thread: threading.Thread | None = None
 
@@ -85,7 +85,7 @@ class CodeRunner:
                 value = eval(compile(ast.Expression(last.value), "<console>", "eval"), self.namespace)
                 if value is not None:
                     self.namespace["_"] = value
-                    self._write(self._display(value) + "\n")
+                    self._show(value)
             ok = True
         except BaseException as e:
             # The traceback starts at the user's code, not at this frame.

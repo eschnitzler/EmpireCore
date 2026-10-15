@@ -418,3 +418,28 @@ def test_banner_and_toolbar_name_the_world(tmp_path):
         console.flush()
         assert "u @ EmpireEx_3" in console.output_text.splitlines()[0]
         assert "u @ EmpireEx_3" in "".join(fragment[1] for fragment in console.toolbar())
+
+
+def test_output_results_reflow_when_the_pane_is_resized(tmp_path):
+    with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+        console = make_console(tmp_path)
+        console.output_log.show(list(range(1000, 1010)))
+        console.flush()
+        assert "[1000, 1001" not in console.output_text
+        console.sizes.column = 0.8
+        console.flush()
+        assert "[1000, 1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009]" in console.output_text
+
+
+def test_detail_reflows_when_its_pane_is_resized_or_zoomed(tmp_path):
+    with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+        console = make_console(tmp_path)
+        console.frames.add(Frame(FrameDirection.RECEIVED, "gam", 0, '%xt%gam%1%0%{"M":[],"O":[]}%', 0.0))
+        console.flush()
+        narrow = console.detail.text
+        console.zoomed = True
+        console.application.layout.focus(console.detail)
+        console.flush()
+        assert console.detail.text != narrow
+        _, detail_width = console.pane_widths()
+        assert all(len(line) <= detail_width for line in console.detail.text.splitlines())

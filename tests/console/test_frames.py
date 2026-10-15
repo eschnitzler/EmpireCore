@@ -157,3 +157,9 @@ def test_many_large_frames_stay_fast():
     assert len(log.visible()) == 5000
     assert log.visible() is log.visible()
     assert time.perf_counter() - start < 2.0
+
+
+def test_parsed_detail_fits_the_width_it_is_given():
+    narrow = frame_detail(frame("gmu", MIGHT), width=40).text
+    wide = frame_detail(frame("gmu", MIGHT), width=400).text
+    assert all(len(line) <= 40 for line in narrow.splitlines()) and len(wide.splitlines()) == 1

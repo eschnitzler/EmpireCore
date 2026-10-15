@@ -47,15 +47,15 @@ def test_on_done_reports_time_and_success():
     assert all(0 <= elapsed < 1 for elapsed, _ in outcomes)
 
 
-def test_results_go_through_display_and_land_in_underscore():
-    out: list[str] = []
+def test_results_go_to_show_as_values_and_land_in_underscore():
+    shown: list[object] = []
     namespace: dict = {}
-    runner = CodeRunner(namespace, out.append, display=lambda value: f"<{value}>")
+    runner = CodeRunner(namespace, lambda _text: None, show=shown.append)
     runner.run("[1, 2]")
     runner.join(5)
     runner.run("None")
     runner.join(5)
-    assert out == ["<[1, 2]>\n"] and namespace["_"] == [1, 2]
+    assert shown == [[1, 2]] and namespace["_"] == [1, 2]
 
 
 def test_namespace_persists():
