@@ -651,6 +651,20 @@ def test_docs_show_for_the_highlighted_completion(tmp_path):
         assert console.showing_docs() and "castles" in console.docs_text()
 
 
+def test_docs_sit_clear_of_the_completion_menu(tmp_path):
+    with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+        console = make_console(tmp_path)
+        assert console.docs_place() is None
+        buffer = console.input.buffer
+        buffer.document = Document("client.castle.get_al", len("client.castle.get_al"))
+        list(console.completer.get_completions(buffer.document, CompleteEvent()))
+        buffer.complete_state = CompletionState(buffer.document, [Completion("get_all", -6)], complete_index=0)
+        # The menu opens upward from the input, so beside it is the Detail pane.
+        assert console.docs_place() == "detail" and console.detail_title_text().startswith("Docs · get_all")
+        console.zoomed = True
+        assert console.docs_place() == "top"
+
+
 def test_run_executes_a_file_in_the_console_namespace(tmp_path):
     with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
         console = make_console(tmp_path)
