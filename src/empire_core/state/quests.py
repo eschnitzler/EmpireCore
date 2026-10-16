@@ -5,7 +5,7 @@ from typing import Any
 
 from empire_core.protocol.js import js_int, js_truthy
 from empire_core.quests.models import DailyQuests, Quest, QuestBook
-from empire_core.state.base import StateBase
+from empire_core.state.base import StateBase, loaded
 from empire_core.utils import callbacks
 
 _clock = time.monotonic
@@ -166,7 +166,11 @@ class QuestState(StateBase):
         with self._lock:
             return self.quest_book
 
-    def get_daily_quests(self) -> DailyQuests | None:
-        """Your daily quests, from the last ``dql`` (the login data has one); None until one arrived."""
+    def get_daily_quests(self) -> DailyQuests:
+        """Your daily quests, from the last ``dql``; the login data brings one.
+
+        Raises:
+            StateNotLoadedError: No login has brought it
+        """
         with self._lock:
-            return self.daily_quests
+            return loaded(self.daily_quests, "Daily quests")

@@ -6,7 +6,9 @@ description: Scan a kingdom for castles, outposts and capitals, and re-scan it c
 
 `client.map.scan_kingdom` finds a kingdom's castles, outposts, capitals and
 other map objects. It discovers the kingdom breadth-first from your castle's
-position, and a full scan can take a few minutes.
+position, up to the kingdom's edge, and a full scan can take a few minutes.
+`client.map.map_size(kingdom)` gives that edge in tiles: the server names the
+map's size when the connection opens, and Berimond's size is fixed.
 
 ```python
 from empire_core import Kingdom, MapItemType
@@ -27,7 +29,7 @@ A `ScanResult` holds:
 | Field | What it is |
 |---|---|
 | `items` | Every `MapAreaItem` found, read by its area type's layout; empty with [`on_chunk`](#keeping-only-what-you-need). |
-| `objects` | The owner records (`MapObject`) the chunks sent, by player id; empty with `on_chunk`. |
+| `owners` | The owner records (`MapObject`) the chunks sent, by player id; empty with `on_chunk`. |
 | `kingdom` | The kingdom scanned; every item carries it too. |
 | `failed_chunks` | Chunks that still failed after their retries, or were left unscanned by a timeout, a cancel or a dropped connection. |
 | `content_chunks` | Chunks that answered and held items. |
@@ -67,6 +69,24 @@ flowchart LR
     A[scan_kingdom<br/>breadth-first discovery] -->|content_chunks| B[scan_chunks<br/>known chunks only]
     B -->|often| B
     B -.->|now and then| A
+```
+
+## Scanning around a castle
+
+`client.map.scan_around(x, y, radius, kingdom, item_types)` reads the map rows
+within `radius` tiles of a position, nearest first. Rows without a player
+owner, such as robber baron castles, are kept. A radius up to 50 is one request;
+a larger one is read chunk by chunk, so check `failed_chunks` as for any scan.
+`MapAreaItem.distance_to(x, y)` measures as the game does, to one decimal,
+except that it does not wrap round the map's x edge.
+
+```python
+from empire_core import Kingdom, MapItemType
+
+castle = next(c for c in client.state.get_castles() if c.kingdom_id == Kingdom.GREEN)
+nearby = client.map.scan_around(castle.x, castle.y, 40, Kingdom.GREEN, [MapItemType.DUNGEON])
+for dungeon in nearby.items:
+    print(dungeon.x, dungeon.y, dungeon.distance_to(castle.x, castle.y))
 ```
 
 ## Scanning with several accounts
@@ -136,13 +156,13 @@ A `ScanResult` keeps every item and owner record of the kingdom, and Python's
 full garbage collections walk all of them while the result lives: for a dense
 kingdom that is a pause of a tenth of a second or more each time. Pass
 `on_chunk` to take each chunk as it is read and keep only what you need; the
-scan then keeps nothing itself, and `items` and `objects` come back empty:
+scan then keeps nothing itself, and `items` and `owners` come back empty:
 
 ```python
 wanted_players = {1234, 5678}
 castles: dict[tuple[int, int], int] = {}
 
-def keep_castles(chunk, items, objects):
+def keep_castles(chunk, items, owners):
     for item in items:
         if item.owner_id in wanted_players:
             castles[(item.x, item.y)] = item.owner_id
@@ -175,7 +195,7 @@ event can cancel spy missions too (see [Spy](spy.md)).
 ## The session leaves its castle
 
 A scan moves the session off the castle it had joined and drops
-`client.state.get_mines()`; `get_joined_area()` still names the castle, as the
+`client.castle.mines`; `get_joined_area()` still names the castle, as the
 game keeps it. `client.army` methods
 join their castle again themselves; anything else castle-scoped needs
 `client.castle.select()` first.
@@ -195,7 +215,8 @@ join their castle again themselves; anything else castle-scoped needs
 
 Each find returns `None` when nothing matches, and `found()` on the reply
 gives the row it found.
-- `client.map.scan_map_area(x1, y1, x2, y2)` reads one rectangle of the map.
+- `client.map.scan_map_area(x1, y1, x2, y2)` reads one rectangle of the map;
+  as in the game, a side reaching more than 100 tiles past `x1` (or `y1`) is cut to 100.
 - `client.castle.join_area(x, y)` joins an outpost, capital, metropolis or
   faction camp by its position.
 

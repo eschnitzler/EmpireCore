@@ -13,8 +13,7 @@ from empire_core.enums import Kingdom
 from empire_core.exceptions import CommandError, GameDataNotLoadedError, PremiumCommanderCostError
 from empire_core.gamedata import GameData
 from empire_core.protocol.models import EquipmentSlot, EquipmentType, WearerType
-from empire_core.state.manager import GameState
-from tests.service_helpers import conn, make_client, wave, xt_packet
+from tests.service_helpers import conn, logged_in_state, make_client, wave, xt_packet
 
 
 class TestSkillListUpdates:
@@ -23,7 +22,7 @@ class TestSkillListUpdates:
     def test_a_skl_packet_reaches_the_callback(self):
         client = make_client()
         seen: list[Any] = []
-        client.skills.on_skill_list(seen.append)
+        client.player.on_skill_list(seen.append)
 
         client._on_packet(xt_packet("skl", {"SID": [3], "SIDS": [90], "SP": 10, "RS": 0, "RC": 1}))
 
@@ -32,7 +31,7 @@ class TestSkillListUpdates:
     def test_the_skl_block_of_an_ego_push_reaches_the_callback(self):
         client = make_client()
         seen: list[Any] = []
-        client.skills.on_skill_list(seen.append)
+        client.player.on_skill_list(seen.append)
 
         client._on_packet(xt_packet("ego", {"skl": {"SID": [], "SIDS": [90], "SSA": [{"ID": 91, "RS": 60}]}}))
         client._on_packet(xt_packet("ego", {"A": {"OID": 5}}))
@@ -47,8 +46,8 @@ class TestSkillListUpdates:
         def boom(skills: Any) -> None:
             raise RuntimeError("callback bug")
 
-        client.skills.on_skill_list(boom)
-        client.skills.on_skill_list(seen.append)
+        client.player.on_skill_list(boom)
+        client.player.on_skill_list(seen.append)
 
         with caplog.at_level(logging.ERROR, logger="empire_core.commanders.service"):
             client._on_packet(xt_packet("skl", {"SID": [3]}))
@@ -59,10 +58,10 @@ class TestSkillListUpdates:
     def test_a_removed_callback_is_not_called(self):
         client = make_client()
         seen: list[Any] = []
-        client.skills.on_skill_list(seen.append)
+        client.player.on_skill_list(seen.append)
 
-        client.skills.on_skill_list.remove(seen.append)
-        client.skills.on_skill_list.remove(seen.append)
+        client.player.on_skill_list.remove(seen.append)
+        client.player.on_skill_list.remove(seen.append)
         client._on_packet(xt_packet("skl", {"SID": [3]}))
 
         assert seen == []
@@ -72,37 +71,38 @@ class TestGeneralCommands:
     def test_assign_general_returns_the_commander_list(self):
         client = make_client({"gla": xt_packet("gla", {"gli": {"C": [{"ID": 7, "GID": 103}], "B": []}})})
 
-        response = client.skills.assign_general(7, 103)
+        response = client.commanders.assign_general(7, 103)
 
         assert conn(client).request_payloads == [("gla", {"LID": 7, "GID": 103})]
-        assert [(c.commander_id, c.general_id) for c in response.commander_roster.commanders] == [(7, 103)]
+        assert [(c.commander_id, c.general_id) for c in response.commanders] == [(7, 103)]
 
     def test_set_abilities_sends_every_slot(self):
         client = make_client()
 
-        assert client.skills.set_abilities(103, [(101031, 10073), (101033, -1)]) is True
+        client.commanders.set_general_abilities(103, [(101031, 10073), (101033, -1)])
 
         assert conn(client).request_payloads == [("gaae", {"GID": 103, "SAIDS": [[101031, 10073], [101033, -1]]})]
 
     @pytest.mark.parametrize(
         ("call", "command", "payload"),
         [
-            (lambda s: s.unlock_skill(10317), "guse", {"ID": 10317}),
-            (lambda s: s.reset_skills(103), "grs", {"GID": 103}),
-            (lambda s: s.add_xp(103, 7001, 5), "gaxp", {"GID": 103, "CID": 7001, "AMT": 5}),
+            (lambda s: s.unlock_general_skill(10317), "guse", {"ID": 10317}),
+            (lambda s: s.reset_general_skills(103), "grs", {"GID": 103}),
+            (lambda s: s.add_general_xp(103, 7001, 5), "gaxp", {"GID": 103, "CID": 7001, "AMT": 5}),
         ],
     )
     def test_the_no_body_commands(self, call, command, payload):
         client = make_client()
 
-        assert call(client.skills) is True
+        call(client.commanders)
 
         assert conn(client).request_payloads == [(command, payload)]
 
-    def test_a_rejected_command_is_false(self):
+    def test_a_rejected_command_raises(self):
         client = make_client({"grs": xt_packet("grs", error_code=114)})
 
-        assert client.skills.reset_skills(103) is False
+        with pytest.raises(CommandError):
+            client.commanders.reset_general_skills(103)
 
 
 # =============================================================================
@@ -240,7 +240,7 @@ class TestCommandersService:
         # C2SRenameLordVO sets LID before N
         assert conn(client).request_payloads == [("arl", {"LID": 91, "N": "farm-1"})]
         assert list(conn(client).request_payloads[0][1]) == ["LID", "N"]
-        roster = response.commander_roster
+        roster = response
         assert [(c.commander_id, c.name) for c in roster.commanders] == [(91, "farm-1")]
         assert [c.commander_id for c in roster.castellans] == [1005]
 
@@ -273,19 +273,20 @@ class TestEquipmentService:
     def test_equip_sends_one(self):
         client = make_client()
 
-        assert client.equipment.equip(equipment_id=880, commander_id=91) is True
+        client.equipment.equip(equipment_id=880, commander_id=91)
         assert conn(client).request_payloads == [("eeq", {"EID": 880, "LID": 91, "E": 1})]
 
     def test_unequip_sends_zero(self):
         client = make_client()
 
-        assert client.equipment.unequip(equipment_id=880, commander_id=1005) is True
+        client.equipment.unequip(equipment_id=880, commander_id=1005)
         assert conn(client).request_payloads == [("eeq", {"EID": 880, "LID": 1005, "E": 0})]
 
-    def test_a_rejected_equip_returns_false(self):
+    def test_a_rejected_equip_raises(self):
         client = make_client({"eeq": xt_packet("eeq", error_code=21)})
 
-        assert client.equipment.equip(equipment_id=880, commander_id=91) is False
+        with pytest.raises(CommandError):
+            client.equipment.equip(equipment_id=880, commander_id=91)
 
 
 # Two viplevels rows as the items payload has them: below level 5 there is no freePremiumGeneralsPerDay.
@@ -296,13 +297,12 @@ VIP_LEVELS = [
 
 
 def premium_client(vip: dict[str, Any] | None = None, boi: dict[str, Any] | None = None, *, game_data: bool = True):
-    state = GameState()
-    login: dict[str, Any] = {"gpi": {"PID": 7}}
+    login: dict[str, Any] = {}
     if vip is not None:
         login["vip"] = vip
     if boi is not None:
         login["boi"] = boi
-    state.update_from_packet("gbd", login)
+    state = logged_in_state(**login)
     client = make_client(state=state)  # type: ignore[arg-type]
     if game_data:
         client.game_data = GameData.parse("786.03", {"viplevels": VIP_LEVELS})
@@ -387,17 +387,17 @@ class TestPremiumCommanderSends:
     FREE = {"VP": 9000, "VRL": 5, "VRS": 3600, "UPG": 0}
 
     @staticmethod
-    def send_support(client, **options: Any) -> bool:
-        return client.castle.send_support(12345, 700, 710, [[487, 1]], **options)
+    def send_support(client, **options: Any) -> None:
+        client.movements.send_support(12345, 700, 710, [[487, 1]], **options)
 
     @staticmethod
-    def send_troops(client, **options: Any) -> bool:
-        return client.castle.send_troops(100, 200, 110, 205, [[620, 1]], **options)
+    def send_troops(client, **options: Any) -> None:
+        client.movements.send_troops(100, 200, 110, 205, [[620, 1]], **options)
 
     @staticmethod
-    def send_attack(client, **options: Any) -> bool:
+    def send_attack(client, **options: Any) -> None:
         waves = [wave(units=[[487, 1]])]
-        return client.attack.send_attack(500, 510, 700, 710, waves, kingdom_id=Kingdom.GREEN, **options)
+        client.attack.send_attack(500, 510, 700, 710, waves, kingdom_id=Kingdom.GREEN, **options)
 
     SENDS = [send_support, send_troops, send_attack]
 
@@ -433,7 +433,7 @@ class TestPremiumCommanderSends:
     def test_spend_rubies_sends_anyway(self, send):
         client = premium_client(self.NO_FREE)
 
-        assert send(client, commander_id=PREMIUM_COMMANDER_ID, use_premium_commander=True, spend_rubies=True)
+        send(client, commander_id=PREMIUM_COMMANDER_ID, use_premium_commander=True, spend_rubies=True)
 
         assert conn(client).request_payloads[0][1]["BPC"] == 1
 
@@ -441,7 +441,7 @@ class TestPremiumCommanderSends:
     def test_a_free_one_sends(self, send):
         client = premium_client(self.FREE)
 
-        assert send(client, commander_id=PREMIUM_COMMANDER_ID, use_premium_commander=True)
+        send(client, commander_id=PREMIUM_COMMANDER_ID, use_premium_commander=True)
 
         assert (conn(client).request_payloads[0][1]["LID"], conn(client).request_payloads[0][1]["BPC"]) == (-14, 1)
 
@@ -449,13 +449,13 @@ class TestPremiumCommanderSends:
     def test_a_premium_account_sends(self, send):
         client = premium_client(self.NO_FREE, {"PA": 3600, "PT": 1})
 
-        assert send(client, commander_id=PREMIUM_COMMANDER_ID, use_premium_commander=True)
+        send(client, commander_id=PREMIUM_COMMANDER_ID, use_premium_commander=True)
 
     @pytest.mark.parametrize("send", SENDS)
     def test_another_commander_is_not_checked(self, send):
         client = premium_client()
 
-        assert send(client, commander_id=5)
+        send(client, commander_id=5)
 
         assert conn(client).request_payloads[0][1]["BPC"] == 0
 
@@ -466,15 +466,15 @@ class TestOwnPremiumSends:
     ONE_FREE = {"VP": 9000, "VRL": 5, "VRS": 3600, "UPG": 24}
 
     @staticmethod
-    def send_support(client, **options: Any) -> bool:
-        return client.castle.send_support(
+    def send_support(client, **options: Any) -> None:
+        client.movements.send_support(
             12345, 700, 710, [[487, 1]], commander_id=PREMIUM_COMMANDER_ID, use_premium_commander=True, **options
         )
 
     def test_an_accepted_send_counts_until_the_next_vip(self):
         client = premium_client(self.ONE_FREE)
 
-        assert self.send_support(client)
+        self.send_support(client)
         assert client.commanders.free_premium_commanders() == 0
         with pytest.raises(PremiumCommanderCostError):
             self.send_support(client)
@@ -486,19 +486,20 @@ class TestOwnPremiumSends:
         client = premium_client(self.ONE_FREE)
         client.connection = conn(make_client({"cds": xt_packet("cds", error_code=5)}))
 
-        assert not self.send_support(client)
+        with pytest.raises(CommandError):
+            self.send_support(client)
         assert client.commanders.free_premium_commanders() == 1
 
     def test_a_send_with_a_premium_account_is_not_counted(self):
         client = premium_client(self.ONE_FREE, {"PA": 3600, "PT": 1})
 
-        assert self.send_support(client)
+        self.send_support(client)
         assert client.commanders.free_premium_commanders() == 1
 
     def test_a_send_with_another_commander_is_not_counted(self):
         client = premium_client(self.ONE_FREE)
 
-        assert client.castle.send_support(12345, 700, 710, [[487, 1]], commander_id=5)
+        client.movements.send_support(12345, 700, 710, [[487, 1]], commander_id=5)
         assert client.commanders.free_premium_commanders() == 1
 
     def test_two_sends_at_once_cannot_both_take_the_last_free_one(self):
@@ -507,19 +508,18 @@ class TestOwnPremiumSends:
 
         def other_send() -> None:
             try:
-                client.commanders.premium_send(PREMIUM_COMMANDER_ID, True, lambda: True, spend_rubies=False)
+                client.commanders.premium_send(PREMIUM_COMMANDER_ID, True, lambda: None, spend_rubies=False)
             except PremiumCommanderCostError as error:
                 second.append(error)
 
         thread = threading.Thread(target=other_send)
 
-        def first_send() -> bool:
+        def first_send() -> None:
             thread.start()
             thread.join(0.2)
             assert thread.is_alive()
-            return True
 
-        assert client.commanders.premium_send(PREMIUM_COMMANDER_ID, True, first_send, spend_rubies=False)
+        client.commanders.premium_send(PREMIUM_COMMANDER_ID, True, first_send, spend_rubies=False)
         thread.join(5)
 
         assert len(second) == 1

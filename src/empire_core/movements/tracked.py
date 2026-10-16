@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from pydantic import ConfigDict, Field, field_validator
 
 from empire_core.commanders.models.roster import Commander
-from empire_core.enums import AttackAdvisorType, AutoSkipCooldownType, MapItemType, MovementType, NPCOwner
+from empire_core.enums import AttackAdvisorType, AutoSkipCooldownType, Kingdom, MapItemType, MovementType, NPCOwner
 from empire_core.gamedata import CollectableRows, EnumOrInt, SupportToolSlots, WodAmounts
 from empire_core.gamedata.troops import count_troops
 from empire_core.movements.models import MovementArea, MovementOwner, MovementSpy
@@ -126,7 +126,9 @@ class Movement(EmpireModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="ignore", populate_by_name=True)
 
     movement_id: int = Field(default=-1, validation_alias="MID", description="Movement id")
-    movement_type: int = Field(default=0, validation_alias="T", description="MovementType value")
+    movement_type: EnumOrInt[MovementType] = Field(
+        default=MovementType.ATTACK, validation_alias="T", description="The movement's type"
+    )
     progress_time: int = Field(default=0, validation_alias="PT", description="Seconds travelled at last_updated")
     total_time: int = Field(default=0, validation_alias="TT", description="Seconds the trip takes")
     direction: int = Field(
@@ -135,7 +137,9 @@ class Movement(EmpireModel):
         description="1 = returning home, 0 = heading to the target",
     )
     target_id: int = Field(default=-1, validation_alias="TID", description="Player id owning the target area")
-    kingdom_id: int = Field(default=0, validation_alias="KID", description="Kingdom id")
+    kingdom: Kingdom = Field(
+        default=Kingdom.GREEN, validation_alias="KID", description="The kingdom the movement is in"
+    )
     source_id: int = Field(default=-1, validation_alias="SID", description="Player id owning the source area")
     owner_id: int = Field(default=-1, validation_alias="OID", description="Player id owning the movement")
     horse_booster: EnumOrInt["Horse"] | None = Field(
@@ -161,7 +165,7 @@ class Movement(EmpireModel):
     target_y: int = Field(default=-1, description="Target y")
     source_x: int = Field(default=-1, description="Source x")
     source_y: int = Field(default=-1, description="Source y")
-    target_type: int = Field(default=-1, description="Target area type (MapItemType)")
+    target_type: EnumOrInt[MapItemType] = Field(default=-1, description="Target area type, -1 for no target area")
 
     local_player_id: int = Field(default=-1, description="Player id of the receiving account, -1 if unknown")
 
@@ -218,6 +222,13 @@ class Movement(EmpireModel):
         horse = js_int(value)
         return horse if horse > 0 else None
 
+    @field_validator("kingdom", mode="before")
+    @classmethod
+    def _kingdom(cls, value: Any) -> Any:
+        """Client: ``int(t.KID)`` (``BasicMapmovementVO``, bundle line 19383); a kingdom
+        ``Kingdom`` lacks reads as green, as the movement's areas do (see ``MovementArea``)."""
+        return enum_or_none(Kingdom, js_int(value)) or Kingdom.GREEN
+
     @field_validator("target_area", "source_area", mode="before")
     @classmethod
     def _readable_area(cls, value: Any) -> Any:
@@ -226,22 +237,11 @@ class Movement(EmpireModel):
         return read_or_none(MovementArea.model_validate, value) if value else None
 
     @property
-    def movement_type_enum(self) -> MovementType | None:
-        """The movement's type (``T``) as a :class:`MovementType`, None for an id the client does not define."""
-        return enum_or_none(MovementType, self.movement_type)
-
-    @property
-    def target_type_enum(self) -> MapItemType | None:
-        """The target area's type (``TA[0]``) as a :class:`MapItemType`, None for an id the client does not define."""
-        return enum_or_none(MapItemType, self.target_type)
-
-    @property
     def movement_type_name(self) -> str:
         """Get the name of the movement type."""
-        try:
-            return MovementType(self.movement_type).name
-        except ValueError:
-            return f"UNKNOWN_{self.movement_type}"
+        if isinstance(self.movement_type, MovementType):
+            return self.movement_type.name
+        return f"UNKNOWN_{self.movement_type}"
 
     @property
     def time_remaining(self) -> int:
@@ -333,26 +333,23 @@ class Movement(EmpireModel):
         """
         if self.local_player_id == -1 or self.is_mine or self.is_returning or self.is_occupation:
             return False
-        township = self.movement_type_enum is not MovementType.ALIEN_ATTACK
+        township = self.movement_type is not MovementType.ALIEN_ATTACK
         return self.target_id == self.local_player_id or (township and self.target_id == NPCOwner.DAIMYO_TOWNSHIP)
 
     @property
     def is_attack(self) -> bool:
         """Any attack type, including NPC, alien, faction and event attacks."""
-        movement_type = self.movement_type_enum
-        return movement_type is not None and movement_type.is_attack
+        return isinstance(self.movement_type, MovementType) and self.movement_type.is_attack
 
     @property
     def is_support(self) -> bool:
         """A support (defence) army."""
-        movement_type = self.movement_type_enum
-        return movement_type is not None and movement_type.is_support
+        return isinstance(self.movement_type, MovementType) and self.movement_type.is_support
 
     @property
     def is_occupation(self) -> bool:
         """An occupation: the forces holding an area a capture attack won, until it is captured or they are driven off."""
-        movement_type = self.movement_type_enum
-        return movement_type is not None and movement_type.is_occupation
+        return isinstance(self.movement_type, MovementType) and self.movement_type.is_occupation
 
     @property
     def is_transport(self) -> bool:

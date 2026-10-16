@@ -498,7 +498,7 @@ class TestBuildingService:
     )
     def test_actions_send_the_client_payload(self, call: Any, sent: list[tuple[str, dict[str, Any]]]):
         client = building_client()
-        assert call(client) is True
+        call(client)
         assert conn(client).request_payloads == sent
 
     @pytest.mark.parametrize(
@@ -529,7 +529,7 @@ class TestBuildingService:
         client = building_client()
         with pytest.raises(ValueError, match="spend_rubies=True"):
             client.castle.finish_construction(12345, 45)
-        assert client.castle.finish_construction(12345, 44) is True
+        client.castle.finish_construction(12345, 44)
         assert conn(client).request_payloads[-1] == ("fco", {"OID": 44, "FS": 1})
 
     def test_the_time_left_needs_the_player_level(self):
@@ -548,12 +548,12 @@ class TestBuildingService:
         # ABasicBuildingVO.costC2: the low level cost at the player's level, unless it is -1
         client = building_client()
         client.state.local_player = stub_player(level=1)
-        assert client.castle.build(106, 5, 6) is True
+        client.castle.build(106, 5, 6)
         client.state.local_player = stub_player(level=2)
         with pytest.raises(ValueError, match="20 rubies"):
             client.castle.build(106, 5, 6)
         client.state.local_player = stub_player(level=3)
-        assert client.castle.build(106, 5, 6) is True
+        client.castle.build(106, 5, 6)
 
     def test_a_castle_not_yours_raises_before_joining(self):
         client = building_client()
@@ -590,6 +590,7 @@ class TestBuildingService:
             client.castle.skip_construction_time(42, Currency.SKIP_10_MINUTES)
         assert conn(client).request_payloads == []
 
-    def test_a_rejected_build_is_false(self):
+    def test_a_rejected_build_raises(self):
         client = building_client({"ebu": xt_packet("ebu", error_code=21)})
-        assert client.castle.build(101, 5, 6) is False
+        with pytest.raises(CommandError):
+            client.castle.build(101, 5, 6)

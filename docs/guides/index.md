@@ -10,9 +10,9 @@ beside them.
 
 ```python
 client.alliance     client.castle      client.army       client.attack
-client.commanders   client.equipment   client.skills     client.spy
-client.map          client.movements   client.messages   client.player
-client.defense      client.ranking     client.events     client.rewards
+client.commanders   client.equipment   client.spy        client.map
+client.movements    client.messages    client.player     client.defense
+client.ranking      client.events      client.rewards     client.quests
 ```
 
 ## Services
@@ -114,7 +114,7 @@ The smaller services have no guide of their own; their
   leaderboards, `get_ranking_list`, `get_own_ranking_page`,
   `get_ranking_window` and `search_leaderboard`.
 - `client.events`: `refresh()`, `get_active_events()` with the events' in-game
-  titles, `get_league_id(event_id)` for the leaderboards, `get_scores(event)`
+  titles, `league_id(event_id)` for the leaderboards, `get_scores(event)`
   and `get_own_points(event)` for your own rank and points;
   the running events and their scoreboards have a [guide](events.md).
 
@@ -134,8 +134,8 @@ call always does.
 | Finishing at once | `castle.finish_construction` | over 240 seconds left, or a time left it cannot work out |
 | | `castle.repair_all`, `army.skip_heal`, `double_production_slot` | always |
 | | `army.heal_all` | a price above 0 |
-| Travel | `castle.send_resources`, `send_support`, `send_troops`, `attack.send_attack`, the `client.spy` sends | a horse that costs rubies (not paid with feathers), any slowdown, the premium commander when none is free |
-| The rest | `castle.buy_expansion`, `rename`, `start_tax`, `player.start_research`, `alliance.donate` | a premium expansion; a rename with no premium account; tax types 5 and 6; a ruby research; donated rubies |
+| Travel | `movements.send_resources`, `send_support`, `send_troops`, `attack.send_attack`, the `client.spy` sends | a horse that costs rubies (not paid with feathers), any slowdown, the premium commander when none is free |
+| The rest | `castle.buy_expansion`, `rename`, `start_tax`, `castle.start_research`, `alliance.donate` | a premium expansion; a rename with no premium account; tax types 5 and 6; a ruby research; donated rubies |
 
 Pricing reads the game data, loaded on first use; the call raises
 `GameDataNotLoadedError` when it cannot be loaded. Minute skips are items, not rubies, and need
@@ -155,7 +155,7 @@ no flag.
 
     ---
 
-    Callbacks for incoming attacks, arrivals, recalls and removals.
+    Callbacks for incoming attacks, arrivals, recalls and removals, and sending goods, support and troops.
 
 -   :material-magnify:{ .lg .middle } **[Game data](game-data.md)**
 

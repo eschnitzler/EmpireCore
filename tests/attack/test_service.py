@@ -6,9 +6,9 @@ from typing import Any
 
 import pytest
 
-from empire_core.combat import WaveCapacity
+from empire_core.combat import FilledAttack, WaveCapacity
 from empire_core.enums import Kingdom
-from empire_core.exceptions import AmbiguousCastleError, AttackBelowMinimumError, CommandError, UnknownCastleError
+from empire_core.exceptions import AttackBelowMinimumError, CommandError, UnknownCastleError
 from empire_core.gamedata import EMPTY_SLOT, Unit, WodAmount
 from empire_core.protocol.models import AttackType, Commander, CreateAttackRequest, CreateAttackResponse, MapItemType
 from tests.service_helpers import (
@@ -148,17 +148,6 @@ class TestAttackService:
         assert raised.value.position == (500, 510)
         assert conn(client).request_payloads == []
 
-    def test_a_source_position_yours_in_two_kingdoms_needs_the_kingdom(self):
-        client = make_client(castles=[(1, Kingdom.GREEN, 500, 510), (1, Kingdom.STORM, 500, 510)])
-        args = (500, 510, 700, 710, [wave(units=[[487, 1]])])
-
-        with pytest.raises(AmbiguousCastleError) as raised:
-            client.attack.send_attack(*args, commander_id=91)
-        client.attack.send_attack(*args, commander_id=91, kingdom_id=Kingdom.STORM)
-
-        assert raised.value.kingdoms == [Kingdom.GREEN, Kingdom.STORM]
-        assert [payload["KID"] for _, payload in conn(client).request_payloads] == [Kingdom.STORM]
-
     def test_a_given_source_kingdom_needs_no_castle_list(self):
         client = make_client(castles=[])
 
@@ -168,15 +157,16 @@ class TestAttackService:
 
         assert conn(client).request_payloads[0][1]["KID"] == Kingdom.SANDS
 
-    def test_other_rejections_still_return_false(self):
+    def test_other_rejections_raises(self):
         client = make_client({"cra": xt_packet("cra", None, error_code=219)}, castles=OWN)
 
-        assert client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], commander_id=91) is False
+        with pytest.raises(CommandError):
+            client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], commander_id=91)
 
     def test_send_attack_builds_the_client_payload(self):
         client = make_client(castles=OWN)
 
-        sent = client.attack.send_attack(
+        client.attack.send_attack(
             source_x=500,
             source_y=510,
             target_x=700,
@@ -186,7 +176,6 @@ class TestAttackService:
             commander_id=91,
         )
 
-        assert sent is True
         command, payload = conn(client).request_payloads[0]
         assert command == "cra"
         assert (payload["SX"], payload["SY"]) == (500, 510)
@@ -286,14 +275,68 @@ class TestAttackService:
             client.attack.send_attack(
                 500, 510, 700, 710, [wave(units=[[487, 7]])], 3, yard_wave={487: 50}, min_soldiers=8
             )
-        assert client.attack.send_attack(
+        client.attack.send_attack(
             500, 510, 700, 710, [wave(units=[[487, 4]]), wave(units=[[487, 4]])], 3, min_soldiers=8
         )
 
-    def test_the_servers_refusal_of_too_few_units_is_false(self):
+    def test_a_filled_attack_brings_its_courtyard_and_minimum(self):
+        client = make_client(castles=OWN)
+        filled = FilledAttack(waves=[wave(units=[[487, 7]])], yard=WodAmount.slots({601: 50}), min_soldiers=8)
+
+        with pytest.raises(AttackBelowMinimumError):
+            client.attack.send_attack(500, 510, 700, 710, filled, 3)
+        client.attack.send_attack(500, 510, 700, 710, filled, 3, min_soldiers=7)
+
+        assert conn(client).request_payloads[0][1]["RW"] == [[601, 50]]
+
+    def test_sends_are_spaced_by_the_configured_interval(self, monkeypatch):
+        client = make_client(castles=OWN)
+        client.config.attack_send_interval = 4.0
+        clock = [100.0]
+        slept: list[float] = []
+        monkeypatch.setattr("empire_core.attack.pacing.time.monotonic", lambda: clock[0])
+
+        def sleep(seconds, cancel):
+            slept.append(seconds)
+            return False
+
+        monkeypatch.setattr("empire_core.attack.pacing.sleep_unless_cancelled", sleep)
+
+        client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 3)
+        clock[0] = 101.5
+        client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 3)
+
+        assert slept == [2.5]
+
+    def test_an_interval_of_zero_sends_at_once(self, monkeypatch):
+        client = make_client(castles=OWN)
+        client.config.attack_send_interval = 0
+        slept: list[float] = []
+
+        def sleep(seconds, cancel):
+            slept.append(seconds)
+            return False
+
+        monkeypatch.setattr("empire_core.attack.pacing.sleep_unless_cancelled", sleep)
+
+        for _ in range(3):
+            client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 3)
+
+        assert slept == []
+
+    def test_a_source_position_yours_in_two_kingdoms_needs_the_kingdom(self):
+        client = make_client(castles=[(12345, Kingdom.GREEN, 500, 510), (777, Kingdom.ICE, 500, 510)])
+
+        with pytest.raises(ValueError, match="pass the kingdom"):
+            client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 3)
+
+        assert conn(client).requested == []
+
+    def test_the_servers_refusal_of_too_few_units_raises(self):
         client = make_client({"cra": xt_packet("cra", {"MS": 8}, error_code=100)}, castles=OWN)
 
-        assert client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 3) is False
+        with pytest.raises(CommandError):
+            client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 3)
 
     def test_feathers_force_the_horse_field_to_minus_one(self):
         client = make_client(castles=OWN)
@@ -321,7 +364,7 @@ class TestAttackService:
         with pytest.raises(ValueError, match="spend_rubies=True"):
             client.attack.send_attack(500, 510, 700, 710, waves, 3, **kwargs)
         assert conn(client).request_payloads == []
-        assert client.attack.send_attack(500, 510, 700, 710, waves, 3, spend_rubies=True, **kwargs) is True
+        client.attack.send_attack(500, 510, 700, 710, waves, 3, spend_rubies=True, **kwargs)
 
     def test_conquer_attack_type(self):
         client = make_client(castles=OWN)
@@ -480,9 +523,10 @@ class TestAttackService:
         with pytest.raises(ValueError, match="level"):
             client.attack.fill_waves(12345)
 
-    def test_rejected_attack_is_false(self):
+    def test_rejected_attack_raises(self):
         client = make_client({"cra": xt_packet("cra", error_code=21)}, castles=OWN)
-        assert client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 3) is False
+        with pytest.raises(CommandError):
+            client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 3)
 
 
 class TestAttackInfo:

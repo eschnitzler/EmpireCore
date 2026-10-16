@@ -1,5 +1,6 @@
 """The joined area: the jaa reply, its mines (gsm) and resource carts (rci), slum level (csl) and
-builder discount (gab), and the building pushes (fbe, cbx, gdb, gcb) as callbacks."""
+builder discount (gab), and the building pushes (fbe, cbx, gdb, gcb) as callbacks; and the world map's
+size (nfo)."""
 
 import logging
 import time
@@ -17,8 +18,9 @@ from empire_core.castle.models.updates import (
     SlumLevel,
 )
 from empire_core.enums import Kingdom, ResourceCartType
+from empire_core.map.models.world import MapSize, ServerInfoResponse
 from empire_core.protocol.base import enum_or_none, read_or_none
-from empire_core.state.base import StateBase
+from empire_core.state.base import StateBase, loaded
 from empire_core.state.models import JoinedArea
 from empire_core.utils.callbacks import Event
 
@@ -205,6 +207,25 @@ class AreaState(StateBase):
             changed = read_or_none(BuildingEfficiencyChanged.model_validate, data, warn=logger, what="a gcb push")
             if changed is not None:
                 self._fire(self.on_buildings_changed, changed)
+
+    def _handle_nfo(self, data: Any) -> None:
+        """Keep the server info pushed when the connection opens: the world map's size in sectors.
+
+        Client: ``NFOCastleCommand.executeCommand`` (bundle line 120801)
+        """
+        if isinstance(data, dict):
+            info = read_or_none(ServerInfoResponse.model_validate, data, warn=logger, what="an nfo push")
+            if info is not None:
+                self.server_info = info
+
+    def get_map_size(self, kingdom: Kingdom) -> MapSize:
+        """``kingdom``'s map in tiles, from the server info the connection opened with.
+
+        Raises:
+            StateNotLoadedError: No connection has brought it
+        """
+        with self._lock:
+            return loaded(self.server_info, "Server info").map_size(kingdom)
 
     def get_joined_area(self) -> JoinedArea | None:
         """The area joined, with its slum level and builder discount; ``None`` before any join.

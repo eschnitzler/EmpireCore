@@ -19,7 +19,7 @@ State keeps the chat history from the login data on, with every message the
 server sends after it, oldest first, so reading it costs no request:
 
 ```python
-for entry in client.state.get_alliance_chat():
+for entry in client.alliance.chat:
     print(entry.sent_at, entry.player_name, entry.decoded_text)
 ```
 
@@ -56,8 +56,7 @@ recruiting in items version 786.03):
 
 ```python
 max_helpers = {1: 3, 2: 5, 3: 3, 4: 3, 5: 20, 6: 3}
-player = client.state.get_local_player()
-my_id = player.id if player else None
+my_id = client.player.local_player.id
 
 for request in client.alliance.help_requests:
     finished = request.progress >= max_helpers.get(request.help_type, 0)
@@ -96,7 +95,7 @@ it as a UTC `datetime` (or `None`), counted from the wall-clock time stamped at
 the same read (`received_at_wall`), so they do not move between calls. A player
 from `client.player.get_player_info` has the same on its `owner`.
 
-`client.state.get_own_alliance()` is your alliance's details as the login data
+`client.alliance.own_alliance` is your alliance's details as the login data
 and the replies since left them (a chat message marks its sender online), or
 `None` outside one, without a request.
 
@@ -176,7 +175,7 @@ raise `CommandError` when the server refuses, such as `BOOKMARK_ALREADY_ADDED`,
 has `ALLIANCE_BOOKMARK_MAX_ENTRYS`.
 `change_bookmark` changes only your own bookmarks, as the client does.
 `delete_bookmark` deletes an own bookmark by its position and an alliance one
-by its id, and returns False when the server refuses. An alliance attack order
+by its id, and raises `CommandError` when the server refuses. An alliance attack order
 takes `attack_in_seconds` (an hour to just under a day) and `attacker_ids`.
 Adding or deleting an alliance bookmark outside an alliance raises
 `NotInAllianceError` without sending anything.

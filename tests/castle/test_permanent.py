@@ -1,4 +1,4 @@
-"""The gpc section: each castle's unlocked units and horses, and the castle service's get_horses."""
+"""The gpc section: each castle's unlocked units and horses, and the castle service's horses."""
 
 from __future__ import annotations
 
@@ -94,13 +94,13 @@ def _login(state: GameState, gpc: dict[str, Any], kingdom: int = 0) -> None:
 
 
 class TestPermanentCastleState:
-    def test_login_stores_each_castle_by_kingdom_and_id(self, game_state):
+    def test_login_stores_each_castle_by_id(self, game_state):
         _login(game_state, LIVE_GPC)
 
-        assert list(game_state.permanent_castles) == [(Kingdom.GREEN, 2001)]
+        assert list(game_state.permanent_castles) == [2001]
         permanent = game_state.get_permanent_castle(2001)
         assert permanent is not None and permanent.units.unlocked_units[0] == 640
-        assert game_state.get_castle_horse_ids(2001) == []
+        assert permanent.horse_ids == []
         assert game_state.get_last_packet_time("gpc") is not None
 
     def test_a_push_replaces_the_castles_it_names_and_keeps_the_others(self, game_state):
@@ -110,28 +110,27 @@ class TestPermanentCastleState:
 
         game_state.update_from_packet("gpc", {"A": [{"AID": 2001, "KID": 0, "U": {"U": [620], "L": []}, "UH": [1002]}]})
 
-        assert game_state.get_castle_horse_ids(2001) == [1002]
-        assert game_state.permanent_castles[(Kingdom.SANDS, 2002)].horse_ids == [1001]
-        assert before[(Kingdom.GREEN, 2001)].horse_ids == [], "the dict a reader held was changed in place"
+        assert game_state.permanent_castles[2001].horse_ids == [1002]
+        assert game_state.permanent_castles[2002].horse_ids == [1001]
+        assert before[2001].horse_ids == [], "the dict a reader held was changed in place"
 
     def test_a_gbd_without_gpc_leaves_the_castles_alone(self, game_state):
         _login(game_state, {"A": [{"AID": 2001, "KID": 0, "UH": [1001]}]})
 
         game_state.update_from_packet("gbd", {"gpi": {"PID": 7}})
 
-        assert game_state.get_castle_horse_ids(2001) == [1001]
+        assert game_state.permanent_castles[2001].horse_ids == [1001]
 
     def test_the_castle_is_looked_up_in_its_own_kingdom(self, game_state):
         # getDicKey is kingdom and id: an entry under another kingdom is not this castle's
         _login(game_state, {"A": [{"AID": 2001, "KID": 0, "UH": [1001]}]}, kingdom=2)
 
         assert game_state.get_permanent_castle(2001) is None
-        assert game_state.get_castle_horse_ids(2001) is None
 
     def test_a_castle_not_in_the_castle_list_has_none(self, game_state):
         _login(game_state, LIVE_GPC)
 
-        assert game_state.get_castle_horse_ids(2009) is None
+        assert game_state.get_permanent_castle(2009) is None
 
     def test_reset_forgets_them(self, game_state):
         _login(game_state, LIVE_GPC)
@@ -154,7 +153,7 @@ class TestGetHorses:
     def test_returns_the_game_data_rows_sorted_by_wod_id(self):
         client = self._client([1003, 1001])
 
-        horses = client.castle.get_horses(2001)
+        horses = client.castle.horses(2001)
 
         assert horses is not None
         assert [(h.wod_id, h.spy_boost, h.is_instant_spy_horse) for h in horses] == [
@@ -167,7 +166,7 @@ class TestGetHorses:
         # createVObyWOD finds no row, so CastleHorsesVO skips the id
         client = self._client([1002, 4242])
 
-        horses = client.castle.get_horses(2001)
+        horses = client.castle.horses(2001)
 
         assert horses is not None and [h.wod_id for h in horses] == [1002]
         client.state.shutdown()
@@ -176,14 +175,14 @@ class TestGetHorses:
         client = self._client(None)
         client.state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(2001, "Main")])})
 
-        assert client.castle.get_horses(2001) is None
+        assert client.castle.horses(2001) is None
         client.state.shutdown()
 
     def test_a_castle_not_yours_raises(self):
         client = self._client([1001])
 
         with pytest.raises(UnknownCastleError):
-            client.castle.get_horses(2009)
+            client.castle.horses(2009)
         client.state.shutdown()
 
     def test_loads_the_game_data_on_first_use(self, stub_game_data_load):
@@ -191,8 +190,8 @@ class TestGetHorses:
         loads = stub_game_data_load(GameData.parse("test", {"horses": HORSES}))
         assert client.game_data is None
 
-        horses = client.castle.get_horses(2001)
-        client.castle.get_horses(2001)
+        horses = client.castle.horses(2001)
+        client.castle.horses(2001)
 
         assert horses is not None and [h.wod_id for h in horses] == [1001]
         assert len(loads) == 1
@@ -203,6 +202,6 @@ class TestGetHorses:
         client = self._client([1001], game_data=False)
 
         with pytest.raises(GameDataNotLoadedError) as raised:
-            client.castle.get_horses(2001)
+            client.castle.horses(2001)
         assert isinstance(raised.value.__cause__, NetworkError)
         client.state.shutdown()

@@ -155,14 +155,14 @@ class TestDeleteBookmark:
     def test_an_own_bookmark_by_its_position(self):
         client = make_client({"bde": xt_packet("bde", {"BM": [{"K": 0, "X": 640, "Y": 655}]})})
 
-        assert client.alliance.delete_bookmark(Bookmark.model_validate(ENTRY)) is True
+        client.alliance.delete_bookmark(Bookmark.model_validate(ENTRY))
         assert conn(client).request_payloads == [("bde", {"BM": [[0, 640, 655]]})]
 
     def test_an_alliance_bookmark_by_its_id(self):
         client = member_client({"abd": xt_packet("abd", {})})
         bookmark = Bookmark.model_validate({**ENTRY, "TY": 3, "BID": 42})
 
-        assert client.alliance.delete_bookmark(bookmark, notify_attackers=True) is True
+        client.alliance.delete_bookmark(bookmark, notify_attackers=True)
         assert conn(client).request_payloads == [("abd", {"BM": [[42, 1]]})]
 
     def test_an_alliance_bookmark_outside_an_alliance_sends_nothing(self):
@@ -174,11 +174,12 @@ class TestDeleteBookmark:
 
     def test_an_own_bookmark_outside_an_alliance_is_deleted(self):
         client = member_client({"bde": xt_packet("bde", {})}, alliance_id=-1)
-        assert client.alliance.delete_bookmark(Bookmark.model_validate(ENTRY)) is True
+        client.alliance.delete_bookmark(Bookmark.model_validate(ENTRY))
 
-    def test_a_refused_delete_is_false(self):
+    def test_a_refused_delete_raises(self):
         client = make_client({"bde": xt_packet("bde", {}, error_code=1)})
-        assert client.alliance.delete_bookmark(Bookmark.model_validate(ENTRY)) is False
+        with pytest.raises(CommandError):
+            client.alliance.delete_bookmark(Bookmark.model_validate(ENTRY))
 
     def test_an_unknown_type_sends_nothing(self):
         client = make_client()

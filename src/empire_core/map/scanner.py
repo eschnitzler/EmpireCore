@@ -11,6 +11,7 @@ from empire_core.enums import GGEError, Kingdom, MapItemType
 from empire_core.exceptions import CommandError, EmpireTimeoutError, NetworkError
 from empire_core.map.models.areas import GetMapAreaRequest, MapObject
 from empire_core.map.models.items import MapAreaItem
+from empire_core.map.models.world import MapSize
 from empire_core.map.pacing import MapAreaPacer
 from empire_core.protocol.js import js_int, js_truthy
 from empire_core.protocol.packet import Packet
@@ -60,10 +61,10 @@ def _has_no_player(is_plot_row: Any, occupier_id: Any, owner_id: Any) -> bool | 
 
 
 class ScanResult(NamedTuple):
-    """What a scan read: ``items`` and ``objects`` stay empty when it handed each chunk to ``on_chunk``."""
+    """What a scan read: ``items`` and ``owners`` stay empty when it handed each chunk to ``on_chunk``."""
 
     items: list[MapAreaItem]
-    objects: dict[int, MapObject]
+    owners: dict[int, MapObject]
     kingdom: Kingdom
     failed_chunks: tuple[tuple[int, int], ...] = ()
     # Chunks that responded successfully AND contained map items. Feed these
@@ -80,11 +81,11 @@ class _ChunkResult(NamedTuple):
     ok: bool
     has_content: bool
     items: list[MapAreaItem]
-    objects: dict[int, MapObject]
+    owners: dict[int, MapObject]
 
 
-_FAILED = _ChunkResult(ok=False, has_content=False, items=[], objects={})
-_NOT_UNLOCKED = _ChunkResult(ok=False, has_content=False, items=[], objects={})
+_FAILED = _ChunkResult(ok=False, has_content=False, items=[], owners={})
+_NOT_UNLOCKED = _ChunkResult(ok=False, has_content=False, items=[], owners={})
 
 
 class _Connection(Protocol):
@@ -112,6 +113,7 @@ class _State(Protocol):
 class _Map(Protocol):
     @property
     def pacer(self) -> MapAreaPacer: ...
+    def map_size(self, kingdom: Kingdom) -> MapSize: ...
 
 
 class _Client(Protocol):
@@ -130,7 +132,6 @@ class MapScanner:
     """Utility class to scan kingdom maps with dynamic boundary detection."""
 
     CHUNK_SIZE = 90  # Tiles a side; the client asks for at most 100 (GetMapAreaRequest)
-    MAX_COORD = 20  # Max chunk coordinate (20 * 90 = 1800, well beyond any map)
     # A chunk whose request times out, fails on the network or is refused with a
     # cooldown is asked again this many times, waiting RETRY_BACKOFF, then twice that.
     CHUNK_RETRIES = 2
@@ -222,7 +223,7 @@ class MapScanner:
         oi_array = response.payload.get("OI", [])
         has_content = len(ai_array) > 0
         collected_items: list[MapAreaItem] = []
-        collected_objects: dict[int, MapObject] = {}
+        collected_owners: dict[int, MapObject] = {}
 
         # Collect matching items. One malformed entry must not cost us the
         # whole chunk (or, in scan_kingdom, every chunk collected so far), so
@@ -231,15 +232,15 @@ class MapScanner:
         # back ok=True with zero items, and the schema drift would hide
         # behind a "successful" empty scan. Per-entry detail stays at debug;
         # each chunk with skips gets one warning with counts and a sample.
-        skipped_objects = 0
+        skipped_owners = 0
         skipped_items = 0
         sample: object = None
 
         for raw_obj in oi_array:
             if not isinstance(raw_obj, dict):
-                skipped_objects += 1
+                skipped_owners += 1
                 sample = raw_obj if sample is None else sample
-                logger.debug("Chunk (%s, %s): skipping malformed map object %r", cx, cy, raw_obj)
+                logger.debug("Chunk (%s, %s): skipping malformed owner record %r", cx, cy, raw_obj)
                 continue
             if not js_truthy(raw_obj.get("OID")):
                 # CastleOtherPlayerData.parseOwnerInfo reads no record without an OID
@@ -247,13 +248,13 @@ class MapScanner:
             try:
                 obj = MapObject.model_validate(raw_obj)
             except Exception as e:
-                skipped_objects += 1
+                skipped_owners += 1
                 sample = raw_obj if sample is None else sample
-                logger.debug("Chunk (%s, %s): skipping invalid map object %r: %s", cx, cy, raw_obj, e)
+                logger.debug("Chunk (%s, %s): skipping invalid owner record %r: %s", cx, cy, raw_obj, e)
                 continue
             oid = obj.owner_id
             if oid:
-                collected_objects[oid] = obj
+                collected_owners[oid] = obj
 
         for raw_item in ai_array:
             # Short entries are normal, not drift: most of a live AI array is
@@ -293,34 +294,35 @@ class MapScanner:
                 continue
             collected_items.append(item)
 
-        if skipped_items or skipped_objects:
+        if skipped_items or skipped_owners:
             parts = []
             if skipped_items:
                 parts.append(f"{skipped_items}/{len(ai_array)} map items")
-            if skipped_objects:
-                parts.append(f"{skipped_objects}/{len(oi_array)} map objects")
+            if skipped_owners:
+                parts.append(f"{skipped_owners}/{len(oi_array)} owner records")
             logger.warning(
                 f"Chunk ({cx}, {cy}): skipped {' and '.join(parts)} that did not parse "
                 f"(server schema drift?); sample: {_truncated_repr(sample)}"
             )
 
-        return _ChunkResult(ok=True, has_content=has_content, items=collected_items, objects=collected_objects)
+        return _ChunkResult(ok=True, has_content=has_content, items=collected_items, owners=collected_owners)
 
     def scan_kingdom(
         self,
         kingdom: Kingdom = Kingdom.GREEN,
         item_types: list[MapItemType] | None = None,
-        timeout: float = 300.0,
+        *,
         request_timeout: float = 5.0,
         chunk_delay: float = 0.0,
         include_unowned_types: set[MapItemType] | None = None,
-        *,
         cancel: threading.Event | None = None,
         on_chunk: ChunkHandler | None = None,
+        timeout: float = 300.0,
     ) -> ScanResult:
         """
         Scan a kingdom map with dynamic boundary detection.
-        Uses BFS expansion from the bot's castle position.
+        Uses BFS expansion from the bot's castle position, never past the
+        kingdom's edge (:meth:`MapService.map_size <empire_core.map.service.MapService.map_size>`).
 
         ``item_types`` selects which map items are collected, and its two
         empty-ish values mean opposite things — the sentinel is inverted,
@@ -367,8 +369,8 @@ class MapScanner:
         chunk.
 
         ``on_chunk`` is called with each chunk that answered, empty ones too,
-        as ``on_chunk((cx, cy), items, objects)``, and the scan keeps nothing
-        of that chunk: ``ScanResult.items`` and ``ScanResult.objects`` come
+        as ``on_chunk((cx, cy), items, owners)``, and the scan keeps nothing
+        of that chunk: ``ScanResult.items`` and ``ScanResult.owners`` come
         back empty. A caller that keeps only what it needs from each chunk
         holds that, not the whole kingdom's rows and owner records, which
         every full garbage collection walks while they live. A failed chunk
@@ -393,13 +395,13 @@ class MapScanner:
         kingdom: Kingdom,
         chunks: list[tuple[int, int]],
         item_types: list[MapItemType] | None = None,
-        timeout: float = 300.0,
+        *,
         request_timeout: float = 5.0,
         chunk_delay: float = 0.0,
         include_unowned_types: set[MapItemType] | None = None,
-        *,
         cancel: threading.Event | None = None,
         on_chunk: ChunkHandler | None = None,
+        timeout: float = 300.0,
     ) -> ScanResult:
         """
         Scan an explicit list of chunks — no BFS discovery.
@@ -417,7 +419,7 @@ class MapScanner:
         ``include_unowned_types`` also matches scan_kingdom(): types listed
         there are collected even when they have no player owner.
 
-        Chunks are deduplicated and out-of-range coordinates skipped.
+        Chunks are deduplicated and those off the kingdom's map skipped.
         Unscanned chunks left over when ``timeout`` hits or ``cancel`` is set
         are reported in ``failed_chunks``; ``cancel`` is looked at between
         chunks, and ``on_chunk`` takes each chunk in place of the result, as
@@ -554,6 +556,9 @@ class _Scan:
         self.cancel = cancel
         self.on_chunk = on_chunk
         self.deadline = time.monotonic() + timeout
+        width, height = scanners[0].client.map.map_size(kingdom)
+        # The last chunk on each axis that holds a tile of the map
+        self.last_chunk = ((width - 1) // MapScanner.CHUNK_SIZE, (height - 1) // MapScanner.CHUNK_SIZE)
 
         self.lock = threading.Condition()
         self.hook_lock = threading.Lock()
@@ -569,7 +574,7 @@ class _Scan:
         self.error: BaseException | None = None
 
         self.items: list[MapAreaItem] = []
-        self.objects: dict[int, MapObject] = {}
+        self.owners: dict[int, MapObject] = {}
         self.failed: list[tuple[int, int]] = []
         self.content: list[tuple[int, int]] = []
         self.requests = 0
@@ -631,7 +636,7 @@ class _Scan:
         )
         return ScanResult(
             items=self.items,
-            objects=self.objects,
+            owners=self.owners,
             kingdom=self.kingdom,
             failed_chunks=tuple(failed),
             content_chunks=tuple(self.content),
@@ -639,7 +644,8 @@ class _Scan:
 
     def _add(self, chunk: tuple[int, int]) -> None:
         cx, cy = chunk
-        if chunk in self.enqueued or not (0 <= cx <= MapScanner.MAX_COORD and 0 <= cy <= MapScanner.MAX_COORD):
+        last_x, last_y = self.last_chunk
+        if chunk in self.enqueued or not (0 <= cx <= last_x and 0 <= cy <= last_y):
             return
         self.enqueued.add(chunk)
         self.frontier.append(chunk)
@@ -666,7 +672,7 @@ class _Scan:
                         with self.lock:
                             aborted = self.error is not None or self.stopped == "interrupted"
                         if not aborted:
-                            self.on_chunk(chunk, result.items, result.objects)
+                            self.on_chunk(chunk, result.items, result.owners)
             except BaseException as e:
                 with self.lock:
                     self.active -= 1
@@ -713,7 +719,7 @@ class _Scan:
                 self.items_found += len(result.items)
                 if self.on_chunk is None:
                     self.items.extend(result.items)
-                    self.objects.update(result.objects)
+                    self.owners.update(result.owners)
                 if result.has_content:
                     self.content.append(chunk)
                 self._expand(chunk, result.has_content)

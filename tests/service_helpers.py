@@ -10,12 +10,15 @@ from typing import Any, cast
 
 from empire_core.client.client import EmpireClient
 from empire_core.client.session import Session
+from empire_core.commanders.models.roster import CommanderRoster
 from empire_core.config import EmpireConfig
 from empire_core.enums import Kingdom
 from empire_core.events.models import SpecialEvent
-from empire_core.exceptions import EmpireTimeoutError
+from empire_core.exceptions import EmpireTimeoutError, StateNotLoadedError
 from empire_core.gamedata import GameData
+from empire_core.map.models.world import MapSize, ServerInfoResponse
 from empire_core.network.connection import ResponseWaiter
+from empire_core.player import BoosterInfoResponse
 from empire_core.player.models.account import BoostedGlobalEffectsResponse
 from empire_core.protocol.models import AttackWave
 from empire_core.protocol.packet import Packet
@@ -201,6 +204,7 @@ class ScriptedConnection:
 
 class StubPlayer:
     def __init__(self, alliance_id: int = 0, level: int = 0, xp: int = 0):
+        self.id = 0
         self.alliance_id = alliance_id
         self.level = level
         self.xp = xp
@@ -242,6 +246,33 @@ def gcl_castles(*castles: OwnCastle, owner_id: int = 1001) -> list[Castle]:
         state.shutdown()
 
 
+LOGIN_SECTIONS: dict[str, Any] = {
+    "gpi": {"PID": 1001, "PN": "me"},
+    "rei": {"ARID": -1, "ARRT": 0, "BR": []},
+    "boi": {"BO": [], "PA": 0, "PT": -1},
+    "gmu": {"MP": 0, "TSBM": 0, "HMP": 0},
+    "ufa": {"CF": 0, "HF": 0, "NHT": -1},
+    "uar": {"FTM": {"CTXT": -1}, "BTM": {"CTXT": -1}, "ITM": {"TID": -1}, "PFX": "FAME", "SFX": "FAME"},
+    "vli": {"AVP": 0, "RA": [], "FA": []},
+    "gms": {"MS": 0, "BS": 0},
+    "gli": {"C": [], "B": []},
+    "nrf": {"NR": 0},
+    "dql": {"PQL": 1},
+}
+"""The sections every login gbd brings, with nothing in them."""
+
+SERVER_INFO: dict[str, Any] = {"XML_EP": "787.03", "minNameSize": 3, "sectorCountX": 99, "sectorCountY": 99}
+"""The server info a connection opens with: a map of 99 by 99 sectors."""
+
+
+def logged_in_state(**sections: Any) -> GameState:
+    """A GameState fed the server info and a login gbd: :data:`LOGIN_SECTIONS` with ``sections`` replacing theirs."""
+    state = GameState()
+    state.update_from_packet("nfo", SERVER_INFO)
+    state.update_from_packet("gbd", {**LOGIN_SECTIONS, **sections})
+    return state
+
+
 class StubState:
     """Only the members the services actually touch."""
 
@@ -258,18 +289,31 @@ class StubState:
         self.updates: list[tuple[str, object]] = []
         self.special_events: dict[int, SpecialEvent] = {}
         self.boosted_global_effects: BoostedGlobalEffectsResponse | None = None
-        self.boosts: Any = None
+        self.boosts: Any = BoosterInfoResponse.model_validate(LOGIN_SECTIONS["boi"])
+        self.commanders: CommanderRoster | None = None
 
     def update_from_packet(self, cmd_id: str, payload: object, error_code: int = 0) -> None:
         self.updates.append((cmd_id, payload))
 
-    def get_local_player(self) -> StubPlayer | None:
+    def get_local_player(self) -> StubPlayer:
+        if self.local_player is None:
+            raise StateNotLoadedError("The local player not loaded: log in first")
         return self.local_player
 
     def get_castles(self) -> list[Castle]:
         return list(self.castles)
 
+    def get_map_size(self, kingdom: Kingdom) -> MapSize:
+        return ServerInfoResponse.model_validate(SERVER_INFO).map_size(kingdom)
+
+    def get_commanders(self) -> CommanderRoster:
+        if self.commanders is None:
+            raise StateNotLoadedError("Commanders not loaded: log in first")
+        return self.commanders
+
     def get_boosts(self) -> Any:
+        if self.boosts is None:
+            raise StateNotLoadedError("Boosters not loaded: log in first")
         return self.boosts
 
     def get_event(self, event: int) -> SpecialEvent | None:
@@ -307,7 +351,7 @@ def with_horses(client: EmpireClient) -> EmpireClient:
 
 def make_client(
     script: dict[str, Any] | None = None,
-    state: StubState | None = None,
+    state: StubState | GameState | None = None,
     pushes: dict[str, list[Packet]] | None = None,
     castles: Sequence[OwnCastle] | None = None,
 ) -> EmpireClient:
@@ -321,9 +365,9 @@ def make_client(
     client.username = "tester"
     client.password = "secret"
     client.connection = ScriptedConnection(script, pushes)  # type: ignore[assignment]
-    stub = state or StubState()
+    stub = state or StubState(StubPlayer())
     if castles is not None:
-        stub.castles = gcl_castles(*castles)
+        stub.castles = gcl_castles(*castles)  # type: ignore[assignment]
     client.state = stub  # type: ignore[assignment]
     client.game_data = None
     client.is_logged_in = True

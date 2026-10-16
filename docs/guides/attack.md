@@ -14,7 +14,7 @@ from empire_core.gamedata import Tool, Unit
 
 commanders = client.commanders.get_commanders()
 
-accepted = client.attack.send_attack(
+client.attack.send_attack(
     source_x=500,
     source_y=510,
     target_x=700,
@@ -41,8 +41,21 @@ with None for an empty slot, `collector_booster={CurrencyId.SAMURAI_MEDAL_BOOSTE
 
 The attack is sent in the kingdom of your area at the source position, looked
 up in your castle list; pass `kingdom_id` to name it yourself. With no area of
-yours there it raises `UnknownCastleError`, and with areas of yours at that
-position in several kingdoms, `AmbiguousCastleError`.
+yours there it raises `UnknownCastleError`. Each kingdom has a map of its own,
+so with areas of yours at that position in several kingdoms it raises
+`ValueError` until you pass `kingdom_id`.
+
+`waves` also takes a [`fill_attack`](filling-waves.md) result whole; its
+courtyard wave and minimum are used unless `yard_wave` or `min_soldiers` is
+passed.
+
+## Pacing
+
+The server refuses an attack sent less than 4 seconds after the account's
+previous one. `send_attack` waits out that interval itself, across every
+thread sharing the client, so a loop of sends needs no sleep of its own. The
+interval is `EmpireConfig.attack_send_interval` (default `4.0`); `0` turns
+the pacing off.
 
 ## The commander
 
@@ -69,8 +82,8 @@ of them without the premium commander's rubies: the guide there has the gap.
   before sending an attack below the minimum the client requires; see
   [the minimum](filling-waves.md#the-minimum).
 
-`send_attack` returns `True` when the server accepts the attack and `False`
-when it refuses it, for example with `MOVEMENT_HAS_NO_UNITS` (100).
+A refusal from the server raises `CommandError` carrying its error, for
+example `MOVEMENT_HAS_NO_UNITS` (100).
 
 ## Before you attack
 

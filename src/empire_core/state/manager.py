@@ -14,10 +14,12 @@ from empire_core.state.castles import CastleState
 from empire_core.state.commanders import CommanderState
 from empire_core.state.events import EventCallback, EventsCallback, EventState
 from empire_core.state.inventory import INVENTORY_SECTIONS, InventoryState
+from empire_core.state.messages import MailboxState
 from empire_core.state.movements import MOVEMENT_PARSE_WARN_INTERVAL, MovementState
 from empire_core.state.player import PlayerState
 from empire_core.state.progress import ProgressState
 from empire_core.state.quests import QuestState
+from empire_core.state.rewards import RewardsState
 
 __all__ = ["MOVEMENT_PARSE_WARN_INTERVAL", "EventCallback", "EventsCallback", "GameState", "MovementEventCallback"]
 # gbd sections stamped under their own id, whether they came in a gbd or as a push.
@@ -141,9 +143,13 @@ _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
 # MSPCommand, CQSCommand (bundle lines 126587, 126619, 126603, 126566, 125438, 126495)
 _SUCCESS_ONLY = frozenset(
     {"sei", "see", "tei", "tee", "pep", "fjf", "bst", "acm", "aqi", "ufp", "bfs", "gtp", *_WHOLE_SECTIONS}
+    | {"ahl", "ahh", "ahd", "sne", "dms", "ams", "uac", "pre"}
+    # GBDCommand.exec (bundle line 129376) reads the login data only on ALL_OK
+    | {"gbd"}
     | (set(_NESTED_SECTIONS) - {"cpm", "crm"})
     | {"rue", "kik", "gsm", "rci", "cmr", "rcc", "jaa", "fbe", "cbx", "gdb", "gcb", "csl", "gab", "gec"}
     | {"qli", "qst", "qpg", "qfi", "msp", "cqs"}
+    | {"nfo"}
 )
 
 
@@ -159,6 +165,8 @@ class GameState(
     QuestState,
     AccountState,
     InventoryState,
+    MailboxState,
+    RewardsState,
 ):
     """
     Manages game state parsed from server packets.
@@ -210,7 +218,7 @@ class GameState(
     spies owned, before boosts           ``gms`` (pushed)             re-login
     commanders and castellans            ``gli``, the replies that    ``client.commanders.get_all()``
                                          carry one (``arl``, ...)
-    legend and sceat skills              ``skl``, ``ego``             ``client.skills.get_skills()``
+    legend and sceat skills              ``skl``, ``ego``             ``client.player.get_skills()``
     your alliance's details, members     ``ain``, ``acn``, ``akm``,   ``client.alliance.get_alliance_info(id)``
                                          ..., ``acm`` (online)
     alliance chat history                ``acl``, ``acm`` (pushed)    --
@@ -304,6 +312,14 @@ class GameState(
         "bst": "_handle_bst",
         "acm": "_handle_acm",
         "aqi": "_handle_aqi",
+        "ahl": "_handle_ahl",
+        "ahh": "_handle_ahh",
+        "ahd": "_handle_ahd",
+        "sne": "_handle_sne",
+        "dms": "_handle_dms",
+        "ams": "_handle_ams",
+        "uac": "_handle_uac",
+        "pre": "_handle_pre",
         "ufp": "_handle_ufp",
         "bfs": "_handle_bfs",
         "gtp": "_handle_gtp",
@@ -311,6 +327,7 @@ class GameState(
         "rue": "_handle_rue",
         "kik": "_handle_kik",
         "jaa": "_handle_jaa",
+        "nfo": "_handle_nfo",
         "gsm": "_handle_gsm",
         "cmr": "_handle_cmr",
         "rci": "_handle_rci",
@@ -389,6 +406,8 @@ class GameState(
             for section, applied in (
                 ("ain", self._parse_own_alliance(data)),
                 ("acl", self._parse_chat_history(data)),
+                ("ahl", self._parse_alliance_help(data)),
+                ("sne", self._parse_mailbox(data)),
                 ("gli", self._parse_commanders(data)),
                 ("skl", self._parse_skills(data)),
                 ("dql", self._parse_daily_quests(data)),

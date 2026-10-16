@@ -1,14 +1,20 @@
-"""Your own alliance's details (ain) and the alliance chat history (acl, acm)."""
+"""Your own alliance's details (ain), the alliance chat history (acl, acm) and the help list (ahl, ahh, ahd)."""
 
 import logging
 from typing import Any
 
 from empire_core.alliance.models.chat import AllianceChatLogResponse, ChatMessageData
+from empire_core.alliance.models.help import (
+    AllianceHelpListResponse,
+    AllianceHelpRequest,
+    AllianceHelpRequestChanged,
+    AllianceHelpRequestRemoved,
+)
 from empire_core.alliance.models.info import AllianceInfo, alliance_of_ain
 from empire_core.enums import OnlineState
 from empire_core.protocol.base import read_or_none
 from empire_core.protocol.js import js_int, js_truthy
-from empire_core.state.base import StateBase
+from empire_core.state.base import StateBase, read_section
 
 logger = logging.getLogger(__name__)
 
@@ -86,9 +92,57 @@ class AllianceState(StateBase):
         ``resetMyAlliance``
         """
         self.alliance_chat = ()
+        self.alliance_help = ()
         if isinstance(data, dict) and "gal" in data:
             self._handle_gbd({"gal": data["gal"]})
         self._forget_own_alliance()
+
+    def _parse_alliance_help(self, data: dict[str, Any]) -> bool:
+        """Apply the login data's ``ahl`` section; whether it was applied."""
+        if "ahl" not in data:
+            return False
+        return self._handle_ahl(data["ahl"])
+
+    def _handle_ahl(self, data: Any) -> bool:
+        """Replace the help list with an ``ahl``'s."""
+        listed = read_section(AllianceHelpListResponse, data, "the alliance help list")
+        if listed is None:
+            return False
+        self.alliance_help = tuple(listed.requests)
+        return True
+
+    def _handle_ahh(self, data: Any) -> None:
+        """Replace the help request an ``ahh`` names by ``LID``, or add it."""
+        changed = read_section(AllianceHelpRequestChanged, data, "an alliance help request")
+        if changed is None or (request := changed.request) is None:
+            return
+        listed = [request if r.list_id == request.list_id else r for r in self.alliance_help]
+        if not any(r.list_id == request.list_id for r in self.alliance_help):
+            listed.append(request)
+        self.alliance_help = tuple(listed)
+
+    def _handle_ahd(self, data: Any) -> None:
+        """Remove the help request an ``ahd`` names."""
+        removed = read_section(AllianceHelpRequestRemoved, data, "a removed alliance help request")
+        if removed is not None:
+            self.alliance_help = tuple(r for r in self.alliance_help if r.list_id != removed.list_id)
+
+    def get_alliance_help(self) -> list[AllianceHelpRequest]:
+        """The alliance help list as the login data and the pushes since left it.
+
+        The login data's ``ahl`` section fills it, and so does an ahl push; ahh replaces or adds a
+        request by ``LID``, ahd removes one, and leaving your alliance (``aqi``) empties it. The
+        client never asks the server for the list, and neither does this library. The list is
+        kept when the session drops, as the client keeps it; the next login's ``ahl`` replaces it.
+
+        Client: ``AllianceHelpRequestData`` (bundle line 133359) keeps the list the same way, from
+        ``GBDCommand.exec`` (bundle line 129381) and the ``AHL``/``AHH``/``AHD`` commands; it has no
+        ``reset`` of its own (``CastleBasicData.reset``, bundle line 2109, is empty);
+        ``AQICommand.executeCommand`` (bundle line 121556) calls ``CastleAllianceData.resetMyAlliance``
+        (bundle line 11620), which cleans it
+        """
+        with self._lock:
+            return list(self.alliance_help)
 
     def _parse_chat_history(self, data: dict[str, Any], *, replace: bool = False) -> bool:
         """Add an ``acl`` section's messages to the chat history, after the ones already there;

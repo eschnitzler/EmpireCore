@@ -9,15 +9,16 @@ from typing import Any, ClassVar, cast
 import pytest
 
 from empire_core.army.spy_army import SpyArmy
-from empire_core.combat import TargetRead
+from empire_core.combat import FillOptions, TargetRead
 from empire_core.enums import GGEError, Kingdom
 from empire_core.events import GlobalEffectTimer
 from empire_core.exceptions import (
-    AmbiguousCastleError,
     AttackBelowMinimumError,
     EmpireTimeoutError,
     UnknownCastleError,
 )
+from empire_core.gamedata import EMPTY_SLOT
+from empire_core.map import MapAreaItem
 from empire_core.protocol.models import Commander
 from tests.attack.fill_helpers import OWN, FillClient
 from tests.service_helpers import LIVE_ADI, conn, gcl_castles, make_client, placed, stub_player, wave, xt_packet
@@ -72,6 +73,41 @@ class TestFillAttack(FillClient):
             client.attack.fill_attack(12345, target_level=12, area_type=26)
 
         assert caught.value.minimum == 32
+
+    def test_fill_yard_off_leaves_the_courtyard_empty(self):
+        client = self.build([[601, 100_000]])
+
+        result = client.attack.fill_attack(12345, target_level=13, options=FillOptions(fill_yard=False))
+
+        assert result.waves
+        assert result.yard == (EMPTY_SLOT,) * 8
+
+    def test_a_scanned_target_reads_like_its_coordinates_and_row(self):
+        row = [1, 700, 710, 900, 4242, 1, 1, 1, 0, 0, "castle"]
+        reply = xt_packet(
+            "aci", {"gaa": {"AI": row, "OI": [{"OID": 4242, "N": "owner", "L": 70}]}, "S": [], "AE": [], "B": {}}
+        )
+        by_coordinates = self.build([[601, 100_000]])
+        conn(by_coordinates).script["aci"] = reply
+        by_item = self.build([[601, 100_000]])
+        conn(by_item).script["aci"] = reply
+
+        expected = by_coordinates.attack.fill_attack(
+            12345, target_x=700, target_y=710, target_row=row, legend_skill_ids=[], general_skill_ids=[]
+        )
+        result = by_item.attack.fill_attack(
+            12345, target=MapAreaItem.from_list(row), legend_skill_ids=[], general_skill_ids=[]
+        )
+
+        assert result == expected
+        assert conn(by_item).request_payloads == conn(by_coordinates).request_payloads
+
+    def test_a_target_and_coordinates_together_are_refused(self):
+        client = self.build([[601, 100_000]])
+        row = [1, 700, 710, 900, 4242, 1, 1, 1, 0, 0, "castle"]
+
+        with pytest.raises(ValueError, match="not both"):
+            client.attack.fill_attack(12345, target=MapAreaItem.from_list(row), target_x=700, target_y=710)
 
     def test_a_castle_row_supplies_fortification(self):
         client = self.build([[601, 100_000], [611, 500]])
@@ -731,15 +767,6 @@ class TestFillAttack(FillClient):
             client.attack.fill_attack(12345, target_x=700, target_y=710)
 
         assert conn(client).request_payloads == []
-
-    def test_an_id_repeated_across_your_kingdoms_raises_before_joining(self):
-        client = self.build([[601, 100_000]])
-        client.state.castles = gcl_castles((12345, Kingdom.STORM, 5, 6), (12345, Kingdom.BERIMOND, 7, 8))  # type: ignore[attr-defined]
-
-        with pytest.raises(AmbiguousCastleError):
-            client.attack.fill_attack(12345, target_level=13)
-
-        assert "jaa" not in [command for command, _ in conn(client).request_payloads]
 
     def test_the_stronghold_units_join_the_army(self):
         # AttackDialogUnitPicker adds gui.SHI into the inventory the dialog fills from

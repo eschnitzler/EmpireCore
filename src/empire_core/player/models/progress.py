@@ -27,7 +27,7 @@ from empire_core.protocol.base import BasePayload, TimedPayload, TimedResponse, 
 from empire_core.protocol.js import ClientInt, ClientNumber, js_int, js_loose_equals, js_parse_int
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import Achievement, Research, Title
+    from empire_core.gamedata import Achievement, Title
 
 PERMANENT_BOOSTER_DURATION = 2147483647
 """``BoosterConst.PERMANENT_BOOSTER_DURATION`` (dll): a booster's ``RT`` when it never runs out"""
@@ -46,41 +46,6 @@ def _ints(value: Any) -> tuple[int, ...]:
 Numbers = Annotated[tuple[int | float, ...], BeforeValidator(_numbers)]
 Ints = Annotated[tuple[int, ...], BeforeValidator(_ints)]
 ParsedInt = Annotated[int | None, BeforeValidator(js_parse_int)]
-
-
-class ResearchInfoResponse(TimedResponse):
-    """
-    Your research: what is finished and what runs now.
-
-    Command: rei, as a login section of ``gbd``, a push, and inside the ``res`` and ``msr`` replies.
-
-    Client: ``CastleResearchData.parse_REI`` (bundle line 139330), ``remainingResearchTimeInSeconds``
-    and ``isSomeResearchActive`` (bundle lines 139337-139338)
-    """
-
-    command = "rei"
-
-    bought_research_ids: Annotated[tuple[EnumOrInt["Research"], ...], BeforeValidator(_ints)] = Field(
-        validation_alias="BR", default=(), description="Finished researches"
-    )
-    current_research_id: ClientInt = Field(
-        validation_alias="ARID",
-        default=0,
-        description="The research running now, -1 for none",
-    )
-    research_seconds: ClientNumber = Field(
-        validation_alias="ARRT",
-        default=0,
-        description="Seconds left on the running research when the values were read",
-    )
-
-    def remaining_research_seconds(self, now: float | None = None) -> int:
-        """Whole seconds left on the running research, 0 when none runs."""
-        return js_int(max(self.research_seconds - self._elapsed(now), 0))
-
-    def is_research_active(self, now: float | None = None) -> bool:
-        """Whether a research runs: an id other than -1 with time left."""
-        return self.current_research_id != -1 and self.remaining_research_seconds(now) > 0
 
 
 class Booster(TimedPayload):
@@ -581,7 +546,6 @@ __all__ = [
     "IslandTitle",
     "MightPointsResponse",
     "RelocationInfoResponse",
-    "ResearchInfoResponse",
     "TitleRanksResponse",
     "TopTitleRanking",
 ]

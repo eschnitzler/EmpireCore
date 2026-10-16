@@ -256,7 +256,7 @@ class TestRunningScoreEvents:
     def test_only_events_with_a_board_in_sei_order(self):
         client = _running(None, {"EID": 85}, {"EID": 7}, {"EID": 3})
 
-        assert client.events.get_running_score_events() == [Event.FACTION_INVASION, Event.FACTION]
+        assert client.events.running_score_events == [Event.FACTION_INVASION, Event.FACTION]
 
 
 class TestClientDivergencesFixed:
@@ -308,10 +308,10 @@ class TestClientDivergencesFixed:
 
         now[0] += 61
 
-        assert client.events.get_active_event_ids() == [60]
-        assert client.events.get_running_score_events() == [Event.POINT_EVENT]
+        assert list(client.state.get_events()) == [60]
+        assert client.events.running_score_events == [Event.POINT_EVENT]
         with pytest.raises(EventNotRunningError):
-            client.events.get_league_id(3)
+            client.events.league_id(3)
         with pytest.raises(EventNotRunningError):
             client.events.get_scores(Event.FACTION)
 
@@ -320,14 +320,14 @@ class TestClientDivergencesFixed:
         client = make_client(state=GameState())  # type: ignore[arg-type]
         client._on_packet(xt_packet("sei", {"E": [{"EID": 3}]}))
 
-        assert client.events.get_active_event_ids() == []
+        assert list(client.state.get_events()) == []
 
     def test_the_parts_are_rebuilt_at_league_one(self):
         client = _running(None, {"EID": 80, "SP": {"LID": 4}, "A": {"LID": 2}}, {"EID": 71, "SP": {"LID": 4}})
         client._on_packet(xt_packet("sei", {"E": [{"EID": 80, "RS": 60, "SP": {}}, {"EID": 71, "RS": 60, "A": {}}]}))
 
         parts = ((80, "SP"), (80, "A"), (71, "SP"), (71, "A"))
-        leagues = [client.events.get_league_id(e, part) for e, part in parts]
+        leagues = [client.events.league_id(e, part) for e, part in parts]
 
         # SamuraiInvasionEventVO rebuilds every part; AAlienInvasionEventVO only the parts sent
         assert leagues == [1, 1, 4, 1]
@@ -337,7 +337,7 @@ class TestClientDivergencesFixed:
         client._on_packet(xt_packet("see", {"EID": 71}))
         client._on_packet(xt_packet("sei", {"E": [{"EID": 71, "RS": 60}]}))
 
-        assert (client.events.get_league_id(71), client.events.get_league_id(71, "SP")) == (1, 1)
+        assert (client.events.league_id(71), client.events.league_id(71, "SP")) == (1, 1)
         assert client.state.get_event(71).parts == {}
 
     def test_rank_starts_at_one(self):

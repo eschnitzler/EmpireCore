@@ -5,11 +5,10 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from empire_core.castle import KingdomInfoResponse, ResourcePoolResponse, TaxStatus
+from empire_core.castle import KingdomInfoResponse, MercenaryMissionsResponse, ResourcePoolResponse, TaxStatus
 from empire_core.commanders import GemInventoryResponse
 from empire_core.enums import CollectableKind, Kingdom
 from empire_core.gamedata import Currency, Gem, LootBox, LootBoxType, Tool, Unit
-from empire_core.player import MercenaryMissionsResponse
 from tests.state.test_castle_pushes import jaa_payload
 
 RELIC_GEM = [5550001, 31, 4, 2900, [[311, 30, [9.5]], [317, 50, [5.5]]], 0]

@@ -11,11 +11,14 @@ from typing import Any, TypeVar
 from pydantic import BaseModel
 
 from empire_core.alliance.models.chat import ChatMessageData
+from empire_core.alliance.models.help import AllianceHelpRequest
 from empire_core.alliance.models.info import AllianceInfo
 from empire_core.attack.models.counter import AttackCounterResponse
 from empire_core.castle.models.collect import MineStatus, ResourceCart
 from empire_core.castle.models.kingdoms import KingdomInfoResponse
+from empire_core.castle.models.mercenaries import MercenaryMissionsResponse
 from empire_core.castle.models.permanent import PermanentCastle
+from empire_core.castle.models.research import ResearchInfoResponse
 from empire_core.castle.models.tax import TaxInfo
 from empire_core.castle.models.upkeep import ConstructionItemExpiryResponse, ResourcePoolResponse
 from empire_core.castle.models.wishing_well import WishingWellResponse
@@ -23,6 +26,9 @@ from empire_core.commanders.models.inventory import GemInventoryResponse, Invent
 from empire_core.commanders.models.roster import CommanderRoster
 from empire_core.commanders.models.skills import SkillList
 from empire_core.events.models import SpecialEvent
+from empire_core.exceptions import StateNotLoadedError
+from empire_core.map.models.world import ServerInfoResponse
+from empire_core.messages.models import MessageInfo
 from empire_core.movements.models import MovementOwner
 from empire_core.movements.tracked import Movement
 from empire_core.player.models.account import (
@@ -31,7 +37,7 @@ from empire_core.player.models.account import (
     OfficerTraining,
     PlayerGiftsResponse,
 )
-from empire_core.player.models.economy import LootBoxesResponse, MercenaryMissionsResponse
+from empire_core.player.models.economy import LootBoxesResponse
 from empire_core.player.models.progress import (
     AchievementsResponse,
     BoosterInfoResponse,
@@ -39,13 +45,13 @@ from empire_core.player.models.progress import (
     GloryPointsResponse,
     MightPointsResponse,
     RelocationInfoResponse,
-    ResearchInfoResponse,
     TitleRanksResponse,
 )
 from empire_core.protocol.base import read_or_none
 from empire_core.quests.models import DailyQuests, Quest, QuestBook
+from empire_core.rewards.models import ActivityChestInfo
 from empire_core.spy.models import MaxSpiesResponse, PlagueMonkInfoResponse
-from empire_core.state.models import Castle, CastleKey, JoinedArea, Player
+from empire_core.state.models import Castle, JoinedArea, Player
 from empire_core.utils.callbacks import BoundEvent, Registry
 
 logger = logging.getLogger(__name__)
@@ -63,11 +69,19 @@ MovementEventCallback = Callable[[int], Any] | Callable[[int, Movement | None], 
 
 
 _M = TypeVar("_M", bound=BaseModel)
+_T = TypeVar("_T")
 
 
 def read_section(model: type[_M], body: Any, what: str) -> _M | None:
     """A section block read as ``model``; None, with a warning, when it is no object or does not validate."""
     return read_or_none(model.model_validate, body, warn=logger, what=what) if isinstance(body, dict) else None
+
+
+def loaded(value: _T | None, what: str) -> _T:
+    """``value`` of a section the login data always brings; :class:`StateNotLoadedError` while none has arrived."""
+    if value is None:
+        raise StateNotLoadedError(f"{what} not loaded: log in first")
+    return value
 
 
 class StateBase:
@@ -91,6 +105,10 @@ class StateBase:
         self._callbacks_pending = 0
         self._callback_queue_warn_at = 0.0
 
+        # Kept when the session drops, as the client keeps them
+        self.alliance_help: tuple[AllianceHelpRequest, ...] = ()
+        self.activity_chest: ActivityChestInfo | None = None
+
         # Rate-limit state for movement parse failure warnings
         self._movement_parse_warn_at = 0.0
         self._movement_parse_failures = 0
@@ -106,9 +124,9 @@ class StateBase:
         # (ain) or the commander/profile services for other players.
         self.players: dict[int, Player] = {}
 
-        self.castles: dict[CastleKey, Castle] = {}
-        # (kingdom, castle id) -> the castle's unlocked units and horses, from gpc
-        self.permanent_castles: dict[CastleKey, PermanentCastle] = {}
+        self.castles: dict[int, Castle] = {}
+        # castle id -> the castle's unlocked units and horses, from gpc
+        self.permanent_castles: dict[int, PermanentCastle] = {}
 
         # World State
         self.movements: dict[int, Movement] = {}  # MovementID -> Movement
@@ -122,6 +140,9 @@ class StateBase:
         self.max_spies: MaxSpiesResponse | None = None
         # Owner records (O) from every movement packet so far, by player id
         self._owner_records: dict[int, MovementOwner] = {}
+
+        # The server info pushed when the connection opened, which names the world map's size
+        self.server_info: ServerInfoResponse | None = None
 
         # The last joined area, and the mines and resource carts last sent for it; swapped, never edited
         self.joined_area: JoinedArea | None = None
@@ -144,6 +165,9 @@ class StateBase:
         # The ain block own_alliance was read from, for the keys a later ain leaves out
         self._own_alliance_raw: dict[str, Any] | None = None
         self.alliance_chat: tuple[ChatMessageData, ...] = ()
+        # The mailbox by message id, in the order the messages first arrived; swapped, never edited
+        self.mailbox: dict[int, MessageInfo] = {}
+        self.pending_rewards: int | None = None
         self.research: ResearchInfoResponse | None = None
         self.boosts: BoosterInfoResponse | None = None
         self.might: MightPointsResponse | None = None
@@ -171,7 +195,7 @@ class StateBase:
 
         # Freshness bookkeeping (see the GameState docstring). Wall-clock seconds.
         self._packet_times: dict[str, float] = {}
-        self._castle_details_at: dict[CastleKey, float] = {}
+        self._castle_details_at: dict[int, float] = {}
         self._player_updated_at: float | None = None
 
     def reset(self) -> None:

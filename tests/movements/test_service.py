@@ -41,10 +41,9 @@ class TestGetMovements:
         assert len(conn(client).sent) == 1
 
 
-class TestMovementHelpers:
-    def test_movement_helpers_are_lock_protected(self, state):
-        """The service must read movements through GameState's locked accessors."""
-        client = EmpireClient.__new__(EmpireClient)  # the helpers only touch client.state
+class TestMovementReads:
+    def test_the_reads_are_lock_protected(self, state):
+        client = EmpireClient.__new__(EmpireClient)  # the reads only touch client.state
         client.state = state
         movements = MovementsService(client)
         state.update_from_packet("gbd", {"gpi": {"PID": 1, "PN": "me"}})
@@ -65,9 +64,7 @@ class TestMovementHelpers:
         def reader():
             while not stop.is_set():
                 try:
-                    movements.get_incoming_attacks()
-                    movements.get_incoming_movements()
-                    movements.get_outgoing_movements()
+                    _ = (movements.incoming_attacks, movements.incoming_movements, movements.outgoing_movements)
                 except Exception as e:  # pragma: no cover
                     errors.append(e)
 

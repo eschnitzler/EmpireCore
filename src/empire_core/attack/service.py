@@ -25,6 +25,7 @@ from empire_core.attack.models.presets import (
     SavePresetRequest,
 )
 from empire_core.attack.models.send import CreateAttackRequest
+from empire_core.attack.pacing import AttackSendPacer
 from empire_core.attack.targeting import _merged, _precalculation, _read_target, _row_item, _Target
 from empire_core.combat import (
     AttackerFlankEffects,
@@ -65,10 +66,13 @@ from empire_core.exceptions import (
 )
 from empire_core.gamedata import WodAmount, WodAmountMapping
 from empire_core.gamedata.ids.events import Event
+from empire_core.map.models.items import MapAreaItem
 from empire_core.protocol.text import SMARTFOX_INVALID_CHARS, is_smartfox_valid
 from empire_core.services.base import BaseService
 
 if TYPE_CHECKING:
+    from empire_core.attack.models.counter import AttackCounterResponse
+    from empire_core.client.client import EmpireClient
     from empire_core.gamedata import CurrencyId, GameData, GlobalEffect, Tool
 
 logger = logging.getLogger(__name__)
@@ -81,13 +85,22 @@ class AttackService(BaseService):
     Reached as client.attack.
     """
 
+    def __init__(self, client: EmpireClient) -> None:
+        super().__init__(client)
+        self.pacer = AttackSendPacer(lambda: client.config.attack_send_interval)
+
+    @property
+    def counter(self) -> AttackCounterResponse | None:
+        """Your attack counter, from the last ``gai``; None until one arrived."""
+        return self.client.state.get_attack_counter()
+
     def send_attack(
         self,
         source_x: int,
         source_y: int,
         target_x: int,
         target_y: int,
-        waves: list[AttackWave],
+        waves: list[AttackWave] | FilledAttack,
         commander_id: int,
         kingdom_id: Kingdom | None = None,
         attack_type: AttackType = AttackType.ATTACK,
@@ -105,15 +118,18 @@ class AttackService(BaseService):
         collector_booster: Mapping[CurrencyId, int] | Mapping[int, int] | None = None,
         send_anyway: bool = False,
         min_soldiers: int | None = None,
-        timeout: float = 5.0,
         *,
         spend_rubies: bool = False,
-    ) -> bool:
+        timeout: float = 5.0,
+    ) -> None:
         """
         Send an attack from a castle to a target position.
 
         Waves without units are dropped, matching the game client. Setting
         ``feathers`` forces the horse field to -1, again as the client does.
+        Sends from one client are spaced ``config.attack_send_interval`` seconds
+        apart (4 by default), since the server refuses an attack that follows the
+        previous one sooner; set ``EmpireConfig.attack_send_interval`` to change it.
 
         ``commander_id`` has no default on purpose. Every id the ``gli`` ``C``
         list reports is a real commander, ``0`` included -- it is the free
@@ -141,7 +157,8 @@ class AttackService(BaseService):
             source_y: Source absolute Y coordinate
             target_x: Target absolute X coordinate
             target_y: Target absolute Y coordinate
-            waves: Attack waves, front to back
+            waves: Attack waves, front to back, or a :meth:`fill_attack` result, which
+                also gives ``yard_wave`` and ``min_soldiers`` when those are not passed
             kingdom_id: The source area's kingdom; read from your castle list by
                 the source position when not given
             commander_id: Commander to lead the attack, a ``Commander.commander_id`` from
@@ -175,10 +192,6 @@ class AttackService(BaseService):
             timeout: Timeout in seconds
             spend_rubies: Send even when the premium commander, the horse or the slowdown costs rubies
 
-        Returns:
-            True when the server accepted the attack, False when it rejected it,
-            such as with MOVEMENT_HAS_NO_UNITS (100) for too few units
-
         Raises:
             AttackInProgressError: One of your attacks is already on its way
                 there; it carries that attack's arrival time and size. Retry
@@ -191,17 +204,22 @@ class AttackService(BaseService):
             GameDataNotLoadedError: The premium commander leads, VIP time runs and
                 the game data cannot be loaded; or a horse is picked without feathers
                 before it was called
-            ValueError: No wave carries any units, a container is overfull, or the horse or
+            ValueError: Areas of yours sit at the source position in several kingdoms and no
+                ``kingdom_id`` is given, no wave carries any units, a container is overfull, or the horse or
                 slowdown costs rubies and ``spend_rubies`` is False
+            CommandError: The server refused the attack, such as with ``MOVEMENT_HAS_NO_UNITS``
+                for too few units
             UnknownCastleError: No ``kingdom_id`` given and no area of yours in
                 the castle list is at the source position
-            AmbiguousCastleError: No ``kingdom_id`` given and areas of yours sit
-                at the source position in several kingdoms
             EmpireTimeoutError / ConnectionClosedError / NetworkError: transport failures
 
         Client: ``CastleAttackData.sendAttack`` (bundle line 133852) sends the
         source area's ``kingdomID`` as ``KID``
         """
+        if isinstance(waves, FilledAttack):
+            yard_wave = waves.yard if yard_wave is None else yard_wave
+            min_soldiers = waves.min_soldiers if min_soldiers is None else min_soldiers
+            waves = waves.waves
         filled_waves = [w for w in waves if w.is_complete()]
         yard = WodAmount.slots(yard_wave or ())
         if not filled_waves:
@@ -246,17 +264,16 @@ class AttackService(BaseService):
             send_anyway=1 if send_anyway else 0,
         )
 
-        def send() -> bool:
+        def send() -> None:
+            self.pacer.wait()
             try:
-                self.client.send(request, wait=True, timeout=timeout)
+                self.execute(request, timeout=timeout)
             except CommandError as e:
                 if e.error is GGEError.ATTACK_IN_PROGRESS:
                     raise AttackInProgressError(e.command, e.code, e.payload) from e
-                logger.warning(f"Action '{request.get_command()}' rejected: {e}")
-                return False
-            return True
+                raise
 
-        return self.client.commanders.premium_send(commander_id, use_premium_commander, send, spend_rubies=spend_rubies)
+        self.client.commanders.premium_send(commander_id, use_premium_commander, send, spend_rubies=spend_rubies)
 
     def get_attack_info(
         self,
@@ -304,7 +321,7 @@ class AttackService(BaseService):
     # Presets
     # =========================================================================
 
-    def get_presets(self, timeout: float = 5.0) -> list[AttackPreset]:
+    def get_presets(self, *, timeout: float = 5.0) -> list[AttackPreset]:
         """
         Get your unlocked attack preset slots.
 
@@ -321,7 +338,7 @@ class AttackService(BaseService):
         """
         return self.request(GetPresetsRequest(), GetPresetsResponse, timeout=timeout).presets
 
-    def save_preset(self, index: int, army: PresetArmy | AttackWave, timeout: float = 5.0) -> bool:
+    def save_preset(self, index: int, army: PresetArmy | AttackWave, *, timeout: float = 5.0) -> None:
         """
         Save an army into an unlocked preset slot.
 
@@ -333,18 +350,15 @@ class AttackService(BaseService):
             army: The army, a ``PresetArmy`` or a wave
             timeout: Timeout in seconds
 
-        Returns:
-            True when the server accepted it, False when it refused it.
-
         Client: ``C2SUpdatePreDefinedAttackSetupVO`` (bundle line 141820), sent by
         ``FightPresetData.savePresetArmy`` (bundle line 141780) from
         ``AttackDialogPresets.handleSavePresetRequested`` (bundle line 101661), which
         saves only an unlocked slot
         """
         preset = army if isinstance(army, PresetArmy) else PresetArmy.from_wave(army)
-        return self.execute(SavePresetRequest.create(index, preset), timeout=timeout)
+        self.execute(SavePresetRequest.create(index, preset), timeout=timeout)
 
-    def rename_preset(self, index: int, name: str, timeout: float = 5.0) -> bool:
+    def rename_preset(self, index: int, name: str, *, timeout: float = 5.0) -> None:
         """
         Rename a preset slot.
 
@@ -352,9 +366,6 @@ class AttackService(BaseService):
             index: The preset slot, an ``AttackPreset.index`` from :meth:`get_presets`
             name: The new name, at most 15 characters, none of ``SMARTFOX_INVALID_CHARS``
             timeout: Timeout in seconds
-
-        Returns:
-            True when the server accepted it, False when it refused it.
 
         Raises:
             ValueError: The client's rename dialog would refuse the name
@@ -368,7 +379,7 @@ class AttackService(BaseService):
                 f"Preset names are 1 to {PRESET_NAME_MAX_LENGTH} characters without any of "
                 f"{''.join(SMARTFOX_INVALID_CHARS)}, got {name!r}"
             )
-        return self.execute(RenamePresetRequest(index=index, name=name), timeout=timeout)
+        self.execute(RenamePresetRequest(index=index, name=name), timeout=timeout)
 
     def fill_waves(
         self,
@@ -493,14 +504,13 @@ class AttackService(BaseService):
             GameDataNotLoadedError: the game data cannot be loaded
             ValueError: No level was given and none is known for the player
             UnknownCastleError: No ``inventory`` given and ``castle_id`` is not in your castle list
-            AmbiguousCastleError: No ``inventory`` given and ``castle_id`` repeats across your kingdoms
         """
         game_data = self._require_game_data()
 
         player = self.client.state.get_local_player()
-        attacker_level = player.level if player else 0
+        attacker_level = player.level
         if attacker_legend_level is None:
-            attacker_legend_level = player.legendary_level if player else 0
+            attacker_legend_level = player.legendary_level
         if level is None:
             raise ValueError("A wave is sized by the level of whoever owns the target; pass level=")
         # Client: CastleFightScreenVO.targetOwnerLevel, the owner's own level under
@@ -657,7 +667,6 @@ class AttackService(BaseService):
         Raises:
             GameDataNotLoadedError: The game data cannot be loaded
             UnknownCastleError: ``castle_id`` is not in your castle list
-            AmbiguousCastleError: ``castle_id`` repeats across your kingdoms
         """
         game_data = self._require_game_data()
         response = self.client.army.get_units_response(castle_id, timeout=timeout)
@@ -667,6 +676,7 @@ class AttackService(BaseService):
         self,
         castle_id: int,
         *,
+        target: MapAreaItem | None = None,
         target_x: int | None = None,
         target_y: int | None = None,
         kingdom_id: Kingdom | None = None,
@@ -732,6 +742,8 @@ class AttackService(BaseService):
         Args:
             castle_id: Castle whose troops to draw from, one of yours: a ``Castle.id``
                 from ``client.state.get_castles()``
+            target: The target as a map scan returned it, which gives its position,
+                kingdom, map row and area type; pass it or ``target_x``/``target_y``
             target_x: Target's map x, which lets this method read the rest
             target_y: Target's map y
             kingdom_id: Kingdom the target sits in; the source castle's when not
@@ -802,14 +814,23 @@ class AttackService(BaseService):
                 error's ``attack``
             UnknownCastleError: ``castle_id`` is not in your castle list and
                 its kingdom, position or inventory had to be read from it
-            AmbiguousCastleError: So, and ``castle_id`` repeats across your kingdoms
             ValueError: ``area_type`` is not an area type, or the target's has no
-                pre-calculation modelled
+                pre-calculation modelled; or ``target`` is given with ``target_x``,
+                ``target_y`` or ``target_row``
             EmpireTimeoutError / ConnectionClosedError / PacketError: A read of the target failed
         """
         game_data = self._require_game_data()
+        options = options or FillOptions()
 
-        target = _Target(
+        if target is not None:
+            if target_x is not None or target_y is not None or target_row is not None:
+                raise ValueError("Pass target or target_x/target_y/target_row, not both")
+            target_x, target_y = target.x, target.y
+            target_row = target.raw_data or None
+            kingdom_id = target.kingdom if kingdom_id is None else kingdom_id
+            area_type = target.item_type if area_type is None else area_type
+
+        read = _Target(
             x=target_x or 0,
             y=target_y or 0,
             kingdom_id=None if kingdom_id is None else Kingdom(kingdom_id),
@@ -829,66 +850,67 @@ class AttackService(BaseService):
             conquer=conquer,
         )
         if target_x is not None and target_y is not None:
-            _read_target(self, target, castle_id=castle_id, timeout=timeout)
+            _read_target(self, read, castle_id=castle_id, timeout=timeout)
 
-        if target.level is None:
-            if target.camp_victories is None:
+        if read.level is None:
+            if read.camp_victories is None:
                 if target_x is None or target_y is None:
                     raise ValueError(
-                        "Pass target_x and target_y to read the target, or target_level, "
+                        "Pass target or target_x and target_y to read the target, or target_level, "
                         "or camp_victories to derive the level from"
                     )
-                item = _row_item(target.row)
+                item = _row_item(read.row)
                 if item is None:
                     reason = "neither the map nor a pre-calculation has a row for it"
                 elif item.is_invasion_camp:
                     camp = item.camp_id if item.camp_id is not None else item.victory_count
                     reason = f"the items payload describes no camp {camp} for area type {int(item.item_type)}"
                 else:
-                    reason = f"the map row for area type {target.area_type} carries no owner level"
+                    reason = f"the map row for area type {read.area_type} carries no owner level"
                 raise ValueError(
-                    f"Nothing at {target.x}:{target.y} says what level to fill for: {reason}. "
+                    f"Nothing at {read.x}:{read.y} says what level to fill for: {reason}. "
                     "Pass target_level to fill it anyway"
                 )
-            target.level = camp_level(target.camp_victories, target.camp_kingdom_id)
-        if target.area_type is None:
-            row_item = _row_item(target.row)
-            target.area_type = row_item.item_type if row_item is not None else None
+            read.level = camp_level(read.camp_victories, read.camp_kingdom_id)
+        if read.area_type is None:
+            row_item = _row_item(read.row)
+            read.area_type = row_item.item_type if row_item is not None else None
 
-        defense = _target_defense(game_data, target)
+        defense = _target_defense(game_data, read)
 
         general_id = commander.general_id if commander is not None else None
         if general_skill_ids is None and general_id is not None and general_id >= 0:
             try:
-                general_skill_ids = self.client.skills.get_generals(timeout=timeout).skill_ids(general_id)
+                generals = self.client.commanders.get_generals(timeout=timeout)
+                general_skill_ids = next((g.skill_ids for g in generals if g.general_id == general_id), ())
             except CommandError as e:
                 logger.warning(f"Could not read the general's skills, sizing without them: {e}")
-                target.unread[TargetRead.GENERAL_SKILLS] = e
+                read.unread[TargetRead.GENERAL_SKILLS] = e
         if legend_skill_ids is None:
             try:
-                legend_skill_ids = self.client.skills.get_skills(timeout=timeout).legend_skill_ids
+                legend_skill_ids = self.client.player.get_skills(timeout=timeout).legend_skill_ids
             except CommandError as e:
                 logger.warning(f"Could not read the player's skills, sizing without them: {e}")
-                target.unread[TargetRead.LEGEND_SKILLS] = e
+                read.unread[TargetRead.LEGEND_SKILLS] = e
 
-        owner_id = target_owner_id if target_owner_id is not None else owner_id_from_row(target.row)
+        owner_id = target_owner_id if target_owner_id is not None else owner_id_from_row(read.row)
         # One inventory read for both passes: the waves deduct what they take,
         # so the courtyard draws from what they left.
         pool = (
-            _pool(game_data, target.inventory)
-            if target.inventory is not None
+            _pool(game_data, read.inventory)
+            if read.inventory is not None
             else self.read_inventory(castle_id, timeout=timeout)
         )
         global_effects = self._global_effects(global_effects)
         waves = self.fill_waves(
             castle_id,
-            level=target.level,
+            level=read.level,
             landmark_min_level=landmark_min_level,
-            camp_kingdom_id=target.camp_kingdom_id,
-            space_id=target.kingdom_id,
+            camp_kingdom_id=read.camp_kingdom_id,
+            space_id=read.kingdom_id,
             conquer=conquer,
             tool_bonus=tool_bonus,
-            area_bonuses=target.area_bonuses,
+            area_bonuses=read.area_bonuses,
             inventory=pool,
             defense=defense,
             commander=commander,
@@ -896,30 +918,29 @@ class AttackService(BaseService):
             legend_skill_ids=legend_skill_ids,
             global_effects=global_effects,
             support_tools=support_tools,
-            target_is_player=target.is_player,
+            target_is_player=read.is_player,
             owner_id=owner_id,
-            owner_legend_level=target.owner_legend_level or 0,
+            owner_legend_level=read.owner_legend_level or 0,
             under_conquer_control=under_conquer_control,
             active_raid_boss_id=active_raid_boss_id,
-            area_type=target.area_type,
-            player_target=target.is_player if owner_id is None else None,
+            area_type=read.area_type,
+            player_target=read.is_player if owner_id is None else None,
             options=options,
             timeout=timeout,
         )
 
-        player = self.client.state.get_local_player()
-        attacker_level = player.level if player else 0
+        attacker_level = self.client.state.get_local_player().level
         # getMaxUnitsInReinforcementWave reads the area's own defense level when
         # the target is under conquer control, and its owner's otherwise.
         yard_level = (
-            minimum_owner_level(target.level, target.area_type, landmark_min_level=landmark_min_level)
+            minimum_owner_level(read.level, read.area_type, landmark_min_level=landmark_min_level)
             if under_conquer_control
-            else target.level
+            else read.level
         )
         yard = fill_yard_wave(
             pool,
             game_data,
-            yard_capacity(attacker_level, yard_level, bonus=yard_bonus, boost=yard_boost),
+            yard_capacity(attacker_level, yard_level, bonus=yard_bonus, boost=yard_boost) if options.fill_yard else 0,
             defender=(defense or {}).get(Flank.YARD),
             options=options,
             # The courtyard runs the same pick as a flank, so a buffed unit is
@@ -928,15 +949,15 @@ class AttackService(BaseService):
         )
         # Client: CastleFightScreenVO.targetOwnerLevel (bundle line 30562)
         owner_level = (
-            target.level
+            read.level
             if under_conquer_control
-            else minimum_owner_level(target.level, target.area_type, landmark_min_level=landmark_min_level)
+            else minimum_owner_level(read.level, read.area_type, landmark_min_level=landmark_min_level)
         )
         attack = FilledAttack(
             waves=waves,
             yard=yard,
-            min_soldiers=min_attack_soldiers(owner_level, target.area_type, landmark_min_level=landmark_min_level),
-            unread=target.unread,
+            min_soldiers=min_attack_soldiers(owner_level, read.area_type, landmark_min_level=landmark_min_level),
+            unread=read.unread,
         )
         if attack.wave_unit_count() < attack.min_soldiers:
             raise AttackBelowMinimumError(attack.min_soldiers, attack.wave_unit_count(), attack)

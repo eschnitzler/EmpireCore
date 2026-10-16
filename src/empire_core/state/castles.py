@@ -13,15 +13,13 @@ from empire_core.castle.models.permanent import PermanentCastle, PermanentCastle
 from empire_core.castle.models.resources import CastleResources
 from empire_core.castle.models.updates import UnitsReceived
 from empire_core.enums import Kingdom
-from empire_core.exceptions import AmbiguousCastleError
-from empire_core.gamedata import EnumOrInt
 from empire_core.protocol.base import enum_or_none, read_or_none
 from empire_core.protocol.js import js_int, js_loose_equals, js_truthy
 from empire_core.state.base import StateBase
-from empire_core.state.models import Castle, CastleKey, Resources
+from empire_core.state.models import Castle, Resources
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import Horse
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +42,8 @@ class CastleState(StateBase):
         a payload we could not read, not evidence of ownership loss — it is
         reported at WARNING and the existing castle list is kept.
 
-        Castles are keyed by (kingdom, id): ids repeat across kingdoms. A
-        row's own kingdom field wins over the block's ``KID``.
+        Castles are keyed by id, a server-wide area id. A row's own kingdom
+        field wins over the block's ``KID``.
 
         Client: ``CastleListVO.parseCastleList`` (bundle line 13698) keeps a
         list per ``KID`` and reads the entry's ``OGC`` through ``int()`` when it is
@@ -59,7 +57,7 @@ class CastleState(StateBase):
         if not isinstance(kingdoms, list):
             return
 
-        owned: dict[CastleKey, Castle] = {}
+        owned: dict[int, Castle] = {}
         entries = 0
         skipped = 0
         for k_data in kingdoms:
@@ -88,8 +86,7 @@ class CastleState(StateBase):
                 x, y, area_id, name, kingdom = row.x, row.y, row.location_id, row.name or "", row.kingdom
                 gate_count = area_entry.get("OGC")
                 open_gates = js_int(gate_count) if js_truthy(gate_count) else 0
-                key = (kingdom, area_id)
-                existing = self.castles.get(key)
+                existing = self.castles.get(area_id)
                 if existing is not None:
                     # Identity preserved for user-held references, but the
                     # fields land in one swap (see _swap_model_fields):
@@ -98,9 +95,9 @@ class CastleState(StateBase):
                     merged = dict(existing.__dict__)
                     merged.update({"name": name, "x": x, "y": y, "open_gate_counter": open_gates})
                     self._swap_model_fields(existing, merged, {"name", "x", "y", "open_gate_counter"})
-                    owned[key] = existing
+                    owned[area_id] = existing
                 else:
-                    owned[key] = Castle(
+                    owned[area_id] = Castle(
                         id=area_id, name=name, kingdom_id=kingdom, x=x, y=y, open_gate_counter=open_gates
                     )
 
@@ -112,9 +109,9 @@ class CastleState(StateBase):
             return
 
         # Drop castles no longer owned (lost/traded since the last update)
-        for stale_key in set(self.castles) - set(owned):
+        for stale_id in set(self.castles) - set(owned):
             # A re-acquired castle must not inherit the old freshness stamp
-            self._castle_details_at.pop(stale_key, None)
+            self._castle_details_at.pop(stale_id, None)
         # Swap, don't mutate: user threads hold state.castles and
         # local_player.castles unlocked, and a reader holding the old dict
         # must keep seeing a consistent snapshot.
@@ -142,10 +139,9 @@ class CastleState(StateBase):
                 if not isinstance(castle_data, dict):
                     continue
                 aid = castle_data.get("AID")
-                if not isinstance(aid, int) or (kid, aid) not in self.castles:
+                castle = self.castles.get(aid) if isinstance(aid, int) else None
+                if castle is None or castle.kingdom_id != kid:
                     continue
-                key: CastleKey = (kid, aid)
-                castle = self.castles[key]
                 try:
                     info = DetailedCastleInfo.model_validate({**castle_data, "KID": kid})
                 except ValidationError as e:
@@ -173,7 +169,7 @@ class CastleState(StateBase):
                 if info.units:
                     castle.units = info.units
                 castle.details = info
-                self._castle_details_at[key] = time.time()
+                self._castle_details_at[castle.id] = time.time()
 
     def _parse_castle_resources(self, data: dict[str, Any]) -> bool:
         """Apply a ``grc`` block to its castle's stock; whether it was applied.
@@ -198,9 +194,8 @@ class CastleState(StateBase):
         kingdom = enum_or_none(Kingdom, block.kingdom_id)
         if kingdom is None:
             return False
-        key: CastleKey = (kingdom, block.castle_id)
-        castle = self.castles.get(key)
-        if castle is None or key not in self._castle_details_at:
+        castle = self.castles.get(block.castle_id)
+        if castle is None or castle.kingdom_id != kingdom or block.castle_id not in self._castle_details_at:
             return False
         castle.resources = castle.resources.model_copy(update={name: getattr(block, name) for name in _STOCK})
         return True
@@ -219,9 +214,8 @@ class CastleState(StateBase):
         received = read_or_none(UnitsReceived.model_validate, data, warn=logger, what="a rue push")
         if received is None:
             return
-        kingdom = enum_or_none(Kingdom, received.kingdom_id)
-        castle = None if kingdom is None else self.castles.get((kingdom, received.castle_id))
-        if castle is None:
+        castle = self.castles.get(received.castle_id)
+        if castle is None or castle.kingdom_id != enum_or_none(Kingdom, received.kingdom_id):
             return
         units = dict(castle.units)
         if received.amount <= 0:
@@ -246,8 +240,7 @@ class CastleState(StateBase):
     def _parse_permanent_castles(self, data: dict[str, Any]) -> None:
         """Apply a gpc section or push: each castle it names is replaced, the others kept.
 
-        Client: ``CastlePermanentCastleData.parseGPC`` (bundle line 139128), keyed
-        by ``getDicKey`` (bundle line 139147) as kingdom and castle id
+        Client: ``CastlePermanentCastleData.parseGPC`` (bundle line 139128)
         """
         gpc = data.get("gpc")
         if not isinstance(gpc, dict):
@@ -257,32 +250,24 @@ class CastleState(StateBase):
             return
         merged = dict(self.permanent_castles)
         for castle in castles:
-            merged[(castle.kingdom_id, castle.castle_id)] = castle
+            merged[castle.castle_id] = castle
         self.permanent_castles = merged
 
     def get_permanent_castle(self, castle_id: int) -> PermanentCastle | None:
         """One of your castles' unlocked units and horses, from the last gpc that named it.
 
-        The kingdom is the castle's own, from the castle list. ``None`` when the
-        castle is not in the castle list or no gpc named it.
+        ``None`` when the castle is not in the castle list or no gpc named it in
+        the castle's own kingdom.
 
-        Raises:
-            AmbiguousCastleError: the id repeats across your kingdoms
-
-        Client: ``CastlePermanentCastleData.getCastleByWorldAreaId`` (bundle line 139145)
+        Client: ``CastlePermanentCastleData.getCastleByWorldAreaId`` (bundle line 139145),
+        keyed by ``getDicKey`` (bundle line 139147) as kingdom and castle id
         """
         with self._lock:
-            key = self._castle_key(castle_id)
-            return None if key is None else self.permanent_castles.get(key)
-
-    def get_castle_horse_ids(self, castle_id: int) -> list[EnumOrInt["Horse"]] | None:
-        """The horses one of your castles can send movements with, as gpc sent them.
-
-        Look each up with ``GameData.require().get_horse``, or use
-        ``client.castle.get_horses``. ``None`` when :meth:`get_permanent_castle` is.
-        """
-        permanent = self.get_permanent_castle(castle_id)
-        return None if permanent is None else list(permanent.horse_ids)
+            castle = self.castles.get(castle_id)
+            permanent = self.permanent_castles.get(castle_id)
+        if castle is None or permanent is None or permanent.kingdom_id != castle.kingdom_id:
+            return None
+        return permanent
 
     def get_castles(self) -> list[Castle]:
         """Get a snapshot of the player's castles.
@@ -296,13 +281,6 @@ class CastleState(StateBase):
         with self._lock:
             return list(self.castles.values())
 
-    def _castle_key(self, castle_id: int) -> CastleKey | None:
-        """The key of one of your castles, or None when there is none. Call under the lock."""
-        keys = [key for key in self.castles if key[1] == castle_id]
-        if len(keys) > 1:
-            raise AmbiguousCastleError(castle_id, sorted(key[0] for key in keys))
-        return keys[0] if keys else None
-
     def get_castle_last_updated(self, castle_id: int) -> float | None:
         """When this castle's detail data (resources, units) was last refreshed.
 
@@ -314,13 +292,9 @@ class CastleState(StateBase):
         packet ever refreshed this castle — in which case ``resources`` and
         ``units`` are defaults, not measurements. Refresh with
         ``client.castle.get_details(castle_id)``.
-
-        Raises:
-            AmbiguousCastleError: the id is listed in several of your kingdoms
         """
         with self._lock:
-            key = self._castle_key(castle_id)
-            return None if key is None else self._castle_details_at.get(key)
+            return self._castle_details_at.get(castle_id)
 
     def get_castle_age(self, castle_id: int) -> float | None:
         """Seconds since this castle's detail data was refreshed, or ``None``.
@@ -329,8 +303,7 @@ class CastleState(StateBase):
         so treat it as infinitely stale rather than as zero.
         """
         with self._lock:
-            key = self._castle_key(castle_id)
-            stamp = None if key is None else self._castle_details_at.get(key)
+            stamp = self._castle_details_at.get(castle_id)
         if stamp is None:
             return None
         return max(0.0, time.time() - stamp)

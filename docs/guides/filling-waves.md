@@ -12,7 +12,7 @@ everything else itself.
 client.load_game_data()    # optional: takes the first-use download up front
 
 castle = client.castle.get_all()[0]
-commander = client.commanders.get_commanders()[1]
+commander = client.commanders.idle_commanders[0]
 
 attack = client.attack.fill_attack(
     castle.castle_id,
@@ -20,17 +20,24 @@ attack = client.attack.fill_attack(
     commander=commander,
 )
 
-client.attack.send_attack(
-    source_x=castle.x, source_y=castle.y,
-    target_x=624, target_y=247,
-    waves=attack.waves, yard_wave=attack.yard,
-    commander_id=commander.commander_id,
-    min_soldiers=attack.min_soldiers,
-)
+client.attack.send_attack(castle.x, castle.y, 624, 247, attack, commander.commander_id)
 ```
 
 `fill_attack` returns a `FilledAttack`: the `waves`, the courtyard wave
 `yard`, and `min_soldiers`, the fewest units the waves must carry.
+`send_attack` takes it whole, courtyard wave and minimum included.
+
+A target from a map scan can be passed as it is: `target=item` gives
+`fill_attack` its position, kingdom, map row and area type, so the
+pre-calculation is the only read left.
+
+```python
+from empire_core import MapItemType
+
+scan = client.map.scan_around(castle.x, castle.y, 35, castle.kingdom_id, [MapItemType.DUNGEON])
+for item in scan.items:
+    attack = client.attack.fill_attack(castle.castle_id, target=item, commander=commander)
+```
 
 ## What it reads
 
@@ -106,6 +113,29 @@ defense the units are then chosen against.
   `global_effects` (`GlobalEffectTimer`s). A timer that has ended counts for
   nothing. The booster's boost to the effects `bie` lists is added from state:
   each such effect's strength plus its `GlobalEffectBuffEvent.boost_value`.
+
+## Choosing what to fill
+
+`options=FillOptions(...)` narrows the fill. The flank, unit and tool filters match
+the game's auto-fill settings; the last three are the library's own.
+
+| Option | Default | Effect |
+| --- | --- | --- |
+| `fill_left`, `fill_middle`, `fill_right` | `True` | Which flanks get units and tools |
+| `allow_coin_cost`, `allow_ruby_cost`, `allow_mead`, `allow_beef` | `True` | Allow units with that healing cost or upkeep |
+| `use_melee`, `use_ranged` | `True` | Allow that kind of unit |
+| `allow_basic_tools`, `allow_premium_tools`, `allow_elite_tools`, `allow_event_tools`, `allow_combo_tools` | `True` | Allow tools of that category; a tool without one is always allowed |
+| `use_tools` | `True` | `False` fills soldiers only |
+| `fill_yard` | `True` | `False` leaves the courtyard wave empty |
+| `max_waves` | `None` | Fill at most this many waves |
+
+```python
+from empire_core.combat import FillOptions
+
+# One wave, left flank only, no tools, no courtyard.
+options = FillOptions(fill_middle=False, fill_right=False, use_tools=False, fill_yard=False, max_waves=1)
+attack = client.attack.fill_attack(castle.castle_id, target=item, commander=commander, options=options)
+```
 
 ## The courtyard wave
 

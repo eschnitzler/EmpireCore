@@ -42,7 +42,7 @@ def main() -> int:
         client.load_game_data()
 
         castles = client.castle.get_all()
-        commanders = [c for c in client.commanders.get_commanders() if c.commander_id >= 0]
+        commanders = client.commanders.idle_commanders
         if not castles or not commanders:
             print("Need at least one castle and one commander.", file=sys.stderr)
             return 1
@@ -71,17 +71,16 @@ def main() -> int:
             print("\nDry run. Re-run with --send to actually send it.")
             return 0
 
-        accepted = client.attack.send_attack(
+        client.attack.send_attack(
             source_x=source.x,
             source_y=source.y,
             target_x=target_x,
             target_y=target_y,
-            waves=filled.waves,
-            yard_wave=filled.yard,
+            waves=filled,
             kingdom_id=source.kingdom_id,
             commander_id=leader.commander_id,
         )
-        print("Attack sent." if accepted else "Server rejected the attack.")
+        print("Attack sent.")
 
     except EmpireError as e:
         print(f"{type(e).__name__}: {e}", file=sys.stderr)

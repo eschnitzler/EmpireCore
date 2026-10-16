@@ -265,10 +265,9 @@ class TestLoginBonus:
         assert conn(client).request_payloads == [("alb", {})]
         state.shutdown()
 
-    @pytest.mark.parametrize("player", [StubPlayer(xp=1199), None])
-    def test_below_the_xp_gate_nothing_is_sent(self, player):
+    def test_below_the_xp_gate_nothing_is_sent(self):
         # GBDCommand sends alb only with userXP >= REQUIRED_XP; the server stays silent below it
-        client = make_client(state=StubState(player))
+        client = make_client(state=StubState(StubPlayer(xp=1199)))
         with pytest.raises(LoginBonusUnavailableError) as raised:
             client.rewards.get_login_bonus()
         with pytest.raises(LoginBonusUnavailableError):
@@ -276,7 +275,7 @@ class TestLoginBonus:
         with pytest.raises(LoginBonusUnavailableError):
             client.rewards.collect_login_bonus_special(LoginBonusSpecial.ALLIANCE)
         assert raised.value.required_xp == 1200
-        assert raised.value.xp == (None if player is None else 1199)
+        assert raised.value.xp == 1199
         assert conn(client).request_payloads == []
         assert conn(client).sent == []
 
@@ -314,12 +313,13 @@ class TestStartupBonus:
         client = make_client({"sli": xt_packet("sli", {"NRR": 3, "CC": 1}), "slc": xt_packet("slc", {})})
 
         assert client.rewards.get_startup_bonus().next_reward_id == 3
-        assert client.rewards.collect_startup_bonus() is True
+        client.rewards.collect_startup_bonus()
         assert conn(client).request_payloads == [("sli", {}), ("slc", {})]
 
-    def test_a_refused_collect_is_false(self):
-        client = make_client({"slc": xt_packet("slc", {}, error_code=1)})
-        assert client.rewards.collect_startup_bonus() is False
+    def test_a_refused_collect_raises(self):
+        client = make_client({"slc": xt_packet("slc", {}, error_code=1)}, state=GameState())
+        with pytest.raises(CommandError):
+            client.rewards.collect_startup_bonus()
 
 
 class TestLostAndFound:
@@ -342,7 +342,7 @@ class TestLostAndFound:
         client = make_client({"lfe": xt_packet("lfe", {"lfe": [self.ITEM]}), "clf": xt_packet("clf", {})})
 
         items = client.rewards.get_lost_and_found()
-        assert client.rewards.collect_lost_and_found(items[0].item_id) is True
+        client.rewards.collect_lost_and_found(items[0].item_id)
         assert conn(client).request_payloads == [("lfe", {}), ("clf", {"LFID": 12})]
 
 
@@ -359,7 +359,7 @@ class TestActivityChest:
         assert not chest.is_active and not chest.is_ready()
 
     def test_the_push_is_kept_and_announced(self):
-        client = make_client()
+        client = make_client(state=GameState())
         seen: list[ActivityChestInfo] = []
         client.rewards.on_activity_chest(seen.append)
         assert client.rewards.activity_chest is None
@@ -368,12 +368,12 @@ class TestActivityChest:
 
         chest = client.rewards.activity_chest
         assert chest is not None and chest.next_reward_id == 2 and chest.is_ready()
-        assert seen == [chest]
+        assert [c.next_reward_id for c in seen] == [2]
         client.rewards.on_activity_chest.remove(seen.append)
 
     @staticmethod
     def ready_client(script=None, chest=None):
-        client = make_client(script)
+        client = make_client(script, state=GameState())
         client._on_packet(xt_packet("uac", chest or {"CID": 2, "TTU": 0}))
         return client
 
@@ -391,7 +391,7 @@ class TestActivityChest:
     @pytest.mark.parametrize("chest", [None, {"CID": 2, "TTU": 60}, {"CID": -1, "TTU": 0}])
     def test_a_chest_not_ready_sends_nothing(self, chest):
         # CastleActivityBonusDialog.onClick sends uoa only with no time left (bundle line 104934)
-        client = make_client() if chest is None else self.ready_client(chest=chest)
+        client = make_client(state=GameState()) if chest is None else self.ready_client(chest=chest)
         with pytest.raises(ValueError, match="not ready"):
             client.rewards.open_activity_chest()
         assert conn(client).request_frames == [] and conn(client).sent == []
@@ -486,7 +486,7 @@ class TestWeeklyHonor:
 
 def mailbox_client(script=None, *rows):
     """A client whose mailbox holds the sne ``rows``."""
-    client = make_client(script)
+    client = make_client(script, state=GameState())
     client._on_packet(xt_packet("sne", {"MSG": list(rows)}))
     return client
 
@@ -512,13 +512,14 @@ class TestPatchNoteRewards:
     def test_collect_reads_then_collects(self):
         client = mailbox_client({"gpn": xt_packet("gpn", self.GPN), "cpn": xt_packet("cpn", {})}, patch_note())
 
-        assert client.rewards.collect_patch_note_rewards(41) is True
+        client.rewards.collect_patch_note_rewards(41)
         assert conn(client).request_payloads == [("gpn", {"PNID": 87}), ("cpn", {"PNID": 87, "MID": 41})]
 
-    def test_a_refused_collect_is_false(self):
+    def test_a_refused_collect_raises(self):
         script = {"gpn": xt_packet("gpn", self.GPN), "cpn": xt_packet("cpn", {}, error_code=1)}
         client = mailbox_client(script, patch_note())
-        assert client.rewards.collect_patch_note_rewards(41) is False
+        with pytest.raises(CommandError):
+            client.rewards.collect_patch_note_rewards(41)
 
     def test_a_collected_patch_note_sends_nothing(self):
         client = mailbox_client(None, patch_note(collected=1))
@@ -545,7 +546,7 @@ class TestPatchNoteRewards:
 
 class TestPendingRewards:
     def test_the_push_is_kept_and_announced(self):
-        client = make_client()
+        client = make_client(state=GameState())
         seen: list[PendingRewardsInfo] = []
         client.rewards.on_pending_rewards(seen.append)
         assert client.rewards.pending_rewards is None
@@ -557,7 +558,7 @@ class TestPendingRewards:
         client.rewards.on_pending_rewards.remove(seen.append)
 
     def test_a_dropped_session_forgets_the_count(self):
-        client = make_client()
+        client = make_client(state=GameState())
         client._on_packet(xt_packet("pre", {"AMT": 3}))
 
         client._session.dropped(conn(client).generation)

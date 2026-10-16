@@ -15,6 +15,7 @@ from typing import TypeVar
 from empire_core.enums import GGEError, Kingdom, MapItemType
 from empire_core.exceptions import CommandError
 from empire_core.map.models.areas import (
+    MAX_AREA_SPAN,
     MAX_FINDABLE_ENEMY_INDEX,
     FindNextEnemyCastleRequest,
     FindNextEnemyCastleResponse,
@@ -26,6 +27,7 @@ from empire_core.map.models.areas import (
     GetMapAreaResponse,
 )
 from empire_core.map.models.items import parse_area_rows
+from empire_core.map.models.world import MapSize
 from empire_core.map.pacing import MapAreaPacer
 from empire_core.map.scanner import ChunkHandler, MapScanner, ScanResult
 from empire_core.protocol.base import BaseRequest
@@ -45,19 +47,24 @@ class MapService(BaseService):
         super().__init__(client)
         self.pacer = MapAreaPacer(lambda: client.config.map_tiles_per_second)
 
+    def map_size(self, kingdom: Kingdom) -> MapSize:
+        """
+        ``kingdom``'s map in tiles, which sends nothing: the server names it when the connection opens.
+
+        Raises:
+            StateNotLoadedError: Not connected yet
+        """
+        return self.client.state.get_map_size(kingdom)
+
     def scan_map_area(
-        self,
-        x1: int,
-        y1: int,
-        x2: int,
-        y2: int,
-        kingdom: Kingdom = Kingdom.GREEN,
-        timeout: float = 5.0,
+        self, x1: int, y1: int, x2: int, y2: int, kingdom: Kingdom = Kingdom.GREEN, *, timeout: float = 5.0
     ) -> GetMapAreaResponse:
         """
         Scan a specific area of the map.
 
-        The session leaves the castle it had joined; see the module docstring.
+        As the game client does, a side spanning more than 100 tiles past its
+        first corner is cut to 100 tiles: ``x2`` becomes ``x1 + 99``, and ``y2`` the
+        same way. The session leaves the castle it had joined; see the module docstring.
 
         Args:
             x1: Left X coordinate
@@ -69,33 +76,98 @@ class MapService(BaseService):
 
         Raises:
             CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+
+        Client: ``CastleWorldmapData.updateAreaRange`` (bundle line 19006)
         """
+        if x2 - x1 > MAX_AREA_SPAN:
+            x2 = x1 + MAX_AREA_SPAN - 1
+        if y2 - y1 > MAX_AREA_SPAN:
+            y2 = y1 + MAX_AREA_SPAN - 1
         request = GetMapAreaRequest(kingdom=kingdom, x1=x1, y1=y1, x2=x2, y2=y2)
         self.pacer.wait(request.tiles)
         return self.request(request, GetMapAreaResponse, timeout=timeout)
+
+    def scan_around(
+        self,
+        x: int,
+        y: int,
+        radius: int,
+        kingdom: Kingdom,
+        item_types: list[MapItemType] | None = None,
+        *,
+        timeout: float = 5.0,
+    ) -> ScanResult:
+        """
+        The map rows within ``radius`` tiles of ``(x, y)``, nearest first.
+
+        A row is kept when :meth:`MapAreaItem.distance_to` the position is at most
+        ``radius``; ``item_types`` keeps only those types, None every type, and rows
+        without a player owner are kept too. A box up to 101 tiles a side
+        (``radius`` 50) is one ``gaa`` request; a larger one is read chunk by chunk
+        through :meth:`scan_chunks`, whose chunks that failed are in
+        ``failed_chunks``, and which leaves out position-only rows of three fields.
+        Either way each read waits on the account's map pacer. The session leaves
+        the castle it had joined; see the module docstring.
+
+        Args:
+            x: Map x to measure from
+            y: Map y to measure from
+            radius: Greatest distance in tiles
+            kingdom: Kingdom to scan
+            item_types: Area types to keep; None for every type
+            timeout: Timeout in seconds of each request
+
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`,
+                for the one request of a small box
+        """
+        if 2 * radius <= MAX_AREA_SPAN:
+            response = self.scan_map_area(x - radius, y - radius, x + radius, y + radius, kingdom, timeout=timeout)
+            wanted = set(item_types) if item_types else None
+            scan = ScanResult(
+                items=[item for item in response.items if wanted is None or item.item_type in wanted],
+                owners={owner.owner_id: owner for owner in response.owners if owner.owner_id},
+                kingdom=kingdom,
+            )
+        else:
+            scanner = MapScanner(self.client)
+            low_x, low_y = scanner.chunk_for_position(x - radius, y - radius)
+            high_x, high_y = scanner.chunk_for_position(x + radius, y + radius)
+            chunks = [(cx, cy) for cx in range(low_x, high_x + 1) for cy in range(low_y, high_y + 1)]
+            scan = scanner.scan_chunks(
+                kingdom,
+                chunks,
+                item_types or [],
+                request_timeout=timeout,
+                include_unowned_types=set(item_types or MapItemType),
+            )
+        nearby = sorted(
+            (item for item in scan.items if item.distance_to(x, y) <= radius), key=lambda item: item.distance_to(x, y)
+        )
+        return scan._replace(items=nearby)
 
     def scan_kingdom(
         self,
         kingdom: Kingdom = Kingdom.GREEN,
         item_types: list[MapItemType] | None = None,
-        timeout: float = 300.0,
+        *,
         request_timeout: float = 5.0,
         chunk_delay: float = 0.0,
         include_unowned_types: set[MapItemType] | None = None,
-        *,
         cancel: threading.Event | None = None,
         on_chunk: ChunkHandler | None = None,
+        timeout: float = 300.0,
     ) -> ScanResult:
         """Scan a kingdom map. See MapScanner.scan_kingdom; the session leaves its castle."""
         return MapScanner(self.client).scan_kingdom(
             kingdom,
             item_types,
-            timeout,
-            request_timeout,
-            chunk_delay,
+            request_timeout=request_timeout,
+            chunk_delay=chunk_delay,
             include_unowned_types=include_unowned_types,
             cancel=cancel,
             on_chunk=on_chunk,
+            timeout=timeout,
         )
 
     def scan_chunks(
@@ -103,25 +175,25 @@ class MapService(BaseService):
         kingdom: Kingdom,
         chunks: list[tuple[int, int]],
         item_types: list[MapItemType] | None = None,
-        timeout: float = 300.0,
+        *,
         request_timeout: float = 5.0,
         chunk_delay: float = 0.0,
         include_unowned_types: set[MapItemType] | None = None,
-        *,
         cancel: threading.Event | None = None,
         on_chunk: ChunkHandler | None = None,
+        timeout: float = 300.0,
     ) -> ScanResult:
         """Scan an explicit chunk list (no BFS). See MapScanner.scan_chunks; the session leaves its castle."""
         return MapScanner(self.client).scan_chunks(
             kingdom,
             chunks,
             item_types,
-            timeout,
-            request_timeout,
-            chunk_delay,
+            request_timeout=request_timeout,
+            chunk_delay=chunk_delay,
             include_unowned_types=include_unowned_types,
             cancel=cancel,
             on_chunk=on_chunk,
+            timeout=timeout,
         )
 
     def find_next(
@@ -199,7 +271,7 @@ class MapService(BaseService):
         request = FindNextEnemyCastleRequest(x=x, y=y, index=index, min_level=min_level, max_level=max_level)
         return self._find(request, FindNextEnemyCastleResponse, kingdom, timeout)
 
-    def find_next_tower(self, timeout: float = 5.0) -> FindNextTowerResponse | None:
+    def find_next_tower(self, *, timeout: float = 5.0) -> FindNextTowerResponse | None:
         """
         Find the next Berimond tower, with the map rows around it, read in Berimond.
 

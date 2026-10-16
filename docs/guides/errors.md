@@ -53,7 +53,6 @@ classDiagram
     EmpireError <|-- ReceiveThreadError
     EmpireError <|-- PoolExhaustedError
     EmpireError <|-- UnknownCastleError
-    EmpireError <|-- AmbiguousCastleError
     EmpireError <|-- NotInAllianceError
     EmpireError <|-- UnsendableGoodsError
     EmpireError <|-- PremiumCommanderCostError
@@ -75,21 +74,21 @@ classDiagram
 | `AttackInProgressError` | One of your attacks is already on its way to that target |
 | `PoolExhaustedError` | No account in the [pool](multiple-accounts.md) was free |
 | `UnknownCastleError` | A castle id, or a source position, is not one of your castles; also a `ValueError` |
-| `AmbiguousCastleError` | A castle id or position matches your castles in several kingdoms; also a `LookupError` |
 | `NotInAllianceError` | A call about your own alliance, such as `get_local_members()`, while you are in none; also a `LookupError` |
-| `UnsendableGoodsError` | A [market send](castle.md#goods-one-tab-per-send) carries goods the client would not send; also a `ValueError` |
+| `UnsendableGoodsError` | A [market send](movements.md#goods-one-tab-per-send) carries goods the client would not send; also a `ValueError` |
 | `PremiumCommanderCostError` | A send led by the [premium commander](commanders.md#the-premium-commander) may cost rubies and `spend_rubies` is not set; also a `ValueError` |
 | `LoginBonusUnavailableError` | The [login bonus](rewards.md#daily-login-bonus) was asked for below 1200 XP, or before the player data arrived; the server would not answer |
 
 The library does not leak `pydantic.ValidationError` or raw socket exceptions
 past its own API: catching `EmpireError` covers everything.
 
-## Actions return `bool`
+## A refused action raises
 
 Action helpers, such as `client.castle.select()` or
-`client.equipment.equip()`, return `False` when the server refuses the action
-and log the refusal. Transport failures still raise, so an infrastructure
-problem is never mistaken for a game-rule refusal.
+`client.equipment.equip()`, return nothing once the server accepts the action
+and raise `CommandError` with the game's message when it refuses. Match
+`CommandError.error` to tell a game-rule refusal from the rest; a transport
+failure raises its own error (`EmpireTimeoutError`, `ConnectionClosedError`).
 
 ## `None` means a named not-found
 
@@ -101,9 +100,11 @@ docstring; any other error code raises `CommandError`. Invalid arguments raise
 
 Four kinds of method follow rules of their own, each documented on the method:
 
-- State read without a request returns `None` while the login data or push it
-  comes from has not arrived: `client.castle.get_horses()` before a `gpc` named
-  the castle, `client.state.get_local_player()` before login.
+- A read that sends nothing (a property or noun method on the service, never a
+  `get_*`) returns `None` while the push or reply it comes from has not
+  arrived: `client.castle.horses()` before a `gpc` named the castle. Data every
+  login brings is never `None`; read before a login, it raises
+  `StateNotLoadedError` (`client.player.local_player`).
 - A call made of several requests returns a result object that names each
   outcome: a `SpyResult` with `SpyOutcome.COMMAND_FAILED` and its `error`, or
   the `failed` and `timed_out` players of `client.player.get_player_details_bulk()`.

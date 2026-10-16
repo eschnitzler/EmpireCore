@@ -1,5 +1,5 @@
 ---
-description: Castles, resources, buildings, the construction queue, moving goods and troops, research and the mercenary camp.
+description: Castles, resources, buildings, the construction queue, research and the mercenary camp.
 ---
 
 # Castle
@@ -24,12 +24,9 @@ castle's resources and units in [state](game-state.md).
 
 Methods that act on one of your castles take its id alone and send its
 kingdom from the castle list the server sent at login
-(`client.state.get_castles()`), as the game client does. There is no
-`kingdom_id` argument to get wrong:
-
-- an id that is not one of your castles raises `UnknownCastleError`;
-- an id listed in several of your kingdoms raises `AmbiguousCastleError`,
-  since the library then cannot tell which castle is meant.
+(`client.castle.castles`), as the game client does. There is no
+`kingdom_id` argument to get wrong, and an id that is not one of your castles
+raises `UnknownCastleError`.
 
 That covers `select`, `join`, `get_resources`, `get_details`, `rename`,
 `send_resources`, `transfer_units_to_kingdom`, `transfer_goods_to_kingdom`, the `client.army` methods and
@@ -84,107 +81,14 @@ what is ready before you collect it:
 from empire_core.enums import ResourceCartType
 
 client.castle.join(castle_id)
-mines = client.state.get_mines()        # object id -> MineStatus
-wood = client.state.get_resource_cart(ResourceCartType.WOOD)
+mines = client.castle.mines        # object id -> MineStatus
+wood = client.castle.resource_cart(ResourceCartType.WOOD)
 if wood is not None and wood.amount > 0:
     client.castle.collect_resource_cart(ResourceCartType.WOOD)
 ```
 
 Units that finish arrive as `rue` pushes, which update that castle's `units`
 in state.
-
-## Moving goods and troops
-
-```python
-from empire_core import Resource
-
-goods = {Resource.WOOD: 1000, Resource.STONE: 500}
-client.castle.send_resources(source_castle_id, target_x, target_y, goods)
-
-from empire_core.gamedata import Unit
-
-commander = client.commanders.get_commanders()[0]
-client.castle.send_support(
-    source_castle_id, target_x, target_y,
-    units={Unit.SWORDMAN: 50}, commander_id=commander.commander_id,
-)
-client.castle.send_troops(
-    source_x, source_y, target_x, target_y,
-    units={Unit.SWORDMAN: 50}, commander_id=commander.commander_id,
-)
-```
-
-Led by the premium commander, a support or troop send that may cost rubies
-raises `PremiumCommanderCostError` unless you pass `spend_rubies=True`; see
-[the premium commander](commanders.md#the-premium-commander).
-
-### Goods, one tab per send
-
-The game's send dialog offers goods on three tabs, and the server refuses a
-send that mixes them (`INVALID_PARAMETER_VALUE`, seen live), so each send
-carries goods from one tab only:
-
-| Tab | `Resource` members |
-|---|---|
-| Classic | `WOOD`, `STONE`, `FOOD` |
-| Kingdom | `COAL`, `OIL`, `GLASS`, `IRON` |
-| Mead | `HONEY`, `MEAD`, `BEEF` |
-
-A player without a legend level gets only the classic tab. `send_resources`
-raises `UnsendableGoodsError`, without sending anything, for goods from more
-than one tab, anything but classic goods for such a player, or an amount that
-is not a positive int. The target owner's level, the carriage capacity and the
-castle's stock are left to the server.
-
-### Troops
-
-`send_support` sends troops to someone else's area; the server refuses one to
-your own with `NO_SELF_DESTRUCTION` (92). Move troops between your own areas
-with `send_troops`. Before sending, `get_travel_info` asks for what the game's
-send dialog asks for:
-
-```python
-info = client.castle.get_travel_info(source_x, source_y, target_x, target_y)
-print(info.units.units)                 # {Unit or Tool: amount} at the source
-print(info.target_area.owner)           # the target's owner record
-print(info.area_effects)                # CommanderEffect rows on the movement
-```
-
-Your commanders in the reply update [state](game-state.md). The reply has no
-travel time, which the game works out from the units it sends. A source that
-is not yours raises `CommandError` with `NOT_IN_OWNED_CASTLE`.
-
-`get_market_info()` lists each castle's free carriages.
-
-### Other kingdoms
-
-`transfer_units_to_kingdom` sends units to another kingdom and
-`transfer_goods_to_kingdom` goods to your castle there:
-
-```python
-from empire_core.enums import Kingdom, KingdomTransferType
-from empire_core.gamedata import Currency
-
-client.castle.transfer_goods_to_kingdom(castle_id, Kingdom.ICE, {Resource.WOOD: 1000})
-kingdoms = client.state.get_kingdoms()
-for transfer in kingdoms.goods_transfers if kingdoms else ():
-    print(transfer.kingdom_id, transfer.remaining_seconds())
-
-client.castle.skip_kingdom_transfer_time(Kingdom.ICE, KingdomTransferType.GOODS, Currency.SKIP_1_HOUR)
-```
-
-The goods pass the same checks as `send_resources` (one tab per send, classic
-goods only below legend level). Like the game, `transfer_goods_to_kingdom`
-raises `ValueError` for a source castle in the target kingdom or in Berimond,
-and for a kingdom with no castle of yours to receive them. The travel tax and
-the target's storage are left to the server.
-
-`skip_kingdom_transfer_time` spends one minute skip item on the units or goods
-on their way to a kingdom. As the game lists only the minute skips you hold, it
-raises `ValueError` for a currency that is no minute skip and, once the special
-currencies (`client.state.get_special_currencies()`) are known, for one you
-hold none of. The full skip the game also offers costs rubies and is not in the
-library.
 
 `rename(castle_id, new_name)` renames a castle. A rename costs 2500 rubies unless
 a premium account runs, so without one it needs `spend_rubies=True`;
@@ -226,21 +130,20 @@ it does not check for a waiver, so the flag may spend rubies.
 
 ## Research
 
-Research runs on `client.player`. Start one, or shorten the running one with a
+Research runs on `client.castle`. Start one, or shorten the running one with a
 minute skip from your inventory:
 
 ```python
 from empire_core.gamedata import Currency, Research
 
-client.player.start_research(Research.MANEUVER_L1)
-client.player.skip_research(Currency.SKIP_10_MINUTES)
+client.castle.start_research(Research.MANEUVER_L1)
+client.castle.skip_research(Currency.SKIP_10_MINUTES)
 
-research = client.state.get_research()  # None until the login data arrives
-if research is not None:
-    print(research.current_research_id, research.remaining_research_seconds())
+research = client.castle.research
+print(research.current_research_id, research.remaining_research_seconds())
 ```
 
-Both return False when the server refuses. `start_research` looks the research
+Both raise `CommandError` when the server refuses. `start_research` looks the research
 up in the game data (loaded on first use): some
 researches cost rubies themselves (`ResearchDef.cost_rubies`, `costs`), and
 it raises `ValueError` for those unless you pass `spend_rubies=True`. Their
@@ -248,20 +151,20 @@ other costs, legendary tokens included, are paid as the game charges them. It
 never pays missing resources with rubies, and finishing a research at once for
 rubies is left out. `skip_research` raises `ValueError` for a currency that is
 no minute skip, or one you hold none of. Each reply's research reaches
-`client.state.get_research()`.
+`client.castle.research`.
 
 ## Mercenary camp
 
-The mercenary camp's missions are on `client.player` too. One request, `mpe`,
+The mercenary camp's missions are on `client.castle` too. One request, `mpe`,
 lists them, starts one and collects one:
 
 ```python
-missions = client.player.list_missions()
+missions = client.castle.list_missions()
 for mission in missions.missions:
     print(mission.mission_id, mission.quality, mission.current_state(), mission.price, mission.rewards)
 
-client.player.start_mission(mission_id=3)    # an open mission, paid in coins
-client.player.collect_mission(mission_id=3)  # once its time has run out
+client.castle.start_mission(mission_id=3)    # an open mission, paid in coins
+client.castle.collect_mission(mission_id=3)  # once its time has run out
 ```
 
 Each mission's `rewards` are `Collectable`s, `quality` a `MercenaryMissionRarity`
@@ -279,18 +182,18 @@ can still change a mission between the list and the send; nothing closes that
 window. Finishing a mission for rubies and swapping one for another (240
 rubies) are left out.
 
-**API:** [`PlayerService`](../reference/player.md#empire_core.player.service.PlayerService)
+**API:** [`CastleService`](../reference/castle.md#empire_core.castle.service.CastleService)
 
 ## Horses
 
-`client.castle.get_horses(castle_id)` lists the horses a castle can send
+`client.castle.horses(castle_id)` lists the horses a castle can send
 movements with, read from the login data's `gpc` section and its pushes, so
 nothing is sent. It reads the horses' stats from the game data, raises
 `UnknownCastleError` for a castle that is not yours, and returns `None` while
 no `gpc` has named the castle yet:
 
 ```python
-for horse in client.castle.get_horses(castle_id=12345) or []:
+for horse in client.castle.horses(castle_id=12345) or []:
     print(horse.wod_id, horse.unit_boost, horse.market_boost, horse.spy_boost)
 ```
 
@@ -305,7 +208,7 @@ feathers, and any slowdown cost rubies and need `spend_rubies=True`.
 
 On a live account, main and kingdom castles offered horses 1007 to 1009, the
 Storm castle 1030 to 1032, and outposts none. Without game data,
-`client.state.get_castle_horse_ids(castle_id)` gives the `Horse` members
+`client.castle.unlocks(castle_id).horse_ids` gives the `Horse` members
 (`Horse.HORSE_STABLE3` is 1007).
 
 **API:** [`CastleService`](../reference/castle.md#empire_core.castle.service.CastleService)

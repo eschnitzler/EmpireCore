@@ -5,11 +5,11 @@ The base every service builds on: typed requests and action results.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Collection
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, TypeVar
 
-from empire_core.enums import GGEError, Kingdom
-from empire_core.exceptions import AmbiguousCastleError, CommandError, UnknownCastleError
+from empire_core.enums import Kingdom
+from empire_core.exceptions import UnknownCastleError
 from empire_core.gamedata import Currency, GameData
 from empire_core.gamedata.collectables import MINUTE_SKIP_FIRST_ID, MINUTE_SKIP_KEY
 from empire_core.gamedata.lenient import known
@@ -38,20 +38,22 @@ class BaseService:
 
     Every service method reports failure by one rule:
 
-    - transport errors and unexpected server errors raise (``EmpireTimeoutError``,
-      ``ConnectionClosedError``, ``CommandError``);
+    - transport errors and server errors raise (``EmpireTimeoutError``,
+      ``ConnectionClosedError``, ``CommandError``), an action the server refuses too;
     - ``None`` only for a not-found (or nothing-to-do) outcome mapped from a named
       ``GGEError``, matched on ``CommandError.error`` and documented on the method;
     - an empty collection only when the collection really is empty;
     - invalid arguments, and a call the client would not make, raise ``ValueError``
       or a typed error from ``empire_core.exceptions``;
-    - a malformed reply raises ``PacketError``;
-    - an action the server refuses returns False (see :meth:`execute`).
+    - a malformed reply raises ``PacketError``.
 
     Four kinds of method follow rules of their own, each documented on the method:
 
-    - state read without a request returns ``None`` while the login data or push it
-      comes from has not arrived yet (``client.castle.get_horses`` before a ``gpc``);
+    - a read that sends nothing is a property, or a noun method when it takes an argument,
+      never a ``get_*`` (a ``get_*`` always sends a request); it reads ``client.state`` and
+      returns ``None`` while the push or reply it comes from has not arrived yet
+      (``client.castle.horses`` before a ``gpc``); data every login brings is never
+      ``None``: before a login its read raises ``StateNotLoadedError``;
     - a call made of several requests returns a result object that names each outcome,
       such as ``SpyOutcome.COMMAND_FAILED`` on a ``SpyResult`` or the ``failed`` and
       ``timed_out`` players of ``get_player_details_bulk``;
@@ -83,28 +85,15 @@ class BaseService:
         return list(getattr(self.client.state, "get_castles", list)() or [])
 
     def _own_castle(self, castle_id: int) -> Castle | None:
-        """
-        One of the player's castles as the state knows it, or None when the state has no such castle.
-
-        Raises:
-            AmbiguousCastleError: The id is listed in several of your kingdoms
-        """
-        matches = [c for c in self._own_castles() if c.id == castle_id]
-        if len(matches) > 1:
-            raise AmbiguousCastleError(castle_id, sorted(c.kingdom_id for c in matches))
-        return matches[0] if matches else None
+        """One of the player's castles as the state knows it, or None when the state has no such castle."""
+        return next((c for c in self._own_castles() if c.id == castle_id), None)
 
     def _require_own_castle(self, castle_id: int) -> Castle:
         """
         One of the player's castles from the castle list the server sent (``gcl``).
 
-        The client keeps its list per kingdom (``CastleListVO.parseCastleList``,
-        bundle line 13698), so an id could repeat across kingdoms; the id alone
-        then names no single castle.
-
         Raises:
             UnknownCastleError: The list has no such castle
-            AmbiguousCastleError: The id is listed in several of your kingdoms
         """
         castle = self._own_castle(castle_id)
         if castle is None:
@@ -115,9 +104,11 @@ class BaseService:
         """
         The kingdom of your area at (x, y): ``kingdom`` when given, else read from the castle list.
 
+        Each kingdom has a map of its own, so the position alone can name areas in several.
+
         Raises:
             UnknownCastleError: No area of yours in the list is at (x, y)
-            AmbiguousCastleError: Areas of yours sit at (x, y) in several kingdoms
+            ValueError: Areas of yours sit at (x, y) in several kingdoms
         """
         if kingdom is not None:
             return kingdom
@@ -125,7 +116,8 @@ class BaseService:
         if not kingdoms:
             raise UnknownCastleError(None, position=(x, y))
         if len(kingdoms) > 1:
-            raise AmbiguousCastleError(None, list(kingdoms), position=(x, y))
+            names = ", ".join(k.name for k in kingdoms)
+            raise ValueError(f"Areas of yours sit at {x}:{y} in {names}; pass the kingdom")
         return kingdoms[0]
 
     def _require_minute_skip(self, minute_skip: Currency | str) -> None:
@@ -199,7 +191,7 @@ class BaseService:
             return f"horse {horse_booster_id} costs rubies unless paid with feathers"
         return None
 
-    def send(self, request: BaseRequest, wait: bool = False, timeout: float = 5.0) -> BaseResponse | None:
+    def send(self, request: BaseRequest, wait: bool = False, *, timeout: float = 5.0) -> BaseResponse | None:
         """
         Send a request to the server.
 
@@ -208,7 +200,7 @@ class BaseService:
         """
         return self.client.send(request, wait=wait, timeout=timeout)
 
-    def request(self, request: BaseRequest, response_type: type[R], timeout: float = 5.0) -> R:
+    def request(self, request: BaseRequest, response_type: type[R], *, timeout: float = 5.0) -> R:
         """
         Send a request and return its typed response.
 
@@ -219,26 +211,15 @@ class BaseService:
         """
         return self.client.request(request, response_type, timeout=timeout)
 
-    def execute(self, request: BaseRequest, timeout: float = 5.0, *, raise_on: Collection[GGEError] = ()) -> bool:
+    def execute(self, request: BaseRequest, *, timeout: float = 5.0) -> None:
         """
-        Send an action request and report whether the server accepted it.
+        Send an action request and wait until the server accepts it.
 
-        Returns False when the server rejects the action with an error code
-        (logged at warning level). Transport failures (timeout, disconnect)
-        still raise, so infrastructure problems are never mistaken for a
-        game-rule rejection.
-
-        Args:
-            raise_on: Errors that raise their ``CommandError`` instead, for a caller that maps them
+        Raises:
+            CommandError: The server refused the action, with the game's message
+            EmpireTimeoutError / ConnectionClosedError / NetworkError: transport failures
         """
-        try:
-            self.client.send(request, wait=True, timeout=timeout)
-            return True
-        except CommandError as e:
-            if e.error in raise_on:
-                raise
-            logger.warning(f"Action '{request.get_command()}' rejected: {e}")
-            return False
+        self.client.send(request, wait=True, timeout=timeout)
 
     def on_response(self, command: str, handler: Callable[[BaseResponse], None]) -> None:
         """

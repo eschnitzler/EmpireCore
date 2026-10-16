@@ -1,5 +1,5 @@
 """
-Other players' details, player search, your research and the mercenary camp.
+Other players' details, player search and your legend skills.
 """
 
 from __future__ import annotations
@@ -8,25 +8,38 @@ import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from empire_core.enums import CollectableKind, MercenaryMissionState
+from empire_core.commanders.models.skills import GetSkillsRequest, GetSkillsResponse, ObjectUpdateEvent, SkillList
 from empire_core.exceptions import CommandError, EmpireTimeoutError, PacketError
-from empire_core.player.models.economy import MercenaryMission, MercenaryMissionsResponse, MercenaryPackageRequest
 from empire_core.player.models.info import (
     GetPlayerInfoRequest,
     GetPlayerInfoResponse,
     SearchPlayerRequest,
     SearchPlayerResponse,
 )
-from empire_core.player.models.research import SkipResearchRequest, StartResearchRequest
-from empire_core.protocol.js import js_truthy
+from empire_core.protocol.base import BaseResponse
 from empire_core.services.base import BaseService
+from empire_core.utils.callbacks import Event
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import Currency, Research
-
-
-# a started mission's RD is rounded, and a collect sent while time remains is a ruby skip
-_COLLECT_MARGIN_SECONDS = 2
+    from empire_core.client.client import EmpireClient
+    from empire_core.gamedata import Currency
+    from empire_core.player.models.account import (
+        BoostedGlobalEffectsResponse,
+        DailyResetResponse,
+        OfficerTraining,
+        PlayerGiftsResponse,
+    )
+    from empire_core.player.models.economy import LootBoxesResponse
+    from empire_core.player.models.progress import (
+        AchievementsResponse,
+        BoosterInfoResponse,
+        FactionPointsResponse,
+        GloryPointsResponse,
+        MightPointsResponse,
+        RelocationInfoResponse,
+        TitleRanksResponse,
+    )
+    from empire_core.state.models import Player
 
 
 @dataclass
@@ -48,12 +61,117 @@ class PlayerDetailsBulkResult:
 
 class PlayerService(BaseService):
     """
-    Other players' details, finding a player by name, your research and the mercenary camp's missions.
+    Other players' details, finding a player by name, and your own player: currencies, skills,
+    boosts, points and titles.
 
     Reached as client.player.
     """
 
-    def get_player_info(self, player_id: int, timeout: float = 5.0) -> GetPlayerInfoResponse:
+    def __init__(self, client: EmpireClient) -> None:
+        super().__init__(client)
+        self.on_response("skl", self._handle_skill_list)
+        self.on_response("ego", self._handle_skill_list)
+
+    @property
+    def local_player(self) -> Player:
+        """A snapshot of the local player.
+
+        Raises:
+            StateNotLoadedError: No login has brought it
+        """
+        return self.client.state.get_local_player()
+
+    @property
+    def currencies(self) -> dict[Currency | str, int]:
+        """A snapshot of the special currencies (``Currency`` -> amount)."""
+        return self.client.state.get_special_currencies()
+
+    @property
+    def skills(self) -> SkillList | None:
+        """Your legend and sceat skills as the last ``skl`` listed them; None until one arrived."""
+        return self.client.state.get_skills()
+
+    @property
+    def boosts(self) -> BoosterInfoResponse:
+        """Your boosters, premium account, production slots and festival.
+
+        Raises:
+            StateNotLoadedError: No login has brought it
+        """
+        return self.client.state.get_boosts()
+
+    @property
+    def might(self) -> MightPointsResponse:
+        """Your might points, from the last ``gmu``.
+
+        Raises:
+            StateNotLoadedError: No login has brought it
+        """
+        return self.client.state.get_might()
+
+    @property
+    def glory_points(self) -> GloryPointsResponse:
+        """Your glory points, from the last ``ufa``.
+
+        Raises:
+            StateNotLoadedError: No login has brought it
+        """
+        return self.client.state.get_glory_points()
+
+    @property
+    def faction_points(self) -> FactionPointsResponse | None:
+        """Your Berimond points, from the last ``ufp`` push; None until one arrived (the login data has none)."""
+        return self.client.state.get_faction_points()
+
+    @property
+    def title_ranks(self) -> TitleRanksResponse:
+        """Your top-X ranks, Storm Islands title and displayed title systems, from the last ``uar``.
+
+        Raises:
+            StateNotLoadedError: No login has brought it
+        """
+        return self.client.state.get_title_ranks()
+
+    @property
+    def achievements(self) -> AchievementsResponse:
+        """Your achievement points, finished achievements and progress.
+
+        Raises:
+            StateNotLoadedError: No login has brought it
+        """
+        return self.client.state.get_achievements()
+
+    @property
+    def relocation(self) -> RelocationInfoResponse | None:
+        """Your castle relocations, from the last ``gri``; None until one arrived."""
+        return self.client.state.get_relocation()
+
+    @property
+    def officer_training(self) -> OfficerTraining | None:
+        """The officers' school training program running, from the last ``gatp`` and the ``gtp`` since."""
+        return self.client.state.get_officer_training()
+
+    @property
+    def boosted_global_effects(self) -> BoostedGlobalEffectsResponse | None:
+        """The global effects the running booster event boosts, from the last ``bie``; None until one arrived."""
+        return self.client.state.get_boosted_global_effects()
+
+    @property
+    def loot_boxes(self) -> LootBoxesResponse | None:
+        """Your loot boxes and key progress; None until a ``gls`` arrived."""
+        return self.client.state.get_loot_boxes()
+
+    @property
+    def daily_reset(self) -> DailyResetResponse | None:
+        """When the daily reset comes, from the login data's ``drt``; None until it arrived."""
+        return self.client.state.get_daily_reset()
+
+    @property
+    def gifts(self) -> PlayerGiftsResponse | None:
+        """Your gift packages and how many you may still send, from the last ``pgl``; None until one arrived."""
+        return self.client.state.get_player_gifts()
+
+    def get_player_info(self, player_id: int, *, timeout: float = 5.0) -> GetPlayerInfoResponse:
         """
         Get detailed player information (gdi), including castle list with
         capture info.
@@ -69,19 +187,12 @@ class PlayerService(BaseService):
         """
         return self.request(GetPlayerInfoRequest(player_id=player_id), GetPlayerInfoResponse, timeout=timeout)
 
-    def get_player_details(
-        self,
-        player_id: int,
-        timeout: float = 5.0,
-    ) -> GetPlayerInfoResponse:
+    def get_player_details(self, player_id: int, *, timeout: float = 5.0) -> GetPlayerInfoResponse:
         """Alias for :meth:`get_player_info` (both use the 'gdi' command)."""
         return self.get_player_info(player_id, timeout=timeout)
 
     def get_player_details_bulk(
-        self,
-        player_ids: list[int],
-        timeout: float = 5.0,
-        send_delay: float = 0.0,
+        self, player_ids: list[int], send_delay: float = 0.0, *, timeout: float = 5.0
     ) -> PlayerDetailsBulkResult:
         """
         Get detailed info for several players, one gdi request after another.
@@ -120,152 +231,47 @@ class PlayerService(BaseService):
             result.found[pid] = response
         return result
 
-    def search_player_by_name(
-        self,
-        player_name: str,
-        timeout: float = 5.0,
-    ) -> SearchPlayerResponse:
+    def search_player_by_name(self, player_name: str, *, timeout: float = 5.0) -> SearchPlayerResponse:
         return self.request(SearchPlayerRequest(player_name=player_name), SearchPlayerResponse, timeout=timeout)
 
-    # =========================================================================
-    # Research
-    # =========================================================================
-
-    def start_research(self, research: Research | int, *, spend_rubies: bool = False, timeout: float = 5.0) -> bool:
+    def get_skills(self, *, timeout: float = 5.0) -> GetSkillsResponse:
         """
-        Start a research, paying what it costs.
-
-        Missing resources are never paid with rubies: the request sends ``PWR`` 0, as the research
-        dialog does. Some researches cost rubies themselves (``ResearchDef.cost_rubies``), and the
-        client sends the same request for them; this method refuses those unless ``spend_rubies`` is
-        True. Other costs, legendary tokens included, are a normal game currency and are paid. The
-        reply's research reaches ``client.state.get_research()``.
+        The player's legend and sceat skills.
 
         Args:
-            research: The research to start
-            spend_rubies: Allow a research that costs rubies, on either kind of server
             timeout: Timeout in seconds
 
-        Raises:
-            GameDataNotLoadedError: the game data cannot be loaded
-            ValueError: The game data has no such research, or it costs rubies and ``spend_rubies`` is False
-
-        Client: ``ResearchInfo.buyResearch`` (bundle line 79704) sends ``C2SResearchStartVO`` whatever the
-        costs; ``updateBuyArea`` shows the ruby overlay when ``getFinalCosts`` holds rubies (bundle lines
-        79679-79680), and ``AResearchVO.getBaseCosts`` takes the temporary server's costs there (bundle
-        line 61530); ``RESCommand`` (bundle line 126872)
-        """
-        game_data = self._require_game_data()
-        row = game_data.researches.get(research)
-        if row is None:
-            raise ValueError(f"the game data has no research {research!r}")
-        costs = (*row.costs, *row.temp_server_costs)
-        rubies = max((cost.amount for cost in costs if cost.kind is CollectableKind.RUBIES), default=0)
-        if rubies > 0 and not spend_rubies:
-            raise ValueError(f"research {research!r} costs {rubies} rubies; pass spend_rubies=True")
-        return self.execute(StartResearchRequest(research_id=research), timeout=timeout)
-
-    def skip_research(self, minute_skip: Currency | str, timeout: float = 5.0) -> bool:
-        """
-        Shorten the running research with a minute skip from your inventory.
-
-        The reply's research reaches ``client.state.get_research()``.
-
-        Args:
-            minute_skip: The minute skip to use, ``Currency.SKIP_1_MINUTE`` to ``SKIP_24_HOURS``;
-                its key (``"MS1"``) also works, for a skip newer than the generated enum
-            timeout: Timeout in seconds
+        Returns:
+            The ``skl`` response
 
         Raises:
-            ValueError: ``minute_skip`` is no minute skip, or the special currencies hold none of it
-
-        Client: ``ResearchMinuteSkipProperties.getMinuteSkipCommand`` (bundle line 79784),
-        ``CastleMinuteSkipDialog.showLoaded`` (bundle line 7671), ``MSRCommand`` (bundle line 125825)
+            CommandError / EmpireTimeoutError / ConnectionClosedError: The request failed
         """
-        self._require_minute_skip(minute_skip)
-        return self.execute(SkipResearchRequest(minute_skip=minute_skip), timeout=timeout)
+        return self.request(GetSkillsRequest(), GetSkillsResponse, timeout=timeout)
 
-    # =========================================================================
-    # Mercenary camp
-    # =========================================================================
+    on_skill_list = Event[SkillList]()
+    """
+    Register a callback for every skill list the server sends.
 
-    def list_missions(self, timeout: float = 5.0) -> MercenaryMissionsResponse:
-        """
-        The mercenary camp's missions, and when new ones come.
+    That is each ``skl`` packet, including the reply to :meth:`get_skills`,
+    and the ``skl`` block of an ``ego`` push.
 
-        Sends ``mpe`` with ``MID`` -1, as the client does when it opens the camp and when new missions
-        are due; the reply also reaches ``client.state.get_mercenary_missions()``.
+    Client: ``SKLCommand.executeCommand`` (bundle line 129742) and
+    ``EGOCommand.executeCommand`` (bundle line 122801) both call ``parse_SKL``.
 
-        Client: ``CastleMercenaryOverviewDialog.showLoaded`` and ``CastleMercenaryData.onNewMissions``
-        (bundle lines 51996, 28851)
-        """
-        return self.request(MercenaryPackageRequest(), MercenaryMissionsResponse, timeout=timeout)
+    Removing a callback not registered is a no-op.
+    """
 
-    def start_mission(self, mission_id: int, timeout: float = 5.0) -> bool:
-        """
-        Start an open mercenary mission, paying its price in coins.
-
-        Lists the missions first and decides from that reply, as the client decides from its mission
-        state: only an open mission starts, and only while no mission runs or waits to be collected.
-        While one runs the client would first finish it for rubies; that is left out.
-
-        Args:
-            mission_id: A ``MercenaryMission.mission_id`` from :meth:`list_missions`
-            timeout: Timeout in seconds, for each request
-
-        Raises:
-            ValueError: The missions list no such mission, it is not open, or another mission runs
-                or waits to be collected
-
-        Client: ``CastleMercenaryMissionItem.startMission``, ``showStartAndRefreshButton`` and
-        ``startMissionCallback`` (bundle lines 87377, 87361, 87379)
-        """
-        missions = self.list_missions(timeout=timeout)
-        mission = self._mission(missions, mission_id)
-        if mission.current_state() != MercenaryMissionState.OPEN:
-            raise ValueError(f"mercenary mission {mission_id} is not open")
-        if missions.current_mission_state() != MercenaryMissionState.OPEN:
-            raise ValueError("another mercenary mission runs or waits to be collected")
-        return self.execute(MercenaryPackageRequest(mission_id=mission_id), timeout=timeout)
-
-    def collect_mission(self, mission_id: int, timeout: float = 5.0) -> bool:
-        """
-        Collect a finished mercenary mission's rewards.
-
-        The collect is the same ``mpe`` as the ruby skip of a running mission, which costs
-        ``ceil(remaining seconds / 60 * 5)`` rubies. So this lists the missions first and sends the
-        collect only for one the server lists as collectable, as started with no ``RD`` (finished for
-        the client, and a skip of it would cost 0 rubies), or as started with its time run out at
-        least two seconds ago, since ``RD`` is rounded. A started mission whose ``RD`` still counts
-        down is refused. Another session can still change the mission between the list and the
-        send; that window is not closed.
-
-        Args:
-            mission_id: A ``MercenaryMission.mission_id`` from :meth:`list_missions`
-            timeout: Timeout in seconds, for each request
-
-        Raises:
-            ValueError: The missions list no such mission, or it is not collectable by that rule
-
-        Client: ``CastleMercenaryMissionItem.showCollectButton`` and ``collectMissionRewards``
-        (bundle lines 87365, 87382); ``CastleMercenaryMissionItemVO.fillFromParamObject`` sets no end
-        time without ``RD`` (bundle line 81134); ``CastleMercenarySkipMissionDialog.confirmSkip`` (bundle
-        line 87459) sends the same id, ``MercenaryConst.getSkipC2Cost`` (dll line 19508)
-        """
-        mission = self._mission(self.list_missions(timeout=timeout), mission_id)
-        finished = mission.state == MercenaryMissionState.STARTED and (
-            not js_truthy(mission.seconds) or mission.seconds_past_end() >= _COLLECT_MARGIN_SECONDS
-        )
-        if mission.state != MercenaryMissionState.COLLECTABLE and not finished:
-            raise ValueError(f"mercenary mission {mission_id} is not collectable")
-        return self.execute(MercenaryPackageRequest(mission_id=mission_id), timeout=timeout)
-
-    @staticmethod
-    def _mission(missions: MercenaryMissionsResponse, mission_id: int) -> MercenaryMission:
-        mission = missions.get_mission(mission_id)
-        if mission is None:
-            raise ValueError(f"no mercenary mission {mission_id}")
-        return mission
+    def _handle_skill_list(self, response: BaseResponse) -> None:
+        if isinstance(response, GetSkillsResponse):
+            skills: SkillList | None = response
+        elif isinstance(response, ObjectUpdateEvent):
+            skills = response.skills
+        else:
+            return
+        if skills is None:
+            return
+        self._fire(self.on_skill_list, skills)
 
 
 __all__ = ["PlayerDetailsBulkResult", "PlayerService"]

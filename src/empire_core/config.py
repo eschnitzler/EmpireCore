@@ -387,6 +387,12 @@ class EmpireConfig(EmpireModel):
         description="Map tiles an account reads per second at most; the server bans an account for 12 hours "
         "past about 810,000 tiles in 30 seconds, about 27,000 a second (see empire_core.map.pacing)",
     )
+    attack_send_interval: float = Field(
+        default=4.0,
+        ge=0,
+        description="Seconds client.attack.send_attack leaves between one account's attacks; the server "
+        "refuses an attack sent less than 4 seconds after the one before. 0 sends at once",
+    )
 
     # Login retries: library policy, the game client logs in again only when the player clicks
     # its reconnect dialog (CastleConnectionLostCommand.execute, onReconnect, bundle lines 120253, 120256)

@@ -26,9 +26,21 @@ reply brought (a rename, a general assignment, an attack info reply, ...), so
 reading it costs no request:
 
 ```python
-roster = client.state.get_commanders()   # None before the login data
-if roster is not None:
-    print(len(roster.commanders), len(roster.castellans))
+roster = client.commanders.roster
+print(len(roster.commanders), len(roster.castellans))
+```
+
+## Who is free to lead
+
+`idle_commanders` and `travelling_commanders` split the roster by the
+movements in state, again without a request. A commander leading one of your
+movements is travelling until that movement leaves state, its way home
+included, as in the game client; the rest are idle.
+
+```python
+idle = client.commanders.idle_commanders
+if idle:
+    client.attack.send_attack(..., commander_id=idle[0].commander_id)
 ```
 
 ## Rename
@@ -37,7 +49,7 @@ if roster is not None:
 client.commanders.rename(castellans[0].commander_id, "farm-1")
 ```
 
-`rename` takes either kind, and its reply carries the updated list.
+`rename` takes either kind and returns the updated `CommanderRoster`.
 
 ## The premium commander
 
@@ -52,7 +64,7 @@ from empire_core.gamedata import Unit
 
 print(client.commanders.free_premium_commanders())  # None before the login data
 if client.commanders.premium_commander_is_free():
-    client.castle.send_support(
+    client.movements.send_support(
         source_castle_id, target_x, target_y, units={Unit.SWORDMAN: 50},
         commander_id=PREMIUM_COMMANDER_ID, use_premium_commander=True,
     )

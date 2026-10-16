@@ -10,20 +10,24 @@ from empire_core.castle.models.collect import (
     CollectResourceCartRequest,
     CollectResourceCartResponse,
 )
-from empire_core.castle.models.market import (
+from empire_core.commanders import CommanderEffect
+from empire_core.enums import GGEError, Kingdom, KingdomTransferType, MarketScope, Resource, ResourceCartType
+from empire_core.exceptions import CommandError, UnsendableGoodsError
+from empire_core.gamedata import Currency, Tool, Unit, WodAmount
+from empire_core.movements.models.market import (
     CreateMarketMovementRequest,
     CreateMarketMovementResponse,
     MarketInfoRequest,
     MarketInfoResponse,
 )
-from empire_core.castle.models.support import (
+from empire_core.movements.models.support import (
     GetTravelInfoRequest,
     GetTravelInfoResponse,
     SendSupportResponse,
     SendTroopsRequest,
     SendTroopsResponse,
 )
-from empire_core.castle.models.transfers import (
+from empire_core.movements.models.transfers import (
     KingdomGoodsTransferRequest,
     KingdomGoodsTransferResponse,
     KingdomUnitTransferRequest,
@@ -31,10 +35,6 @@ from empire_core.castle.models.transfers import (
     MinuteSkipKingdomTransferRequest,
     MinuteSkipKingdomTransferResponse,
 )
-from empire_core.commanders import CommanderEffect
-from empire_core.enums import GGEError, Kingdom, KingdomTransferType, MarketScope, Resource, ResourceCartType
-from empire_core.exceptions import CommandError, UnsendableGoodsError
-from empire_core.gamedata import Currency, Tool, Unit, WodAmount
 from empire_core.protocol.models import parse_response
 from empire_core.state.manager import GameState
 from tests.service_helpers import (
@@ -81,7 +81,7 @@ class TestSendResources:
     def test_send_resources(self):
         client = with_horses(make_client(castles=[(1234, Kingdom.ICE)]))
         goods = {Resource.WOOD: 100, Resource.STONE: 50}
-        assert client.castle.send_resources(1234, 10, 20, goods, horse_booster_id=COIN_HORSE) is True
+        client.movements.send_resources(1234, 10, 20, goods, horse_booster_id=COIN_HORSE)
         assert conn(client).request_payloads == [
             (
                 "crm",
@@ -103,13 +103,13 @@ class TestSendResources:
         # CastlePostSendGoodsDialog.getBoostCostC2, ACastlePostActionDialog.getTotalCostsC2
         client = with_horses(make_client(castles=[(1234, Kingdom.GREEN)]))
         with pytest.raises(ValueError, match="spend_rubies=True"):
-            client.castle.send_resources(1234, 10, 20, {Resource.WOOD: 1}, **kwargs)
+            client.movements.send_resources(1234, 10, 20, {Resource.WOOD: 1}, **kwargs)
         assert conn(client).request_payloads == []
-        assert client.castle.send_resources(1234, 10, 20, {Resource.WOOD: 1}, spend_rubies=True, **kwargs) is True
+        client.movements.send_resources(1234, 10, 20, {Resource.WOOD: 1}, spend_rubies=True, **kwargs)
 
     def test_feathers_send_no_horse(self):
         client = make_client(castles=[(1234, Kingdom.GREEN)])
-        client.castle.send_resources(1234, 10, 20, {Resource.WOOD: 1}, horse_booster_id=5, feathers=True)
+        client.movements.send_resources(1234, 10, 20, {Resource.WOOD: 1}, horse_booster_id=5, feathers=True)
         payload = conn(client).request_payloads[0][1]
         assert (payload["HBW"], payload["PTT"]) == (-1, 1)
 
@@ -140,7 +140,7 @@ class TestSendResources:
         player = StubPlayer(level=70)
         player.legendary_level = 5
         client = make_client(state=StubState(local_player=player), castles=[(1234, Kingdom.FIRE)])
-        client.castle.send_resources(1234, 10, 20, goods)
+        client.movements.send_resources(1234, 10, 20, goods)
         assert conn(client).request_payloads[0][1]["G"] == sent
 
     @pytest.mark.parametrize(
@@ -157,12 +157,12 @@ class TestSendResources:
         player.legendary_level = 5
         client = make_client(state=StubState(local_player=player), castles=[(1234, Kingdom.FIRE)])
         with pytest.raises(UnsendableGoodsError, match="one tab"):
-            client.castle.send_resources(1234, 10, 20, goods)
+            client.movements.send_resources(1234, 10, 20, goods)
         assert conn(client).request_payloads == []
 
-    def test_goods_are_not_checked_by_level_before_the_player_is_known(self):
+    def test_goods_are_not_checked_by_level_before_the_level_is_known(self):
         client = make_client(castles=[(1234, Kingdom.GREEN)])
-        client.castle.send_resources(1234, 10, 20, {Resource.COAL: 1})
+        client.movements.send_resources(1234, 10, 20, {Resource.COAL: 1})
         assert conn(client).request_payloads[0][1]["G"] == [["C", 1]]
 
     @pytest.mark.parametrize(
@@ -180,7 +180,7 @@ class TestSendResources:
     def test_unsendable_goods_raise_and_send_nothing(self, goods):
         client = make_client(castles=[(1234, Kingdom.GREEN)])
         with pytest.raises(UnsendableGoodsError) as raised:
-            client.castle.send_resources(1234, 10, 20, goods)
+            client.movements.send_resources(1234, 10, 20, goods)
         assert raised.value.goods is goods
         assert conn(client).request_payloads == []
 
@@ -188,10 +188,10 @@ class TestSendResources:
     def test_below_legend_level_only_classic_goods_are_sent(self, resource):
         client = make_client(state=StubState(local_player=StubPlayer(level=69)), castles=[(1234, Kingdom.GREEN)])
         with pytest.raises(UnsendableGoodsError):
-            client.castle.send_resources(1234, 10, 20, {resource: 1})
+            client.movements.send_resources(1234, 10, 20, {resource: 1})
         assert conn(client).request_payloads == []
 
-        client.castle.send_resources(1234, 10, 20, {Resource.WOOD: 1, Resource.STONE: 2, Resource.FOOD: 3})
+        client.movements.send_resources(1234, 10, 20, {Resource.WOOD: 1, Resource.STONE: 2, Resource.FOOD: 3})
         assert conn(client).request_payloads[0][1]["G"] == [["W", 1], ["S", 2], ["F", 3]]
 
     def test_the_reply(self):
@@ -222,7 +222,7 @@ class TestMarketInfo:
             ]
         }
         client = make_client({"cmi": xt_packet("cmi", payload)})
-        castles = client.castle.get_market_info()
+        castles = client.movements.get_market_info()
         assert conn(client).request_payloads == [("cmi", {"S": 1, "KID": -1})]
         assert [(c.castle_id, c.kingdom_id, c.total_carriages, c.available_carriages) for c in castles] == [
             (1234, 0, 20, 15),
@@ -251,7 +251,7 @@ class TestKingdomUnitTransfer:
 
     def test_transfer_units_to_kingdom(self):
         client = make_client(castles=[(1234, Kingdom.ICE)])
-        assert client.castle.transfer_units_to_kingdom(1234, Kingdom.FIRE, {620: 10}) is True
+        client.movements.transfer_units_to_kingdom(1234, Kingdom.FIRE, {620: 10})
         assert conn(client).request_payloads == [
             ("kut", {"SCID": 1234, "SKID": 2, "TKID": 3, "CID": -1, "A": [[620, 10]]})
         ]
@@ -280,7 +280,7 @@ class TestKingdomGoodsTransfer:
 
     def test_transfer_goods_to_kingdom_reads_the_source_kingdom(self):
         client = make_client(castles=[(1234, Kingdom.ICE), (99, Kingdom.FIRE)])
-        assert client.castle.transfer_goods_to_kingdom(1234, Kingdom.FIRE, {Resource.STONE: 300}) is True
+        client.movements.transfer_goods_to_kingdom(1234, Kingdom.FIRE, {Resource.STONE: 300})
         assert conn(client).request_payloads == [("kgt", {"SCID": 1234, "SKID": 2, "TKID": 3, "G": [["S", 300]]})]
 
     @pytest.mark.parametrize(
@@ -294,14 +294,14 @@ class TestKingdomGoodsTransfer:
     def test_a_source_the_client_leaves_out_raises(self, source, target):
         client = make_client(castles=[(1234, source), (99, Kingdom.GREEN), (98, Kingdom.ICE)])
         with pytest.raises(ValueError, match="from a castle in"):
-            client.castle.transfer_goods_to_kingdom(1234, target, {Resource.WOOD: 1})
+            client.movements.transfer_goods_to_kingdom(1234, target, {Resource.WOOD: 1})
         assert conn(client).request_payloads == []
 
     def test_a_kingdom_without_your_castle_raises(self):
         # targetInitialized needs a castle of yours in the target kingdom
         client = make_client(castles=[(1234, Kingdom.GREEN)])
         with pytest.raises(ValueError, match="No castle of yours"):
-            client.castle.transfer_goods_to_kingdom(1234, Kingdom.SANDS, {Resource.WOOD: 1})
+            client.movements.transfer_goods_to_kingdom(1234, Kingdom.SANDS, {Resource.WOOD: 1})
         assert conn(client).request_payloads == []
 
     @pytest.mark.parametrize("goods", [{}, {Resource.WOOD: 0}, {Resource.WOOD: 1, Resource.COAL: 1}])
@@ -310,7 +310,7 @@ class TestKingdomGoodsTransfer:
         player.legendary_level = 5
         client = make_client(state=StubState(local_player=player), castles=[(1234, Kingdom.GREEN), (99, Kingdom.FIRE)])
         with pytest.raises(UnsendableGoodsError):
-            client.castle.transfer_goods_to_kingdom(1234, Kingdom.FIRE, goods)
+            client.movements.transfer_goods_to_kingdom(1234, Kingdom.FIRE, goods)
         assert conn(client).request_payloads == []
 
     def test_below_legend_level_only_classic_goods(self):
@@ -318,7 +318,7 @@ class TestKingdomGoodsTransfer:
             state=StubState(local_player=StubPlayer(level=70)), castles=[(1234, Kingdom.GREEN), (99, Kingdom.FIRE)]
         )
         with pytest.raises(UnsendableGoodsError, match="below legend level"):
-            client.castle.transfer_goods_to_kingdom(1234, Kingdom.FIRE, {Resource.COAL: 1})
+            client.movements.transfer_goods_to_kingdom(1234, Kingdom.FIRE, {Resource.COAL: 1})
 
     def test_the_reply(self):
         reply = parse_response("kgt", {"gcu": {"C1": 7}, "grc": {"AID": 1234, "W": 900}, "kpi": {"RT": []}})
@@ -343,7 +343,7 @@ class TestKingdomTransferMinuteSkip:
 
     def test_skip_kingdom_transfer_time(self):
         client = make_client()
-        assert client.castle.skip_kingdom_transfer_time(Kingdom.ICE, KingdomTransferType.UNITS, "MS1") is True
+        client.movements.skip_kingdom_transfer_time(Kingdom.ICE, KingdomTransferType.UNITS, "MS1")
         assert conn(client).request_payloads == [("msk", {"MST": "MS1", "KID": "2", "TT": "1"})]
 
     @pytest.mark.parametrize("minute_skip", [Currency.CONSTRUCTION_TOKEN, "LT", "MSX", Currency.FAST_TRAVEL_FEATHERS])
@@ -351,7 +351,7 @@ class TestKingdomTransferMinuteSkip:
         # CurrencyData.getMinuteSkips: only the minute skip id range, 1000-1999
         client = make_client()
         with pytest.raises(ValueError, match="no minute skip"):
-            client.castle.skip_kingdom_transfer_time(Kingdom.ICE, KingdomTransferType.GOODS, minute_skip)
+            client.movements.skip_kingdom_transfer_time(Kingdom.ICE, KingdomTransferType.GOODS, minute_skip)
         assert conn(client).request_payloads == []
 
     def test_a_minute_skip_you_hold_none_of_is_refused(self):
@@ -361,17 +361,17 @@ class TestKingdomTransferMinuteSkip:
         state.update_from_packet("sce", [["MS5", 0], ["MS99", 1]])  # type: ignore[arg-type]
         client = make_client(state=state)  # type: ignore[arg-type]
         with pytest.raises(ValueError, match="SKIP_1_HOUR"):
-            client.castle.skip_kingdom_transfer_time(Kingdom.ICE, KingdomTransferType.GOODS, Currency.SKIP_1_HOUR)
+            client.movements.skip_kingdom_transfer_time(Kingdom.ICE, KingdomTransferType.GOODS, Currency.SKIP_1_HOUR)
         with pytest.raises(ValueError, match="SKIP_5_HOURS"):
-            client.castle.skip_kingdom_transfer_time(Kingdom.ICE, KingdomTransferType.GOODS, Currency.SKIP_5_HOURS)
+            client.movements.skip_kingdom_transfer_time(Kingdom.ICE, KingdomTransferType.GOODS, Currency.SKIP_5_HOURS)
         assert conn(client).request_payloads == []
-        assert client.castle.skip_kingdom_transfer_time(Kingdom.ICE, KingdomTransferType.GOODS, "MS99") is True
+        client.movements.skip_kingdom_transfer_time(Kingdom.ICE, KingdomTransferType.GOODS, "MS99")
 
     def test_before_the_special_currencies_arrive_the_skip_goes_out(self):
         state = GameState()
         state.update_from_packet("gbd", {"gpi": {"PID": 1, "PN": "me"}})
         client = make_client(state=state)  # type: ignore[arg-type]
-        assert client.castle.skip_kingdom_transfer_time(Kingdom.ICE, KingdomTransferType.GOODS, "MS5") is True
+        client.movements.skip_kingdom_transfer_time(Kingdom.ICE, KingdomTransferType.GOODS, "MS5")
 
     def test_the_reply(self):
         assert isinstance(parse_response("msk", {"kpi": {"UT": []}}), MinuteSkipKingdomTransferResponse)
@@ -412,7 +412,7 @@ class TestSendTroops:
 
     def test_send_troops_pays_nothing_by_default(self):
         client = make_client()
-        assert client.castle.send_troops(100, 200, 110, 205, {620: 10, 649: 2}, commander_id=5) is True
+        client.movements.send_troops(100, 200, 110, 205, {620: 10, 649: 2}, commander_id=5)
         assert conn(client).request_payloads == [
             (
                 "cat",
@@ -435,13 +435,13 @@ class TestSendTroops:
 
     def test_feathers_send_no_horse(self):
         client = make_client()
-        client.castle.send_troops(100, 200, 110, 205, {620: 1}, commander_id=5, horse_booster_id=3, feathers=True)
+        client.movements.send_troops(100, 200, 110, 205, {620: 1}, commander_id=5, horse_booster_id=3, feathers=True)
         payload = conn(client).request_payloads[0][1]
         assert (payload["HBW"], payload["PTT"]) == (-1, 1)
 
     def test_the_options(self):
         client = make_client()
-        client.castle.send_troops(
+        client.movements.send_troops(
             100,
             200,
             110,
@@ -464,9 +464,10 @@ class TestSendTroops:
             60,
         )
 
-    def test_a_refusal_is_false(self):
+    def test_a_refusal_raises(self):
         client = make_client({"cat": xt_packet("cat", error_code=92)})
-        assert client.castle.send_troops(100, 200, 110, 205, {620: 1}, commander_id=5) is False
+        with pytest.raises(CommandError):
+            client.movements.send_troops(100, 200, 110, 205, {620: 1}, commander_id=5)
 
     def test_the_reply(self):
         # CATCommand reads O, A and gcu
@@ -484,7 +485,7 @@ class TestCollect:
     def test_collect_mine(self):
         assert CollectMineResourcesRequest(object_id=42).to_payload() == {"OID": 42}
         client = make_client()
-        assert client.castle.collect_mine(42) is True
+        client.castle.collect_mine(42)
         assert conn(client).request_payloads == [("cmr", {"OID": 42})]
 
     def test_the_mine_reply(self):
@@ -507,7 +508,7 @@ class TestCollect:
         # C2SIsoResourceCartCollectVO: RT is the cart's index, wood 0, stone 1, food 2
         assert CollectResourceCartRequest(cart_type=ResourceCartType.FOOD).to_payload() == {"RT": 2}
         client = make_client()
-        assert client.castle.collect_resource_cart(ResourceCartType.STONE) is True
+        client.castle.collect_resource_cart(ResourceCartType.STONE)
         assert conn(client).request_payloads == [("rcc", {"RT": 1})]
 
     def test_the_cart_reply(self):
@@ -559,7 +560,7 @@ class TestTravelInfo:
 
     def test_get_travel_info(self):
         client = make_client({"sti": xt_packet("sti", STI_REPLY)})
-        info = client.castle.get_travel_info(100, 200, 110, 205, kingdom_id=Kingdom.SANDS)
+        info = client.movements.get_travel_info(100, 200, 110, 205, kingdom_id=Kingdom.SANDS)
 
         assert conn(client).request_payloads == [("sti", {"SX": 100, "SY": 200, "TX": 110, "TY": 205, "KID": 1})]
         assert (info.source_castle_id, info.kingdom_id) == (2003, Kingdom.GREEN)
@@ -581,5 +582,5 @@ class TestTravelInfo:
     def test_a_source_that_is_not_yours_raises(self):
         client = make_client({"sti": xt_packet("sti", {}, error_code=GGEError.NOT_IN_OWNED_CASTLE)})
         with pytest.raises(CommandError) as raised:
-            client.castle.get_travel_info(100, 200, 110, 205)
+            client.movements.get_travel_info(100, 200, 110, 205)
         assert raised.value.error is GGEError.NOT_IN_OWNED_CASTLE

@@ -50,7 +50,7 @@ from .models import (
     SkillList,
     UnlockGeneralSkillRequest,
 )
-from .service import CommandersService, EquipmentService, SkillsService
+from .service import CommandersService, EquipmentService
 
 if TYPE_CHECKING:
     from empire_core.gamedata import Gem, GeneralAbility, GeneralSkill, LegendSkill, SceatSkill
@@ -101,7 +101,6 @@ __all__ = [
     "Rareness",
     "CommandersService",
     "EquipmentService",
-    "SkillsService",
     "NewRelicsResponse",
     "GemInventoryResponse",
     "GemStack",

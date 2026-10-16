@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from types import SimpleNamespace
 from typing import Any
 
@@ -10,7 +9,7 @@ import pytest
 from pydantic import ValidationError
 
 from empire_core.enums import Kingdom, Resource
-from empire_core.exceptions import AmbiguousCastleError, GameDataNotLoadedError, UnknownCastleError
+from empire_core.exceptions import CommandError, GameDataNotLoadedError, UnknownCastleError
 from tests.service_helpers import (
     COIN_HORSE,
     GOLDEN_GCL,
@@ -94,7 +93,7 @@ class TestCastleQueries:
 
     def test_gcl_sends_the_player_id_once_known(self):
         player = StubPlayer()
-        player.id = 777  # type: ignore[attr-defined]
+        player.id = 777
         client = make_client({"gcl": xt_packet("gcl", GOLDEN_GCL)}, state=StubState(local_player=player))
 
         client.castle.get_all()
@@ -129,86 +128,42 @@ class TestCastleActions:
     def test_select_sends_castle_and_its_kingdom_from_the_castle_list(self):
         client = make_client(castles=[(777, Kingdom.GREEN), (12345, Kingdom.ICE)])
 
-        assert client.castle.select(12345) is True
+        client.castle.select(12345)
 
         assert conn(client).request_payloads == [("jaa", {"CID": 12345, "KID": 2})]
 
     @pytest.mark.parametrize(
         "call",
         [
-            lambda c: c.select(12345),
-            lambda c: c.join(12345),
-            lambda c: c.get_resources(12345),
-            lambda c: c.send_resources(12345, 10, 20, {Resource.WOOD: 1}),
-            lambda c: c.transfer_units_to_kingdom(12345, Kingdom.ICE, [[620, 1]]),
+            lambda c: c.castle.select(12345),
+            lambda c: c.castle.join(12345),
+            lambda c: c.castle.get_resources(12345),
+            lambda c: c.movements.send_resources(12345, 10, 20, {Resource.WOOD: 1}),
+            lambda c: c.movements.transfer_units_to_kingdom(12345, Kingdom.ICE, [[620, 1]]),
         ],
     )
     def test_a_castle_not_in_the_castle_list_raises_and_sends_nothing(self, call):
         client = make_client(castles=[(777, Kingdom.ICE)])
 
         with pytest.raises(UnknownCastleError) as raised:
-            call(client.castle)
+            call(client)
 
         assert raised.value.castle_id == 12345
         assert conn(client).request_payloads == []
-
-    @pytest.mark.parametrize(
-        "call",
-        [
-            lambda c: c.select(1),
-            lambda c: c.join(1),
-            lambda c: c.get_resources(1),
-            lambda c: c.send_resources(1, 10, 20, {"W": 1}),
-            lambda c: c.transfer_units_to_kingdom(1, Kingdom.GREEN, [[620, 1]]),
-        ],
-    )
-    def test_an_id_repeated_across_your_kingdoms_raises_and_sends_nothing(self, call):
-        client = make_client(castles=[(1, Kingdom.STORM), (1, Kingdom.BERIMOND)])
-
-        with pytest.raises(AmbiguousCastleError) as raised:
-            call(client.castle)
-
-        assert (raised.value.castle_id, raised.value.kingdoms) == (1, [Kingdom.STORM, Kingdom.BERIMOND])
-        assert "repeats across your kingdoms" in str(raised.value)
-        assert conn(client).request_payloads == []
-
-    def test_details_of_an_id_listed_in_two_kingdoms_raise(self):
-        dcl = {"C": [{"KID": 4, "AI": [{"AID": 1, "W": 4}]}, {"KID": 10, "AI": [{"AID": 1, "W": 10}]}]}
-        client = make_client({"dcl": xt_packet("dcl", dcl)})
-
-        with pytest.raises(AmbiguousCastleError):
-            client.castle.get_details(1)
-
-    def test_rename_of_an_id_listed_in_two_kingdoms_raises_and_sends_no_rename(self):
-        row = [1, 10, 20, 1, 1001, 1, 1, 1, 0, 0, "Keep"]
-        gcl = {"PID": 1001, "C": [{"KID": 4, "AI": [{"AI": row}]}, {"KID": 10, "AI": [{"AI": row}]}]}
-        client = make_client({"gcl": xt_packet("gcl", gcl)})
-
-        with pytest.raises(AmbiguousCastleError):
-            client.castle.rename(1, "New", spend_rubies=True)
-
-        assert [command for command, _ in conn(client).request_payloads] == ["gcl"]
 
     def test_select_waits_for_the_jaa_acknowledgement(self):
         # The server answers a castle jump with 'jaa', never with 'jca'.
         # Waiting on the request command times out on every single call.
         client = make_client({"jaa": xt_packet("jaa")}, castles=[(12345, Kingdom.GREEN)])
 
-        assert client.castle.select(12345) is True
+        client.castle.select(12345)
         assert conn(client).requested == ["jaa"]
 
     def test_select_reports_a_rejected_jump(self):
         client = make_client({"jaa": xt_packet("jaa", error_code=21)}, castles=[(12345, Kingdom.GREEN)])
 
-        assert client.castle.select(12345) is False
-
-    def test_select_rejection_is_logged_against_the_request_command(self, caplog):
-        client = make_client({"jaa": xt_packet("jaa", error_code=21)}, castles=[(12345, Kingdom.GREEN)])
-
-        with caplog.at_level(logging.WARNING, logger="empire_core.services.base"):
+        with pytest.raises(CommandError):
             client.castle.select(12345)
-
-        assert "jca" in caplog.text
 
     def test_rename_sends_the_castle_type_and_kingdom_from_the_castle_list(self):
         client = make_client(
@@ -218,7 +173,7 @@ class TestCastleActions:
             }
         )
 
-        assert client.castle.rename(2001, "My Fortress", spend_rubies=True) is True
+        client.castle.rename(2001, "My Fortress", spend_rubies=True)
 
         assert conn(client).request_payloads[-1] == (
             "arc",
@@ -227,7 +182,7 @@ class TestCastleActions:
 
     def test_a_rename_costs_rubies_unless_a_premium_account_runs(self):
         # CastleRenameCastleDialog.showLoaded: CHANGE_CASTLE_NAME_C2, 0 while premiumAccountVO.isActive
-        stub = StubState()
+        stub = StubState(StubPlayer())
         script = {"gcl": xt_packet("gcl", GOLDEN_GCL), "arc": xt_packet("arc", {"CID": 2001, "KID": 0, "P": 1})}
         client = make_client(script, state=stub)
         with pytest.raises(ValueError, match="2500 rubies"):
@@ -235,7 +190,7 @@ class TestCastleActions:
         assert conn(client).request_payloads == []
 
         stub.boosts = SimpleNamespace(is_premium_active=lambda: True)
-        assert client.castle.rename(2001, "My Fortress") is True
+        client.castle.rename(2001, "My Fortress")
 
     def test_naming_a_new_castle_sends_p_0(self):
         client = make_client(
@@ -245,13 +200,14 @@ class TestCastleActions:
             }
         )
 
-        assert client.castle.rename(2001, "My Fortress", is_initial_name=True) is True
+        client.castle.rename(2001, "My Fortress", is_initial_name=True)
 
         assert conn(client).request_payloads[-1][1]["P"] == 0
 
-    def test_rejected_rename_is_false(self):
+    def test_rejected_rename_raises(self):
         client = make_client({"gcl": xt_packet("gcl", GOLDEN_GCL), "arc": xt_packet("arc", error_code=21)})
-        assert client.castle.rename(2001, "nope", spend_rubies=True) is False
+        with pytest.raises(CommandError):
+            client.castle.rename(2001, "nope", spend_rubies=True)
 
     def test_renaming_a_castle_you_do_not_own_raises(self):
         client = make_client({"gcl": xt_packet("gcl", GOLDEN_GCL)})
@@ -261,7 +217,7 @@ class TestCastleActions:
     def test_send_support_builds_the_documented_payload(self):
         client = make_client()
 
-        assert client.castle.send_support(12345, 700, 710, {487: 100}, commander_id=5, wait_time=6) is True
+        client.movements.send_support(12345, 700, 710, {487: 100}, commander_id=5, wait_time=6)
 
         command, payload = conn(client).request_payloads[0]
         assert command == "cds"
@@ -276,13 +232,13 @@ class TestCastleActions:
 
     def test_send_support_with_feathers_sends_no_horses(self):
         client = make_client()
-        client.castle.send_support(12345, 700, 710, {487: 1}, commander_id=5, horse_booster_id=3, feathers=True)
+        client.movements.send_support(12345, 700, 710, {487: 1}, commander_id=5, horse_booster_id=3, feathers=True)
         payload = conn(client).request_payloads[0][1]
         assert (payload["HBW"], payload["PTT"]) == (-1, 1)
 
     def test_send_support_without_feathers_keeps_the_horses(self):
         client = with_horses(make_client())
-        client.castle.send_support(12345, 700, 710, {487: 1}, commander_id=5, horse_booster_id=COIN_HORSE)
+        client.movements.send_support(12345, 700, 710, {487: 1}, commander_id=5, horse_booster_id=COIN_HORSE)
         payload = conn(client).request_payloads[0][1]
         assert (payload["HBW"], payload["PTT"]) == (COIN_HORSE, 0)
 
@@ -291,29 +247,29 @@ class TestCastleActions:
         # ACastlePostActionDialog.getTotalCostsC2: the horse's ruby cost and SLOWDOWN_C2_COSTS
         client = with_horses(make_client(castles=[(12345, Kingdom.GREEN)]))
         with pytest.raises(ValueError, match="spend_rubies=True"):
-            client.castle.send_support(12345, 700, 710, {487: 1}, commander_id=5, **kwargs)
+            client.movements.send_support(12345, 700, 710, {487: 1}, commander_id=5, **kwargs)
         with pytest.raises(ValueError, match="spend_rubies=True"):
-            client.castle.send_troops(10, 20, 700, 710, {487: 1}, 5, **kwargs)
+            client.movements.send_troops(10, 20, 700, 710, {487: 1}, 5, **kwargs)
         assert conn(client).request_payloads == []
 
-        assert client.castle.send_support(12345, 700, 710, {487: 1}, commander_id=5, spend_rubies=True, **kwargs)
-        assert client.castle.send_troops(10, 20, 700, 710, {487: 1}, 5, spend_rubies=True, **kwargs)
+        client.movements.send_support(12345, 700, 710, {487: 1}, commander_id=5, spend_rubies=True, **kwargs)
+        client.movements.send_troops(10, 20, 700, 710, {487: 1}, 5, spend_rubies=True, **kwargs)
 
     def test_a_ruby_horse_paid_with_feathers_costs_no_rubies(self):
         client = make_client()
-        assert client.castle.send_support(
+        client.movements.send_support(
             12345, 700, 710, {487: 1}, commander_id=5, horse_booster_id=RUBY_HORSE, feathers=True
         )
 
     def test_pricing_a_horse_fails_when_the_game_data_cannot_be_loaded(self):
         client = make_client()
         with pytest.raises(GameDataNotLoadedError, match="could not load the game data"):
-            client.castle.send_support(12345, 700, 710, {487: 1}, commander_id=5, horse_booster_id=COIN_HORSE)
+            client.movements.send_support(12345, 700, 710, {487: 1}, commander_id=5, horse_booster_id=COIN_HORSE)
         assert conn(client).request_payloads == []
 
     def test_send_support_with_the_premium_commander(self):
         client = make_client()
-        client.castle.send_support(
+        client.movements.send_support(
             12345, 700, 710, {487: 1}, commander_id=-14, use_premium_commander=True, spend_rubies=True
         )
         payload = conn(client).request_payloads[0][1]
@@ -323,6 +279,6 @@ class TestCastleActions:
         client = make_client()
 
         with pytest.raises(ValidationError):
-            client.castle.send_support(12345, 700, 710, {487: 1}, commander_id=5, wait_time=13)
+            client.movements.send_support(12345, 700, 710, {487: 1}, commander_id=5, wait_time=13)
 
         assert conn(client).requested == []

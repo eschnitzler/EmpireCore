@@ -48,7 +48,6 @@ from empire_core.enums import (
 from empire_core.events.models import GameEvent
 from empire_core.exceptions import (
     AccountBannedError,
-    AmbiguousCastleError,
     AmbiguousLookupError,
     AttackBelowMinimumError,
     AttackInProgressError,
@@ -71,6 +70,7 @@ from empire_core.exceptions import (
     PremiumCommanderCostError,
     ReceiveThreadError,
     ReplyMismatchError,
+    StateNotLoadedError,
     UnknownCastleError,
     UnsendableGoodsError,
     VersionCheckStatus,
@@ -80,6 +80,7 @@ from empire_core.gamedata import GameData, ToolStats, UnitStats
 from empire_core.gamedata.troops import get_troop_ids, troop_data_available
 from empire_core.map.models.areas import MapObject
 from empire_core.map.models.items import MapAreaItem
+from empire_core.map.models.world import MapSize
 from empire_core.map.scanner import ScanResult
 from empire_core.messages.models import SpyReportArea, SpyReportResponse
 from empire_core.movements.tracked import Movement, MovementResources
@@ -126,9 +127,9 @@ __all__ = [
     "AttackInProgressError",
     "MessageUnavailableError",
     "GameDataNotLoadedError",
+    "StateNotLoadedError",
     "AmbiguousLookupError",
     "UnknownCastleError",
-    "AmbiguousCastleError",
     "EventNotRunningError",
     "EventHasNoPointsError",
     "NotInAllianceError",
@@ -163,6 +164,7 @@ __all__ = [
     "WaveFlank",
     # Services / results
     "ScanResult",
+    "MapSize",
     "GameData",
     "UnitStats",
     "ToolStats",

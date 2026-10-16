@@ -1,69 +1,76 @@
 ---
-description: What client.state holds, how to read it safely, and how to tell how old it is.
+description: Your account's data as the server's packets left it, where to read it, and how to tell how old it is.
 ---
 
 # State and freshness
 
-`client.state` is an in-memory picture of your account: the player, castles,
+The library keeps an in-memory picture of your account: the player, castles,
 the castle you joined with its mines and resource carts, movements, special
 currencies, your spy count, active events, your commanders and skills, your
-alliance and its chat, and your progress: research, boosters, might, titles,
-achievements, relocation and plague monks; account details such as the
-daily reset, the attack counter and the wishing well; and your inventory and
-economy: gems, loot boxes, kingdoms, mercenary missions and tax. A background thread
-applies the server's packets to it while your code reads it.
+alliance and its chat, your progress, your quests, and your inventory and
+economy. A background thread applies the server's packets to it while your
+code reads it.
 
-## Read through the accessors
+## Read it on the service of its game area
 
-Each accessor takes the state lock and returns a snapshot, so nothing changes
-underneath you mid-iteration:
+Each game area's service reads what the server sent for it. A property, or a
+noun method when it takes an argument, sends nothing; a `get_*` always asks
+the server. Each read takes the
+state lock and returns a snapshot, so nothing changes underneath you
+mid-iteration:
 
 ```python
-player = client.state.get_local_player()    # None until the login data arrives
-castles = client.state.get_castles()
-unlocks = client.state.get_permanent_castle(castle_id)    # unlocked units, horses
-horse_ids = client.state.get_castle_horse_ids(castle_id)  # the castle's horses, Horse members
-movements = client.state.get_all_movements()
-attacks = client.state.get_incoming_attacks()
-announced = client.state.get_announced_attacks()  # what on_incoming_attack reported
-currencies = client.state.get_special_currencies()  # by Currency; a newer key stays a str
-spies = client.state.get_max_spies()        # spies owned, before boosts
-events = client.state.get_events()          # the running events, by id
-roster = client.state.get_commanders()      # commanders and castellans
-skills = client.state.get_skills()          # legend and sceat skills
-alliance = client.state.get_own_alliance()  # your alliance's details and members
-chat = client.state.get_alliance_chat()     # the alliance chat history, oldest first
-research = client.state.get_research()      # finished and running research
-boosts = client.state.get_boosts()          # boosters, premium account, slots, festival
-might = client.state.get_might()
-glory = client.state.get_glory_points()
-berimond = client.state.get_faction_points()
-ranks = client.state.get_title_ranks()      # top-X ranks, Storm Islands title
-achievements = client.state.get_achievements()
-relocation = client.state.get_relocation()
-monks = client.state.get_plague_monks()
-quests = client.state.get_quests()          # your active quests, by id
-book = client.state.get_quest_book()        # the quest book's main quests
-daily = client.state.get_daily_quests()     # daily quest level, today's quests
-reset = client.state.get_daily_reset()      # reset.remaining_seconds()
-counter = client.state.get_attack_counter() # attacks counted, the threshold
-training = client.state.get_officer_training()  # None when no program runs; .bonus is its effect
-boosted = client.state.get_boosted_global_effects()  # the GlobalEffect members boosted
-gifts = client.state.get_player_gifts()     # gift packages to send
-well = client.state.get_wishing_well()
-relics = client.state.get_new_relics()
-gems = client.state.get_gems()              # gems and relic gems held
-boxes = client.state.get_loot_boxes()       # loot boxes and key progress
-space = client.state.get_inventory_space()  # equipment and gem inventory space
-kingdoms = client.state.get_kingdoms()      # unlocks, transfers between kingdoms
-missions = client.state.get_mercenary_missions()  # each mission's rewards are Collectables
-tax = client.state.get_tax()                # a copy; remaining_seconds as of its packet
-expiry = client.state.get_construction_item_expiry()
-pool = client.state.get_resource_pool()     # the goods the citizen in your castle carries
-area = client.state.get_joined_area()       # None until a castle is joined
-mines = client.state.get_mines()            # the joined castle's mines, by object id
-carts = client.state.get_resource_carts()   # its wood, stone and food carts
+player = client.player.local_player
+castles = client.castle.castles
+unlocks = client.castle.unlocks(castle_id)      # unlocked units, horses
+movements = client.movements.tracked
+attacks = client.movements.incoming_attacks
+announced = client.movements.announced_attacks  # what on_incoming_attack reported
+currencies = client.player.currencies           # by Currency; a newer key stays a str
+spies = client.spy.max_spies                    # spies owned, before boosts
+events = client.events.running                  # the running events, by id
+roster = client.commanders.roster               # commanders and castellans
+skills = client.player.skills                   # legend and sceat skills
+alliance = client.alliance.own_alliance         # your alliance's details and members
+chat = client.alliance.chat                     # the alliance chat history, oldest first
+research = client.castle.research               # finished and running research
+boosts = client.player.boosts                   # boosters, premium account, slots, festival
+might = client.player.might
+glory = client.player.glory_points
+berimond = client.player.faction_points
+ranks = client.player.title_ranks               # top-X ranks, Storm Islands title
+achievements = client.player.achievements
+relocation = client.player.relocation
+monks = client.spy.plague_monks
+quests = client.quests.active                   # your active quests, by id
+book = client.quests.book                       # the quest book's main quests
+daily = client.quests.daily                     # daily quest level, today's quests
+reset = client.player.daily_reset               # reset.remaining_seconds()
+counter = client.attack.counter # attacks counted, the threshold
+training = client.player.officer_training       # None when no program runs; .bonus is its effect
+boosted = client.player.boosted_global_effects  # the GlobalEffect members boosted
+gifts = client.player.gifts                     # gift packages to send
+well = client.castle.wishing_well
+relics = client.equipment.new_relics
+gems = client.equipment.gems                    # gems and relic gems held
+boxes = client.player.loot_boxes               # loot boxes and key progress
+space = client.equipment.inventory_space        # equipment and gem inventory space
+kingdoms = client.castle.kingdoms               # unlocks, transfers between kingdoms
+missions = client.castle.mercenary_missions     # each mission's rewards are Collectables
+tax = client.castle.tax                         # a copy; remaining_seconds as of its packet
+expiry = client.castle.construction_item_expiry
+pool = client.castle.resource_pool              # the goods the citizen in your castle carries
+area = client.castle.joined_area                # None until a castle is joined
+mines = client.castle.mines                     # the joined castle's mines, by object id
+carts = client.castle.resource_carts            # its wood, stone and food carts
 ```
+
+The login data always carries the local player, commanders, research,
+boosters, might, glory points, title ranks, achievements, daily quests, new
+relics and spy count, so their reads never return `None`. Read before a
+login, or while a dropped session waits for the next one, they raise
+`StateNotLoadedError`. The others return `None` until their section arrives,
+or when the game has none (no alliance, no officer training running).
 
 The commanders, skills and alliance accessors return copies, and the chat
 messages, progress and account models are read-only, so changing what you hold
@@ -99,7 +106,7 @@ every value is as old as the last packet that carried it:
 | Special currencies | `sce` (pushed) | none |
 | Spies owned, before boosts | `gms` (pushed) | log in again |
 | Commanders and castellans | `gli`, and the replies that carry it (`arl`, `gla`, `seq`, `sdi`, `sti`, the attack and conquer info replies) | `client.commanders.get_all()` |
-| Legend and sceat skills | `skl`, `ego` (pushed) | `client.skills.get_skills()` |
+| Legend and sceat skills | `skl`, `ego` (pushed) | `client.player.get_skills()` |
 | Your alliance's details and members | `ain`, `acn`, `cal`, `acd`, `ado`, `akm`, `arm`; an `acm` marks its sender online | `client.alliance.get_alliance_info(alliance_id)` |
 | Alliance chat history | `acl`, `acm` (pushed) | none |
 | Research | `rei` (pushed), the `res` and `msr` replies | log in again |
@@ -178,7 +185,7 @@ import time
 
 client.castle.join(castle_id)
 sent_at = client.state.get_last_packet_time("gsm")  # None until a gsm arrived
-for object_id, mine in client.state.get_mines().items():
+for object_id, mine in client.castle.mines.items():
     if sent_at is not None and 0 <= mine.next_collect_seconds <= time.time() - sent_at:
         client.castle.collect_mine(object_id)
 ```
@@ -190,7 +197,7 @@ instead; each one's `.remove(callback)` unregisters.
 
 ## Running events
 
-`client.state.get_events()` maps each running event's id to a model of its kind
+`client.events.running` maps each running event's id to a model of its kind
 (the ones in `empire_core.events.EVENT_CLASSES`, such as `InvasionEvent` or
 `KingdomsLeagueEvent`), or a plain `SpecialEvent` for the rest. Each keeps the
 fields its game dialog reads, the entries the server sent in `raw`, and when it
@@ -200,7 +207,7 @@ ends (`end_time`, in `time.monotonic()` seconds; `remaining_seconds()` and
 ```python
 from empire_core.gamedata import Event
 
-for event_id, event in client.state.get_events().items():
+for event_id, event in client.events.running.items():
     print(event_id, type(event).__name__, round(event.remaining_seconds()))
 
 samurai = client.state.get_event(Event.SAMURAI_INVASION)
@@ -227,7 +234,7 @@ when one last did. The [events guide](events.md) lists the models.
 
 ## Quests
 
-`client.state.get_quests()` maps each active quest's id to a `Quest`: its
+`client.quests.active` maps each active quest's id to a `Quest`: its
 `progress` (one counter per condition, in the order the game data lists the
 conditions), `completed`, `failed`, `locked`, and its `end_time` for a quest
 with a time limit. The game data holds the quests' conditions and rewards; the
@@ -248,7 +255,8 @@ quest a `qst` starts, `on_quest_progress` when a `qpg` names an active quest
 When the connection drops, state is emptied, as the game client empties its
 own. The next login's `gbd` refills the player, castles, commanders, skills,
 alliance and chat, and the movement
-list the server pushes shortly after refills the movements.
+list the server pushes shortly after refills the movements. Until then the
+accessors of the login data raise `StateNotLoadedError`.
 `client.on_disconnect(callback)` tells you when a session drops; `close()`
 does not fire it.
 

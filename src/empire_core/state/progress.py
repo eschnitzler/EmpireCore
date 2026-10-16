@@ -2,6 +2,7 @@
 
 from typing import Any
 
+from empire_core.castle.models.research import ResearchInfoResponse
 from empire_core.player.models.progress import (
     AchievementProgress,
     AchievementsResponse,
@@ -11,12 +12,11 @@ from empire_core.player.models.progress import (
     GloryPointsResponse,
     MightPointsResponse,
     RelocationInfoResponse,
-    ResearchInfoResponse,
     TitleRanksResponse,
 )
 from empire_core.protocol.js import js_truthy
 from empire_core.spy.models import PlagueMonkInfoResponse
-from empire_core.state.base import StateBase, read_section
+from empire_core.state.base import StateBase, loaded, read_section
 
 _PROGRESS_SECTIONS = ("rei", "boi", "gmu", "ufa", "uar", "vli", "gri", "cpi")
 
@@ -127,47 +127,71 @@ class ProgressState(StateBase):
         self.achievements = achievements
         return True
 
-    def get_research(self) -> ResearchInfoResponse | None:
-        """Your finished and running research, from the last ``rei``; None until the login data brought one."""
-        with self._lock:
-            return self.research
+    def get_research(self) -> ResearchInfoResponse:
+        """Your finished and running research, from the last ``rei``; the login data brings one.
 
-    def get_boosts(self) -> BoosterInfoResponse | None:
-        """Your boosters, premium account, production slots and festival; None until a ``boi`` arrived.
-
-        Every booster any ``boi`` listed is there, as the last one that listed it left it.
+        Raises:
+            StateNotLoadedError: No login has brought it
         """
         with self._lock:
-            return self.boosts
+            return loaded(self.research, "Research")
 
-    def get_might(self) -> MightPointsResponse | None:
-        """Your might points, from the last ``gmu``; None until one arrived."""
-        with self._lock:
-            return self.might
+    def get_boosts(self) -> BoosterInfoResponse:
+        """Your boosters, premium account, production slots and festival; the login data brings a ``boi``.
 
-    def get_glory_points(self) -> GloryPointsResponse | None:
-        """Your glory points, from the last ``ufa``; None until one arrived."""
+        Every booster any ``boi`` listed is there, as the last one that listed it left it.
+
+        Raises:
+            StateNotLoadedError: No login has brought it
+        """
         with self._lock:
-            return self.glory_points
+            return loaded(self.boosts, "Boosters")
+
+    def get_might(self) -> MightPointsResponse:
+        """Your might points, from the last ``gmu``; the login data brings one.
+
+        Raises:
+            StateNotLoadedError: No login has brought it
+        """
+        with self._lock:
+            return loaded(self.might, "Might points")
+
+    def get_glory_points(self) -> GloryPointsResponse:
+        """Your glory points, from the last ``ufa``; the login data brings one.
+
+        Raises:
+            StateNotLoadedError: No login has brought it
+        """
+        with self._lock:
+            return loaded(self.glory_points, "Glory points")
 
     def get_faction_points(self) -> FactionPointsResponse | None:
         """Your Berimond points, from the last ``ufp`` push; None until one arrived (the login data has none)."""
         with self._lock:
             return self.faction_points
 
-    def get_title_ranks(self) -> TitleRanksResponse | None:
-        """Your top-X ranks, Storm Islands title and displayed title systems, from the last ``uar``; None before one."""
-        with self._lock:
-            return self.title_ranks
+    def get_title_ranks(self) -> TitleRanksResponse:
+        """Your top-X ranks, Storm Islands title and displayed title systems, from the last ``uar``.
 
-    def get_achievements(self) -> AchievementsResponse | None:
-        """Your achievement points, finished achievements and progress; None until a ``vli`` arrived.
+        The login data brings one.
+
+        Raises:
+            StateNotLoadedError: No login has brought it
+        """
+        with self._lock:
+            return loaded(self.title_ranks, "Title ranks")
+
+    def get_achievements(self) -> AchievementsResponse:
+        """Your achievement points, finished achievements and progress; the login data brings a ``vli``.
 
         Finished achievements from every ``vli`` are there, and each achievement's progress as
         the last ``vli`` that listed it left it.
+
+        Raises:
+            StateNotLoadedError: No login has brought it
         """
         with self._lock:
-            return self.achievements
+            return loaded(self.achievements, "Achievements")
 
     def get_relocation(self) -> RelocationInfoResponse | None:
         """Your castle relocations, from the last ``gri``; None until one arrived."""

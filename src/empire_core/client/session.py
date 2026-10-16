@@ -215,12 +215,7 @@ class Session:
         client = self._client
         logged_in = client.is_logged_in
 
-        def forget() -> None:
-            self._forget()
-            client.messages._reset()
-            client.rewards._reset()
-
-        if not client.connection.run_if_current(generation, forget):
+        if not client.connection.run_if_current(generation, self._forget):
             logger.debug(f"Client {client.username}: drop of an earlier session reported late, ignored")
             return
         cause = client.connection.close_error
@@ -323,11 +318,11 @@ class Session:
             if lli_response.error_code != 0:
                 self._raise_login_refusal(lli_response)
 
-            # Wait for gbd (Get Big Data) which contains player info, castles, etc.
+            # The client enters the game only once gbd is parsed (GBDCommand.exec, bundle line 129376)
             try:
                 connection.wait_for_result("gbd", gbd_waiter, timeout=config.request_timeout)
-            except EmpireTimeoutError:
-                logger.warning(f"gbd packet not received for {client.username}, player state may be incomplete")
+            except EmpireTimeoutError as e:
+                raise EmpireTimeoutError("The login data (gbd) did not arrive") from e
 
             logger.debug(f"Logged in as {client.username}")
             self._login_cooldown = None

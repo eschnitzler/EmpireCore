@@ -173,14 +173,15 @@ class TestForwardingASpyReport:
     def test_the_report_and_recipients_are_sent(self):
         client = make_client()
 
-        assert client.spy.forward_report(9001, [111, 222]) is True
+        client.spy.forward_report(9001, [111, 222])
 
         assert dict(conn(client).request_payloads)["mfs"] == {"PID": [111, 222], "MID": 9001}
 
     def test_a_rejected_forward_reports_failure(self):
         client = make_client({"mfs": xt_packet("mfs", error_code=21)})
 
-        assert client.spy.forward_report(9001, [111]) is False
+        with pytest.raises(CommandError):
+            client.spy.forward_report(9001, [111])
 
     def test_forwarding_to_nobody_raises_and_sends_nothing(self):
         client = make_client()
@@ -796,7 +797,7 @@ class TestForwardingAlreadyShared:
         # MFSCommand treats ALREADY_HAS_SPY_REPORT like ALL_OK
         client = make_client({"mfs": xt_packet("mfs", error_code=167)})
 
-        assert client.spy.forward_report(9001, [111]) is True
+        client.spy.forward_report(9001, [111])
 
 
 class TestReadingAnyReport:

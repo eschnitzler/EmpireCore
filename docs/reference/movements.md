@@ -1,6 +1,6 @@
 # Movements
 
-Army movements behind `client.movements`.
+Army movements, and the sends that start them, behind `client.movements`.
 
 ## `movements.service`
 
@@ -10,6 +10,18 @@ Army movements behind `client.movements`.
 
 ::: empire_core.movements.tracked
 
-## `movements.models`
+## `movements.models.movement`
 
-::: empire_core.movements.models
+::: empire_core.movements.models.movement
+
+## `movements.models.market`
+
+::: empire_core.movements.models.market
+
+## `movements.models.support`
+
+::: empire_core.movements.models.support
+
+## `movements.models.transfers`
+
+::: empire_core.movements.models.transfers

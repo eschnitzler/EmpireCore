@@ -54,6 +54,7 @@ from .risk import (
 
 if TYPE_CHECKING:
     from empire_core.client.client import EmpireClient
+    from empire_core.spy.models import MaxSpiesResponse, PlagueMonkInfoResponse
 
 logger = logging.getLogger(__name__)
 
@@ -214,12 +215,25 @@ class SpyService(BaseService):
         self._missions: list[SpyHandle] = []
         self._spy_logs: list[_SpyLog] = []
 
-    def forward_report(self, message_id: int, player_ids: list[int]) -> bool:
+    @property
+    def max_spies(self) -> MaxSpiesResponse:
+        """The spies you own before boosts, from ``gms``.
+
+        Raises:
+            StateNotLoadedError: No login has brought it
+        """
+        return self.client.state.get_max_spies()
+
+    @property
+    def plague_monks(self) -> PlagueMonkInfoResponse | None:
+        """Your plague monks, from the last ``cpi``; None until one arrived."""
+        return self.client.state.get_plague_monks()
+
+    def forward_report(self, message_id: int, player_ids: list[int]) -> None:
         """Share a spy report with other players in game.
 
-        Returns False when the server rejects it — a report can age out of the
-        mailbox, and the recipients may no longer be reachable. A recipient
-        who has the report already (error 167) counts as done, as in the client.
+        A recipient who has the report already (``ALREADY_HAS_SPY_REPORT``) counts as done,
+        as in the client.
 
         Args:
             message_id: The report's message id: ``SpyResult.message_id``, or a
@@ -231,6 +245,7 @@ class SpyService(BaseService):
         Raises:
             ValueError: ``player_ids`` is empty; the client's forward button stays
                 disabled until a recipient is picked
+            CommandError: The server refused it; a report can age out of the mailbox
 
         Client: ``CastleForwardMessageDialog.fillList`` and ``sendMessage`` (bundle lines 60719, 60740),
         ``checkEnableForwardButton`` (bundle line 60753), ``MFSCommand.executeCommand`` (bundle line 125409)
@@ -240,11 +255,8 @@ class SpyService(BaseService):
         try:
             self.client.send(ForwardSpyLogRequest(message_id=message_id, player_ids=list(player_ids)), wait=True)
         except CommandError as e:
-            if e.error is GGEError.ALREADY_HAS_SPY_REPORT:
-                return True
-            logger.warning(f"Action 'mfs' rejected: {e}")
-            return False
-        return True
+            if e.error is not GGEError.ALREADY_HAS_SPY_REPORT:
+                raise
 
     def get_screen_info(
         self, target_x: int, target_y: int, target_kingdom: Kingdom = Kingdom.GREEN
@@ -322,7 +334,7 @@ class SpyService(BaseService):
         title_ids: Iterable[int] | None = None,
         island_title_id: int | None = None,
         legend_target: bool = False,
-    ) -> int | None:
+    ) -> int:
         """
         All your spies, home or out, counted as the client does: the ``gms`` count plus boosts.
 
@@ -343,9 +355,10 @@ class SpyService(BaseService):
                 attack screen's spy alert
 
         Returns:
-            The count, or None before the login gbd brought ``gms``
+            The count
 
         Raises:
+            StateNotLoadedError: No login has brought ``gms``
             GameDataNotLoadedError: A boost counts and the game data cannot be loaded
 
         Client: ``CastleSpyData.getNumAllSpies`` (bundle line 139976), called with the target's
@@ -355,39 +368,31 @@ class SpyService(BaseService):
         """
         state = self.client.state
         max_spies = state.get_max_spies()
-        if max_spies is None:
-            return None
         if research_ids is None:
-            research = state.get_research()
-            research_ids = research.bought_research_ids if research is not None else ()
+            research_ids = state.get_research().bought_research_ids
         if legend_skill_ids is None:
             skills = state.get_skills()
             legend_skill_ids = skills.legend_skill_ids if skills is not None else ()
         ranks = state.get_title_ranks()
         if island_title_id is None:
-            island_title_id = ranks.island_title.held_title_id if ranks is not None else -1
+            island_title_id = ranks.island_title.held_title_id
         glory, faction = state.get_glory_points(), state.get_faction_points()
         titles_from_state = title_ids is None
         research_ids, legend_skill_ids = list(research_ids), list(legend_skill_ids)
         title_ids = [] if title_ids is None else list(title_ids)
-        points_known = (glory is not None and glory.glory_points is not None) or (
-            faction is not None and faction.faction_points is not None
-        )
-        if not (
-            research_ids
-            or (legend_target and legend_skill_ids)
-            or title_ids
-            or island_title_id >= 0
-            or (titles_from_state and (points_known or ranks is not None))
-        ):
+        boosted = research_ids or (legend_target and legend_skill_ids) or title_ids or island_title_id >= 0
+        if not (boosted or titles_from_state):
             return total_spies(max_spies.max_spies)
         game_data = self._require_game_data()
         if titles_from_state:
-            glory_rank = ranks.glory.top_rank if ranks is not None else None
-            faction_rank = ranks.faction.top_rank if ranks is not None else None
             title_ids = [
-                *held_titles(game_data, TitleSystem.GLORY, glory.glory_points if glory else None, glory_rank),
-                *held_titles(game_data, TitleSystem.FACTION, faction.faction_points if faction else None, faction_rank),
+                *held_titles(game_data, TitleSystem.GLORY, glory.glory_points, ranks.glory.top_rank),
+                *held_titles(
+                    game_data,
+                    TitleSystem.FACTION,
+                    faction.faction_points if faction else None,
+                    ranks.faction.top_rank,
+                ),
             ]
         titles = title_ids + island_title_chain(game_data, island_title_id)
         return total_spies(
@@ -405,7 +410,7 @@ class SpyService(BaseService):
         title_ids: Iterable[int] | None = None,
         island_title_id: int | None = None,
         legend_target: bool = False,
-    ) -> int | None:
+    ) -> int:
         """
         Spies at home: :meth:`total_spies` less :meth:`spies_in_use`, as the client counts them.
 
@@ -416,7 +421,10 @@ class SpyService(BaseService):
         Takes the arguments of :meth:`total_spies`, read from state the same way.
 
         Returns:
-            The count, which can be negative as in the client, or None before ``gms`` arrived
+            The count, which can be negative as in the client
+
+        Raises:
+            StateNotLoadedError: No login has brought ``gms``
 
         Client: ``CastleSpyData.getNumAvailableSpies`` (bundle line 139970)
         """
@@ -427,7 +435,7 @@ class SpyService(BaseService):
             island_title_id=island_title_id,
             legend_target=legend_target,
         )
-        return None if total is None else total - self.spies_in_use()
+        return total - self.spies_in_use()
 
     def send_spy_mission(
         self,

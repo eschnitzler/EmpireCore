@@ -43,6 +43,12 @@ logger = logging.getLogger(__name__)
 # GAA - Get Map Area
 # =============================================================================
 
+MAX_AREA_SPAN = 100
+"""The widest ``AX2 - AX1`` (or ``AY2 - AY1``) the client asks for.
+
+Client: ``CastleWorldmapData.updateAreaRange`` (bundle line 19006)
+"""
+
 
 class GetMapAreaRequest(BaseRequest):
     """
@@ -51,8 +57,8 @@ class GetMapAreaRequest(BaseRequest):
     Command: gaa
     Payload: {"KID": kingdom, "AX1": x1, "AY1": y1, "AX2": x2, "AY2": y2}
 
-    The client asks for at most 100 tiles a side: it clamps ``AX2`` to
-    ``AX1 + 99`` once the span passes 100, and ``AY2`` the same way.
+    The client asks for at most 101 tiles a side: it cuts ``AX2`` to
+    ``AX1 + 99`` once ``AX2 - AX1`` passes ``MAX_AREA_SPAN``, and ``AY2`` the same way.
 
     Client: ``C2SGetAreasVO`` (bundle line 65991), built by
     ``CastleWorldmapData.updateAreaRange`` (bundle line 19006)
@@ -544,6 +550,7 @@ class FindNextTowerResponse(FindNextMapObjectResponse):
 
 
 __all__ = [
+    "MAX_AREA_SPAN",
     "GetMapAreaRequest",
     "GetMapAreaResponse",
     "MapArea",

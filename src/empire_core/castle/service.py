@@ -1,23 +1,21 @@
 """
-Your castles: resources, buildings, the construction queue, and sending goods and troops.
+Your castles: resources, buildings, the construction queue, research and the mercenary camp.
 
 It covers:
 
 - Castle management (list, join, rename)
 - Resources and production
 - Buildings and the construction queue
-- Sending resources, support and units
 - Tax collection
+- Research and the mercenary camp's missions
 
-Action methods return True when the server accepted the action and False
-when it rejected it with an error code; transport failures (timeout,
-disconnect) raise. Query methods raise on any failure, and so do
-``start_tax`` and ``collect_tax``, which return their replies.
+Sending goods, support and troops from a castle is on ``client.movements``.
+
+Actions raise ``CommandError`` when the server refuses them.
 
 Methods that take one of your castles send its kingdom from the castle
 list the server sent at login (``client.state.get_castles()``), as the
-client does, and raise ``UnknownCastleError`` for an id not in it, or
-``AmbiguousCastleError`` for an id listed in several of your kingdoms.
+client does, and raise ``UnknownCastleError`` for an id not in it.
 
 Building methods act on the castle joined last (:meth:`CastleService.join`)
 and name buildings by object id, a ``BuildingRow.object_id`` from
@@ -29,7 +27,7 @@ others) can be read with ``client.request``.
 from __future__ import annotations
 
 import time
-from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 from empire_core.castle.models.actions import (
     JoinAreaRequest,
@@ -59,30 +57,20 @@ from empire_core.castle.models.details import (
     GetDetailedCastleRequest,
     GetDetailedCastleResponse,
 )
-from empire_core.castle.models.market import (
-    CreateMarketMovementRequest,
-    MarketCastle,
-    MarketInfoRequest,
-    MarketInfoResponse,
-)
+from empire_core.castle.models.mercenaries import MercenaryMission, MercenaryMissionsResponse, MercenaryPackageRequest
 from empire_core.castle.models.objects import (
     BuildingRow,
     ConstructionList,
     ShowConstructionListRequest,
     ShowConstructionListResponse,
 )
+from empire_core.castle.models.research import SkipResearchRequest, StartResearchRequest
 from empire_core.castle.models.resources import (
     CastleResources,
     GetProductionRequest,
     GetProductionResponse,
     GetResourcesRequest,
     GetResourcesResponse,
-)
-from empire_core.castle.models.support import (
-    GetTravelInfoRequest,
-    GetTravelInfoResponse,
-    SendSupportRequest,
-    SendTroopsRequest,
 )
 from empire_core.castle.models.tax import (
     TAX_DURATIONS,
@@ -95,26 +83,27 @@ from empire_core.castle.models.tax import (
     TaxInfo,
     TaxInfoResponse,
 )
-from empire_core.castle.models.transfers import (
-    KingdomGoodsTransferRequest,
-    KingdomUnitTransferRequest,
-    MinuteSkipKingdomTransferRequest,
-)
 from empire_core.enums import (
     BuildingState,
+    CollectableKind,
     ExpansionType,
     Kingdom,
-    KingdomTransferType,
-    Resource,
+    MercenaryMissionState,
     ResourceCartType,
 )
-from empire_core.exceptions import (
-    AmbiguousCastleError,
-    UnknownCastleError,
-    UnsendableGoodsError,
-)
-from empire_core.gamedata import BuildingDef, Currency, HorseStats, WodAmount, WodAmountMapping
+from empire_core.exceptions import UnknownCastleError
+from empire_core.gamedata import BuildingDef, Currency, HorseStats, Research
+from empire_core.protocol.js import js_truthy
 from empire_core.services.base import BaseService
+
+if TYPE_CHECKING:
+    from empire_core.castle.models.collect import MineStatus, ResourceCart
+    from empire_core.castle.models.kingdoms import KingdomInfoResponse
+    from empire_core.castle.models.permanent import PermanentCastle
+    from empire_core.castle.models.research import ResearchInfoResponse
+    from empire_core.castle.models.upkeep import ConstructionItemExpiryResponse, ResourcePoolResponse
+    from empire_core.castle.models.wishing_well import WishingWellResponse
+    from empire_core.state.models import Castle, JoinedArea
 
 # PlayerConst.CHANGE_CASTLE_NAME_C2 (dll line 19599)
 _RENAME_RUBIES = 2500
@@ -123,17 +112,14 @@ _FREE_SKIP_SECONDS = 240
 _BUILDING = (BuildingState.BUILD_STOPPED, BuildingState.BUILD_IN_PROGRESS)
 _UPGRADING = (BuildingState.UPGRADE_STOPPED, BuildingState.UPGRADE_IN_PROGRESS)
 
-_CLASSIC_GOODS = (Resource.WOOD.value, Resource.STONE.value, Resource.FOOD.value)
-_GOODS_TABS = (
-    _CLASSIC_GOODS,
-    (Resource.COAL.value, Resource.OIL.value, Resource.GLASS.value, Resource.IRON.value),
-    (Resource.HONEY.value, Resource.MEAD.value, Resource.BEEF.value),
-)
+
+# a started mission's RD is rounded, and a collect sent while time remains is a ruby skip
+_COLLECT_MARGIN_SECONDS = 2
 
 
 class CastleService(BaseService):
     """
-    Your castles, their buildings and resources, and sending goods and troops.
+    Your castles, their buildings and resources, research and the mercenary camp.
 
     Reached as client.castle.
 
@@ -157,7 +143,74 @@ class CastleService(BaseService):
     # Castle List Operations
     # =========================================================================
 
-    def get_all(self, timeout: float = 5.0) -> list[CastleInfo]:
+    @property
+    def castles(self) -> list[Castle]:
+        """A snapshot of the player's castles."""
+        return self.client.state.get_castles()
+
+    def unlocks(self, castle_id: int) -> PermanentCastle | None:
+        """One of your castles' unlocked units and horses, from the last gpc that named it."""
+        return self.client.state.get_permanent_castle(castle_id)
+
+    @property
+    def joined_area(self) -> JoinedArea | None:
+        """The area joined, with its slum level and builder discount; ``None`` before any join."""
+        return self.client.state.get_joined_area()
+
+    @property
+    def mines(self) -> dict[int, MineStatus]:
+        """The joined castle's mines by object id, as the last ``gsm`` sent them."""
+        return self.client.state.get_mines()
+
+    @property
+    def resource_carts(self) -> list[ResourceCart]:
+        """The joined castle's resource carts, wood, stone and food, as the last ``rci`` sent them."""
+        return self.client.state.get_resource_carts()
+
+    def resource_cart(self, cart_type: ResourceCartType) -> ResourceCart | None:
+        """The cart of one resource in the last ``rci``; ``None`` before any."""
+        return self.client.state.get_resource_cart(cart_type)
+
+    @property
+    def tax(self) -> TaxInfo | None:
+        """The tax collection, from the last ``txi``; None until one arrived."""
+        return self.client.state.get_tax()
+
+    @property
+    def kingdoms(self) -> KingdomInfoResponse | None:
+        """Your kingdoms and the transfers to them; None until a ``kpi`` arrived."""
+        return self.client.state.get_kingdoms()
+
+    @property
+    def construction_item_expiry(self) -> ConstructionItemExpiryResponse | None:
+        """When the next construction item expires, from the last ``nec``; None until one arrived."""
+        return self.client.state.get_construction_item_expiry()
+
+    @property
+    def resource_pool(self) -> ResourcePoolResponse | None:
+        """What the citizen in your castle carries, from the last ``irc`` push; None until one arrived."""
+        return self.client.state.get_resource_pool()
+
+    @property
+    def wishing_well(self) -> WishingWellResponse | None:
+        """The ruby wishing well, from the last ``rww``; None until one arrived."""
+        return self.client.state.get_wishing_well()
+
+    @property
+    def research(self) -> ResearchInfoResponse:
+        """Your finished and running research, from the last ``rei``.
+
+        Raises:
+            StateNotLoadedError: No login has brought it
+        """
+        return self.client.state.get_research()
+
+    @property
+    def mercenary_missions(self) -> MercenaryMissionsResponse | None:
+        """The mercenary camp's missions, from the last ``mpe``; None until one arrived."""
+        return self.client.state.get_mercenary_missions()
+
+    def get_all(self, *, timeout: float = 5.0) -> list[CastleInfo]:
         """
         Get list of all player's castles.
 
@@ -168,12 +221,11 @@ class CastleService(BaseService):
             for c in castles:
                 print(f"{c.castle_name} (ID: {c.castle_id}) at ({c.x}, {c.y})")
         """
-        player = self.client.state.get_local_player()
-        player_id = getattr(player, "id", None)
+        player_id = self.client.state.get_local_player().id
         request = GetCastlesRequest(player_id=player_id if isinstance(player_id, int) and player_id > 0 else None)
         return self.request(request, GetCastlesResponse, timeout=timeout).castles
 
-    def get_details(self, castle_id: int, timeout: float = 5.0) -> DetailedCastleInfo:
+    def get_details(self, castle_id: int, *, timeout: float = 5.0) -> DetailedCastleInfo:
         """
         Get resources and stationed units for one castle.
 
@@ -186,7 +238,6 @@ class CastleService(BaseService):
 
         Raises:
             UnknownCastleError: The reply lists no castle with that id
-            AmbiguousCastleError: The reply lists the id in several kingdoms
 
         Example:
             details = client.castle.get_details(12345)
@@ -202,7 +253,7 @@ class CastleService(BaseService):
     # Castle Selection
     # =========================================================================
 
-    def select(self, castle_id: int, timeout: float = 5.0) -> bool:
+    def select(self, castle_id: int, *, timeout: float = 5.0) -> None:
         """
         Select/jump to a castle (makes it the active castle).
 
@@ -214,19 +265,17 @@ class CastleService(BaseService):
 
         Raises:
             UnknownCastleError: ``castle_id`` is not in your castle list
-            AmbiguousCastleError: ``castle_id`` repeats across your kingdoms
 
         Client: ``C2SJoinCastleVO`` sent with the castle's ``objectId`` and
         ``kingdomID`` (``JoinAreaAndSavePositionCommand.execute``, bundle line 100892)
 
         Example:
-            if client.castle.select(12345):
-                print("Castle selected!")
+            client.castle.select(12345)
         """
         kingdom_id = self._require_own_castle(castle_id).kingdom_id
-        return self.execute(SelectCastleRequest(castle_id=castle_id, kingdom_id=kingdom_id), timeout=timeout)
+        self.execute(SelectCastleRequest(castle_id=castle_id, kingdom_id=kingdom_id), timeout=timeout)
 
-    def join(self, castle_id: int, timeout: float = 5.0) -> SelectCastleResponse:
+    def join(self, castle_id: int, *, timeout: float = 5.0) -> SelectCastleResponse:
         """
         Join a castle, making it the active castle, and return its state.
 
@@ -236,7 +285,6 @@ class CastleService(BaseService):
 
         Raises:
             UnknownCastleError: ``castle_id`` is not in your castle list
-            AmbiguousCastleError: ``castle_id`` repeats across your kingdoms
             CommandError: The server refused the join.
 
         Client: ``C2SJoinCastleVO`` sent with the castle's ``objectId`` and
@@ -253,7 +301,7 @@ class CastleService(BaseService):
         )
 
     def join_area(
-        self, x: int, y: int, kingdom_id: Kingdom = Kingdom.GREEN, timeout: float = 5.0
+        self, x: int, y: int, kingdom_id: Kingdom = Kingdom.GREEN, *, timeout: float = 5.0
     ) -> SelectCastleResponse:
         """
         Join an area by its position (``jaa``), making it the active area, and return its state.
@@ -292,7 +340,7 @@ class CastleService(BaseService):
         is_initial_name: bool = False,
         spend_rubies: bool = False,
         timeout: float = 5.0,
-    ) -> bool:
+    ) -> None:
         """
         Rename one of your castles.
 
@@ -314,27 +362,21 @@ class CastleService(BaseService):
         Raises:
             ValueError: A rename, no premium account is known to run, and ``spend_rubies`` is False
             UnknownCastleError: ``castle_id`` is not one of your castles.
-            AmbiguousCastleError: ``castle_id`` repeats across your kingdoms
 
         Client: ``CastleRenameCastleDialog.showLoaded`` and ``sendCommand`` (bundle lines 57219, 57231)
         price a rename, sent with 1; ``CastleNameCastleDialog.sendCommand`` (bundle line 32589) sends
         the first name with 0 and shows no price; ``CHANGE_CASTLE_NAME_C2`` (dll line 19599)
 
         Example:
-            if client.castle.rename(12345, "My Fortress", spend_rubies=True):
-                print("Castle renamed!")
+            client.castle.rename(12345, "My Fortress", spend_rubies=True)
         """
         if not is_initial_name:
-            boosts = self.client.state.get_boosts()
-            if boosts is None or not boosts.is_premium_active():
+            if not self.client.state.get_boosts().is_premium_active():
                 self._require_spend_rubies(spend_rubies, f"renaming a castle costs {_RENAME_RUBIES} rubies")
-        matches = [c for c in self.get_all(timeout=timeout) if c.castle_id == castle_id]
-        if len(matches) > 1:
-            raise AmbiguousCastleError(castle_id, [c.kingdom_id for c in matches])
-        if not matches:
+        castle = next((c for c in self.get_all(timeout=timeout) if c.castle_id == castle_id), None)
+        if castle is None:
             raise UnknownCastleError(castle_id)
-        castle = matches[0]
-        return self.execute(
+        self.execute(
             RenameCastleRequest(
                 castle_id=castle_id,
                 castle_name=new_name,
@@ -349,7 +391,7 @@ class CastleService(BaseService):
     # Resource Operations
     # =========================================================================
 
-    def get_resources(self, castle_id: int, timeout: float = 5.0) -> CastleResources:
+    def get_resources(self, castle_id: int, *, timeout: float = 5.0) -> CastleResources:
         """
         Get one of your castles' resources.
 
@@ -359,7 +401,6 @@ class CastleService(BaseService):
 
         Raises:
             UnknownCastleError: ``castle_id`` is not in your castle list
-            AmbiguousCastleError: ``castle_id`` repeats across your kingdoms
 
         Client: ``C2SGetCastleResourcesVO`` sent with the castle's ``objectId`` and
         ``kingdomID`` (``CastleTransferResourcesDialog.onSelectCastle``, bundle line 38076)
@@ -373,7 +414,7 @@ class CastleService(BaseService):
             GetResourcesRequest(castle_id=castle_id, kingdom_id=kingdom_id), GetResourcesResponse, timeout=timeout
         )
 
-    def get_production(self, timeout: float = 5.0) -> CastleProductionArea:
+    def get_production(self, *, timeout: float = 5.0) -> CastleProductionArea:
         """
         Get the joined castle's production area: production, storage, population and the rest.
 
@@ -390,7 +431,7 @@ class CastleService(BaseService):
     # Buildings
     # =========================================================================
 
-    def get_build_queue(self, timeout: float = 5.0) -> ConstructionList:
+    def get_build_queue(self, *, timeout: float = 5.0) -> ConstructionList:
         """
         Get the joined castle's construction slots.
 
@@ -406,8 +447,8 @@ class CastleService(BaseService):
         return None if buildings is None else buildings.find(object_id)
 
     def _player_level(self) -> int | None:
-        player = self.client.state.get_local_player()
-        return player.level if player is not None and player.level > 0 else None
+        level = self.client.state.get_local_player().level
+        return level if level > 0 else None
 
     def _next_level(self, row: BuildingRow) -> BuildingDef | None:
         """
@@ -482,7 +523,7 @@ class CastleService(BaseService):
         private_offer_id: int = -1,
         district_object_id: int = -1,
         timeout: float = 5.0,
-    ) -> bool:
+    ) -> None:
         """
         Place a new building in the joined castle.
 
@@ -517,7 +558,7 @@ class CastleService(BaseService):
             private_offer_id=private_offer_id,
             district_object_id=district_object_id,
         )
-        return self.execute(request, timeout=timeout)
+        self.execute(request, timeout=timeout)
 
     def upgrade_building(
         self,
@@ -527,7 +568,7 @@ class CastleService(BaseService):
         spend_rubies: bool = False,
         private_offer_id: int = -1,
         timeout: float = 5.0,
-    ) -> bool:
+    ) -> None:
         """
         Upgrade a building in one of your castles.
 
@@ -547,7 +588,7 @@ class CastleService(BaseService):
             ValueError: The next level has a ruby price, or the building or its next level is not
                 known, and ``spend_rubies`` is False
             GameDataNotLoadedError: ``spend_rubies`` is False and the game data cannot be loaded
-            UnknownCastleError / AmbiguousCastleError / CommandError: see :meth:`join`
+            UnknownCastleError / CommandError: see :meth:`join`
 
         Client: ``RingMenuButtonUpgradeBuilding.onClick`` (bundle line 50092),
         ``IsoServerCommands.upgradeBuilding`` (bundle line 63774); the price is the next level's
@@ -558,23 +599,23 @@ class CastleService(BaseService):
         request = UpgradeBuildingRequest(
             object_id=object_id, pay_with_rubies=spend_rubies, private_offer_id=private_offer_id
         )
-        return self.execute(request, timeout=timeout)
+        self.execute(request, timeout=timeout)
 
-    def move_building(self, object_id: int, x: int, y: int, rotation: int = 0, timeout: float = 5.0) -> bool:
+    def move_building(self, object_id: int, x: int, y: int, rotation: int = 0, *, timeout: float = 5.0) -> None:
         """Move a building in the joined castle."""
-        return self.execute(MoveBuildingRequest(object_id=object_id, x=x, y=y, rotation=rotation), timeout=timeout)
+        self.execute(MoveBuildingRequest(object_id=object_id, x=x, y=y, rotation=rotation), timeout=timeout)
 
-    def sell_decoration(self, object_id: int, timeout: float = 5.0) -> bool:
+    def sell_decoration(self, object_id: int, *, timeout: float = 5.0) -> None:
         """Sell a decoration placed in the joined castle."""
-        return self.execute(SellBuildingRequest(object_id=object_id), timeout=timeout)
+        self.execute(SellBuildingRequest(object_id=object_id), timeout=timeout)
 
-    def destroy_building(self, object_id: int, timeout: float = 5.0) -> bool:
+    def destroy_building(self, object_id: int, *, timeout: float = 5.0) -> None:
         """Start taking a building in the joined castle down."""
-        return self.execute(DestroyBuildingRequest(object_id=object_id), timeout=timeout)
+        self.execute(DestroyBuildingRequest(object_id=object_id), timeout=timeout)
 
     def finish_construction(
         self, castle_id: int, object_id: int, *, spend_rubies: bool = False, timeout: float = 5.0
-    ) -> bool:
+    ) -> None:
         """
         Finish a building's running build or upgrade at once.
 
@@ -594,7 +635,7 @@ class CastleService(BaseService):
             ValueError: More than 240 seconds are left, or the time left is not known, and
                 ``spend_rubies`` is False
             GameDataNotLoadedError: the game data cannot be loaded
-            UnknownCastleError / AmbiguousCastleError / CommandError: see :meth:`join`
+            UnknownCastleError / CommandError: see :meth:`join`
 
         Client: ``IsoServerCommands.fastCompleteBuilding`` (bundle line 63773) sends ``FS`` 1 when
         ``CastleSpecialEventData.hasSkipForFree`` (bundle line 139853), which ``calculateSkipCosts``
@@ -608,9 +649,9 @@ class CastleService(BaseService):
         free = seconds_left is not None and seconds_left - (time.monotonic() - received) <= _FREE_SKIP_SECONDS
         cost = None if free else f"finishing with over {_FREE_SKIP_SECONDS} seconds left, or unknown, costs rubies"
         self._require_spend_rubies(spend_rubies, cost)
-        return self.execute(FastCompleteRequest(object_id=object_id, free_skip=free), timeout=timeout)
+        self.execute(FastCompleteRequest(object_id=object_id, free_skip=free), timeout=timeout)
 
-    def skip_construction_time(self, object_id: int, minute_skip: Currency | str, timeout: float = 5.0) -> bool:
+    def skip_construction_time(self, object_id: int, minute_skip: Currency | str, *, timeout: float = 5.0) -> None:
         """
         Shorten a building's running construction with a minute skip.
 
@@ -627,7 +668,7 @@ class CastleService(BaseService):
         ``CastleMinuteSkipDialog.showLoaded`` (bundle line 7671)
         """
         self._require_minute_skip(minute_skip)
-        return self.execute(TimeSkipBuildingRequest(object_id=object_id, minute_skip=minute_skip), timeout=timeout)
+        self.execute(TimeSkipBuildingRequest(object_id=object_id, minute_skip=minute_skip), timeout=timeout)
 
     def upgrade_defense(
         self,
@@ -637,7 +678,7 @@ class CastleService(BaseService):
         spend_rubies: bool = False,
         private_offer_id: int = -1,
         timeout: float = 5.0,
-    ) -> bool:
+    ) -> None:
         """
         Upgrade a wall, gate or tower of one of your castles, by its object id.
 
@@ -657,7 +698,7 @@ class CastleService(BaseService):
             ValueError: The next level has a ruby price, or the object or its next level is not
                 known, and ``spend_rubies`` is False
             GameDataNotLoadedError: ``spend_rubies`` is False and the game data cannot be loaded
-            UnknownCastleError / AmbiguousCastleError / CommandError: see :meth:`join`
+            UnknownCastleError / CommandError: see :meth:`join`
 
         Client: ``C2SIsoUpgradeDefenceVO``, sent with ``PWR`` 1 by
         ``CastleResourceWaitDialogProperties.getResourceSkipCommand`` (bundle line 35220); the price
@@ -667,11 +708,11 @@ class CastleService(BaseService):
         request = UpgradeWallRequest(
             object_id=object_id, private_offer_id=private_offer_id, pay_with_rubies=spend_rubies
         )
-        return self.execute(request, timeout=timeout)
+        self.execute(request, timeout=timeout)
 
     def repair_building(
         self, object_id: int, *, spend_rubies: bool = False, private_offer_id: int = -1, timeout: float = 5.0
-    ) -> bool:
+    ) -> None:
         """
         Repair a damaged building in the joined castle.
 
@@ -687,9 +728,9 @@ class CastleService(BaseService):
         request = RepairBuildingRequest(
             object_id=object_id, private_offer_id=private_offer_id, pay_with_rubies=spend_rubies
         )
-        return self.execute(request, timeout=timeout)
+        self.execute(request, timeout=timeout)
 
-    def repair_all(self, *, spend_rubies: bool = False, timeout: float = 5.0) -> bool:
+    def repair_all(self, *, spend_rubies: bool = False, timeout: float = 5.0) -> None:
         """
         Repair every damaged building in the joined castle at once, for rubies; see "Spending
         rubies" in the guides.
@@ -709,7 +750,7 @@ class CastleService(BaseService):
         (dll lines 18966-18969)
         """
         self._require_spend_rubies(spend_rubies, "repairing every building at once costs rubies")
-        return self.execute(RepairAllRequest(), timeout=timeout)
+        self.execute(RepairAllRequest(), timeout=timeout)
 
     def buy_expansion(
         self,
@@ -720,7 +761,7 @@ class CastleService(BaseService):
         *,
         spend_rubies: bool = False,
         timeout: float = 5.0,
-    ) -> bool:
+    ) -> None:
         """
         Buy an expansion of the joined castle's grounds, with resources (NORMAL) or rubies (PREMIUM).
 
@@ -740,27 +781,25 @@ class CastleService(BaseService):
         """
         premium = expansion_type == ExpansionType.PREMIUM
         self._require_spend_rubies(spend_rubies, "a premium expansion costs rubies" if premium else None)
-        return self.execute(
-            BuyExtensionRequest(x=x, y=y, rotation=rotation, expansion_type=expansion_type), timeout=timeout
-        )
+        self.execute(BuyExtensionRequest(x=x, y=y, rotation=rotation, expansion_type=expansion_type), timeout=timeout)
 
-    def open_treasure_chest(self, object_id: int, timeout: float = 5.0) -> bool:
+    def open_treasure_chest(self, object_id: int, *, timeout: float = 5.0) -> None:
         """Open a treasure chest found on an expansion of the joined castle."""
-        return self.execute(CollectExtensionGiftRequest(object_id=object_id), timeout=timeout)
+        self.execute(CollectExtensionGiftRequest(object_id=object_id), timeout=timeout)
 
-    def collect_mine(self, object_id: int, timeout: float = 5.0) -> bool:
+    def collect_mine(self, object_id: int, *, timeout: float = 5.0) -> None:
         """Collect what a mine in the joined castle has produced."""
-        return self.execute(CollectMineResourcesRequest(object_id=object_id), timeout=timeout)
+        self.execute(CollectMineResourcesRequest(object_id=object_id), timeout=timeout)
 
-    def collect_resource_cart(self, cart_type: ResourceCartType, timeout: float = 5.0) -> bool:
+    def collect_resource_cart(self, cart_type: ResourceCartType, *, timeout: float = 5.0) -> None:
         """Collect the joined castle's resource cart of one resource."""
-        return self.execute(CollectResourceCartRequest(cart_type=cart_type), timeout=timeout)
+        self.execute(CollectResourceCartRequest(cart_type=cart_type), timeout=timeout)
 
     # =========================================================================
     # Tax
     # =========================================================================
 
-    def get_tax_info(self, timeout: float = 5.0) -> TaxInfo:
+    def get_tax_info(self, *, timeout: float = 5.0) -> TaxInfo:
         """
         Read the tax collection status.
 
@@ -807,7 +846,7 @@ class CastleService(BaseService):
             )
         return self.request(StartTaxRequest(tax_type=tax_type), StartTaxResponse, timeout=timeout)
 
-    def collect_tax(self, timeout: float = 5.0) -> CollectTaxResponse:
+    def collect_tax(self, *, timeout: float = 5.0) -> CollectTaxResponse:
         """
         Collect the tax.
 
@@ -828,460 +867,10 @@ class CastleService(BaseService):
         return self.request(CollectTaxRequest(), CollectTaxResponse, timeout=timeout)
 
     # =========================================================================
-    # Market
+    # Horses
     # =========================================================================
 
-    def send_resources(
-        self,
-        source_castle_id: int,
-        target_x: int,
-        target_y: int,
-        goods: dict[Resource, int],
-        *,
-        horse_booster_id: int = -1,
-        feathers: bool = False,
-        slowdown: int = 0,
-        spend_rubies: bool = False,
-        timeout: float = 5.0,
-    ) -> bool:
-        """
-        Send resources from one of your castles to a castle on the map, by carriage.
-
-        A horse that costs rubies, unless paid with feathers, and a slowdown spend rubies;
-        see "Spending rubies" in the guides.
-
-        Nothing is sent when the goods fail a check the client makes before
-        sending: an amount that is not a positive int (the client drops zeros
-        and refuses a send of nothing; this raises on a zero instead), goods
-        from more than one of the dialog's tabs (classic, kingdom, mead), or,
-        once the player is known and has no legend level, anything but wood,
-        stone and food (the client then shows only that tab). The client sends
-        one tab's goods per send, and the server refuses a send that mixes tabs
-        with INVALID_PARAMETER_VALUE (seen live for wood with coal and coal
-        with honey).
-
-        Not checked, since they depend on the target or on data this call does
-        not have: the target owner's level for kingdom resources and legend
-        level for mead goods, at most 2 goods (wood and stone) to a monument
-        or laboratory, the carriage capacity and the castle's stock.
-
-        Args:
-            source_castle_id: The castle the carriages leave from, one of yours
-            target_x: Map x of the target castle
-            target_y: Map y of the target castle
-            goods: Amount per resource, all from one tab, such as
-                ``{Resource.WOOD: 1000, Resource.STONE: 500}`` or ``{Resource.COAL: 500, Resource.OIL: 500}``
-            horse_booster_id: The horse's wod id, -1 for none; sent as -1 whenever
-                feathers are used, as the client does
-            feathers: Pay for the horse with feathers
-            slowdown: Seconds to delay the arrival by; costs rubies
-            spend_rubies: Allow a horse or slowdown that costs rubies
-            timeout: Timeout in seconds
-
-        Raises:
-            UnsendableGoodsError: The goods fail one of the checks above
-            UnknownCastleError: ``source_castle_id`` is not in your castle list
-            AmbiguousCastleError: ``source_castle_id`` repeats across your kingdoms
-            ValueError: The horse or slowdown costs rubies and ``spend_rubies`` is False
-            GameDataNotLoadedError: A horse is picked without feathers and the game data cannot be loaded
-
-        Client: ``CastlePostSendGoodsDialog.sendGoods`` (bundle line 33378), which
-        sends ``castleList.getKingdomIdByCastleId`` of the source castle as ``KID``;
-        ``CastleSendGoodsDialog.sendGoodsCastle`` (bundle line 27202), which refuses
-        a zero sum; ``CollectableParser._createGoodsList`` (bundle line 40530),
-        which drops zero amounts; ``CastleSendGoodsComponent.rewardList`` (bundle
-        line 44340), which sends one tab's goods, and ``setTabVisibility`` (bundle
-        line 44261), which shows the kingdom and mead tabs only to a legend. Not
-        mirrored: ``applySpecialLevelRestrictions`` (bundle line 44289) and
-        ``isBoosterArea`` (bundle line 44356).
-        """
-        amounts = self._sendable_goods(goods)
-        self._require_spend_rubies(spend_rubies, self._travel_ruby_cost(horse_booster_id, feathers, slowdown))
-        request = CreateMarketMovementRequest(
-            kingdom_id=self._require_own_castle(source_castle_id).kingdom_id,
-            source_castle_id=source_castle_id,
-            target_x=target_x,
-            target_y=target_y,
-            horse_booster_id=-1 if feathers else horse_booster_id,
-            feathers=1 if feathers else 0,
-            slowdown=slowdown,
-            goods=amounts,
-        )
-        return self.execute(request, timeout=timeout)
-
-    def _sendable_goods(self, goods: dict[Resource, int]) -> dict[Resource, int]:
-        if not goods:
-            raise UnsendableGoodsError("No goods to send", goods)
-        amounts: dict[Resource, int] = {}
-        for key, amount in goods.items():
-            try:
-                resource = Resource(key)
-            except ValueError:
-                raise UnsendableGoodsError(f"{key!r} is not a resource the market sends", goods) from None
-            if isinstance(amount, bool) or not isinstance(amount, int) or amount <= 0:
-                raise UnsendableGoodsError(f"{resource.name} amount must be a positive int, got {amount!r}", goods)
-            amounts[resource] = amount
-        tabs = {index for key in amounts for index, tab in enumerate(_GOODS_TABS) if key in tab}
-        if len(tabs) > 1:
-            raise UnsendableGoodsError(
-                "One send carries goods from one tab only: wood, stone and food; coal, oil, glass and iron;"
-                " or honey, mead and beef",
-                goods,
-            )
-        player = self.client.state.get_local_player()
-        if player is not None and player.level > 0 and player.legendary_level <= 0:
-            beyond = [key.value for key in amounts if key not in _CLASSIC_GOODS]
-            if beyond:
-                raise UnsendableGoodsError(
-                    f"Only wood, stone and food can be sent below legend level, not {', '.join(map(str, beyond))}",
-                    goods,
-                )
-        return amounts
-
-    def get_market_info(self, timeout: float = 5.0) -> list[MarketCastle]:
-        """
-        List every castle's market carriages, those not on the road, and its resources.
-
-        Example:
-            for castle in client.castle.get_market_info():
-                print(castle.castle_id, castle.available_carriages, "/", castle.total_carriages)
-        """
-        return self.request(MarketInfoRequest(), MarketInfoResponse, timeout=timeout).castles
-
-    # =========================================================================
-    # Support and Transfers
-    # =========================================================================
-
-    def send_support(
-        self,
-        source_castle_id: int,
-        target_x: int,
-        target_y: int,
-        units: WodAmountMapping | Sequence[WodAmount],
-        commander_id: int,
-        wait_time: int = 12,
-        use_premium_commander: bool = False,
-        horse_booster_id: int = -1,
-        feathers: bool = False,
-        slowdown: int = 0,
-        timeout: float = 5.0,
-        *,
-        spend_rubies: bool = False,
-    ) -> bool:
-        """
-        Send support troops from a castle to a target location.
-
-        The server refuses a support to your own area with NO_SELF_DESTRUCTION
-        (92); move troops between your own areas with :meth:`send_troops`.
-
-        A support led by the premium commander is refused before sending when it
-        may cost rubies, unless ``spend_rubies`` is True; see
-        ``client.commanders.premium_send``. So is a horse that costs rubies, unless
-        paid with feathers, and a slowdown; see "Spending rubies" in the guides.
-
-        Args:
-            source_castle_id: The castle the troops leave from, one of yours: ``CastleInfo.castle_id``
-                from ``client.castle.get_all()`` or ``Castle.id`` from ``client.state.get_castles()``
-            target_x: Target X coordinate
-            target_y: Target Y coordinate
-            units: The units, then any tools: ``{Unit.X: 100}``, or pairs one per slot
-            commander_id: Commander to lead the support, a ``Commander.commander_id``
-                from ``client.commanders.get_commanders()``.
-                There is no default: ``0`` is a real commander (the free starting
-                one), and the client never sends a support without a commander
-                (with none picked it leads with the premium one, ``-14``)
-            wait_time: Station duration in hours (0-12, default: 12)
-            use_premium_commander: Lead with the premium commander (``commander_id``
-                -14). It uses one of your free premium commanders, or costs rubies
-                when none is left and no premium account runs
-            horse_booster_id: Type of horses for speed bonus (-1 = none, default: -1);
-                sent as -1 whenever feathers are used, as the client does
-            feathers: Pay for the movement with feathers
-            slowdown: Movement slowdown modifier (0 = none, default: 0); costs rubies
-            timeout: Timeout in seconds
-            spend_rubies: Send even when the premium commander, the horse or the slowdown costs rubies
-
-        Raises:
-            PremiumCommanderCostError: The premium commander leads, may cost rubies,
-                and ``spend_rubies`` is False
-            ValueError: The horse or slowdown costs rubies and ``spend_rubies`` is False
-            GameDataNotLoadedError: The premium commander leads, VIP time runs and
-                the game data cannot be loaded; or a horse is picked without feathers
-                before it was called
-        """
-        self._require_spend_rubies(spend_rubies, self._travel_ruby_cost(horse_booster_id, feathers, slowdown))
-        request = SendSupportRequest(
-            source_castle_id=source_castle_id,
-            target_x=target_x,
-            target_y=target_y,
-            units=WodAmount.slots(units),
-            wait_time=wait_time,
-            use_premium_commander=1 if use_premium_commander else 0,
-            horse_booster_id=-1 if feathers else horse_booster_id,
-            feathers=1 if feathers else 0,
-            slowdown=slowdown,
-            commander_id=commander_id,
-        )
-        return self.client.commanders.premium_send(
-            commander_id,
-            use_premium_commander,
-            lambda: self.execute(request, timeout=timeout),
-            spend_rubies=spend_rubies,
-        )
-
-    def send_troops(
-        self,
-        source_x: int,
-        source_y: int,
-        target_x: int,
-        target_y: int,
-        units: WodAmountMapping | Sequence[WodAmount],
-        commander_id: int,
-        *,
-        kingdom_id: Kingdom = Kingdom.GREEN,
-        use_premium_commander: bool = False,
-        spend_rubies: bool = False,
-        horse_booster_id: int = -1,
-        feathers: bool = False,
-        slowdown: int = 0,
-        timeout: float = 5.0,
-    ) -> bool:
-        """
-        Send troops from one of your areas to another of your own, where they stay.
-
-        This is how the client moves troops between your own areas; a support
-        (:meth:`send_support`) to your own area is refused with
-        NO_SELF_DESTRUCTION (92). While the troops are heading out they can be
-        recalled with ``client.movements.recall``.
-
-        Targets the client offers: your castle (main or kingdom castle), your
-        outposts not under conquer control, your villages and resource isles,
-        your king's towers, monuments and laboratories, and your faction camps.
-        Sources: your castles and outposts (not occupied ones), villages,
-        resource isles, king's towers, monuments and laboratories. Both must
-        sit in the same kingdom; to move troops between kingdoms use
-        :meth:`transfer_units_to_kingdom`.
-
-        Rubies as for :meth:`send_support`: the premium commander, a horse that costs
-        rubies unless paid with feathers, and a slowdown need ``spend_rubies``.
-
-        Client: ``CastleTroopSupportData.sendTroops`` (bundle line 38420); the
-        targets from the ``canBeTroupsSended`` overrides (``CastleMapobjectVO``
-        bundle line 18917, ``OutpostMapobjectVO`` 18819, ``KingstowerMapobjectVO``
-        19075, ``FactionCampMapobjectVO`` 21530, ``VillageMapobjectVO`` 22673,
-        ``UpgradableLandmarkMapobjectVO`` 42648), the sources from
-        ``CastleStartAttackDialog.fillCastleList`` (bundle line 14725)
-
-        Args:
-            source_x: Map x of the area the troops leave from
-            source_y: Map y of the area the troops leave from
-            target_x: Map x of the area they go to
-            target_y: Map y of the area they go to
-            units: The units, then any tools: ``{Unit.X: 100}``, or pairs one per slot
-            commander_id: Commander to lead them, a ``Commander.commander_id``
-                from ``client.commanders.get_commanders()``; ``0`` is the free
-                starting one
-            kingdom_id: The kingdom both areas sit in
-            use_premium_commander: Lead with the premium commander (``commander_id``
-                -14). It uses one of your free premium commanders, or costs rubies
-                when none is left and no premium account runs
-            spend_rubies: Send even when the premium commander, the horse or the slowdown costs rubies
-            horse_booster_id: The horse's wod id, -1 for none; sent as -1 whenever
-                feathers are used, as the client does
-            feathers: Pay for the horse with feathers
-            slowdown: Seconds to delay the arrival by; costs rubies
-            timeout: Timeout in seconds
-
-        Raises:
-            PremiumCommanderCostError: The premium commander leads, may cost rubies,
-                and ``spend_rubies`` is False; see ``client.commanders.premium_send``
-            ValueError: The horse or slowdown costs rubies and ``spend_rubies`` is False
-            GameDataNotLoadedError: The premium commander leads, VIP time runs and
-                the game data cannot be loaded; or a horse is picked without feathers
-                before it was called
-        """
-        self._require_spend_rubies(spend_rubies, self._travel_ruby_cost(horse_booster_id, feathers, slowdown))
-        request = SendTroopsRequest(
-            source_x=source_x,
-            source_y=source_y,
-            target_x=target_x,
-            target_y=target_y,
-            kingdom_id=kingdom_id,
-            commander_id=commander_id,
-            horse_booster_id=-1 if feathers else horse_booster_id,
-            use_premium_commander=1 if use_premium_commander else 0,
-            feathers=1 if feathers else 0,
-            slowdown=slowdown,
-            units=WodAmount.slots(units),
-        )
-        return self.client.commanders.premium_send(
-            commander_id,
-            use_premium_commander,
-            lambda: self.execute(request, timeout=timeout),
-            spend_rubies=spend_rubies,
-        )
-
-    def get_travel_info(
-        self,
-        source_x: int,
-        source_y: int,
-        target_x: int,
-        target_y: int,
-        *,
-        kingdom_id: Kingdom = Kingdom.GREEN,
-        timeout: float = 5.0,
-    ) -> GetTravelInfoResponse:
-        """
-        Get the pre-calculation of troops sent from one of your areas to another, before :meth:`send_troops`.
-
-        This is what the client asks for when it opens the dialog to send
-        troops: the target's map row and owner, and your units and tools at the
-        source. The commanders it carries update ``client.state``. The travel
-        time and cost are not in the reply; the client works them out from the
-        units picked.
-
-        Args:
-            source_x: Map x of the area the troops would leave from
-            source_y: Map y of the area the troops would leave from
-            target_x: Map x of the area they would go to
-            target_y: Map y of the area they would go to
-            kingdom_id: The kingdom both areas sit in
-            timeout: Timeout in seconds
-
-        Raises:
-            CommandError: The server refused it, ``NOT_IN_OWNED_CASTLE`` when the
-                source is not one of your areas
-
-        Client: ``C2STroopSupportInfoVO`` (bundle line 72087), sent by
-        ``CastleStartAttackDialog`` (bundle line 14831); ``STICommand`` (bundle line 129095)
-        """
-        request = GetTravelInfoRequest(
-            source_x=source_x, source_y=source_y, target_x=target_x, target_y=target_y, kingdom_id=kingdom_id
-        )
-        return self.request(request, GetTravelInfoResponse, timeout=timeout)
-
-    def transfer_units_to_kingdom(
-        self,
-        source_castle_id: int,
-        target_kingdom_id: Kingdom,
-        units: WodAmountMapping | Sequence[WodAmount],
-        *,
-        target_castle_id: int = -1,
-        timeout: float = 5.0,
-    ) -> bool:
-        """
-        Send units from one of your castles to another kingdom.
-
-        Args:
-            source_castle_id: The castle the units leave from, one of yours
-            target_kingdom_id: The kingdom to send them to
-            units: The units, ``{Unit.X: 100}``
-            target_castle_id: Object id of a picked target castle, -1 for none
-            timeout: Timeout in seconds
-
-        Raises:
-            UnknownCastleError: ``source_castle_id`` is not in your castle list
-            AmbiguousCastleError: ``source_castle_id`` repeats across your kingdoms
-
-        Client: ``CastleTransferTroopsToKingdomProperties.getUnitTransferCommand``
-        (bundle line 37448) sends the source castle's ``kingdomID`` as ``SKID``
-        """
-        request = KingdomUnitTransferRequest(
-            source_castle_id=source_castle_id,
-            source_kingdom_id=self._require_own_castle(source_castle_id).kingdom_id,
-            target_kingdom_id=target_kingdom_id,
-            target_castle_id=target_castle_id,
-            units=WodAmount.slots(units),
-        )
-        return self.execute(request, timeout=timeout)
-
-    def transfer_goods_to_kingdom(
-        self,
-        source_castle_id: int,
-        target_kingdom_id: Kingdom,
-        goods: dict[Resource, int],
-        *,
-        timeout: float = 5.0,
-    ) -> bool:
-        """
-        Send goods from one of your castles to your castle in another kingdom.
-
-        The goods pass the checks of :meth:`send_resources`, since the client
-        sends them from the same send component: positive amounts, one tab per
-        send, classic goods only below legend level. The source castle may not
-        sit in the target kingdom or in Berimond, which the client leaves out
-        of its castle picker, and the target kingdom must hold a castle of
-        yours, which the client sends the goods to. The travel tax and the
-        target's storage are left to the server.
-
-        Args:
-            source_castle_id: The castle the goods leave from, one of yours
-            target_kingdom_id: The kingdom to send them to
-            goods: Amount per resource, all from one tab, such as ``{Resource.WOOD: 1000}``
-            timeout: Timeout in seconds
-
-        Raises:
-            UnsendableGoodsError: The goods fail one of the checks of :meth:`send_resources`
-            ValueError: The source castle sits in the target kingdom or in Berimond,
-                or no castle of yours sits in the target kingdom
-            UnknownCastleError: ``source_castle_id`` is not in your castle list
-            AmbiguousCastleError: ``source_castle_id`` repeats across your kingdoms
-
-        Client: ``CastleTransferResourcesDialog.sendResources`` (bundle line 38082) sends the
-        picked castle's ``kingdomID`` as ``SKID``; its castle picker leaves out
-        ``CastleTransferResToKingdomProperties.exceptingKingdomIDs`` (bundle line 55533), and
-        ``targetInitialized`` (bundle line 55553) needs ``getMainCastleByKingdomID`` of the
-        target kingdom; ``CastleSendGoodsComponent.setTabVisibility`` (bundle line 44261)
-        """
-        amounts = self._sendable_goods(goods)
-        source_kingdom = self._require_own_castle(source_castle_id).kingdom_id
-        if source_kingdom in (target_kingdom_id, Kingdom.BERIMOND):
-            raise ValueError(f"Goods cannot be sent to another kingdom from a castle in {source_kingdom.name}")
-        if not any(castle.kingdom_id == target_kingdom_id for castle in self._own_castles()):
-            raise ValueError(f"No castle of yours sits in {Kingdom(target_kingdom_id).name} to receive the goods")
-        request = KingdomGoodsTransferRequest(
-            source_castle_id=source_castle_id,
-            source_kingdom_id=source_kingdom,
-            target_kingdom_id=target_kingdom_id,
-            goods=amounts,
-        )
-        return self.execute(request, timeout=timeout)
-
-    def skip_kingdom_transfer_time(
-        self,
-        kingdom_id: Kingdom,
-        transfer_type: KingdomTransferType,
-        minute_skip: Currency | str,
-        timeout: float = 5.0,
-    ) -> bool:
-        """
-        Shorten the units or goods on their way to a kingdom with a minute skip item.
-
-        Each kingdom has at most one units transfer and one goods transfer on
-        the way; ``client.state.get_kingdoms()`` lists them. The full skip the
-        client also offers (``kst``) costs rubies and is not offered here.
-
-        Args:
-            kingdom_id: The kingdom the transfer goes to
-            transfer_type: ``KingdomTransferType.UNITS`` or ``GOODS``
-            minute_skip: The minute skip to use, ``Currency.SKIP_1_MINUTE`` to ``SKIP_24_HOURS``;
-                its key (``"MS1"``) also works, for a skip newer than the generated enum
-            timeout: Timeout in seconds
-
-        Raises:
-            ValueError: ``minute_skip`` is no minute skip, or the special currencies hold none of it
-
-        Client: ``KingdomUnitsTravelMinuteSkipProperties.getMinuteSkipCommand`` (bundle line 37497),
-        ``KingdomGoodsTravelMinuteSkipProperties.getMinuteSkipCommand`` (bundle line 55567);
-        ``CastleMinuteSkipDialog.showLoaded`` (bundle line 7671); ``MSKCommand`` (bundle line 125795)
-        """
-        self._require_minute_skip(minute_skip)
-        request = MinuteSkipKingdomTransferRequest(
-            minute_skip=minute_skip, kingdom_id=kingdom_id, transfer_type=transfer_type
-        )
-        return self.execute(request, timeout=timeout)
-
-    def get_horses(self, castle_id: int) -> list[HorseStats] | None:
+    def horses(self, castle_id: int) -> list[HorseStats] | None:
         """
         The horses one of your castles can send movements with, by wod id.
 
@@ -1301,18 +890,157 @@ class CastleService(BaseService):
         Raises:
             GameDataNotLoadedError: the game data cannot be loaded
             UnknownCastleError: ``castle_id`` is not in your castle list
-            AmbiguousCastleError: ``castle_id`` repeats across your kingdoms
 
         Client: ``CastleHorsesVO.parseParamObject`` (bundle line 139177),
         ``CastlePermanentCastleData.getCastleByWorldAreaId`` (bundle line 139145)
         """
         game_data = self._require_game_data()
         self._require_own_castle(castle_id)
-        horse_ids = self.client.state.get_castle_horse_ids(castle_id)
-        if horse_ids is None:
+        permanent = self.client.state.get_permanent_castle(castle_id)
+        if permanent is None:
             return None
-        horses = [horse for wod_id in horse_ids if (horse := game_data.get_horse(wod_id)) is not None]
+        horses = [horse for wod_id in permanent.horse_ids if (horse := game_data.get_horse(wod_id)) is not None]
         return sorted(horses, key=lambda horse: horse.wod_id)
+
+    # =========================================================================
+    # Research
+    # =========================================================================
+
+    def start_research(self, research: Research | int, *, spend_rubies: bool = False, timeout: float = 5.0) -> None:
+        """
+        Start a research, paying what it costs.
+
+        Missing resources are never paid with rubies: the request sends ``PWR`` 0, as the research
+        dialog does. Some researches cost rubies themselves (``ResearchDef.cost_rubies``), and the
+        client sends the same request for them; this method refuses those unless ``spend_rubies`` is
+        True. Other costs, legendary tokens included, are a normal game currency and are paid. The
+        reply's research reaches ``client.state.get_research()``.
+
+        Args:
+            research: The research to start
+            spend_rubies: Allow a research that costs rubies, on either kind of server
+            timeout: Timeout in seconds
+
+        Raises:
+            GameDataNotLoadedError: the game data cannot be loaded
+            ValueError: The game data has no such research, or it costs rubies and ``spend_rubies`` is False
+
+        Client: ``ResearchInfo.buyResearch`` (bundle line 79704) sends ``C2SResearchStartVO`` whatever the
+        costs; ``updateBuyArea`` shows the ruby overlay when ``getFinalCosts`` holds rubies (bundle lines
+        79679-79680), and ``AResearchVO.getBaseCosts`` takes the temporary server's costs there (bundle
+        line 61530); ``RESCommand`` (bundle line 126872)
+        """
+        game_data = self._require_game_data()
+        row = game_data.researches.get(research)
+        if row is None:
+            raise ValueError(f"the game data has no research {research!r}")
+        costs = (*row.costs, *row.temp_server_costs)
+        rubies = max((cost.amount for cost in costs if cost.kind is CollectableKind.RUBIES), default=0)
+        if rubies > 0 and not spend_rubies:
+            raise ValueError(f"research {research!r} costs {rubies} rubies; pass spend_rubies=True")
+        self.execute(StartResearchRequest(research_id=research), timeout=timeout)
+
+    def skip_research(self, minute_skip: Currency | str, *, timeout: float = 5.0) -> None:
+        """
+        Shorten the running research with a minute skip from your inventory.
+
+        The reply's research reaches ``client.state.get_research()``.
+
+        Args:
+            minute_skip: The minute skip to use, ``Currency.SKIP_1_MINUTE`` to ``SKIP_24_HOURS``;
+                its key (``"MS1"``) also works, for a skip newer than the generated enum
+            timeout: Timeout in seconds
+
+        Raises:
+            ValueError: ``minute_skip`` is no minute skip, or the special currencies hold none of it
+
+        Client: ``ResearchMinuteSkipProperties.getMinuteSkipCommand`` (bundle line 79784),
+        ``CastleMinuteSkipDialog.showLoaded`` (bundle line 7671), ``MSRCommand`` (bundle line 125825)
+        """
+        self._require_minute_skip(minute_skip)
+        self.execute(SkipResearchRequest(minute_skip=minute_skip), timeout=timeout)
+
+    # =========================================================================
+    # Mercenary camp
+    # =========================================================================
+
+    def list_missions(self, *, timeout: float = 5.0) -> MercenaryMissionsResponse:
+        """
+        The mercenary camp's missions, and when new ones come.
+
+        Sends ``mpe`` with ``MID`` -1, as the client does when it opens the camp and when new missions
+        are due; the reply also reaches ``client.state.get_mercenary_missions()``.
+
+        Client: ``CastleMercenaryOverviewDialog.showLoaded`` and ``CastleMercenaryData.onNewMissions``
+        (bundle lines 51996, 28851)
+        """
+        return self.request(MercenaryPackageRequest(), MercenaryMissionsResponse, timeout=timeout)
+
+    def start_mission(self, mission_id: int, *, timeout: float = 5.0) -> None:
+        """
+        Start an open mercenary mission, paying its price in coins.
+
+        Lists the missions first and decides from that reply, as the client decides from its mission
+        state: only an open mission starts, and only while no mission runs or waits to be collected.
+        While one runs the client would first finish it for rubies; that is left out.
+
+        Args:
+            mission_id: A ``MercenaryMission.mission_id`` from :meth:`list_missions`
+            timeout: Timeout in seconds, for each request
+
+        Raises:
+            ValueError: The missions list no such mission, it is not open, or another mission runs
+                or waits to be collected
+
+        Client: ``CastleMercenaryMissionItem.startMission``, ``showStartAndRefreshButton`` and
+        ``startMissionCallback`` (bundle lines 87377, 87361, 87379)
+        """
+        missions = self.list_missions(timeout=timeout)
+        mission = self._mission(missions, mission_id)
+        if mission.current_state() != MercenaryMissionState.OPEN:
+            raise ValueError(f"mercenary mission {mission_id} is not open")
+        if missions.current_mission_state() != MercenaryMissionState.OPEN:
+            raise ValueError("another mercenary mission runs or waits to be collected")
+        self.execute(MercenaryPackageRequest(mission_id=mission_id), timeout=timeout)
+
+    def collect_mission(self, mission_id: int, *, timeout: float = 5.0) -> None:
+        """
+        Collect a finished mercenary mission's rewards.
+
+        The collect is the same ``mpe`` as the ruby skip of a running mission, which costs
+        ``ceil(remaining seconds / 60 * 5)`` rubies. So this lists the missions first and sends the
+        collect only for one the server lists as collectable, as started with no ``RD`` (finished for
+        the client, and a skip of it would cost 0 rubies), or as started with its time run out at
+        least two seconds ago, since ``RD`` is rounded. A started mission whose ``RD`` still counts
+        down is refused. Another session can still change the mission between the list and the
+        send; that window is not closed.
+
+        Args:
+            mission_id: A ``MercenaryMission.mission_id`` from :meth:`list_missions`
+            timeout: Timeout in seconds, for each request
+
+        Raises:
+            ValueError: The missions list no such mission, or it is not collectable by that rule
+
+        Client: ``CastleMercenaryMissionItem.showCollectButton`` and ``collectMissionRewards``
+        (bundle lines 87365, 87382); ``CastleMercenaryMissionItemVO.fillFromParamObject`` sets no end
+        time without ``RD`` (bundle line 81134); ``CastleMercenarySkipMissionDialog.confirmSkip`` (bundle
+        line 87459) sends the same id, ``MercenaryConst.getSkipC2Cost`` (dll line 19508)
+        """
+        mission = self._mission(self.list_missions(timeout=timeout), mission_id)
+        finished = mission.state == MercenaryMissionState.STARTED and (
+            not js_truthy(mission.seconds) or mission.seconds_past_end() >= _COLLECT_MARGIN_SECONDS
+        )
+        if mission.state != MercenaryMissionState.COLLECTABLE and not finished:
+            raise ValueError(f"mercenary mission {mission_id} is not collectable")
+        self.execute(MercenaryPackageRequest(mission_id=mission_id), timeout=timeout)
+
+    @staticmethod
+    def _mission(missions: MercenaryMissionsResponse, mission_id: int) -> MercenaryMission:
+        mission = missions.get_mission(mission_id)
+        if mission is None:
+            raise ValueError(f"no mercenary mission {mission_id}")
+        return mission
 
 
 __all__ = ["CastleService"]

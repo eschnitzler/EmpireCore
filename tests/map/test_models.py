@@ -36,7 +36,7 @@ class TestGoldenMapArea:
     def test_registry_parses_gaa(self):
         assert isinstance(parse_response("gaa", {"KID": 0, "AI": []}), GetMapAreaResponse)
 
-    def test_items_and_objects_parse(self):
+    def test_items_and_owners_parse(self):
         payload = {"KID": 2, "AI": [CASTLE_ROW], "OI": [{"OID": 4242, "N": "Owner", "AN": "Alliance", "L": 70}]}
         response = GetMapAreaResponse.model_validate(payload)
         item = response.items[0]
@@ -627,6 +627,16 @@ class TestRowKingdom:
 
     def test_from_list_takes_the_kingdom_it_is_given(self):
         assert MapAreaItem.from_list([31, 1, 2], Kingdom.STORM).kingdom is Kingdom.STORM
+
+
+class TestDistance:
+    """MapHelper.getShortestDistance: straight-line tiles, rounded half up to one decimal."""
+
+    @pytest.mark.parametrize(
+        ("x", "y", "expected"), [(500, 500, 0.0), (503, 504, 5.0), (501, 501, 1.4), (497, 498, 3.6)]
+    )
+    def test_distance_to_a_position(self, x: int, y: int, expected: float):
+        assert MapAreaItem.from_list([31, 500, 500]).distance_to(x, y) == expected
 
 
 class TestKingdomProtection:

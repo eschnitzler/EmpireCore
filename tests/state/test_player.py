@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from empire_core.enums import Kingdom
+from empire_core.exceptions import StateNotLoadedError
 from empire_core.gamedata import Currency
 from empire_core.state.models import Player
 from tests.state.state_helpers import gam_payload, gcl_payload
@@ -43,8 +43,9 @@ class TestLocalPlayerSnapshots:
         snapshot.PN = "tampered"
         assert state.local_player.PN == "me"
 
-    def test_get_local_player_is_none_before_login(self, state):
-        assert state.get_local_player() is None
+    def test_get_local_player_raises_before_login(self, state):
+        with pytest.raises(StateNotLoadedError):
+            state.get_local_player()
 
     def test_snapshot_containers_are_detached(self, state):
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "sce": [["A", 1]], "gcl": gcl_payload([(1, "Main")])})
@@ -54,7 +55,7 @@ class TestLocalPlayerSnapshots:
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(2, "Second")])})
 
         assert snapshot.special_currencies == {"A": 1}, "snapshot currencies mutated by receive thread"
-        assert list(snapshot.castles) == [(Kingdom.GREEN, 1)], "snapshot castles mutated by receive thread"
+        assert list(snapshot.castles) == [1], "snapshot castles mutated by receive thread"
 
     def test_get_special_currencies_returns_copy(self, state):
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "sce": [["A", 1]]})
@@ -82,8 +83,8 @@ class TestLocalPlayerSnapshots:
 
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main"), (2, "Outpost")])})
 
-        assert list(reader_view) == [(Kingdom.GREEN, 1)], "receive thread mutated a dict a reader already holds"
-        assert sorted(state.local_player.castles) == [(Kingdom.GREEN, 1), (Kingdom.GREEN, 2)]
+        assert list(reader_view) == [1], "receive thread mutated a dict a reader already holds"
+        assert sorted(state.local_player.castles) == [1, 2]
 
     def test_relogin_merge_has_no_observable_intermediate_state(self, state):
         # Identity in gpi, level/XP in gxp, currency in gcu — the sections a
@@ -342,7 +343,7 @@ class TestPlayerPushes:
     def test_gcl_push(self, state):
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")])})
         state.update_from_packet("gcl", gcl_payload([(1, "Main"), (2, "Outpost")]))
-        assert sorted(state.get_local_player().castles) == [(Kingdom.GREEN, 1), (Kingdom.GREEN, 2)]
+        assert sorted(state.get_local_player().castles) == [1, 2]
 
     def test_gcl_push_before_login_is_ignored(self, state):
         state.update_from_packet("gcl", gcl_payload([(1, "Main")]))
@@ -361,18 +362,18 @@ class TestPlayerPushes:
     def test_mir_applies_its_castle_list(self, state):
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")])})
         state.update_from_packet("mir", {"gcl": gcl_payload([(1, "Main"), (3, "Taken")]), "CID": 3, "KID": 0})
-        assert sorted(state.get_local_player().castles) == [(Kingdom.GREEN, 1), (Kingdom.GREEN, 3)]
+        assert sorted(state.get_local_player().castles) == [1, 3]
 
     def test_a_faction_join_applies_the_mir_it_carries(self, state):
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")])})
         mir = {"gcl": {"C": [*gcl_payload([(1, "Main")])["C"], *gcl_payload([(9, "Camp")], kingdom=10)["C"]]}}
         state.update_from_packet("fjf", {"FID": 1, "kpi": {}, "sei": {}, "mir": mir})
-        assert sorted(state.get_local_player().castles) == [(Kingdom.GREEN, 1), (Kingdom.BERIMOND, 9)]
+        assert sorted(state.get_local_player().castles) == [1, 9]
 
     def test_a_faction_join_without_a_mir_keeps_the_castles(self, state):
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")])})
         state.update_from_packet("fjf", {"FID": 1, "kpi": {}, "sei": {}})
-        assert list(state.get_local_player().castles) == [(Kingdom.GREEN, 1)]
+        assert list(state.get_local_player().castles) == [1]
 
     def test_gho_push(self, state):
         state.update_from_packet("gbd", LIVE_LOGIN)
@@ -387,7 +388,8 @@ class TestPlayerPushes:
 
     def test_push_before_login_is_ignored(self, state):
         state.update_from_packet("gcu", {"C1": 5, "C2": 1})
-        assert state.get_local_player() is None
+        with pytest.raises(StateNotLoadedError):
+            state.get_local_player()
 
     def test_push_refreshes_player_stamp(self, state):
         state.update_from_packet("gbd", LIVE_LOGIN)
@@ -518,8 +520,9 @@ class TestLevelProgress:
 class TestMaxSpies:
     """gms: the gbd section and the push, as CastleSpyData.parse_GMS reads them."""
 
-    def test_none_before_login(self, state):
-        assert state.get_max_spies() is None
+    def test_raises_before_login(self, state):
+        with pytest.raises(StateNotLoadedError):
+            state.get_max_spies()
         assert state.get_last_packet_time("gms") is None
 
     def test_read_from_the_login_gbd(self, state):
@@ -561,5 +564,6 @@ class TestMaxSpies:
         state.update_from_packet("gbd", {"gms": {"MS": 12}})
         state.reset()
 
-        assert state.get_max_spies() is None
+        with pytest.raises(StateNotLoadedError):
+            state.get_max_spies()
         assert state.get_last_packet_time("gms") is None

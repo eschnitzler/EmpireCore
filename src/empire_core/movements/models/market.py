@@ -13,6 +13,8 @@ from typing import Annotated, Any
 
 from pydantic import BeforeValidator, Field, PlainSerializer, field_validator
 
+from empire_core.castle.models.objects import block_or_none
+from empire_core.castle.models.resources import CastleResources
 from empire_core.enums import Kingdom, MarketScope, Resource
 from empire_core.protocol.base import (
     BasePayload,
@@ -22,9 +24,6 @@ from empire_core.protocol.base import (
     readable_list,
 )
 from empire_core.protocol.js import ClientInt
-
-from .objects import block_or_none
-from .resources import CastleResources
 
 logger = logging.getLogger(__name__)
 

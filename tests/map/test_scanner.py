@@ -12,9 +12,12 @@ import pytest
 
 from empire_core.enums import GGEError, Kingdom, MapItemType
 from empire_core.exceptions import CommandError, EmpireTimeoutError, NetworkError
+from empire_core.map.models.world import MapSize
 from empire_core.map.pacing import MapAreaPacer
 from empire_core.map.scanner import MapScanner, scan_kingdom_with
 from empire_core.protocol.packet import Packet
+
+MAP_SIZE = MapSize(1287, 1287)
 
 
 class TestChunkBounds:
@@ -113,7 +116,7 @@ class _FakeClient:
         self.connection = _FakeConnection(content_chunks, **connection_kwargs)
         self.config = _FakeConfig()
         self.state = _FakeState(start_chunk)
-        self.map = SimpleNamespace(pacer=MapAreaPacer(lambda: math.inf))
+        self.map = SimpleNamespace(pacer=MapAreaPacer(lambda: math.inf), map_size=lambda kingdom: MAP_SIZE)
 
     def request_packet(self, request: Any, response_command: str, timeout: float = 5.0) -> Any:
         frame = request.to_packet(zone=self.config.default_zone, room_id=getattr(self.connection, "room_id", 1))
@@ -150,11 +153,11 @@ class TestScanChunks:
         assert result.failed_chunks == ()
         assert len(result.items) == 1
 
-    def test_deduplicates_and_skips_out_of_range(self):
+    def test_deduplicates_and_skips_chunks_off_the_map(self):
         fake = _FakeClient(content_chunks=set())
         _make_scanner(fake).scan_chunks(
             kingdom=Kingdom.GREEN,
-            chunks=[(1, 1), (1, 1), (-1, 0), (0, MapScanner.MAX_COORD + 1)],
+            chunks=[(1, 1), (1, 1), (-1, 0), (0, 15), (15, 0)],
             item_types=[],
             chunk_delay=0,
         )
@@ -167,6 +170,13 @@ class TestScanChunks:
         assert result.content_chunks == ((5, 5),)
         # Discovery probed more chunks than had content
         assert len(fake.connection.requests) > 1
+
+    def test_kingdom_scan_stops_at_the_map_edge(self):
+        # 1287 tiles a side: chunk 14 (tiles 1260-1349) is the last that holds any of the map
+        fake = _FakeClient(content_chunks={(13, 13), (14, 14)}, start_chunk=(14, 14))
+        _make_scanner(fake).scan_kingdom(kingdom=Kingdom.GREEN, item_types=[], chunk_delay=0)
+        assert (14, 14) in fake.connection.requests
+        assert max(max(chunk) for chunk in fake.connection.requests) == 14
 
     def test_rescan_of_content_chunks_is_cheaper_than_discovery(self):
         content = {(5, 5), (5, 6), (6, 5)}
@@ -351,8 +361,8 @@ class TestMalformedResponses:
             result = _make_scanner(fake).scan_chunks(
                 kingdom=Kingdom.GREEN, chunks=[(1, 1)], item_types=[], chunk_delay=0
             )
-        assert result.objects == {}
-        assert "skipping invalid map object" in caplog.text
+        assert result.owners == {}
+        assert "skipping invalid owner record" in caplog.text
 
     def test_reshaped_ai_entries_warn_instead_of_silent_empty_scan(self, caplog):
         # If GGE reshapes AI entries (list -> dict), every chunk returns
@@ -414,7 +424,7 @@ class TestMalformedResponses:
         assert len(warnings) == 1
         assert "1/2" in warnings[0].getMessage(), warnings[0].getMessage()
 
-    def test_skipped_map_objects_counted_in_drift_warning(self, caplog):
+    def test_skipped_owner_records_counted_in_drift_warning(self, caplog):
         fake = _FakeClient(
             content_chunks=set(),
             payloads={(1, 1): {"AI": [], "OI": [{"OID": 7, "N": ["not", "a", "name"]}, "junk"]}},
@@ -620,7 +630,7 @@ class TestScanKingdom:
     def test_owner_records_without_an_owner_id_are_left_out(self):
         fake = _FakeClient(content_chunks=set(), payloads={(1, 1): {"AI": [], "OI": [{"N": "x"}, {"OID": 5}]}})
         result = _make_scanner(fake).scan_chunks(kingdom=Kingdom.GREEN, chunks=[(1, 1)], chunk_delay=0)
-        assert list(result.objects) == [5]
+        assert list(result.owners) == [5]
 
 
 def _cancel_after(fake: _FakeClient, requests: int) -> threading.Event:
@@ -722,11 +732,11 @@ class TestOnChunk:
             Kingdom.GREEN,
             [(1, 1), (2, 2), (3, 3)],
             item_types=[],
-            on_chunk=lambda chunk, items, objects: seen.append((chunk, len(items), list(objects))),
+            on_chunk=lambda chunk, items, owners: seen.append((chunk, len(items), list(owners))),
         )
 
         assert seen == [((1, 1), 0, [5]), ((2, 2), 1, [])]
-        assert (result.items, result.objects) == ([], {})
+        assert (result.items, result.owners) == ([], {})
         assert (result.content_chunks, result.failed_chunks) == (((2, 2),), ((3, 3),))
 
     def test_a_kingdom_scan_hands_on_every_chunk_it_scans(self):
@@ -734,7 +744,7 @@ class TestOnChunk:
         chunks: list[tuple[int, int]] = []
 
         result = _make_scanner(fake).scan_kingdom(
-            item_types=[], on_chunk=lambda chunk, items, objects: chunks.append(chunk)
+            item_types=[], on_chunk=lambda chunk, items, owners: chunks.append(chunk)
         )
 
         assert chunks == fake.connection.requests
@@ -744,7 +754,7 @@ class TestOnChunk:
     def test_an_exception_from_the_hook_ends_the_scan(self):
         fake = _FakeClient(content_chunks=CONTENT)
 
-        def stop(chunk: tuple[int, int], items: list[Any], objects: dict[int, Any]) -> None:
+        def stop(chunk: tuple[int, int], items: list[Any], owners: dict[int, Any]) -> None:
             raise RuntimeError("enough")
 
         with pytest.raises(RuntimeError, match="enough"):
@@ -754,7 +764,7 @@ class TestOnChunk:
     def test_an_exception_from_the_hook_ends_a_kingdom_scan(self):
         fake = _FakeClient(content_chunks=CONTENT, start_chunk=(5, 5))
 
-        def stop(chunk: tuple[int, int], items: list[Any], objects: dict[int, Any]) -> None:
+        def stop(chunk: tuple[int, int], items: list[Any], owners: dict[int, Any]) -> None:
             raise RuntimeError("enough")
 
         with pytest.raises(RuntimeError, match="enough"):
@@ -765,7 +775,7 @@ class TestOnChunk:
         fake = _FakeClient(content_chunks=CONTENT, start_chunk=(5, 5))
 
         with caplog.at_level(logging.DEBUG, logger="empire_core.map.scanner"):
-            _make_scanner(fake).scan_kingdom(item_types=[], on_chunk=lambda chunk, items, objects: None)
+            _make_scanner(fake).scan_kingdom(item_types=[], on_chunk=lambda chunk, items, owners: None)
 
         assert f"found {len(CONTENT)} items" in caplog.text
 
@@ -776,7 +786,7 @@ class TestOnChunk:
         chunks: list[tuple[int, int]] = []
 
         MapService(fake).scan_chunks(  # type: ignore[arg-type]
-            Kingdom.GREEN, [(5, 5)], on_chunk=lambda chunk, items, objects: chunks.append(chunk)
+            Kingdom.GREEN, [(5, 5)], on_chunk=lambda chunk, items, owners: chunks.append(chunk)
         )
 
         assert chunks == [(5, 5)]
@@ -861,7 +871,7 @@ class TestScanningWithSeveralClients:
         result = scan_kingdom_with(fakes, chunks=[(1, 1), (2, 2)])  # type: ignore[arg-type]
 
         assert all(fake.connection.requests for fake in fakes)
-        assert sorted(result.objects) == [1, 2]
+        assert sorted(result.owners) == [1, 2]
 
     def test_a_dropped_client_leaves_its_chunks_to_the_others(self):
         fakes = [_FakeClient(content_chunks=set(GRID), delay=0.005) for _ in range(3)]
@@ -910,7 +920,7 @@ class TestScanningWithSeveralClients:
         cancel = threading.Event()
         answered: list[tuple[int, int]] = []
 
-        def count(chunk: tuple[int, int], items: list[Any], objects: dict[int, Any]) -> None:
+        def count(chunk: tuple[int, int], items: list[Any], owners: dict[int, Any]) -> None:
             answered.append(chunk)
             if len(answered) == 4:
                 cancel.set()
@@ -928,7 +938,7 @@ class TestScanningWithSeveralClients:
         overlaps: list[tuple[int, int]] = []
         seen: list[tuple[int, int]] = []
 
-        def hook(chunk: tuple[int, int], items: list[Any], objects: dict[int, Any]) -> None:
+        def hook(chunk: tuple[int, int], items: list[Any], owners: dict[int, Any]) -> None:
             if not inside.acquire(blocking=False):
                 overlaps.append(chunk)
                 return
@@ -940,12 +950,12 @@ class TestScanningWithSeveralClients:
 
         assert overlaps == []
         assert sorted(seen) == sorted(GRID)
-        assert (result.items, result.objects) == ([], {})
+        assert (result.items, result.owners) == ([], {})
 
     def test_an_exception_from_the_hook_stops_every_client_and_is_raised(self):
         fakes = [_FakeClient(content_chunks=set(GRID), delay=0.005) for _ in range(3)]
 
-        def stop(chunk: tuple[int, int], items: list[Any], objects: dict[int, Any]) -> None:
+        def stop(chunk: tuple[int, int], items: list[Any], owners: dict[int, Any]) -> None:
             raise RuntimeError("enough")
 
         with pytest.raises(RuntimeError, match="enough"):
@@ -995,7 +1005,7 @@ class TestScanningWithSeveralClients:
         fakes = [_FakeClient(content_chunks=set(GRID), delay=0.005) for _ in range(3)]
         calls: list[tuple[int, int]] = []
 
-        def stop(chunk: tuple[int, int], items: list[Any], objects: dict[int, Any]) -> None:
+        def stop(chunk: tuple[int, int], items: list[Any], owners: dict[int, Any]) -> None:
             calls.append(chunk)
             time.sleep(0.02)
             raise RuntimeError("enough")
@@ -1022,7 +1032,7 @@ class TestScanningWithSeveralClients:
                 fakes,  # type: ignore[arg-type]
                 item_types=[],
                 chunks=GRID,
-                on_chunk=lambda chunk, items, objects: delivered.append(chunk),
+                on_chunk=lambda chunk, items, owners: delivered.append(chunk),
             )
         monkeypatch.undo()
 

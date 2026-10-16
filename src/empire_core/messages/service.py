@@ -5,7 +5,6 @@ The mailbox, mail and battle reports.
 from __future__ import annotations
 
 import re
-import threading
 from typing import TYPE_CHECKING, Literal
 
 from empire_core.enums import GGEError
@@ -52,38 +51,22 @@ class MessagesService(BaseService):
     """
     The mailbox, mail and battle reports.
 
-    Accessible via client.messages. The mailbox is kept as the client keeps it:
-    the login data's ``sne`` section fills it, each sne push row replaces the
-    message with its id or is added, and dms and ams answers remove or archive.
-
-    Client: ``CastleMessageData`` (bundle lines 134955-134991); ``GBDCommand.exec``
-    (bundle line 129381) and ``SNECommand.exec`` (bundle line 125499) both call
-    ``parse_SNE`` (bundle line 134961)
+    Accessible via client.messages. The mailbox is kept as the client keeps it
+    (``CastleMessageData``, bundle lines 134955-134991).
     """
 
     def __init__(self, client: EmpireClient) -> None:
         super().__init__(client)
-        self._mailbox: dict[int, MessageInfo] = {}
-        self._mailbox_lock = threading.Lock()
         self.on_response("sne", self._handle_update)
-        self.on_response("dms", self._handle_update)
-        self.on_response("ams", self._handle_update)
-
-    def _reset(self) -> None:
-        """
-        Empty the mailbox; the client calls this when the session drops, and the next login's gbd refills it.
-
-        Client: ``CastleDestroyGameCommand`` (bundle line 120270) resets every model,
-        and ``CastleMessageData.reset`` (bundle line 134889) empties the mailbox
-        """
-        with self._mailbox_lock:
-            self._mailbox.clear()
 
     @property
     def mailbox(self) -> list[MessageInfo]:
-        """The messages from the login data and the pushes since, in the order they first arrived."""
-        with self._mailbox_lock:
-            return list(self._mailbox.values())
+        """
+        The messages from the login data and the pushes since, in the order they first arrived; nothing is sent.
+
+        Emptied when the session drops, as the client empties it; the next login's ``sne`` refills it.
+        """
+        return self.client.state.get_mailbox()
 
     on_new_messages = Event[SystemNotificationEvent]()
     """Call ``callback`` with the login data's sne section and each sne push, after :attr:`mailbox` is updated.
@@ -92,24 +75,10 @@ class MessagesService(BaseService):
     """
 
     def _handle_update(self, response: BaseResponse) -> None:
-        with self._mailbox_lock:
-            self._apply_update(response)
         if isinstance(response, SystemNotificationEvent):
             self._fire(self.on_new_messages, response)
 
-    def _apply_update(self, response: BaseResponse) -> None:
-        if isinstance(response, SystemNotificationEvent):
-            for message in response.messages:
-                self._mailbox[message.message_id] = message
-        elif isinstance(response, DeleteMessagesResponse):
-            for message_id in response.message_ids:
-                self._mailbox.pop(message_id, None)
-        elif isinstance(response, ArchiveMessageResponse) and response.message_id is not None:
-            archived = self._mailbox.get(response.message_id)
-            if archived is not None:
-                self._mailbox[response.message_id] = archived.model_copy(update={"is_archived": True})
-
-    def read(self, message_id: int, timeout: float = 5.0) -> ReadMessageResponse:
+    def read(self, message_id: int, *, timeout: float = 5.0) -> ReadMessageResponse:
         """
         Read a message's body.
 
@@ -135,21 +104,18 @@ class MessagesService(BaseService):
         The message in :attr:`mailbox` is marked read too, as the client marks its own copy.
         """
         self.send(MarkMessageReadRequest(message_id=message_id))
-        with self._mailbox_lock:
-            message = self._mailbox.get(message_id)
-            if message is not None:
-                self._mailbox[message_id] = message.model_copy(update={"is_read": True})
+        self.client.state.mark_message_read(message_id)
 
-    def archive(self, message_id: int, timeout: float = 5.0) -> ArchiveMessageResponse:
+    def archive(self, message_id: int, *, timeout: float = 5.0) -> None:
         """
         Move a message to the archive, which holds 20.
 
         Raises:
             CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
         """
-        return self.request(ArchiveMessageRequest(message_id=message_id), ArchiveMessageResponse, timeout=timeout)
+        self.request(ArchiveMessageRequest(message_id=message_id), ArchiveMessageResponse, timeout=timeout)
 
-    def delete(self, message_id: int, timeout: float = 5.0) -> list[int]:
+    def delete(self, message_id: int, *, timeout: float = 5.0) -> list[int]:
         """
         Delete one message.
 
@@ -163,7 +129,7 @@ class MessagesService(BaseService):
             DeleteMessageRequest(message_id=message_id), DeleteMessagesResponse, timeout=timeout
         ).message_ids
 
-    def delete_many(self, message_ids: list[int], timeout: float = 5.0) -> list[int]:
+    def delete_many(self, message_ids: list[int], *, timeout: float = 5.0) -> list[int]:
         """
         Delete several messages at once.
 
@@ -176,7 +142,7 @@ class MessagesService(BaseService):
         request = DeleteMessagesRequest(message_ids=list(message_ids))
         return self.request(request, DeleteMessagesResponse, timeout=timeout).message_ids
 
-    def send_message(self, receiver_name: str, subject: str, text: str, timeout: float = 5.0) -> None:
+    def send_message(self, receiver_name: str, subject: str, text: str, *, timeout: float = 5.0) -> None:
         """
         Send a message to a player.
 
@@ -203,7 +169,7 @@ class MessagesService(BaseService):
         self.request(SendMessageRequest.create(receiver_name, subject, text), SendMessageResponse, timeout=timeout)
 
     def get_battle_report(
-        self, message_id: int, detail: BattleReportDetail = "short", timeout: float = 5.0
+        self, message_id: int, detail: BattleReportDetail = "short", *, timeout: float = 5.0
     ) -> BattleReport:
         """
         Read a battle report from the mailbox.
@@ -244,7 +210,7 @@ class MessagesService(BaseService):
         full = self.request(GetBattleLogDetailRequest(log_id=short.log_id), BattleLogDetailResponse, timeout=timeout)
         return BattleReport(short, middle, full)
 
-    def forward_battle_report(self, message_id: int, player_ids: list[int], timeout: float = 5.0) -> None:
+    def forward_battle_report(self, message_id: int, player_ids: list[int], *, timeout: float = 5.0) -> None:
         """
         Forward a battle report to other players.
 

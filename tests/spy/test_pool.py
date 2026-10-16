@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from empire_core.enums import MovementType
-from empire_core.exceptions import GameDataNotLoadedError
+from empire_core.exceptions import GameDataNotLoadedError, StateNotLoadedError
 from empire_core.gamedata import GameData
 from empire_core.movements.models import MovementSpy
 from empire_core.movements.tracked import Movement
@@ -17,7 +17,7 @@ from empire_core.spy.pool import (
     total_spies,
 )
 from empire_core.state.manager import GameState
-from tests.service_helpers import StubState, make_client
+from tests.service_helpers import StubState, logged_in_state, make_client
 
 # Rows as items 786.03 has them
 ITEMS = {
@@ -118,23 +118,23 @@ class TestBoosts:
 class TestSpyService:
     def client(self, *, gms: dict | None = None, movements: list[Movement] | None = None, game_data=None):
         client = make_client()
-        state = GameState()
-        if gms is not None:
-            state.update_from_packet("gbd", {"gms": gms})
+        state = GameState() if gms is None else logged_in_state(gms=gms)
         state.get_all_movements = lambda: list(movements or [])  # type: ignore[method-assign]
         client.state = state
         client.game_data = game_data
         return client
 
-    def test_none_before_gms(self):
+    def test_raises_before_gms(self):
         client = self.client()
-        assert client.spy.total_spies() is None
-        assert client.spy.available_spies() is None
+        with pytest.raises(StateNotLoadedError):
+            client.spy.total_spies()
+        with pytest.raises(StateNotLoadedError):
+            client.spy.available_spies()
 
     def test_without_boosts_needs_no_game_data(self):
         client = self.client(gms={"MS": 12, "BS": 0}, movements=[spy_movement(1, 5)])
-        assert client.spy.total_spies() == 12
-        assert client.spy.available_spies() == 7
+        assert client.spy.total_spies(title_ids=()) == 12
+        assert client.spy.available_spies(title_ids=()) == 7
 
     def test_boosts_from_game_data(self, game_data):
         client = self.client(gms={"MS": 10, "BS": 0}, movements=[spy_movement(1, 4)], game_data=game_data)
@@ -144,8 +144,8 @@ class TestSpyService:
         assert client.spy.available_spies(**kwargs, legend_target=True) == 36
         assert client.spy.total_spies(**kwargs) == 34
 
-    def test_legend_skills_alone_need_a_legend_target(self):
-        client = self.client(gms={"MS": 10})
+    def test_legend_skills_alone_need_a_legend_target(self, game_data):
+        client = self.client(gms={"MS": 10}, game_data=game_data)
         assert client.spy.total_spies(legend_skill_ids=[53]) == 10
 
     def test_boosts_load_the_game_data_on_first_use(self, game_data, stub_game_data_load):
@@ -186,8 +186,8 @@ class TestSpyService:
             client.spy.total_spies()
         assert client.spy.total_spies(title_ids=()) == 10
 
-    def test_available_can_go_negative_as_in_the_client(self):
-        client = self.client(gms={"MS": 7}, movements=[spy_movement(1, 5), spy_movement(2, 4)])
+    def test_available_can_go_negative_as_in_the_client(self, game_data):
+        client = self.client(gms={"MS": 7}, movements=[spy_movement(1, 5), spy_movement(2, 4)], game_data=game_data)
         assert client.spy.available_spies() == -2
 
 

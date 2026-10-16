@@ -6,6 +6,7 @@ import pytest
 
 from empire_core.exceptions import CommandError, MessageUnavailableError
 from empire_core.messages.models import DeleteMessagesResponse
+from empire_core.state.manager import GameState
 from tests.messages.battle_log_payloads import BLD, BLM, BLS, LOG_ID, MAILBOX_ROW, MESSAGE_ID
 from tests.service_helpers import conn, make_client, request_payload, xt_packet
 
@@ -14,7 +15,7 @@ ROW = [501, 1, "Hello", "Sender", 4242, 30, 0, 0, 0]
 
 class TestMailbox:
     def test_rows_merge_by_message_id(self):
-        client = make_client()
+        client = make_client(state=GameState())
         seen: list = []
         client.messages.on_new_messages(seen.append)
 
@@ -25,7 +26,7 @@ class TestMailbox:
         assert len(seen) == 2
 
     def test_deleted_and_archived_answers_update_it(self):
-        client = make_client()
+        client = make_client(state=GameState())
         client._on_packet(xt_packet("sne", {"MSG": [ROW, [502, 1, "x", "", 1, 5, 0, 0, 0]]}))
 
         client._on_packet(xt_packet("ams", {"MID": 502}))
@@ -34,7 +35,7 @@ class TestMailbox:
         assert [(m.message_id, m.is_archived) for m in client.messages.mailbox] == [(502, True)]
 
     def test_the_login_data_fills_it(self):
-        client = make_client()
+        client = make_client(state=GameState())
         seen: list = []
         client.messages.on_new_messages(seen.append)
         gbd = {"gcu": {"C1": 10, "C2": 0}, "sne": {"MSG": [ROW, [502, 6, "0+1", "", -1, 5, 0, 0, 0]]}, "mcd": {}}
@@ -45,16 +46,16 @@ class TestMailbox:
         assert len(seen) == 1
 
     def test_pushes_after_the_login_data_merge_into_it(self):
-        client = make_client()
+        client = make_client(state=GameState())
         client._on_packet(xt_packet("gbd", {"sne": {"MSG": [ROW]}}))
         client._on_packet(xt_packet("sne", {"MSG": [[501, 1, "Hello", "Sender", 4242, 40, 1, 0, 0]]}))
 
         assert [(m.message_id, m.is_read) for m in client.messages.mailbox] == [(501, True)]
 
     def test_a_relogin_refills_it_after_the_reset(self):
-        client = make_client()
+        client = make_client(state=GameState())
         client._on_packet(xt_packet("gbd", {"sne": {"MSG": [ROW]}}))
-        client.messages._reset()
+        client.state.reset()
         assert client.messages.mailbox == []
 
         client._on_packet(xt_packet("gbd", {"sne": {"MSG": [ROW]}}))
@@ -63,7 +64,7 @@ class TestMailbox:
 
     @pytest.mark.parametrize(("gbd", "error_code"), [({"sne": {"MSG": [ROW]}}, 1), ({"gcu": {"C1": 1}}, 0)])
     def test_a_failed_or_sne_less_login_data_leaves_it(self, gbd, error_code):
-        client = make_client()
+        client = make_client(state=GameState())
         client._on_packet(xt_packet("gbd", gbd, error_code=error_code))
         assert client.messages.mailbox == []
 
@@ -109,7 +110,7 @@ class TestMail:
         assert not isinstance(raised.value, MessageUnavailableError)
 
     def test_mark_read_does_not_wait_and_marks_the_copy(self):
-        client = make_client()
+        client = make_client(state=GameState())
         client._on_packet(xt_packet("sne", {"MSG": [ROW]}))
 
         client.messages.mark_read(501)
@@ -120,7 +121,7 @@ class TestMail:
 
     def test_archive(self):
         client = make_client({"ams": xt_packet("ams", {"MID": 501})})
-        assert client.messages.archive(501).message_id == 501
+        client.messages.archive(501)
         assert conn(client).request_payloads == [("ams", {"MID": 501})]
 
     def test_delete_one(self):
@@ -170,7 +171,7 @@ class TestMail:
 
 class TestReviewFollowUps:
     def test_a_dropped_session_empties_the_mailbox(self):
-        client = make_client()
+        client = make_client(state=GameState())
         client._on_packet(xt_packet("sne", {"MSG": [ROW]}))
 
         client._session.dropped(conn(client).generation)
@@ -178,7 +179,7 @@ class TestReviewFollowUps:
         assert client.messages.mailbox == []
 
     def test_a_late_drop_report_keeps_the_mailbox(self):
-        client = make_client()
+        client = make_client(state=GameState())
         client._on_packet(xt_packet("sne", {"MSG": [ROW]}))
 
         client._session.dropped(conn(client).generation - 1)
@@ -190,7 +191,7 @@ class TestReviewFollowUps:
         assert reply.message_ids == [7, 8]
 
     def test_a_row_with_an_unreadable_age_is_kept(self):
-        client = make_client()
+        client = make_client(state=GameState())
         client._on_packet(xt_packet("sne", {"MSG": [[501, 1, "Hi", "S", 1, "soon", 0, 0, 0]]}))
         (message,) = client.messages.mailbox
         assert message.seconds_since_sent is None
@@ -250,7 +251,7 @@ class TestBattleReports:
         assert conn(client).request_payloads == []
 
     def test_battle_logs_are_found_in_the_mailbox(self):
-        client = make_client()
+        client = make_client(state=GameState())
         client._on_packet(xt_packet("sne", {"MSG": [ROW, MAILBOX_ROW]}))
         assert [m.message_id for m in client.messages.mailbox if m.is_battle_log] == [MESSAGE_ID]
 

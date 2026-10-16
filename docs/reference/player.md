@@ -1,6 +1,6 @@
 # Player
 
-Player profiles, search, research and the mercenary camp behind `client.player`.
+Player profiles, search and legend skills behind `client.player`.
 
 ## `player.service`
 
@@ -25,10 +25,6 @@ Player profiles, search, research and the mercenary camp behind `client.player`.
 ## `player.models.progress`
 
 ::: empire_core.player.models.progress
-
-## `player.models.research`
-
-::: empire_core.player.models.research
 
 ## `player.titles`
 

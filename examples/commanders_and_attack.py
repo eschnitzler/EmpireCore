@@ -58,9 +58,9 @@ def main() -> int:
         castellans = client.commanders.get_castellans()
         print(f"{len(castellans)} castellan(s)")
 
-        # Commander 0 is the free starting one and leads attacks like any other;
-        # only a negative id is a sentinel rather than a commander.
-        leaders = [c for c in commanders if c.commander_id >= 0]
+        # Commander 0 is the free starting one and leads attacks like any other.
+        # One already leading an army, outward or home, cannot lead another.
+        leaders = client.commanders.idle_commanders
 
         castles = client.castle.get_all()
         if not castles or not leaders:
@@ -90,7 +90,7 @@ def main() -> int:
             print("\nDry run. Re-run with --send to actually send it.")
             return 0
 
-        accepted = client.attack.send_attack(
+        client.attack.send_attack(
             source_x=source.x,
             source_y=source.y,
             target_x=target_x,
@@ -99,9 +99,7 @@ def main() -> int:
             kingdom_id=source.kingdom_id,
             commander_id=leader.commander_id,
         )
-        # send_attack returns False when the server rejects the attack by rule
-        # (no troops, target out of range, commander already in a movement).
-        print("Attack sent." if accepted else "Server rejected the attack.")
+        print("Attack sent.")
 
     except EmpireError as e:
         print(f"{type(e).__name__}: {e}", file=sys.stderr)

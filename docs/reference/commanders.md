@@ -1,6 +1,6 @@
 # Commanders
 
-Commanders, castellans, equipment and generals behind `client.commanders`, `client.equipment` and `client.skills`.
+Commanders, castellans, equipment and generals behind `client.commanders` and `client.equipment`.
 
 ## `commanders.service`
 

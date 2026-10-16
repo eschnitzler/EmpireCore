@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from collections.abc import Callable
 from typing import Annotated, Any
 
@@ -624,6 +625,20 @@ class MapAreaItem(BasePayload):
             "raw_data": data,
             **fields,
         }
+
+    def distance_to(self, x: int, y: int) -> float:
+        """
+        Straight-line distance in tiles from this row's position to ``(x, y)``, to one decimal.
+
+        The client also takes the shorter way round the map's wrapping x edge,
+        ``client.map.map_size(kingdom).width`` wide; this distance never wraps.
+        Travel to some event camps (alien, nomad, samurai, daimyo, faction,
+        alliance battle ground) is a fixed distance in the client rather than this one.
+
+        Client: ``MapHelper.getShortestDistance`` (bundle line 8033), called by
+        ``MapHelper.getDistanceByMapobjects`` (bundle line 8016)
+        """
+        return math.floor(10 * math.hypot(self.x - x, self.y - y) + 0.5) / 10
 
     @property
     def is_occupied(self) -> bool:

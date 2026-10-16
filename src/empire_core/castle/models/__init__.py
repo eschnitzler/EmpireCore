@@ -61,13 +61,7 @@ from .kingdoms import (
     KingdomTransfer,
     KingdomUnlock,
 )
-from .market import (
-    CreateMarketMovementRequest,
-    CreateMarketMovementResponse,
-    MarketCastle,
-    MarketInfoRequest,
-    MarketInfoResponse,
-)
+from .mercenaries import MercenaryMission, MercenaryMissionsResponse, MercenaryPackageRequest
 from .objects import (
     FREE_SLOT,
     LOCKED_SLOT,
@@ -82,22 +76,19 @@ from .objects import (
     ShowConstructionListResponse,
 )
 from .permanent import CastleUnitUnlocks, PermanentCastle, PermanentCastleDataResponse
+from .research import (
+    ResearchInfoResponse,
+    SkipResearchRequest,
+    SkipResearchResponse,
+    StartResearchRequest,
+    StartResearchResponse,
+)
 from .resources import (
     CastleResources,
     GetProductionRequest,
     GetProductionResponse,
     GetResourcesRequest,
     GetResourcesResponse,
-)
-from .support import (
-    GetTravelInfoRequest,
-    GetTravelInfoResponse,
-    SendSupportRequest,
-    SendSupportResponse,
-    SendTroopsRequest,
-    SendTroopsResponse,
-    TravelTargetArea,
-    TravelUnits,
 )
 from .tax import (
     TAX_DURATIONS,
@@ -109,14 +100,6 @@ from .tax import (
     StartTaxResponse,
     TaxInfo,
     TaxInfoResponse,
-)
-from .transfers import (
-    KingdomGoodsTransferRequest,
-    KingdomGoodsTransferResponse,
-    KingdomUnitTransferRequest,
-    KingdomUnitTransferResponse,
-    MinuteSkipKingdomTransferRequest,
-    MinuteSkipKingdomTransferResponse,
 )
 from .updates import (
     AreaBooster,
@@ -134,6 +117,14 @@ from .upkeep import (
 from .wishing_well import WishingWellResponse
 
 __all__ = [
+    "ResearchInfoResponse",
+    "SkipResearchRequest",
+    "SkipResearchResponse",
+    "StartResearchRequest",
+    "StartResearchResponse",
+    "MercenaryMission",
+    "MercenaryMissionsResponse",
+    "MercenaryPackageRequest",
     "SelectCastleRequest",
     "SelectCastleResponse",
     "JoinAreaRequest",
@@ -189,17 +180,6 @@ __all__ = [
     "MineStatusList",
     "ResourceCart",
     "ResourceCartInfo",
-    "CreateMarketMovementRequest",
-    "CreateMarketMovementResponse",
-    "MarketCastle",
-    "MarketInfoRequest",
-    "MarketInfoResponse",
-    "KingdomUnitTransferRequest",
-    "KingdomUnitTransferResponse",
-    "KingdomGoodsTransferRequest",
-    "KingdomGoodsTransferResponse",
-    "MinuteSkipKingdomTransferRequest",
-    "MinuteSkipKingdomTransferResponse",
     "GetCastlesRequest",
     "GetCastlesResponse",
     "PlayerCastle",
@@ -215,14 +195,6 @@ __all__ = [
     "CastleUnitUnlocks",
     "PermanentCastle",
     "PermanentCastleDataResponse",
-    "SendSupportRequest",
-    "SendSupportResponse",
-    "SendTroopsRequest",
-    "SendTroopsResponse",
-    "GetTravelInfoRequest",
-    "GetTravelInfoResponse",
-    "TravelTargetArea",
-    "TravelUnits",
     "AreaBooster",
     "BuildingEfficiencyChanged",
     "BuildingFinished",

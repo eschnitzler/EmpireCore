@@ -15,7 +15,7 @@ from empire_core.client.client import EmpireClient
 from empire_core.enums import Kingdom
 from empire_core.exceptions import ReceiveThreadError
 from empire_core.protocol.packet import Packet
-from tests.service_helpers import request_payload
+from tests.service_helpers import SERVER_INFO, request_payload
 from tests.state.state_helpers import arrive, gam_payload, gcl_payload, login, wait_for
 
 
@@ -321,6 +321,7 @@ class TestADropMidScan:
 
     def scan(self, client: EmpireClient, scan, caplog) -> tuple:
         client.is_logged_in = True
+        client.state.update_from_packet("nfo", SERVER_INFO)
         client.connection.ws = DroppingSocket(client)  # type: ignore[assignment]
         client.connection._running = True
         with caplog.at_level(logging.DEBUG, logger="empire_core"):

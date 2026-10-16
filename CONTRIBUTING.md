@@ -304,19 +304,22 @@ def get_resources(self, castle_id: int) -> CastleResources:
 
 Every service method follows one rule, so callers learn it once:
 
-- transport errors and unexpected server errors raise;
+- transport errors and server errors raise;
 - `None` only for a not-found (or nothing-to-do) outcome mapped from a named
   `GGEError`, documented on the method;
 - an empty collection only when the collection really is empty;
 - invalid arguments raise `ValueError`, or a typed error from `exceptions.py`
   when the caller needs to tell it apart (`NotInAllianceError`, `UnknownCastleError`);
 - a malformed reply raises `PacketError`;
-- an action the server refuses returns `False` (`BaseService.execute`).
+- an action the server refuses raises `CommandError` (`BaseService.execute`).
 
 Four kinds of method follow rules of their own, documented on the method:
 
-- state read without a request returns `None` while the login data or push it
-  comes from has not arrived yet (`client.castle.get_horses()` before a `gpc`);
+- a read that sends nothing is a property, or a noun method when it takes an
+  argument, never a `get_*` (a `get_*` always sends a request); it reads
+  `client.state` and returns `None` while the push or reply it comes from has
+  not arrived yet (`client.castle.horses()` before a `gpc`); data every login
+  brings is never `None`: before a login its read raises `StateNotLoadedError`;
 - a call made of several requests returns a result object naming each outcome
   (`SpyOutcome.COMMAND_FAILED` on a `SpyResult`, the `failed` and `timed_out`
   players of `get_player_details_bulk()`);
@@ -569,7 +572,7 @@ green before your change proves nothing about your change.
 1. **Log to a named logger** — Use `logging.getLogger(__name__)`; never print. Never swallow an exception without at least logging it
 2. **Use type hints** — All public methods should have complete type hints
 3. **Document wire format** — Include the command code and payload format in docstrings
-4. **Fail loudly and precisely** — Raise the typed exceptions from `empire_core.exceptions` (`CommandError`, `EmpireTimeoutError`, ...) instead of collapsing failures into `None`. Action methods may return `False` for server-rejected actions, but transport failures must raise
+4. **Fail loudly and precisely** — Raise the typed exceptions from `empire_core.exceptions` (`CommandError`, `EmpireTimeoutError`, ...) instead of collapsing failures into `None` or `False`. An action the server refuses raises `CommandError` too
 5. **Never return an empty collection to mean "it failed"** — `[]` must mean "there is nothing", so a caller can trust it. If the answer is unknown, raise
 6. **Degrade loudly** — When you skip a malformed entry, count the skips and log one warning per response. Silently dropping drifted data turns a schema change into a "successful" empty result
 7. **Never leak another library's exceptions** — `pydantic.ValidationError`, `socket.error` and friends must not escape the public API; wrap them in an `EmpireError` subclass. Callers are told `except EmpireError` is enough
