@@ -149,6 +149,7 @@ class Console:
             "help": Command(lambda _args: self.toggle_help(), "keys and commands"),
             "quit": Command(lambda _args: self.quit(), "close the client and exit"),
             "login": Command(lambda _args: self.login(), "log in again after a drop"),
+            "run": Command(self._run_file, "run a Python file here"),
         }
         self.output_log = OutputLog()
         self._cursor_row = 0
@@ -156,7 +157,11 @@ class Console:
         self.logging_in = False
         self.disconnected = False
         self.completer = NamespaceCompleter(self.namespace)
-        arguments: dict[str, Callable[[], Iterable[str]]] = {"theme": lambda: THEMES, "filter": self.frames.commands}
+        arguments: dict[str, Callable[[], Iterable[str]]] = {
+            "theme": lambda: THEMES,
+            "filter": self.frames.commands,
+            "run": lambda: (path.name for path in Path().glob("*.py")),
+        }
         self.completer_for_input = ConsoleCompleter(
             self.completer,
             CommandCompleter(lambda: {name: command.summary for name, command in self.commands.items()}, arguments),
@@ -714,6 +719,21 @@ class Console:
                 self.theme = theme
                 return
         self._queue_output(f"✗ unknown theme {name}; {' or '.join(THEMES)}\n")
+
+    def _run_file(self, args: list[str]) -> None:
+        """Run a file in the console's namespace, as typed code runs: it sees client, and keeps what it defines."""
+        if not args:
+            self._queue_output("✗ :run needs a file, as in :run script.py\n")
+            return
+        path = Path(" ".join(args)).expanduser()
+        try:
+            source = path.read_text(encoding="utf-8")
+        except OSError as e:
+            self._queue_output(f"✗ could not read {path}: {e.strerror or e}\n")
+            return
+        self._queue_output(f"▶ {path}\n")
+        if not self.runner.run(source, filename=str(path), echo=False):
+            self._queue_output("✗ still running the last input\n")
 
     def _filter(self, commands: list[str]) -> None:
         self.frames.set_filter(c for arg in commands for c in arg.split(",") if c)
