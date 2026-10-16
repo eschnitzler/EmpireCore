@@ -286,7 +286,8 @@ class LeaderBase(BasePayload):
     def _id_as_the_client_reads_it(cls, data: Any) -> Any:
         # Client: LordFactory.createLord reads int(e.DLID||e.ID); LordVO.parseLord takes N as it comes
         if isinstance(data, dict):
-            data = dict(data)
+            # A null under a field name is a dump's unsent field; a null wire key reads as the client reads it
+            data = {key: value for key, value in data.items() if value is not None or key not in cls.model_fields}
             if data.get("DLID"):
                 data["ID"] = data["DLID"]
             if not isinstance(data.get("N", ""), str):
@@ -296,7 +297,7 @@ class LeaderBase(BasePayload):
     @field_validator("alien_equipment", "temporary_equipment", mode="before")
     @classmethod
     def _alien_block(cls, value: Any) -> Any:
-        return value if isinstance(value, list) else None
+        return value if isinstance(value, (list, dict)) else None
 
     @field_validator("alien_gem_ids", mode="before")
     @classmethod
@@ -312,7 +313,8 @@ class LeaderBase(BasePayload):
         # parseLord takes AIE/TAE only when !(e.EQ && e.EQ.length > 0), counting rows that do not parse
         model = handler(data)
         if isinstance(data, dict):
-            model._equipment_sent = isinstance(data.get("EQ"), list) and len(data["EQ"]) > 0
+            sent = data.get("EQ", data.get("equipment"))
+            model._equipment_sent = isinstance(sent, list) and len(sent) > 0
         else:
             model._equipment_sent = bool(model.equipment)
         return model
@@ -361,8 +363,7 @@ class LeaderBase(BasePayload):
         return readable_list(
             Equipment,
             value,
-            accept=lambda entry: isinstance(entry, (list, tuple)),
-            parse=lambda entry: Equipment.from_list(list(entry)),
+            accept=lambda entry: isinstance(entry, (list, tuple, dict)),
             warn=logger,
             what=f"EQ entries for commander {info.data.get('commander_id')}",
         )
