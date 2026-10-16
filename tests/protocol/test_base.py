@@ -1,5 +1,8 @@
 """Tests for the response registry and BaseResponse."""
 
+import subprocess
+import sys
+
 import pytest
 from pydantic import Field
 
@@ -68,3 +71,18 @@ class TestBaseResponse:
 @pytest.mark.parametrize("name", ["ANI", "GFC", "SEM"])
 def test_commands_the_client_does_not_have_are_gone(name):
     assert not hasattr(GGECommand, name)
+
+
+DEFERRED = """
+import empire_core
+from empire_core.castle.models.castles import GetCastlesResponse
+before = GetCastlesResponse.__pydantic_complete__
+parsed = GetCastlesResponse.model_validate({"PID": 1, "C": []})
+print(before, GetCastlesResponse.__pydantic_complete__, parsed.player_id)
+"""
+
+
+def test_models_build_their_validators_on_first_use():
+    # Building every model as its class is created made import empire_core take over a second.
+    result = subprocess.run([sys.executable, "-c", DEFERRED], capture_output=True, text=True, check=True)
+    assert result.stdout.split() == ["False", "True", "1"]
