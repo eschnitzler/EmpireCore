@@ -30,6 +30,10 @@ connection going away), a red banner says so and `:login` logs in again, waiting
 server's login cooldown first. `--keep-session` lets the library log in again by itself; its
 retries, and whether the session came back, show in the output.
 
+The console remembers its layout, theme, frame filter, detail mode and world between runs, in
+`~/.config/empire-console/settings.json` (under `$XDG_CONFIG_HOME` when set); it never saves
+credentials. `--theme` and `--zone` override what it remembers, and the next run keeps them.
+
 ## Writing code
 
 `client` and `empire_core` are already in scope. Completion comes from jedi on the live objects,

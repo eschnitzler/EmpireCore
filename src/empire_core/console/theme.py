@@ -1,6 +1,7 @@
 """The console's themes: One Dark (the default) and One Light, each one palette for the UI and the code."""
 
 from dataclasses import dataclass
+from typing import Literal
 
 from prompt_toolkit.styles import Style
 
@@ -127,7 +128,9 @@ def style(p: Palette) -> Style:
     )
 
 
-THEMES = {"dark": style(DARK), "light": style(LIGHT)}
+ThemeName = Literal["dark", "light"]
+
+THEMES: dict[ThemeName, Style] = {"dark": style(DARK), "light": style(LIGHT)}
 
 
 def contrast(foreground: str, background: str) -> float:
