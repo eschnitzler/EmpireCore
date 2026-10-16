@@ -479,7 +479,7 @@ def test_login_runs_in_the_open_console_with_a_spinner(tmp_path):
         console = make_console(tmp_path)
         release = threading.Event()
 
-        def slow_login():
+        def slow_login(**_kwargs):
             release.wait(5)
 
         console.client.login = slow_login
@@ -495,7 +495,7 @@ def test_a_failed_login_is_shown_and_the_console_stays_open(tmp_path):
     with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
         console = make_console(tmp_path)
 
-        def refused():
+        def refused(**_kwargs):
             raise LoginError("wrong password")
 
         console.client.login = refused
@@ -559,3 +559,56 @@ def test_the_selected_frames_partner_is_marked(tmp_path):
         markers = [fragment for fragment in console.render_frame_list() if "frame.marker" in fragment[0]]
         assert [m[1] for m in markers] == ["▌", " ", "┆"]
         assert "reply in 50 ms" in console.detail_title_text()
+
+
+def fire(event, *args):
+    for callback in event.calls():
+        callback(*args)
+
+
+def test_a_dropped_session_shows_a_banner_and_says_how_to_reconnect(tmp_path):
+    with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+        console = make_console(tmp_path)
+        assert not console.disconnected
+        fire(console.client.on_disconnect)
+        console.flush()
+        assert console.disconnected and ":login" in console.output_text
+        assert ":login" in "".join(fragment[1] for fragment in console.banner())
+
+
+def test_login_command_reconnects_in_the_background(tmp_path):
+    with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+        console = make_console(tmp_path)
+        fire(console.client.on_disconnect)
+        logins: list[bool] = []
+
+        def login(*, retry=False):
+            logins.append(retry)
+
+        console.client.login = login
+        console.execute_command(":login")
+        assert wait_for(lambda: not console.logging_in)
+        console.flush()
+        assert logins == [True] and not console.disconnected and "✓ logged in" in console.output_text
+
+
+def test_login_command_needs_credentials(tmp_path):
+    with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+        console = Console(EmpireClient(), history=tmp_path / "h")
+        console.execute_command(":login")
+        console.flush()
+        assert not console.logging_in and "--username" in console.output_text
+
+
+def test_session_retries_restores_and_losses_are_reported(tmp_path):
+    with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+        console = make_console(tmp_path)
+        fire(console.client.on_disconnect)
+        fire(console.client.on_session_retry, 1, 5.0, LoginError("cooldown"))
+        fire(console.client.on_session_restored)
+        console.flush()
+        assert "retrying in 5 s" in console.output_text and "✓ session restored" in console.output_text
+        assert not console.disconnected
+        fire(console.client.on_session_lost, LoginError("gave up"))
+        console.flush()
+        assert "✗ session lost: gave up" in console.output_text and console.disconnected

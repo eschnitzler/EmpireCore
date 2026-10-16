@@ -130,11 +130,13 @@ class Console:
             "save": self._save,
             "help": lambda _args: self.toggle_help(),
             "quit": lambda _args: self.quit(),
+            "login": lambda _args: self.login(),
         }
         self.output_log = OutputLog()
         self._cursor_row = 0
         self._top = 0
         self.logging_in = False
+        self.disconnected = False
         self.completer = NamespaceCompleter(self.namespace)
         self._signature_cache: tuple[tuple[str, int, int], str] | None = None
         self._shown: tuple[Row | None, bool, int] = (None, False, 0)
@@ -182,6 +184,11 @@ class Console:
         )
         self.frames.on_change = self.application.invalidate
         client.connection.add_frame_listener(self.frames.add)
+        # Session callbacks run on the receive thread; they only set state and queue output.
+        client.on_disconnect(self._dropped)
+        client.on_session_retry(self._retrying)
+        client.on_session_restored(self._restored)
+        client.on_session_lost(self._lost)
         self._queue_output(f"{BANNER_MARK}empire-console · {self.who} · client and empire_core are ready · F1 help\n")
 
     @property
@@ -235,9 +242,11 @@ class Console:
             width=lambda: Dimension() if self.zoomed else Dimension.exact(self._code_width()),
         )
         frames = HSplit([self.panels["frames"], self.panels["detail"]])
+        banner = Window(FormattedTextControl(self.banner), height=1, style="class:banner")
         body = HSplit(
             style="class:app",
             children=[
+                ConditionalContainer(banner, Condition(lambda: self.disconnected)),
                 VSplit(
                     [
                         ConditionalContainer(code, Condition(lambda: not (self.zoomed and right_side()))),
@@ -448,8 +457,35 @@ class Console:
         """Begin the background work of a fresh console: warm up completion and, with ``login``, log in."""
         threading.Thread(target=self._warm_up, name="console-warm-up", daemon=True).start()
         if login:
+            self.login()
+
+    def login(self) -> None:
+        """Log in on a background thread, as at start-up and with ``:login`` after a drop."""
+        if self.logging_in:
+            self._queue_output("✗ already logging in\n")
+        elif not self.client.username or not (self.client.password or self.client.login_token):
+            self._queue_output("✗ no account to log in with; start the console with --username\n")
+        else:
             self.logging_in = True
             threading.Thread(target=self._login, name="console-login", daemon=True).start()
+
+    def banner(self) -> StyleAndTextTuples:
+        return [("class:banner", f" ✗ Disconnected from {self.client.config.default_zone} · :login to reconnect ")]
+
+    def _dropped(self) -> None:
+        self.disconnected = True
+        self._queue_output("✗ the session dropped · :login to reconnect\n")
+
+    def _retrying(self, attempt: int, wait: float, error: Exception) -> None:
+        self._queue_output(f"… login attempt {attempt} failed ({error}); retrying in {wait:.0f} s\n")
+
+    def _restored(self) -> None:
+        self.disconnected = False
+        self._queue_output("✓ session restored\n")
+
+    def _lost(self, error: Exception) -> None:
+        self.disconnected = True
+        self._queue_output(f"✗ session lost: {error} · :login to reconnect\n")
 
     def _warm_up(self) -> None:
         # jedi's first completion takes a few hundred ms; pay it before anyone presses Tab.
@@ -458,10 +494,13 @@ class Console:
     def _login(self) -> None:
         started = time.monotonic()
         try:
-            self.client.login()
+            # A drop is usually another login of the account, which starts the server's login
+            # cooldown; retrying waits it out, each wait reported through on_session_retry.
+            self.client.login(retry=True)
         except Exception as e:  # noqa: BLE001 - any failure to log in is shown in the console, not lost on its thread
             self._queue_output(f"✗ {type(e).__name__}: {e}\n")
         else:
+            self.disconnected = False
             self._queue_output(f"✓ logged in as {self.who} in {duration_label(time.monotonic() - started)}\n")
         finally:
             self.logging_in = False
@@ -525,6 +564,10 @@ class Console:
 
     def close(self) -> None:
         self.client.connection.remove_frame_listener(self.frames.add)
+        self.client.on_disconnect.remove(self._dropped)
+        self.client.on_session_retry.remove(self._retrying)
+        self.client.on_session_restored.remove(self._restored)
+        self.client.on_session_lost.remove(self._lost)
 
     def list_height(self) -> int:
         """The frame list's rows on screen: its panel less the borders and the column header."""
@@ -786,6 +829,7 @@ def run(argv: list[str]) -> int:
     parser.add_argument("--zone", help="the world to play on, such as EmpireEx_3; US1 (EmpireEx_21) by default")
     parser.add_argument("--list-zones", action="store_true", help="list the worlds and exit")
     parser.add_argument("--no-login", action="store_true", help="start without connecting")
+    parser.add_argument("--keep-session", action="store_true", help="log in again by itself after a drop")
     parser.add_argument("--log-level", default="WARNING", help="library log level shown in the output pane")
     parser.add_argument("--theme", choices=sorted(THEMES), default="dark", help="dark (default) or light")
     args = parser.parse_args(argv)
@@ -800,7 +844,7 @@ def run(argv: list[str]) -> int:
         return 2
 
     username, password = (args.username, None) if args.no_login else credentials(args.username)
-    client = EmpireClient(username=username, password=password, config=config)
+    client = EmpireClient(username=username, password=password, config=config, keep_session=args.keep_session)
     console = Console(client, theme=args.theme)
 
     handler = logging.StreamHandler(console.writer)

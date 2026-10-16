@@ -52,6 +52,7 @@ COLUMNS: tuple[tuple[Section, ...], ...] = (
                 (":raw", "parsed or raw detail"),
                 (":theme [name]", "dark, light, or toggle"),
                 (":save [file]", "shown frames as JSON lines"),
+                (":login", "log in again after a drop"),
                 (":quit", "close the client and exit"),
             ),
         ),
