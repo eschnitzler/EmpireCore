@@ -15,8 +15,9 @@ from prompt_toolkit.output import DummyOutput
 
 from empire_core.client.client import EmpireClient
 from empire_core.config import EmpireConfig
-from empire_core.console.app import RENDER_ROWS, Console
+from empire_core.console.app import Console
 from empire_core.console.highlight import BANNER_MARK
+from empire_core.exceptions import LoginError
 from empire_core.network.connection import Frame, FrameDirection
 
 
@@ -64,7 +65,28 @@ def test_frame_list_render_is_fast(tmp_path):
         start = time.perf_counter()
         lines = console.render_frame_list()
         assert time.perf_counter() - start < 0.25
-        assert sum(fragment[0].startswith("class:frame.marker") for fragment in lines) == RENDER_ROWS
+        assert rendered_rows(lines) == console.list_height()
+
+
+def rendered_rows(lines):
+    return sum(fragment[0].startswith("class:frame.marker") for fragment in lines)
+
+
+def test_only_the_rows_that_fit_are_drawn_and_the_selection_stays_in_view(tmp_path):
+    with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+        console = make_console(tmp_path)
+        for frame in frames_of("gam", 200):
+            console.frames.add(frame)
+        assert rendered_rows(console.render_frame_list()) == console.list_height()
+        console.select(-150)
+        assert any("▌" in fragment[1] for fragment in console.render_frame_list())
+        top = first_payload(console.render_frame_list())
+        console.select(1)
+        assert first_payload(console.render_frame_list()) == top
+
+
+def first_payload(lines):
+    return next(fragment[1] for fragment in lines if fragment[0].endswith("frame.preview"))
 
 
 def test_cursor_stays_inside_the_rendered_rows_when_frames_arrive(tmp_path):
@@ -443,3 +465,55 @@ def test_detail_reflows_when_its_pane_is_resized_or_zoomed(tmp_path):
         assert console.detail.text != narrow
         _, detail_width = console.pane_widths()
         assert all(len(line) <= detail_width for line in console.detail.text.splitlines())
+
+
+def wait_for(predicate, timeout=5.0):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline and not predicate():
+        time.sleep(0.01)
+    return predicate()
+
+
+def test_login_runs_in_the_open_console_with_a_spinner(tmp_path):
+    with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+        console = make_console(tmp_path)
+        release = threading.Event()
+
+        def slow_login():
+            release.wait(5)
+
+        console.client.login = slow_login
+        console.start(login=True)
+        assert wait_for(lambda: "logging in" in "".join(f[1] for f in console.toolbar()))
+        release.set()
+        assert wait_for(lambda: not console.logging_in)
+        console.flush()
+        assert "✓ logged in" in console.output_text
+
+
+def test_a_failed_login_is_shown_and_the_console_stays_open(tmp_path):
+    with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+        console = make_console(tmp_path)
+
+        def refused():
+            raise LoginError("wrong password")
+
+        console.client.login = refused
+        console.start(login=True)
+        assert wait_for(lambda: not console.logging_in)
+        console.flush()
+        assert "✗ LoginError: wrong password" in console.output_text
+
+
+def test_start_warms_up_completion(tmp_path):
+    with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+        console = make_console(tmp_path)
+        asked: list[str] = []
+
+        def completions(document, _event):
+            asked.append(document.text)
+            return iter(())
+
+        console.completer.get_completions = completions
+        console.start(login=False)
+        assert wait_for(lambda: asked == ["client."])
