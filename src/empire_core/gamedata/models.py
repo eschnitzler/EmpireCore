@@ -1452,15 +1452,25 @@ class GeneralDef(_Row):
 
 class DungeonDefence(_Row):
     """
-    What defends an NPC camp at a given victory count.
+    What defends a robber baron camp, or a treasure map's camp, at a given victory count.
 
-    The per-flank fields use the ``wodID+count#wodID+count`` encoding; read them
-    through the parsed properties.
+    The client reads only ``kID``, ``countVictories`` and ``skipCosts`` of a row
+    (``CastleDungeonData.generateData``, bundle line 111754); it never reads the
+    defenders or the commander. ``SpyArmy.from_camp`` lays the defenders out as
+    a spy report would.
     """
 
     count_victories: int = Field(validation_alias="countVictories", default=0)
-    kingdom_id: GameDataId[Kingdom] = Field(validation_alias="kID", default=0, description="The kingdom")
-    lord_id: int = Field(validation_alias="lordID", default=0)
+    kingdom_id: GameDataId[Kingdom] = Field(
+        validation_alias="kID",
+        default=0,
+        description="The kingdom; a treasure map's camp has its map's kID",
+    )
+    commander: DefaultLordDef | None = Field(
+        validation_alias="lordID",
+        default=None,
+        description="The default commander holding the camp, from the lords table",
+    )
     skip_costs: int = Field(validation_alias="skipCosts", default=0)
     raw_units_left: str = Field(validation_alias="unitsL", default="")
     raw_units_middle: str = Field(validation_alias="unitsM", default="")
@@ -1470,46 +1480,13 @@ class DungeonDefence(_Row):
     raw_tools_middle: str = Field(validation_alias="toolM", default="")
     raw_tools_right: str = Field(validation_alias="toolR", default="")
 
-    @property
-    def units_left(self) -> list[tuple[int, int]]:
-        return parse_stacks(self.raw_units_left)
-
-    @property
-    def units_middle(self) -> list[tuple[int, int]]:
-        return parse_stacks(self.raw_units_middle)
-
-    @property
-    def units_right(self) -> list[tuple[int, int]]:
-        return parse_stacks(self.raw_units_right)
-
-    @property
-    def units_keep(self) -> list[tuple[int, int]]:
-        return parse_stacks(self.raw_units_keep)
-
-    @property
-    def tools_left(self) -> list[tuple[int, int]]:
-        return parse_stacks(self.raw_tools_left)
-
-    @property
-    def tools_middle(self) -> list[tuple[int, int]]:
-        return parse_stacks(self.raw_tools_middle)
-
-    @property
-    def tools_right(self) -> list[tuple[int, int]]:
-        return parse_stacks(self.raw_tools_right)
-
-    def total_units(self) -> int:
-        """Defending units across every flank and the keep."""
-        return sum(
-            count
-            for stacks in (
-                self.units_left,
-                self.units_middle,
-                self.units_right,
-                self.units_keep,
-            )
-            for _wod_id, count in stacks
-        )
+    @field_validator("commander", mode="before")
+    @classmethod
+    def _commander(cls, value: object, info: ValidationInfo) -> object:
+        if value is None or isinstance(value, DefaultLordDef | Mapping):
+            return value
+        lords = (info.context or {}).get("default_lords", {})
+        return lords.get(js_parse_int(value))
 
 
 class NpcCampDefence(_Row):

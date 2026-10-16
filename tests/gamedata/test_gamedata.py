@@ -813,10 +813,117 @@ class TestCombatTables:
         row = data.dungeon_defense(-6, kingdom_id=Kingdom.GREEN)
 
         assert row is not None
-        assert row.units_middle == [(604, 3), (606, 3), (652, 45)]
-        assert row.units_left == []
-        assert row.total_units() == 51
+        assert SpyArmy.from_camp(row).middle == (WodAmount(604, 3), WodAmount(606, 3), WodAmount(652, 45))
+        assert SpyArmy.from_camp(row).left == ()
+        assert SpyArmy.from_camp(row).total() == 51
         assert data.dungeon_defense(-6, kingdom_id=Kingdom.ICE) is None
+
+
+class TestDungeonDefence:
+    # Live rows: a green camp whose left flank repeats a tool stack, the two
+    # highest ice camps, and a node of a kID -1 treasure map.
+    GREEN = {
+        "countVictories": "-3",
+        "kID": "0",
+        "lordID": "-21",
+        "unitsL": "601+2#602+2#603+2#606+7#607+5#608+5#652+9",
+        "unitsM": "601+4#602+3#603+2#606+3#607+2#608+3#652+14",
+        "unitsR": "601+4#602+3#603+3#652+17",
+        "toolL": "629+1#629+1",
+        "toolM": "637+1#626+1",
+        "toolR": "637+1#647+1",
+    }
+    ICE_TOP = {
+        "countVictories": "154",
+        "kID": "2",
+        "skipCosts": "3500",
+        "lordID": "-65",
+        "unitsL": "652+101",
+        "unitsR": "652+99",
+        "unitsK": "652+379",
+        "toolL": "647+2#647+2#647+2",
+        "toolM": "647+2#647+2#647+2#644+2#644+2",
+        "toolR": "647+2#647+2#647+2",
+    }
+    ICE_BELOW = {"countVictories": "153", "kID": "2", "unitsM": "652+1"}
+    ICE_LOWEST = {"countVictories": "-1", "kID": "2", "unitsM": "652+1"}
+    TREASURE = {"countVictories": "-20", "kID": "-1", "unitsM": "662+1#663+1"}
+    LORD = {
+        "lordID": "-21",
+        "Comment1": "RRB Level 1-9",
+        "generalID": "115",
+        "type": "Dungeonbaron",
+        "wearerID": "1",
+        "effects": "10&15,11&15",
+    }
+
+    def data(self) -> GameData:
+        return GameData.parse(
+            "786.03",
+            {
+                "dungeons": [self.GREEN, self.ICE_TOP, self.ICE_BELOW, self.ICE_LOWEST, self.TREASURE],
+                "lords": [self.LORD],
+            },
+        )
+
+    def test_the_army_holds_each_flanks_units_then_its_tools(self):
+        row = self.data().dungeon_defense(-3)
+
+        assert row is not None
+        army = SpyArmy.from_camp(row)
+        assert army.left == (
+            WodAmount(601, 2),
+            WodAmount(602, 2),
+            WodAmount(603, 2),
+            WodAmount(606, 7),
+            WodAmount(607, 5),
+            WodAmount(608, 5),
+            WodAmount(652, 9),
+            WodAmount(629, 1),
+            WodAmount(629, 1),
+        )
+        assert army.middle[-2:] == (WodAmount(637, 1), WodAmount(626, 1))
+        assert army.right[-2:] == (WodAmount(637, 1), WodAmount(647, 1))
+        assert army.keep == ()
+        assert (army.stronghold, army.support, army.reserve) == ((), (), ())
+
+    def test_the_courtyard_is_the_keep_column(self):
+        row = self.data().dungeon_defense(154, Kingdom.ICE)
+
+        assert row is not None
+        assert SpyArmy.from_camp(row).keep == (WodAmount(652, 379),)
+        assert SpyArmy.from_camp(row).middle == (*[WodAmount(647, 2)] * 3, *[WodAmount(644, 2)] * 2)
+
+    def test_the_commander_is_the_lords_row(self):
+        row = self.data().dungeon_defense(-3)
+
+        assert row is not None and row.commander is not None
+        assert row.commander.lord_id == -21
+        treasure = self.data().dungeon_defense(-20, -1)
+        assert treasure is not None and treasure.commander is None
+
+    def test_victories_past_the_highest_row_read_the_highest(self):
+        data = self.data()
+
+        top = data.dungeon_defense(154, Kingdom.ICE)
+        assert top is not None
+        assert data.dungeon_defense(500, Kingdom.ICE) == top
+        below = data.dungeon_defense(153, Kingdom.ICE)
+        assert below is not None and below != top
+
+    def test_victories_below_the_lowest_row_find_none(self):
+        data = self.data()
+
+        assert data.dungeon_defense(-1, Kingdom.ICE) is not None
+        assert data.dungeon_defense(-2, Kingdom.ICE) is None
+        assert data.dungeon_defense(0, Kingdom.FIRE) is None
+
+    def test_a_treasure_node_is_found_by_its_own_victory_count(self):
+        row = self.data().dungeon_defense(-20, -1)
+
+        assert row is not None
+        assert SpyArmy.from_camp(row).middle == (WodAmount(662, 1), WodAmount(663, 1))
+        assert self.data().dungeon_defense(-21, -1) is None
 
     def test_camp_tables_share_one_shape(self):
         data = GameData.parse("783.01", FULL_PAYLOAD)
