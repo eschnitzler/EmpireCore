@@ -63,7 +63,7 @@ def line_kinds(lines: list[str]) -> list[Kind]:
             in_traceback = line[:1].isspace() or line.startswith("Traceback")
         elif line.startswith(PROMPTS):
             kinds.append(Kind.PROMPT)
-        elif line.startswith("✓ "):
+        elif line.startswith(("✓ ", "▶ ")):
             kinds.append(Kind.OK)
         elif line.startswith("✗ "):
             kinds.append(Kind.FAIL)
