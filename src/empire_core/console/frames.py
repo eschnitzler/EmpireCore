@@ -11,6 +11,7 @@ from prompt_toolkit.formatted_text import StyleAndTextTuples
 from pydantic import ValidationError
 
 from empire_core.console.pretty import pretty
+from empire_core.console.requests import parse_request, reply_command
 from empire_core.network.connection import Frame, FrameDirection
 from empire_core.protocol.base import get_response_model, parse_response
 
@@ -22,14 +23,16 @@ HEADER = "time     ⇅ command      status       size     rtt  payload"
 class Row:
     """A frame as the list shows it, formatted once when it arrives.
 
-    ``latency`` is the time since the request a reply answers: the last frame sent with its
-    command that no reply has claimed yet. A push the console did not ask for has none.
+    A reply answers the last request sent for its command that no reply has claimed yet; the
+    two share ``pair``, and ``latency`` is the time between them. A push nobody asked for has
+    neither.
     """
 
     frame: Frame
     size: int
     latency: float | None
     cells: StyleAndTextTuples
+    pair: int | None = None
 
     @property
     def text(self) -> str:
@@ -46,7 +49,8 @@ class FrameLog:
         self._rows: deque[Row] = deque(maxlen=capacity)
         self._frozen: list[Row] | None = None
         self._visible: list[Row] | None = None
-        self._sent_at: dict[str, float] = {}
+        self._waiting: dict[str, tuple[float, int]] = {}
+        self._pairs = 0
         self._lock = threading.Lock()
 
     @property
@@ -93,20 +97,23 @@ class FrameLog:
     def clear(self) -> None:
         with self._lock:
             self._rows.clear()
-            self._sent_at.clear()
+            self._waiting.clear()
             if self._frozen is not None:
                 self._frozen = []
             self._visible = None
         self._changed()
 
     def _row(self, frame: Frame) -> Row:
-        latency = None
+        latency = pair = None
         if frame.command and frame.direction is FrameDirection.SENT:
-            self._sent_at[frame.command] = frame.at
-        elif frame.command and frame.command in self._sent_at:
-            latency = frame.at - self._sent_at.pop(frame.command)
+            self._pairs += 1
+            pair = self._pairs
+            self._waiting[reply_command(frame.command)] = (frame.at, pair)
+        elif frame.command and frame.command in self._waiting:
+            sent_at, pair = self._waiting.pop(frame.command)
+            latency = frame.at - sent_at
         size = len(frame.text.encode("utf-8", errors="replace"))
-        return Row(frame, size, latency, _cells(frame, size, latency))
+        return Row(frame, size, latency, _cells(frame, size, latency), pair)
 
     def _shows(self, row: Row) -> bool:
         return (not self.filter or row.frame.command in self.filter) and self.search in row.frame.text
@@ -125,14 +132,17 @@ class Detail:
 
 
 def frame_detail(frame: Frame, *, parsed: bool = True, width: int = 88) -> Detail:
-    """A received frame parsed into its response model, as the client parses it; otherwise its raw payload."""
+    """A frame parsed into its model, as the client parses a reply; otherwise its raw payload."""
     try:
         payload = json.loads(_payload(frame.text))
     except ValueError:
         return Detail(frame.text)
     raw = json.dumps(payload, indent=2, ensure_ascii=False)
-    if not parsed or frame.direction is FrameDirection.SENT or not frame.command or not isinstance(payload, dict):
+    if not parsed or not frame.command or not isinstance(payload, dict):
         return Detail(raw)
+    if frame.direction is FrameDirection.SENT:
+        request = parse_request(frame.command, payload)
+        return Detail(pretty(request, width=width), type(request).__name__) if request is not None else Detail(raw)
     try:
         response = parse_response(frame.command, payload)
     except ValidationError as e:

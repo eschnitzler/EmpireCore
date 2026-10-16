@@ -51,9 +51,13 @@ frame list (Ctrl-→ from Output, or click a row), then Up/Down/PgUp/PgDn to sel
 oldest frame and End to follow the newest again.
 
 The detail pane shows the selected frame, or the newest one while following. A reply the library
-models is shown parsed into its response model, exactly as the client parses it; press `r` (or
-`:raw`) for the raw JSON payload. Frames without a model, sent frames and payloads that do not
-parse show raw, the last with a note saying why.
+models is shown parsed into its response model, exactly as the client parses it, and a sent frame
+into its request model; press `r` (or `:raw`) for the raw JSON payload. Frames without a model
+and payloads that do not parse show raw, a reply that does not parse with a note saying why.
+
+A reply and the request it answers are a pair: with one selected, the list marks the other with
+`┆`, the detail title says how long the reply took, and `p` jumps between them. A request answered
+under another command (a castle switch, `jca`, comes back as `jaa`) pairs all the same.
 
 Every pane takes focus and scrolls. Ctrl and an arrow moves to the pane in that direction, F2
 and Shift-F2 cycle through them, and a click focuses the pane under it. The mouse wheel scrolls
