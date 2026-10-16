@@ -75,6 +75,11 @@ class FrameLog:
                 self._visible = [r for r in rows if self._shows(r)]
             return self._visible
 
+    def commands(self) -> set[str]:
+        """Every command among the recorded frames."""
+        with self._lock:
+            return {row.frame.command for row in self._rows if row.frame.command}
+
     def set_filter(self, commands: Iterable[str]) -> None:
         with self._lock:
             self.filter = frozenset(commands)
