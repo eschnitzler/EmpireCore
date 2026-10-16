@@ -107,6 +107,8 @@ frame list copies the shown detail. Paste into the input with your terminal's pa
 | `:raw` | Toggle parsed and raw detail |
 | `:theme [dark\|light]` | Switch the theme; alone, toggle it |
 | `:save [file]` | Write the shown frames as JSON lines |
+| `:run file.py` | Run a file as if typed: it sees `client`, keeps what it defines, and Ctrl-C stops it |
+| `:login` | Log in again after the session drops |
 | `:quit` | Close the client and exit |
 
 Passwords, login tokens and bearer tokens never reach the pane or a saved file: login frames show

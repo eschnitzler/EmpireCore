@@ -124,3 +124,16 @@ def test_a_new_input_runs_right_after_an_interrupt():
 
 def test_interrupt_when_idle_does_nothing():
     assert CodeRunner({}, lambda _text: None).interrupt() is False
+
+
+def test_a_file_runs_without_echo_and_its_traceback_names_it():
+    out: list[str] = []
+    shown: list[object] = []
+    namespace: dict = {}
+    runner = CodeRunner(namespace, out.append, show=shown.append)
+    runner.run("x = 41\nx + 1", filename="job.py", echo=False)
+    runner.join(5)
+    assert shown == [] and namespace["x"] == 41
+    runner.run("1 / 0", filename="job.py", echo=False)
+    runner.join(5)
+    assert 'File "job.py"' in "".join(out)

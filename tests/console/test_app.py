@@ -649,3 +649,40 @@ def test_docs_show_for_the_highlighted_completion(tmp_path):
         assert not console.showing_docs()
         buffer.complete_state = CompletionState(buffer.document, [Completion("get_all", -6)], complete_index=0)
         assert console.showing_docs() and "castles" in console.docs_text()
+
+
+def test_run_executes_a_file_in_the_console_namespace(tmp_path):
+    with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+        console = make_console(tmp_path)
+        script = tmp_path / "job.py"
+        script.write_text("x = 41\nprint(x + 1)\n")
+        with redirect_stdout(console.writer):
+            console.execute_command(f":run {script}")
+            console.runner.join(5)
+        console.flush()
+        assert "42" in console.output_text and console.namespace["x"] == 41
+        assert f"▶ {script}" in console.output_text
+
+
+def test_run_explains_a_missing_or_absent_file(tmp_path):
+    with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+        console = make_console(tmp_path)
+        console.execute_command(":run")
+        console.execute_command(f":run {tmp_path / 'nope.py'}")
+        console.flush()
+        assert ":run needs a file" in console.output_text and "nope.py" in console.output_text
+        assert not console.runner.busy
+
+
+def test_run_completes_python_files_here(tmp_path, monkeypatch):
+    with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+        console = make_console(tmp_path)
+        (tmp_path / "job.py").write_text("")
+        (tmp_path / "notes.txt").write_text("")
+        monkeypatch.chdir(tmp_path)
+
+        def complete(text):
+            document = Document(text, len(text))
+            return [c.text for c in console.completer_for_input.get_completions(document, CompleteEvent())]
+
+        assert complete(":run j") == ["job.py"] and complete(":run n") == []
