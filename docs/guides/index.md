@@ -199,4 +199,10 @@ no flag.
 
     Every error, and what an empty result means.
 
+-   :material-console:{ .lg .middle } **[Console](console.md)**
+
+    ---
+
+    A Python REPL on a live client, beside every socket frame.
+
 </div>

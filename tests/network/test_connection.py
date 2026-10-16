@@ -1,5 +1,6 @@
 """Tests for Connection waiter routing (no real socket needed)."""
 
+import json
 import threading
 import time
 
@@ -7,7 +8,14 @@ import pytest
 import websocket
 
 from empire_core.exceptions import ConnectionClosedError, EmpireTimeoutError, NetworkError, ReceiveThreadError
-from empire_core.network.connection import SESSION_IDLE_TIMEOUT, Connection, _summarize_frame
+from empire_core.network.connection import (
+    SESSION_IDLE_TIMEOUT,
+    Connection,
+    Frame,
+    FrameDirection,
+    _summarize_frame,
+    redact_frame,
+)
 from empire_core.protocol.packet import Packet
 
 
@@ -1228,3 +1236,91 @@ class TestFrameRedactionEscapedQuotes:
         summary = _summarize_frame('%xt%z%unk%1%{"PW": "hunter2", "NM": "user"}%')
         assert "hunter2" not in summary
         assert '"NM": "user"' in summary
+
+
+# Frame listeners: every frame both ways, redacted, without risk to the socket.
+
+
+def listening(conn: Connection) -> list[Frame]:
+    frames: list[Frame] = []
+    conn.add_frame_listener(frames.append)
+    return frames
+
+
+def test_sent_frame_reaches_listener(live_conn):
+    live_conn.ws = RecordingSocket()
+    frames = listening(live_conn)
+    live_conn.send('%xt%EmpireEx_21%gcl%1%{"A":1}%')
+    [frame] = frames
+    assert frame.direction is FrameDirection.SENT
+    assert frame.command == "gcl"
+    assert frame.text == '%xt%EmpireEx_21%gcl%1%{"A":1}%'
+
+
+def test_received_frames_reach_listener_with_command_and_error(live_conn):
+    frames = listening(live_conn)
+    live_conn._recv_loop(FakeSocket([make_frame("gam"), b"%xt%gaa%1%114%{}%"]), 1)
+    assert [(f.direction, f.command, f.error_code) for f in frames] == [
+        (FrameDirection.RECEIVED, "gam", 0),
+        (FrameDirection.RECEIVED, "gaa", 114),
+    ]
+
+
+def test_raising_listener_neither_drops_packet_nor_fails_send(live_conn):
+    def broken(_frame):
+        raise RuntimeError("boom")
+
+    live_conn.add_frame_listener(broken)
+    live_conn.ws = RecordingSocket()
+    live_conn.send("%xt%EmpireEx_21%gcl%1%{}%")
+    waiter = live_conn.create_waiter("gam")
+    live_conn._recv_loop(FakeSocket([make_frame("gam")]), 1)
+    assert live_conn.wait_for_result("gam", waiter, timeout=0.1).command_id == "gam"
+
+
+def test_removed_listener_gets_nothing(live_conn):
+    frames: list[Frame] = []
+    live_conn.add_frame_listener(frames.append)
+    live_conn.remove_frame_listener(frames.append)
+    live_conn._recv_loop(FakeSocket([make_frame("gam")]), 1)
+    assert frames == []
+
+
+def test_login_frame_body_is_dropped():
+    login = '%xt%EmpireEx_21%lli%1%{"NOM":"someone","PW":"hunter2","LT":"tok"}%'
+    redacted = redact_frame(login, "lli")
+    assert "hunter2" not in redacted and "someone" not in redacted and "tok" not in redacted
+
+
+def test_login_token_push_is_masked():
+    push = '%xt%slt%1%0%{"LT":"secret-token"}%'
+    assert "secret-token" not in redact_frame(push, "slt")
+
+
+def test_xml_password_is_masked():
+    handshake = "<msg t='sys'><body action='login'><login><pword>hunter2</pword></login></body></msg>"
+    assert "hunter2" not in redact_frame(handshake, "login")
+
+
+def test_listener_frames_carry_no_password(live_conn):
+    live_conn.ws = RecordingSocket()
+    frames = listening(live_conn)
+    live_conn.send("%xt%EmpireEx_21%lli%1%" + json.dumps({"PW": "hunter2"}) + "%")
+    assert "hunter2" not in frames[0].text
+
+
+def test_auth_bearer_token_push_is_masked():
+    push = '%xt%ato%1%0%{"ABT":"eyJraWQiOiJ4In0.payload.sig"}%'
+    assert "eyJ" not in redact_frame(push, "ato")
+
+
+def test_any_jwt_value_is_masked():
+    push = '%xt%ato%1%0%{"ABTV2":"eyJraWQiOiJ4In0.eyJzdWIiOjF9.c2ln","N":1}%'
+    redacted = redact_frame(push, "ato")
+    assert "eyJ" not in redacted and '"N":1' in redacted
+
+
+def test_jwt_inside_nested_json_or_url_is_masked():
+    jwt = "eyJraWQiOiJ4In0.eyJzdWIiOjF9.c2ln"
+    nested = '%xt%x%1%0%{"inner":"{\\"T\\":\\"' + jwt + '\\"}","url":"https://h/?t=' + jwt + '"}%'
+    assert "eyJ" not in redact_frame(nested, "x")
