@@ -131,8 +131,8 @@ class RelicInfo(BasePayload):
     @field_validator("gem", mode="wrap")
     @classmethod
     def _gem_or_none(cls, value: Any, handler: ValidatorFunctionWrapHandler) -> RelicGem | None:
-        # The client builds a gem only from a non-empty row
-        if not isinstance(value, list) or not value:
+        # The client builds a gem only from a non-empty row; a dict is a dumped gem
+        if not isinstance(value, (list, dict)) or not value:
             return None
         return read_or_none(handler, value)
 
@@ -196,14 +196,17 @@ class Equipment(BasePayload):
     @field_validator("relic_info", mode="wrap")
     @classmethod
     def _relic_info_or_none(cls, value: Any, handler: ValidatorFunctionWrapHandler) -> RelicInfo | None:
-        if not isinstance(value, list):
+        if not isinstance(value, (list, dict)):
             return None
         return read_or_none(handler, value)
 
     @field_validator("gem_id", mode="before")
     @classmethod
     def _gem(cls, value: Any) -> Any:
-        # Client: int(e[10]), a gem unless NO_GEM_ID (BasicEquipmentVO.parseEquipFromArray, bundle lines 7116-7117)
+        # Client: int(e[10]), a gem unless NO_GEM_ID (BasicEquipmentVO.parseEquipFromArray, bundle lines 7116-7117).
+        # None is a dump's no gem, not the client's int(null) gem 0.
+        if value is None:
+            return None
         gem_id = js_int(value)
         return None if gem_id == NO_GEM_ID else gem_id
 
@@ -312,8 +315,7 @@ class GetEquipmentInventoryResponse(BaseResponse):
         return readable_list(
             Equipment,
             value,
-            accept=lambda entry: isinstance(entry, (list, tuple)),
-            parse=lambda entry: Equipment.from_list(list(entry)),
+            accept=lambda entry: isinstance(entry, (list, tuple, dict)),
             warn=logger,
             what="gei entries",
         )

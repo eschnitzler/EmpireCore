@@ -348,12 +348,13 @@ class TestDriftedEquipmentEntries:
     def test_unparseable_entries_are_skipped_and_logged(self, caplog):
         with caplog.at_level(logging.WARNING, logger="empire_core.commanders.models.roster"):
             response = GetCommandersResponse.model_validate(
-                {"C": [{"ID": 91, "EQ": [{"nested": 1}, 5, [880, "not-a-slot"], [880, 2, 2]]}]}
+                {"C": [{"ID": 91, "EQ": [{"slot": "not-a-slot"}, 5, [880, "not-a-slot"], [880, 2, 2]]}]}
             )
         items = response.commanders[0].equipment
 
         assert [(i.equipment_id, i.slot) for i in items] == [(880, 2)]
         assert "3/4" in caplog.text
+        assert "(slot: Input should be a valid integer" in caplog.text
 
     def test_a_flank_entry_that_is_not_a_pair_counts_as_no_units(self):
         # A padded or truncated slot must not raise out of the wave check.
