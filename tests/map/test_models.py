@@ -187,6 +187,19 @@ class TestOwnerRecordConversions:
         assert (owner.owner_id, owner.is_dummy, owner.owner_name, owner.level) == (5, True, "", 0)
         assert (owner.is_ruin, owner.castle_positions) == (False, [])
 
+    @pytest.mark.parametrize(("legend_level", "is_legend"), [(1, True), ("12", True), (0, False), ("x", False)])
+    def test_a_legend_has_a_legendary_level(self, legend_level, is_legend):
+        # WorldMapOwnerInfoVO.isLegend (bundle line 10892): playerLegendLevel > 0
+        owner = GetMapAreaResponse.model_validate({"OI": [{"OID": 5, "LL": legend_level}]}).owners[0]
+        assert owner.is_legend is is_legend
+
+    def test_an_owner_without_a_legendary_level_is_no_legend(self):
+        assert GetMapAreaResponse.model_validate({"OI": [{"OID": 5}]}).owners[0].is_legend is False
+
+    def test_a_dummy_is_no_legend(self):
+        owner = GetMapAreaResponse.model_validate({"OI": [{"OID": 5, "DUM": 1, "LL": 12}]}).owners[0]
+        assert owner.is_legend is False
+
     def test_an_empty_alliance_name_reads_as_empty(self):
         owner = GetMapAreaResponse.model_validate({"OI": [{"OID": 5, "AN": None}]}).owners[0]
         assert owner.alliance_name == ""

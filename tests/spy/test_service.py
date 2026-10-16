@@ -132,6 +132,8 @@ class TestSpySuccessPath:
         assert result.success is False
         assert result.outcome is SpyOutcome.RISK_OVER_BUDGET
         assert "csm" not in dict(conn(client).request_payloads), "sent a mission over the ceiling"
+        assert result.screen is not None
+        assert (result.screen.available_spies, result.screen.guard_count) == (1, 180)
 
     def test_a_thin_pool_still_spies_when_no_ceiling_is_set(self, no_sleep):
         client = spy_client(ssi=xt_packet("ssi", {"AS": 2, "GC": 0}))
@@ -449,6 +451,25 @@ class TestSpyFailurePaths:
         assert conn(client).requested.count("ssi") == 1
         assert "csm" not in conn(client).requested
 
+    def test_a_refused_mission_carries_the_screen_it_read(self, no_sleep):
+        client = spy_client(ssi=xt_packet("ssi", {"AS": 0, "GC": 40}))
+
+        handle = client.spy.send_instant_spy(12345, 700, 710)
+
+        assert handle.result is not None
+        assert handle.result.outcome is SpyOutcome.NO_SPIES_AVAILABLE
+        assert handle.result.screen is not None
+        assert (handle.result.screen.available_spies, handle.result.screen.guard_count) == (0, 40)
+
+    def test_waiting_for_spies_carries_the_last_screen_read(self, no_sleep):
+        client = spy_client(ssi=[xt_packet("ssi", {"AS": 0, "GC": 10}), xt_packet("ssi", {"AS": 0, "GC": 20})])
+
+        result = client.spy.execute_instant_spy(12345, 700, 710, wait_for_spies=2)
+
+        assert result.outcome is SpyOutcome.NO_SPIES_AVAILABLE
+        assert result.screen is not None
+        assert result.screen.guard_count == 20
+
     @pytest.mark.parametrize(("wait", "asks"), [(0.5, 2), (2, 2), (2.5, 3), (0, 1)])
     def test_any_wait_for_spies_asks_again(self, no_sleep, wait, asks):
         client = spy_client(ssi=xt_packet("ssi", {"AS": 0}))
@@ -484,6 +505,7 @@ class TestSpyFailurePaths:
         assert (result.outcome, result.step) == (SpyOutcome.COMMAND_FAILED, SpyStep.SSI)
         assert isinstance(result.error, CommandError)
         assert result.error.code == 21
+        assert result.screen is None
 
     def test_ssi_timeout_is_tagged_by_type(self, no_sleep):
         client = spy_client(ssi=EmpireTimeoutError("no ssi"))
@@ -892,6 +914,8 @@ class TestSabotage:
 
         assert result.outcome is SpyOutcome.RISK_OVER_BUDGET
         assert "csm" not in conn(client).requested
+        assert result.screen is not None
+        assert (result.screen.available_spies, result.screen.guard_count) == (3, 30)
 
     def test_more_damage_than_the_owner_level_allows_is_refused(self):
         # A level 15 owner can lose two buildings: 20 damage at most
@@ -904,7 +928,18 @@ class TestSabotage:
     def test_no_free_spies_sends_nothing(self):
         client = make_client({"ssi": self.screen(available=0)})
 
-        assert client.spy.send_sabotage(12345, 700, 710, damage=10).outcome is SpyOutcome.NO_SPIES_AVAILABLE
+        result = client.spy.send_sabotage(12345, 700, 710, damage=10)
+
+        assert result.outcome is SpyOutcome.NO_SPIES_AVAILABLE
+        assert result.screen is not None
+        assert result.screen.target_owner(700, 710) is not None
+
+    def test_a_refused_screen_is_not_carried(self):
+        client = make_client({"ssi": xt_packet("ssi", error_code=21)})
+
+        result = client.spy.send_sabotage(12345, 700, 710, damage=10)
+
+        assert (result.outcome, result.step, result.screen) == (SpyOutcome.COMMAND_FAILED, SpyStep.SSI, None)
 
 
 class TestTheLogMustBeForThisKindOfMission:
@@ -1092,7 +1127,7 @@ class TestCancellingAMission:
 
         result = client.spy.execute_instant_spy(12345, 700, 710, cancel=cancel)
 
-        assert (result.outcome, result.mission) == (SpyOutcome.CANCELLED, None)
+        assert (result.outcome, result.mission, result.screen) == (SpyOutcome.CANCELLED, None, None)
         assert conn(client).requested == []
 
     def test_a_cancel_while_waiting_for_spies_stops_asking(self, monkeypatch):
@@ -1108,6 +1143,8 @@ class TestCancellingAMission:
         result = client.spy.execute_instant_spy(12345, 700, 710, wait_for_spies=8, cancel=cancel)
 
         assert result.outcome is SpyOutcome.CANCELLED
+        assert result.screen is not None
+        assert result.screen.available_spies == 0
         assert conn(client).requested == ["ssi"]
 
     def test_a_report_already_asked_for_is_still_read(self, no_sleep):
