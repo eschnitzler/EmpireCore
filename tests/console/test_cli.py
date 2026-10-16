@@ -79,3 +79,20 @@ def test_credentials_take_the_flag_and_environment(monkeypatch):
         pytest.fail(f"asked {prompt!r}")
 
     assert credentials("me", ask=never, ask_secret=never) == ("me", "from-env")
+
+
+def test_keep_session_is_off_unless_asked(monkeypatch):
+    built: list[bool] = []
+
+    class Stop(Exception):
+        pass
+
+    def client(**kwargs):
+        built.append(kwargs.get("keep_session", False))
+        raise Stop
+
+    monkeypatch.setattr(app, "EmpireClient", client)
+    for argv in (["--no-login"], ["--no-login", "--keep-session"]):
+        with pytest.raises(Stop):
+            run(argv)
+    assert built == [False, True]
