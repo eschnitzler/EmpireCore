@@ -19,6 +19,7 @@ from .base import js_number_text as _number_text
 _JS_WHITESPACE = "\t\n\v\f\r                  　﻿"
 _HEX_COLOR = re.compile(r"#[0-9A-Fa-f]{6}")
 _DECIMAL = re.compile(r"[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?")
+_LEADING_FLOAT = re.compile(r"[+-]?(?:Infinity|(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?)")
 _RADIX_LITERAL = re.compile(r"0(?:([xX][0-9A-Fa-f]+)|([oO][0-7]+)|([bB][01]+))")
 _LEADING_INT = re.compile(r"([+-]?)(?:0[xX]([0-9A-Fa-f]*)|([0-9]+))")
 _FLOAT_BOUND = 2**1024  # An int this large is Infinity as a JS number
@@ -144,6 +145,21 @@ def js_parse_int(value: Any) -> int | None:
         return None
     number = int(match[2], 16) if match[2] else int(match[3])
     return -number if match[1] == "-" else number
+
+
+def js_parse_float(value: Any) -> float:
+    """
+    JavaScript's ``parseFloat(value)``: the leading decimal number of ``String(value)``, NaN where there is none.
+
+    ``"6.9.1"`` reads as 6.9, ``"1e"`` as 1 and ``"0x10"`` as 0.
+    """
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return float(value)
+    text = _text(value).lstrip(_JS_WHITESPACE)
+    match = _LEADING_FLOAT.match(text)
+    if not match:
+        return math.nan
+    return float(match[0].replace("Infinity", "inf"))
 
 
 def js_parse_int_or_zero(value: Any) -> int:

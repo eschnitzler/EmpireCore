@@ -17,6 +17,7 @@ from typing import get_args, get_origin
 import pytest
 from pydantic import BaseModel
 
+from empire_core.army import SpyArmy
 from empire_core.enums import CollectableKind, Kingdom, ToolCategory, ToolSide, UnitRole
 from empire_core.exceptions import AmbiguousLookupError, GameDataNotLoadedError, NetworkError
 from empire_core.gamedata import (
@@ -25,6 +26,7 @@ from empire_core.gamedata import (
     GameData,
     ToolStats,
     UnitStats,
+    WodAmount,
     cache,
     cdn,
     collectables,
@@ -1186,6 +1188,114 @@ def test_a_cached_level_of_zero_stays_zero(tmp_path):
     data._write_cache(cache)
     again = GameData._read_cache(cache, "9.9")
     assert again is not None and again.units[205].level == 0
+
+
+# Rows of v787.03's units table, the columns the sort reads
+SORTED_ROWS = [
+    {"wodID": "183", "name": "Eventunit", "type": "MayaMelee"},
+    {"wodID": "666", "name": "Unknown", "type": "Tools", "sortOrder": "199", "slotTypes": "1,9"},
+    {"wodID": "652", "name": "Keep", "type": "Peasant", "sortOrder": "100.2"},
+    {"wodID": "746", "name": "Keep", "type": "Militia", "sortOrder": "100.1"},
+    {"wodID": "665", "name": "Unknown", "type": "Soldiers", "sortOrder": "97"},
+    {"wodID": "602", "name": "Barracks", "type": "Speerman", "sortOrder": "1.11"},
+    {"wodID": "601", "name": "Barracks", "type": "Swordman", "sortOrder": "3.12"},
+    {
+        "wodID": "637",
+        "name": "Dworkshop",
+        "group": "Unit",
+        "type": "Oilsmelter",
+        "sortOrder": "155.1",
+        "slotTypes": "1,9",
+    },
+    {
+        "wodID": "626",
+        "name": "Dworkshop",
+        "group": "Unit",
+        "type": "Gatehardening",
+        "sortOrder": "156.1",
+        "slotTypes": "2,9",
+    },
+    {"wodID": "644", "name": "Dworkshop", "type": "Mat", "sortOrder": "156.3", "slotTypes": "2,9"},
+    {"wodID": "179", "name": "Eventtool", "type": "MayaMat", "slotTypes": "1,9"},
+]
+
+
+class TestUnitSortOrder:
+    """
+    The client's unit order, ``ClientConstSort.sortByUnitSortOrder``.
+
+    The expected order is what the client's comparator printed in node, run on the same rows
+    of v787.03 by code hand-copied from the bundle (it is not the client running).
+    """
+
+    def test_a_courtyard_sorts_as_the_spy_dialog_shows_it(self):
+        data = GameData.parse("787.03", {"units": SORTED_ROWS})
+        army = SpyArmy.model_validate(
+            [
+                [],
+                [],
+                [],
+                [[602, 10], [644, 4], [652, 5], [601, 0], [666, 1], [637, 2]],
+                [],
+                [[179, 2], [602, 3], [626, 1], [183, 2], [746, 7], [665, 1]],
+            ]
+        )
+
+        ordered = sorted(army.courtyard(), key=data.unit_sort_key)
+
+        assert ordered == [
+            (183, 2),
+            (666, 1),
+            (652, 5),
+            (746, 7),
+            (665, 1),
+            (602, 10),
+            (602, 3),
+            (637, 2),
+            (626, 1),
+            (644, 4),
+            (179, 2),
+        ]
+
+    def test_sort_order_is_parse_float_and_the_largest_number_when_absent(self):
+        rows = [*SORTED_ROWS, {"wodID": "9", "name": "Barracks", "sortOrder": "6.9.1"}]
+        data = GameData.parse("787.03", {"units": rows})
+
+        assert unit_of(data, 602).sort_order == 1.11
+        assert unit_of(data, 183).sort_order == sys.float_info.max
+        assert tool_of(data, 179).sort_order == sys.float_info.max
+        assert unit_of(data, 9).sort_order == 6.9
+
+    def test_an_unknown_row_with_slots_is_a_tool_that_sorts_as_a_soldier(self):
+        data = GameData.parse("787.03", {"units": SORTED_ROWS})
+
+        assert data.is_tool(666)
+        assert not tool_of(data, 666).sorts_as_tool
+        assert tool_of(data, 637).sorts_as_tool
+        assert not unit_of(data, 602).sorts_as_tool
+
+    def test_an_id_without_a_row_sorts_as_a_soldier_without_a_sort_order(self, caplog, monkeypatch):
+        monkeypatch.setattr(data_module, "_warned_unsorted", set())
+        data = GameData.parse("787.03", {"units": SORTED_ROWS})
+
+        with caplog.at_level(logging.WARNING):
+            first = data.unit_sort_key(WodAmount(99999, 1))
+            data.unit_sort_key(WodAmount(99999, 2))
+
+        assert first == data.unit_sort_key(WodAmount(183, 1))
+        assert caplog.text.count("99999") == 1
+
+    def test_the_sort_order_survives_the_cache(self, tmp_path):
+        data = GameData.parse("787.03", {"units": SORTED_ROWS})
+        cache = tmp_path / "items.json"
+        data._write_cache(cache)
+
+        again = GameData._read_cache(cache, "787.03")
+
+        assert again is not None
+        assert unit_of(again, 602).sort_order == 1.11
+        assert unit_of(again, 183).sort_order == sys.float_info.max
+        assert tool_of(again, 637).sort_order == 155.1
 
 
 class TestLeagueTypes:

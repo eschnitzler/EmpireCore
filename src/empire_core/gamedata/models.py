@@ -10,6 +10,7 @@ a guess.
 from __future__ import annotations
 
 import math
+import sys
 from collections.abc import Mapping
 from contextvars import ContextVar
 from typing import TYPE_CHECKING, ClassVar
@@ -29,7 +30,7 @@ from empire_core.enums import (
     WearerType,
 )
 from empire_core.protocol.base import EmpireModel
-from empire_core.protocol.js import js_falsy, js_number, js_number_or_none, js_parse_int, js_truthy
+from empire_core.protocol.js import js_falsy, js_number, js_number_or_none, js_parse_float, js_parse_int, js_truthy
 
 from .lenient import GameDataId, GameDataKey
 
@@ -58,6 +59,13 @@ if TYPE_CHECKING:
 # BasicUnitVO.FIGHTTYPE_OFF / FIGHTTYPE_DEF (bundle line 19345)
 FIGHT_TYPE_OFFENSIVE = 0
 FIGHT_TYPE_DEFENSIVE = 1
+
+_TOOL_UNIT_NAMES = frozenset({"Workshop", "Dworkshop", "Elitetool", "Eventtool", "SceatTools"})
+"""
+The ``name`` of the ``units`` rows the client builds as a ``ToolUnitVO``: ``CastleWodData.getClassName``
+(bundle line 2057) names a row's class ``name + group + "VO"``, every ``units`` row's group is ``Unit``,
+and these five classes extend ``ToolUnitVO`` (bundle lines 118846-118953).
+"""
 
 # effecttypes sortCategory 7 is economy; combat filter strategies exclude it.
 ECONOMY_SORT_CATEGORY = 7
@@ -133,7 +141,8 @@ class _UnitRow(_Row):
     """
     What ``AVisualVO.parseXmlNode`` and ``BasicUnitVO.parseXmlNode`` read for every unit and tool.
 
-    Client: ``AVisualVO.parseXmlNode`` (bundle line 17800), ``BasicUnitVO.parseXmlNode`` (bundle line 19211);
+    Client: ``AVisualVO.parseXmlNode`` (bundle line 17800), ``BasicUnitVO.parseXmlNode`` (bundle line 19211)
+    reads ``sortOrder`` as ``void 0 !== t.sortOrder ? parseFloat(t.sortOrder) : Number.MAX_VALUE``;
     ``BasicUnitVO.basicCostC2`` (bundle line 19248) takes the temporary server's ruby cost there
     """
 
@@ -156,6 +165,11 @@ class _UnitRow(_Row):
         default=0,
         description="Rubies one costs to produce on a temporary server; the client takes cost_rubies when absent",
     )
+    sort_order: float = Field(
+        validation_alias="sortOrder",
+        default=sys.float_info.max,
+        description="Where it sorts in unit lists; the largest float when absent, NaN when no number",
+    )
 
     @field_validator("wod_id", mode="before")
     @classmethod
@@ -171,6 +185,24 @@ class _UnitRow(_Row):
     @classmethod
     def _parse_int(cls, value: object, info: ValidationInfo) -> object:
         return _parse_int_or_default(value, cls.model_fields[str(info.field_name)].default)
+
+    @field_validator("sort_order", mode="before")
+    @classmethod
+    def _sort_order(cls, value: object) -> float:
+        return js_parse_float(value)
+
+    @property
+    def sorts_as_tool(self) -> bool:
+        """
+        Whether the client sorts it after the soldiers, as a ``ToolUnitVO``.
+
+        Not quite :meth:`GameData.is_tool <empire_core.gamedata.data.GameData.is_tool>`, which goes by
+        ``slotTypes``: an ``Unknown`` row with slots (666 in v787.03) is a tool there, but the client
+        builds it as an ``UnknownUnitVO`` and sorts it among the soldiers.
+
+        Client: ``ClientConstSort.sortByUnitSortOrder`` (bundle line 3108) asks ``instanceOfClass(e, "ToolUnitVO")``
+        """
+        return self.source in _TOOL_UNIT_NAMES
 
     @field_validator("source", mode="before")
     @classmethod
@@ -317,7 +349,7 @@ class ToolStats(_UnitRow):
 
     ``GameData.parse`` takes the ``units`` rows with ``slotTypes`` as tools;
     the client's ``ToolUnitVO`` rows are those named Workshop, Dworkshop,
-    Elitetool and Eventtool. ``effects`` name plain effect ids; resolve them through
+    Elitetool, Eventtool and SceatTools. ``effects`` name plain effect ids; resolve them through
     :attr:`~empire_core.gamedata.data.GameData.effects`.
 
     The ``raw_*_bonus`` columns are percentages. The client scales them by

@@ -127,3 +127,10 @@ class TestSections:
         rebuilt = parsed([stored[section.value] for section in SpyArmySection])
 
         assert rebuilt == parsed(_army())
+
+
+class TestCourtyard:
+    def test_the_keep_then_the_support_unsummed(self):
+        army = parsed([[], [], [], [[602, 10], [601, 0], [652, 5]], [[602, 4]], [[602, 3], [746, 7]], [[652, 1]]])
+
+        assert army.courtyard() == ((602, 10), (652, 5), (602, 3), (746, 7))
