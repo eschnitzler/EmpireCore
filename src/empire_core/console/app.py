@@ -37,7 +37,7 @@ from prompt_toolkit.layout import (
     Window,
 )
 from prompt_toolkit.layout.controls import FormattedTextControl
-from prompt_toolkit.layout.dimension import Dimension
+from prompt_toolkit.layout.dimension import AnyDimension, Dimension
 from prompt_toolkit.layout.menus import CompletionsMenu
 from prompt_toolkit.lexers import DynamicLexer, PygmentsLexer
 from prompt_toolkit.mouse_events import MouseEvent, MouseEventType
@@ -275,23 +275,30 @@ class Console:
                 grips={"left": column, "bottom": frame_rows},
             ),
             "detail": Panel(
-                self._scrolled(self.detail, "detail"),
+                HSplit(
+                    [
+                        ConditionalContainer(self._docs_window(), Condition(lambda: self.docs_place() == "detail")),
+                        ConditionalContainer(
+                            self._scrolled(self.detail, "detail"), Condition(lambda: self.docs_place() != "detail")
+                        ),
+                    ]
+                ),
                 self._detail_title,
                 has_focus(self.detail),
                 grips={"left": column, "top": frame_rows},
             ),
         }
-        docs = Panel(
-            Window(
-                FormattedTextControl(lambda: [("class:docs", self.docs_text())]),
-                wrap_lines=True,
-                height=lambda: Dimension.exact(min(self.docs_text().count("\n") + 1, DOCS_ROWS)),
-            ),
+        docs_on_top = Panel(
+            self._docs_window(height=lambda: Dimension.exact(min(self.docs_text().count("\n") + 1, DOCS_ROWS))),
             self._docs_title,
             to_filter(False),
         )
         code = HSplit(
-            [self.panels["output"], ConditionalContainer(docs, Condition(self.showing_docs)), self.panels["input"]],
+            [
+                ConditionalContainer(docs_on_top, Condition(lambda: self.docs_place() == "top")),
+                self.panels["output"],
+                self.panels["input"],
+            ],
             width=lambda: Dimension() if self.zoomed else Dimension.exact(self._code_width()),
         )
         frames = HSplit([self.panels["frames"], self.panels["detail"]])
@@ -521,6 +528,18 @@ class Console:
 
     def showing_docs(self) -> bool:
         return bool(self.docs_text())
+
+    def docs_place(self) -> str | None:
+        """Where the docs go, clear of the completion menu, which opens upward from the input.
+
+        Beside it, in the Detail pane's place, or atop the code column when that side is zoomed.
+        """
+        if not self.showing_docs():
+            return None
+        return "top" if self.zoomed else "detail"
+
+    def _docs_window(self, height: AnyDimension = None) -> Window:
+        return Window(FormattedTextControl(lambda: [("class:docs", self.docs_text())]), wrap_lines=True, height=height)
 
     def docs_text(self) -> str:
         """The docstring of the completion the menu highlights; empty when there is none."""
@@ -881,6 +900,8 @@ class Console:
         return title
 
     def _detail_title(self) -> StyleAndTextTuples:
+        if self.docs_place() == "detail":
+            return self._docs_title()
         row = self._shown[0]
         if row is None:
             return [("", "Detail")]
