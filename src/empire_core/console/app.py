@@ -69,7 +69,8 @@ from empire_core.console.help import COLUMNS, GUTTER, column_width, help_column,
 from empire_core.console.highlight import BANNER_MARK, OutputLexer
 from empire_core.console.output import OutputLog
 from empire_core.console.runner import CodeRunner, PaneWriter
-from empire_core.console.theme import THEMES
+from empire_core.console.settings import Settings, load_settings, save_settings, settings_path
+from empire_core.console.theme import THEMES, ThemeName
 from empire_core.console.widgets import Panel, ScrollbarControl, TextPane, osc52, selected_text, text_scrollbar
 from empire_core.exceptions import EmpireError
 from empire_core.network.connection import FrameDirection
@@ -108,17 +109,19 @@ class PaneSizes:
 class Console:
     """A REPL on ``client`` beside every frame its connection sends and receives."""
 
-    def __init__(self, client: EmpireClient, *, history: Path | None = None, theme: str = "dark") -> None:
+    def __init__(self, client: EmpireClient, *, history: Path | None = None, settings: Settings | None = None) -> None:
+        settings = settings or Settings()
         self.client = client
         self.frames = FrameLog()
+        self.frames.set_filter(settings.filter)
         self.namespace: dict[str, Any] = {"client": client, "empire_core": importlib.import_module("empire_core")}
         self.namespace["exit"] = self.namespace["quit"] = self.quit
         self.selected: Row | None = None
-        self.raw = False
+        self.raw = settings.raw
         self.show_help = False
         self.zoomed = False
-        self.theme = theme
-        self.sizes = PaneSizes()
+        self.theme: ThemeName = settings.theme
+        self.sizes = PaneSizes(settings.column, settings.input_rows, settings.frames)
         self.dragging: str | None = None
         self.commands: dict[str, Callable[[list[str]], object]] = {
             "filter": self._filter,
@@ -190,6 +193,18 @@ class Console:
         client.on_session_restored(self._restored)
         client.on_session_lost(self._lost)
         self._queue_output(f"{BANNER_MARK}empire-console · {self.who} · client and empire_core are ready · F1 help\n")
+
+    def settings(self) -> Settings:
+        """What to remember of this console for the next run."""
+        return Settings(
+            theme=self.theme,
+            zone=self.client.config.default_zone,
+            column=self.sizes.column,
+            input_rows=self.sizes.input_rows,
+            frames=self.sizes.frames,
+            filter=sorted(self.frames.filter),
+            raw=self.raw,
+        )
 
     @property
     def who(self) -> str:
@@ -632,10 +647,11 @@ class Console:
     def _theme(self, args: list[str]) -> None:
         """Switch to the named theme, or to the other one when none is named."""
         name = args[0] if args else next(theme for theme in THEMES if theme != self.theme)
-        if name in THEMES:
-            self.theme = name
-        else:
-            self._queue_output(f"✗ unknown theme {name}; {' or '.join(THEMES)}\n")
+        for theme in THEMES:
+            if theme == name:
+                self.theme = theme
+                return
+        self._queue_output(f"✗ unknown theme {name}; {' or '.join(THEMES)}\n")
 
     def _filter(self, commands: list[str]) -> None:
         self.frames.set_filter(c for arg in commands for c in arg.split(",") if c)
@@ -826,26 +842,30 @@ def run(argv: list[str]) -> int:
         prog="empire-console", description="A Python REPL on a live client beside its socket frames."
     )
     parser.add_argument("--username", default=os.getenv("GGE_USERNAME"), help="defaults to $GGE_USERNAME, else asked")
-    parser.add_argument("--zone", help="the world to play on, such as EmpireEx_3; US1 (EmpireEx_21) by default")
+    parser.add_argument("--zone", help="the world to play on, such as EmpireEx_3; the last one, else US1")
     parser.add_argument("--list-zones", action="store_true", help="list the worlds and exit")
     parser.add_argument("--no-login", action="store_true", help="start without connecting")
     parser.add_argument("--keep-session", action="store_true", help="log in again by itself after a drop")
     parser.add_argument("--log-level", default="WARNING", help="library log level shown in the output pane")
-    parser.add_argument("--theme", choices=sorted(THEMES), default="dark", help="dark (default) or light")
+    parser.add_argument("--theme", choices=sorted(THEMES), help="dark or light; the last one, else dark")
     args = parser.parse_args(argv)
+    path = settings_path()
+    settings = load_settings(path)
+    if args.theme:
+        settings = settings.model_copy(update={"theme": args.theme})
 
     try:
         if args.list_zones:
             print_zones()
             return 0
-        config = zone_config(args.zone)
+        config = zone_config(args.zone or settings.zone)
     except (EmpireError, ValueError) as e:
         print(f"empire-console: {e}", file=sys.stderr)
         return 2
 
     username, password = (args.username, None) if args.no_login else credentials(args.username)
     client = EmpireClient(username=username, password=password, config=config, keep_session=args.keep_session)
-    console = Console(client, theme=args.theme)
+    console = Console(client, settings=settings)
 
     handler = logging.StreamHandler(console.writer)
     handler.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
@@ -859,4 +879,8 @@ def run(argv: list[str]) -> int:
         root.removeHandler(handler)
         console.close()
         client.close()
+    try:
+        save_settings(console.settings(), path)
+    except OSError as e:
+        print(f"empire-console: could not save settings to {path}: {e}", file=sys.stderr)
     return 0
