@@ -2,6 +2,7 @@
 
 import ast
 import codeop
+import ctypes
 import io
 import sys
 import threading
@@ -33,6 +34,10 @@ class CodeRunner:
     The last statement of an input, when it is an expression and not None, goes to ``show`` and
     is kept as ``_``, as the Python REPL does; by default ``show`` writes its repr.
     ``on_done`` gets how long the input ran and whether it finished without an exception.
+
+    :meth:`interrupt` raises KeyboardInterrupt in the running input and frees the runner at once:
+    a thread cannot be stopped from outside, and one blocked in a wait only sees the interrupt
+    when the wait returns, so the runner stops reporting for it instead of waiting.
     """
 
     def __init__(
@@ -48,6 +53,7 @@ class CodeRunner:
         self._show = show or (lambda value: write(repr(value) + "\n"))
         self._on_done = on_done
         self._thread: threading.Thread | None = None
+        self._generation = 0
 
     @property
     def busy(self) -> bool:
@@ -66,15 +72,28 @@ class CodeRunner:
         if self.busy:
             return False
         self.started_at = time.monotonic()
-        self._thread = threading.Thread(target=self._execute, args=(source,), name="console-runner", daemon=True)
+        self._generation += 1
+        self._thread = threading.Thread(
+            target=self._execute, args=(source, self._generation), name="console-runner", daemon=True
+        )
         self._thread.start()
+        return True
+
+    def interrupt(self) -> bool:
+        """Stop the running input; False when nothing is running."""
+        thread = self._thread
+        if thread is None or not thread.is_alive() or thread.ident is None:
+            return False
+        self._generation += 1
+        self._thread = None
+        ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_ulong(thread.ident), ctypes.py_object(KeyboardInterrupt))
         return True
 
     def join(self, timeout: float | None = None) -> None:
         if self._thread is not None:
             self._thread.join(timeout)
 
-    def _execute(self, source: str) -> None:
+    def _execute(self, source: str, generation: int) -> None:
         ok = False
         try:
             tree = ast.parse(source, "<console>")
@@ -88,10 +107,11 @@ class CodeRunner:
                     self._show(value)
             ok = True
         except BaseException as e:
-            # The traceback starts at the user's code, not at this frame.
-            tb = e.__traceback__.tb_next if e.__traceback__ is not None else None
-            self._write("".join(traceback.format_exception(type(e), e, tb)))
+            if generation == self._generation:
+                # The traceback starts at the user's code, not at this frame.
+                tb = e.__traceback__.tb_next if e.__traceback__ is not None else None
+                self._write("".join(traceback.format_exception(type(e), e, tb)))
         finally:
             sys.stdout.flush()
-            if self._on_done is not None:
+            if self._on_done is not None and generation == self._generation:
                 self._on_done(time.monotonic() - self.started_at, ok)

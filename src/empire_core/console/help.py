@@ -12,7 +12,7 @@ COLUMNS: tuple[tuple[Section, ...], ...] = (
                 ("Enter", "run once the statement is complete"),
                 ("Esc Enter", "run whatever is typed"),
                 ("Tab  ↑↓", "complete · history"),
-                ("Ctrl-C", "clear the input"),
+                ("Ctrl-C", "stop running code, else clear"),
                 ("Ctrl-L", "clear the output"),
                 ("exit()", "close the client and exit"),
             ),
