@@ -36,6 +36,7 @@ COLUMNS: tuple[tuple[Section, ...], ...] = (
             (
                 ("↑↓ PgUp PgDn", "select a frame"),
                 ("Home  End", "oldest · follow the newest"),
+                ("p", "jump to the request or reply"),
                 ("r", "parsed model or raw payload"),
                 ("c", "copy the shown detail"),
                 ("F3", "zoom the focused side"),

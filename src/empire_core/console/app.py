@@ -72,6 +72,7 @@ from empire_core.console.runner import CodeRunner, PaneWriter
 from empire_core.console.theme import THEMES
 from empire_core.console.widgets import Panel, ScrollbarControl, TextPane, osc52, selected_text, text_scrollbar
 from empire_core.exceptions import EmpireError
+from empire_core.network.connection import FrameDirection
 
 HISTORY = Path.home() / ".empire_console_history"
 PAGE = 20
@@ -408,6 +409,10 @@ class Console:
             self.selected = None
             self._sync_detail()
 
+        @keys.add("p", filter=in_frames)
+        def _(event: KeyPressEvent) -> None:
+            self.jump_to_partner()
+
         @keys.add("r", filter=in_frames)
         def _(event: KeyPressEvent) -> None:
             self.toggle_raw()
@@ -476,6 +481,18 @@ class Console:
         self._notice = (f"copied {size_label(len(text.encode()))}", time.monotonic() + NOTICE_SECONDS)
         self.application.invalidate()
 
+    def partner(self, row: Row) -> Row | None:
+        """The request a reply answers, or the reply to a request, if it is still in view."""
+        if row.pair is None:
+            return None
+        return next((other for other in self.frames.visible() if other.pair == row.pair and other is not row), None)
+
+    def jump_to_partner(self) -> None:
+        partner = self.partner(self.selected) if self.selected is not None else None
+        if partner is not None:
+            self.selected = partner
+            self._sync_detail()
+
     def select(self, step: int) -> None:
         """Move the selection ``step`` frames from the selected one, or from the newest."""
         rows = self.frames.visible()
@@ -528,11 +545,13 @@ class Console:
         # The cursor must point into these rows, even if frames arrive before it is asked for.
         self._cursor_row = max(current - top, 0)
         lines: StyleAndTextTuples = []
+        partner = self.partner(self.selected) if self.selected is not None else None
         for row in rows[top : top + height]:
             chosen = row is self.selected
             highlight = "class:frame.selected " if chosen else ""
             handler = self._mouse_handler(row)
-            lines.append((highlight + "class:frame.marker", "▌" if chosen else " ", handler))
+            marker = "▌" if chosen else "┆" if row is partner else " "
+            lines.append((highlight + "class:frame.marker", marker, handler))
             lines.extend((highlight + style, text, handler) for style, text, *_ in row.cells)
             lines.append(("", "\n"))
         return lines[:-1]
@@ -726,7 +745,13 @@ class Console:
             return [("", "Detail")]
         mode = "parsed" if self._detail.model else "raw"
         following = "" if self.selected is not None else " · following"
-        return [("", detail_title(row)), ("class:panel.chip.model", f" · {mode}"), ("class:panel.chip", following)]
+        title: StyleAndTextTuples = [("", detail_title(row)), ("class:panel.chip.model", f" · {mode}")]
+        partner = self.partner(row)
+        if partner is not None:
+            link = "request" if partner.frame.direction is FrameDirection.SENT else "reply"
+            took = f" in {duration_label(partner.latency)}" if partner.latency is not None else ""
+            title.append(("class:panel.chip.filter", f" · {link}{took}, p"))
+        return [*title, ("class:panel.chip", following)]
 
 
 def zone_config(zone: str | None) -> EmpireConfig:
