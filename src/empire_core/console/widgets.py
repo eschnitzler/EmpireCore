@@ -8,7 +8,13 @@ from prompt_toolkit.document import Document
 from prompt_toolkit.filters import Filter
 from prompt_toolkit.formatted_text import StyleAndTextTuples
 from prompt_toolkit.layout import AnyContainer, Container, HSplit, VSplit, Window
-from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl, UIContent, UIControl
+from prompt_toolkit.layout.controls import (
+    BufferControl,
+    FormattedTextControl,
+    SearchBufferControl,
+    UIContent,
+    UIControl,
+)
 from prompt_toolkit.layout.dimension import AnyDimension
 from prompt_toolkit.lexers import Lexer
 from prompt_toolkit.mouse_events import MouseButton, MouseEvent, MouseEventType
@@ -71,8 +77,14 @@ class SelectingControl(BufferControl):
     The view follows the cursor, so scrolling moves it, which would otherwise grow the selection.
     """
 
-    def __init__(self, buffer: Buffer, lexer: Lexer | None, on_copy: Callable[[str], None]) -> None:
-        super().__init__(buffer=buffer, lexer=lexer, focus_on_click=True)
+    def __init__(
+        self,
+        buffer: Buffer,
+        lexer: Lexer | None,
+        on_copy: Callable[[str], None],
+        search: SearchBufferControl | None = None,
+    ) -> None:
+        super().__init__(buffer=buffer, lexer=lexer, focus_on_click=True, search_buffer_control=search)
         self.on_copy = on_copy
 
     def mouse_handler(self, mouse_event: MouseEvent) -> object:
@@ -86,11 +98,18 @@ class SelectingControl(BufferControl):
 
 
 class TextPane:
-    """Read-only text that can be scrolled, selected and copied."""
+    """Read-only text that can be scrolled, searched, selected and copied."""
 
-    def __init__(self, *, lexer: Lexer | None, wrap_lines: bool, on_copy: Callable[[str], None]) -> None:
+    def __init__(
+        self,
+        *,
+        lexer: Lexer | None,
+        wrap_lines: bool,
+        on_copy: Callable[[str], None],
+        search: SearchBufferControl | None = None,
+    ) -> None:
         self.buffer = Buffer(read_only=True, multiline=True)
-        self.control = SelectingControl(self.buffer, lexer, on_copy)
+        self.control = SelectingControl(self.buffer, lexer, on_copy, search)
         self.window = Window(self.control, wrap_lines=wrap_lines)
 
     @property

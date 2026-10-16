@@ -38,7 +38,12 @@ credentials. `--theme` and `--zone` override what it remembers, and the next run
 
 `client` and `empire_core` are already in scope. Completion comes from jedi on the live objects,
 so `client.castle.` lists the castle service's methods, and the input's title shows the signature
-of the call the cursor is in.
+of the call the cursor is in. While the menu highlights a completion, a Docs panel above the input
+shows its docstring. A line starting with `:` completes the console's commands instead, and their
+arguments: theme names after `:theme`, and the commands seen so far after `:filter`.
+
+`/` in Output or Detail searches it as you type; Enter keeps the match, and `n` and `N` jump to
+the next and previous one.
 
 ```python
 >>> castles = client.castle.get_all()

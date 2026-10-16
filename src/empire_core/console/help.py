@@ -27,6 +27,7 @@ COLUMNS: tuple[tuple[Section, ...], ...] = (
                 ("drag over text", "select and copy it"),
                 ("Ctrl-C  y", "copy selection or pane"),
                 ("Home  End", "top · bottom of a pane"),
+                ("/  n  N", "search a pane · next · previous"),
             ),
         ),
     ),
