@@ -9,12 +9,12 @@ import re
 import sys
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from contextlib import redirect_stderr, redirect_stdout
 from dataclasses import dataclass
 from getpass import getpass
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 from prompt_toolkit.application import Application
 from prompt_toolkit.buffer import Buffer
@@ -41,8 +41,9 @@ from prompt_toolkit.layout.dimension import Dimension
 from prompt_toolkit.layout.menus import CompletionsMenu
 from prompt_toolkit.lexers import DynamicLexer, PygmentsLexer
 from prompt_toolkit.mouse_events import MouseEvent, MouseEventType
+from prompt_toolkit.search import start_search
 from prompt_toolkit.styles import DynamicStyle
-from prompt_toolkit.widgets import TextArea
+from prompt_toolkit.widgets import SearchToolbar, TextArea
 from pygments.lexers.data import JsonLexer
 from pygments.lexers.python import PythonLexer
 
@@ -54,7 +55,7 @@ from empire_core.config import (
     fetch_network_instances,
     instance_for_zone,
 )
-from empire_core.console.completion import NamespaceCompleter, signature_at
+from empire_core.console.completion import CommandCompleter, ConsoleCompleter, NamespaceCompleter, signature_at
 from empire_core.console.frames import (
     HEADER,
     Detail,
@@ -78,6 +79,7 @@ from empire_core.network.connection import FrameDirection
 HISTORY = Path.home() / ".empire_console_history"
 PAGE = 20
 NOTICE_SECONDS = 2.5
+DOCS_ROWS = 8
 SPINNER = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 SGR_MOUSE = re.compile(r"\x1b\[<\d+;(?P<x>\d+);(?P<y>\d+)(?P<kind>[mM])")
 
@@ -90,10 +92,23 @@ FRAME_KEYS = [
     ("Ctrl-arrows", "panes"),
     ("F1", "help"),
 ]
-TEXT_KEYS = [("↑↓ PgUp PgDn", "scroll"), ("Home End", "top / bottom"), ("Ctrl-arrows", "panes"), ("F1", "help")]
+TEXT_KEYS = [
+    ("↑↓ PgUp PgDn", "scroll"),
+    ("/ n N", "search"),
+    ("Home End", "top / bottom"),
+    ("Ctrl-arrows", "panes"),
+    ("F1", "help"),
+]
 # Panes by where they sit, for Ctrl-arrows, and in F2's cycle order.
 GRID = (("output", "frames"), ("input", "detail"))
 CYCLE = ("input", "frames", "detail", "output")
+
+
+class Command(NamedTuple):
+    """A ``:`` command: what it runs with its arguments, and what completion says about it."""
+
+    run: Callable[[list[str]], object]
+    summary: str
 
 
 @dataclass
@@ -123,17 +138,17 @@ class Console:
         self.theme: ThemeName = settings.theme
         self.sizes = PaneSizes(settings.column, settings.input_rows, settings.frames)
         self.dragging: str | None = None
-        self.commands: dict[str, Callable[[list[str]], object]] = {
-            "filter": self._filter,
-            "grep": lambda args: self._search(" ".join(args)),
-            "pause": lambda _args: self.frames.toggle_pause(),
-            "theme": self._theme,
-            "clear": self._clear,
-            "raw": lambda _args: self.toggle_raw(),
-            "save": self._save,
-            "help": lambda _args: self.toggle_help(),
-            "quit": lambda _args: self.quit(),
-            "login": lambda _args: self.login(),
+        self.commands: dict[str, Command] = {
+            "filter": Command(self._filter, "only these commands"),
+            "grep": Command(lambda args: self._search(" ".join(args)), "frames containing text"),
+            "pause": Command(lambda _args: self.frames.toggle_pause(), "freeze the frame list"),
+            "theme": Command(self._theme, "dark, light, or toggle"),
+            "clear": Command(self._clear, "forget every frame"),
+            "raw": Command(lambda _args: self.toggle_raw(), "parsed or raw detail"),
+            "save": Command(self._save, "shown frames as JSON lines"),
+            "help": Command(lambda _args: self.toggle_help(), "keys and commands"),
+            "quit": Command(lambda _args: self.quit(), "close the client and exit"),
+            "login": Command(lambda _args: self.login(), "log in again after a drop"),
         }
         self.output_log = OutputLog()
         self._cursor_row = 0
@@ -141,6 +156,12 @@ class Console:
         self.logging_in = False
         self.disconnected = False
         self.completer = NamespaceCompleter(self.namespace)
+        arguments: dict[str, Callable[[], Iterable[str]]] = {"theme": lambda: THEMES, "filter": self.frames.commands}
+        self.completer_for_input = ConsoleCompleter(
+            self.completer,
+            CommandCompleter(lambda: {name: command.summary for name, command in self.commands.items()}, arguments),
+        )
+        self.search_toolbar = SearchToolbar(ignore_case=True)
         self._signature_cache: tuple[tuple[str, int, int], str] | None = None
         self._shown: tuple[Row | None, bool, int] = (None, False, 0)
         self._detail = Detail("")
@@ -154,12 +175,14 @@ class Console:
         )
 
         python, json_lexer = PygmentsLexer(PythonLexer), PygmentsLexer(JsonLexer)
-        self.output = TextPane(lexer=OutputLexer(), wrap_lines=True, on_copy=self.copy)
+        self.output = TextPane(
+            lexer=OutputLexer(), wrap_lines=True, on_copy=self.copy, search=self.search_toolbar.control
+        )
         self.input = TextArea(
             multiline=True,
             focus_on_click=True,
             lexer=python,
-            completer=ThreadedCompleter(self.completer),
+            completer=ThreadedCompleter(self.completer_for_input),
             complete_while_typing=True,
             history=FileHistory(str(history or HISTORY)),
             get_line_prefix=lambda line, _wrap: [("class:output.prompt", "... " if line else ">>> ")],
@@ -168,6 +191,7 @@ class Console:
             lexer=DynamicLexer(lambda: python if self._detail.model else json_lexer),
             wrap_lines=False,
             on_copy=self.copy,
+            search=self.search_toolbar.control,
         )
         self.frame_list = FormattedTextControl(self.render_frame_list, focusable=True, get_cursor_position=self._cursor)
         self.scrollbars = {
@@ -252,8 +276,17 @@ class Console:
                 grips={"left": column, "top": frame_rows},
             ),
         }
+        docs = Panel(
+            Window(
+                FormattedTextControl(lambda: [("class:docs", self.docs_text())]),
+                wrap_lines=True,
+                height=lambda: Dimension.exact(min(self.docs_text().count("\n") + 1, DOCS_ROWS)),
+            ),
+            self._docs_title,
+            to_filter(False),
+        )
         code = HSplit(
-            [self.panels["output"], self.panels["input"]],
+            [self.panels["output"], ConditionalContainer(docs, Condition(self.showing_docs)), self.panels["input"]],
             width=lambda: Dimension() if self.zoomed else Dimension.exact(self._code_width()),
         )
         frames = HSplit([self.panels["frames"], self.panels["detail"]])
@@ -268,6 +301,7 @@ class Console:
                         ConditionalContainer(frames, Condition(lambda: not (self.zoomed and not right_side()))),
                     ]
                 ),
+                self.search_toolbar,
                 Window(FormattedTextControl(self.toolbar), height=1, style="class:toolbar"),
             ],
         )
@@ -368,6 +402,18 @@ class Console:
         for key, rows, columns in (("c-up", -1, 0), ("c-down", 1, 0), ("c-left", 0, -1), ("c-right", 0, 1)):
             keys.add(key)(lambda _event, rows=rows, columns=columns: self._move_focus(rows, columns))
 
+        @keys.add("/", filter=in_text)
+        def _(event: KeyPressEvent) -> None:
+            start_search()
+
+        @keys.add("n", filter=in_text)
+        def _(event: KeyPressEvent) -> None:
+            event.current_buffer.apply_search(event.app.current_search_state, include_current_position=False)
+
+        @keys.add("N", filter=in_text)
+        def _(event: KeyPressEvent) -> None:
+            event.current_buffer.apply_search(~event.app.current_search_state, include_current_position=False)
+
         @keys.add("home", filter=in_text)
         def _(event: KeyPressEvent) -> None:
             event.current_buffer.cursor_position = 0
@@ -466,7 +512,23 @@ class Console:
         if command is None:
             self._queue_output(f"✗ unknown command :{name}, F1 lists them\n")
         else:
-            command(args)
+            command.run(args)
+
+    def showing_docs(self) -> bool:
+        return bool(self.docs_text())
+
+    def docs_text(self) -> str:
+        """The docstring of the completion the menu highlights; empty when there is none."""
+        state = self.input.buffer.complete_state
+        current = state.current_completion if state is not None else None
+        if current is None or self.input.text.lstrip().startswith(":"):
+            return ""
+        return self.completer.docs(current.text).strip()
+
+    def _docs_title(self) -> StyleAndTextTuples:
+        state = self.input.buffer.complete_state
+        current = state.current_completion if state is not None else None
+        return [("", "Docs"), ("class:panel.chip", f" · {current.text}" if current is not None else "")]
 
     def start(self, *, login: bool) -> None:
         """Begin the background work of a fresh console: warm up completion and, with ``login``, log in."""

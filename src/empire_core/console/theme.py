@@ -92,6 +92,7 @@ def style(p: Palette) -> Style:
             "output.banner": f"bold {p.purple}",
             "output.dim": p.faint,
             "signature": f"italic {p.dim}",
+            "docs": p.dim,
             "toolbar": p.faint,
             "toolbar.key": f"bold {p.blue}",
             "toolbar.online": f"bold {p.green}",

@@ -5,7 +5,7 @@ from contextlib import redirect_stdout
 
 from prompt_toolkit.application import create_app_session
 from prompt_toolkit.buffer import CompletionState
-from prompt_toolkit.completion import Completion
+from prompt_toolkit.completion import CompleteEvent, Completion
 from prompt_toolkit.data_structures import Point
 from prompt_toolkit.document import Document
 from prompt_toolkit.input import create_pipe_input
@@ -612,3 +612,40 @@ def test_session_retries_restores_and_losses_are_reported(tmp_path):
         fire(console.client.on_session_lost, LoginError("gave up"))
         console.flush()
         assert "✗ session lost: gave up" in console.output_text and console.disconnected
+
+
+def test_slash_searches_a_text_pane_and_n_finds_the_next(tmp_path):
+    with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+        console = make_console(tmp_path)
+        console.detail.buffer.set_document(Document("alpha MP beta MP gamma", 0), bypass_readonly=True)
+        console.application.layout.focus(console.detail)
+        pipe.send_text("/MP\r\x04")
+        console.application.run()
+        assert console.detail.buffer.cursor_position == 6
+        pipe.send_text("n\x04")
+        console.application.run()
+        assert console.detail.buffer.cursor_position == 14
+
+
+def test_colon_commands_complete_with_their_arguments(tmp_path):
+    with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+        console = make_console(tmp_path)
+        console.frames.add(might())
+
+        def complete(text):
+            document = Document(text, len(text))
+            return [c.text for c in console.completer_for_input.get_completions(document, CompleteEvent())]
+
+        assert "filter" in complete(":fil") and complete(":theme li") == ["light"]
+        assert complete(":filter gm") == ["gmu"]
+
+
+def test_docs_show_for_the_highlighted_completion(tmp_path):
+    with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+        console = make_console(tmp_path)
+        buffer = console.input.buffer
+        buffer.document = Document("client.castle.get_al", len("client.castle.get_al"))
+        list(console.completer.get_completions(buffer.document, CompleteEvent()))
+        assert not console.showing_docs()
+        buffer.complete_state = CompletionState(buffer.document, [Completion("get_all", -6)], complete_index=0)
+        assert console.showing_docs() and "castles" in console.docs_text()
