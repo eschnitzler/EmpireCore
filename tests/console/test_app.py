@@ -529,3 +529,33 @@ def test_ctrl_c_stops_running_code(tmp_path):
         console.application.run()
         console.flush()
         assert not console.runner.busy and "✗ interrupted" in console.output_text
+
+
+def paired_console(tmp_path):
+    console = make_console(tmp_path)
+    console.frames.add(Frame(FrameDirection.SENT, "gcl", 0, '%xt%EmpireEx_21%gcl%1%{"PID":5}%', 1.0))
+    console.frames.add(Frame(FrameDirection.RECEIVED, "gam", 0, '%xt%gam%1%0%{"M":[],"O":[]}%', 1.01))
+    console.frames.add(Frame(FrameDirection.RECEIVED, "gcl", 0, '%xt%gcl%1%0%{"PID":5,"C":[]}%', 1.05))
+    return console
+
+
+def test_p_jumps_between_a_request_and_its_reply(tmp_path):
+    with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+        console = paired_console(tmp_path)
+        request, _push, reply = console.frames.visible()
+        console.select(-2)
+        assert console.selected is request
+        console.application.layout.focus(console.frame_list)
+        pipe.send_text("p\x04")
+        console.application.run()
+        assert console.selected is reply
+        assert "request" in console.detail_title_text()
+
+
+def test_the_selected_frames_partner_is_marked(tmp_path):
+    with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+        console = paired_console(tmp_path)
+        console.select(-2)
+        markers = [fragment for fragment in console.render_frame_list() if "frame.marker" in fragment[0]]
+        assert [m[1] for m in markers] == ["▌", " ", "┆"]
+        assert "reply in 50 ms" in console.detail_title_text()

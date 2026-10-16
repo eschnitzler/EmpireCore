@@ -163,3 +163,25 @@ def test_parsed_detail_fits_the_width_it_is_given():
     narrow = frame_detail(frame("gmu", MIGHT), width=40).text
     wide = frame_detail(frame("gmu", MIGHT), width=400).text
     assert all(len(line) <= 40 for line in narrow.splitlines()) and len(wide.splitlines()) == 1
+
+
+def test_a_request_and_its_reply_share_a_pair():
+    log = FrameLog()
+    log.add(frame("gcl", "%xt%EmpireEx_21%gcl%1%{}%", direction=FrameDirection.SENT, at=1.0))
+    log.add(frame("gam", at=1.01))
+    log.add(frame("gcl", "%xt%gcl%1%0%{}%", at=1.05))
+    request, push, reply = log.visible()
+    assert request.pair is not None and reply.pair == request.pair and push.pair is None
+
+
+def test_a_reply_under_another_command_still_pairs():
+    log = FrameLog()
+    log.add(frame("jca", '%xt%EmpireEx_21%jca%1%{"CID":1}%', direction=FrameDirection.SENT, at=1.0))
+    log.add(frame("jaa", "%xt%jaa%1%0%{}%", at=1.2))
+    request, reply = log.visible()
+    assert reply.pair == request.pair and abs((reply.latency or 0) - 0.2) < 1e-9
+
+
+def test_sent_frames_parse_into_their_request_model():
+    detail = frame_detail(frame("gcl", '%xt%EmpireEx_21%gcl%1%{"PID":5}%', direction=FrameDirection.SENT))
+    assert detail.model == "GetCastlesRequest" and "GetCastlesRequest(" in detail.text
