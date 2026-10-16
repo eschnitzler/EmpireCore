@@ -87,6 +87,8 @@ class SpyResult:
         message_id: The report's message id, once a report for the mission arrived.
         report: The spy report, when one was read.
         mission: The csm reply for the mission sent, with its movement and risk.
+        screen: The last ``ssi`` spy screen read, when nothing was sent (no
+            spies, risk over budget, cancelled); None otherwise or before a read.
     """
 
     outcome: SpyOutcome
@@ -95,6 +97,7 @@ class SpyResult:
     message_id: int | None = None
     report: SpyReportResponse | None = None
     mission: SendSpyResponse | None = None
+    screen: SpyScreenInfoResponse | None = None
 
     @property
     def success(self) -> bool:
@@ -555,6 +558,7 @@ class SpyService(BaseService):
 
         available = 0
         plan = None
+        screen = None
         attempts = 1 + (math.ceil(wait_for_spies / _SSI_POLL_DELAY) if wait_for_spies and wait_for_spies > 0 else 0)
         for attempt in range(attempts):
             if handle.cancel_event.is_set():
@@ -586,13 +590,13 @@ class SpyService(BaseService):
                 sleep_unless_cancelled(_SSI_POLL_DELAY, handle.cancel_event)
 
         if handle.cancel_event.is_set():
-            handle.result = SpyResult(SpyOutcome.CANCELLED)
+            handle.result = SpyResult(SpyOutcome.CANCELLED, screen=screen)
             return handle
         if available <= 0:
-            handle.result = SpyResult(SpyOutcome.NO_SPIES_AVAILABLE)
+            handle.result = SpyResult(SpyOutcome.NO_SPIES_AVAILABLE, screen=screen)
             return handle
         if plan is None:
-            handle.result = SpyResult(SpyOutcome.RISK_OVER_BUDGET)
+            handle.result = SpyResult(SpyOutcome.RISK_OVER_BUDGET, screen=screen)
             return handle
 
         self._listen(handle)
@@ -855,10 +859,10 @@ class SpyService(BaseService):
         if owner is not None and damage > (cap := max_sabotage_damage(owner.level)):
             raise ValueError(f"a level {owner.level} owner allows at most {cap} sabotage damage, not {damage}")
         if screen.available_spies <= 0:
-            return SpyResult(SpyOutcome.NO_SPIES_AVAILABLE)
+            return SpyResult(SpyOutcome.NO_SPIES_AVAILABLE, screen=screen)
         plan = plan_sabotage(screen.guard_count, screen.available_spies, damage, max_risk)
         if plan is None:
-            return SpyResult(SpyOutcome.RISK_OVER_BUDGET)
+            return SpyResult(SpyOutcome.RISK_OVER_BUDGET, screen=screen)
         try:
             mission = self.send_spy_mission(
                 source_castle_id,
