@@ -24,6 +24,12 @@ account and its world, as `you @ EmpireEx_3`. `--no-login` starts without connec
 light theme; dark is the default, and F4 or `:theme` switches while it runs. Both themes paint
 their own background, so they look the same whatever your terminal's colours are.
 
+The console opens at once and logs in inside it, with a spinner in the toolbar and the login
+frames arriving in the frame list. If the session drops (another login of the account, or the
+connection going away), a red banner says so and `:login` logs in again, waiting out the
+server's login cooldown first. `--keep-session` lets the library log in again by itself; its
+retries, and whether the session came back, show in the output.
+
 ## Writing code
 
 `client` and `empire_core` are already in scope. Completion comes from jedi on the live objects,

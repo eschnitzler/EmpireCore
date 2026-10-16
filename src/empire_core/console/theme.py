@@ -105,6 +105,7 @@ def style(p: Palette) -> Style:
             "completion-menu.meta.completion": f"bg:{p.row} {p.dim}",
             "completion-menu.meta.completion.current": f"bg:{p.blue} {p.background}",
             "selected": f"bg:{p.selection}",
+            "banner": f"bg:{p.red} bold {p.background}",
             "scrollbar.background": f"bg:{p.row}",
             "scrollbar.button": f"bg:{p.faint}",
             "pygments.keyword": p.purple,
