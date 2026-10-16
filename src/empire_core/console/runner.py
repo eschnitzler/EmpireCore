@@ -68,13 +68,17 @@ class CodeRunner:
         except (SyntaxError, ValueError, OverflowError):
             return True
 
-    def run(self, source: str) -> bool:
+    def run(self, source: str, *, filename: str = "<console>", echo: bool = True) -> bool:
+        """Run ``source`` unless an input is running; ``echo`` False runs it as a file, showing no result."""
         if self.busy:
             return False
         self.started_at = time.monotonic()
         self._generation += 1
         self._thread = threading.Thread(
-            target=self._execute, args=(source, self._generation), name="console-runner", daemon=True
+            target=self._execute,
+            args=(source, filename, echo, self._generation),
+            name="console-runner",
+            daemon=True,
         )
         self._thread.start()
         return True
@@ -93,15 +97,15 @@ class CodeRunner:
         if self._thread is not None:
             self._thread.join(timeout)
 
-    def _execute(self, source: str, generation: int) -> None:
+    def _execute(self, source: str, filename: str, echo: bool, generation: int) -> None:
         ok = False
         try:
-            tree = ast.parse(source, "<console>")
-            last = tree.body[-1] if tree.body and isinstance(tree.body[-1], ast.Expr) else None
+            tree = ast.parse(source, filename)
+            last = tree.body[-1] if echo and tree.body and isinstance(tree.body[-1], ast.Expr) else None
             body = ast.Module(tree.body[:-1] if last else tree.body, type_ignores=[])
-            exec(compile(body, "<console>", "exec"), self.namespace)
+            exec(compile(body, filename, "exec"), self.namespace)
             if last is not None:
-                value = eval(compile(ast.Expression(last.value), "<console>", "eval"), self.namespace)
+                value = eval(compile(ast.Expression(last.value), filename, "eval"), self.namespace)
                 if value is not None:
                     self.namespace["_"] = value
                     self._show(value)
