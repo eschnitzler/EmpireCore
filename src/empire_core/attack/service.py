@@ -94,6 +94,24 @@ class AttackService(BaseService):
         """Your attack counter, from the last ``gai``; None until one arrived."""
         return self.client.state.get_attack_counter()
 
+    def camp_army(self, item: MapAreaItem) -> SpyArmy | None:
+        """
+        A robber baron camp's defenders, from the game data rather than a spy report.
+
+        Each flank holds the camp row's units, then its tools. None for any
+        other target, and for a camp the items payload lists no row for. A
+        treasure map's camp is not covered: its victory count is its map
+        node's, which no map row carries (``TreasureDungeonMapObjectVO.victoryCount``,
+        bundle line 22004); look it up with ``GameData.dungeon_defense``.
+
+        Raises:
+            GameDataNotLoadedError: The game data cannot be loaded
+        """
+        if item.item_type != MapItemType.DUNGEON or item.victory_count is None:
+            return None
+        row = self._require_game_data().dungeon_defense(item.victory_count, item.kingdom)
+        return SpyArmy.from_camp(row) if row is not None else None
+
     def send_attack(
         self,
         source_x: int,
@@ -772,7 +790,9 @@ class AttackService(BaseService):
                 level rather than its current owner's
             spy_army: A spied castle's defenders per flank, from
                 ``get_attack_info(...).spy_army``. Without it a castle target
-                is modeled as fortification alone, with no defending army
+                is modeled as fortification alone, with no defending army, and
+                a robber baron camp as its row in the items payload
+                (:meth:`camp_army`)
             defending_castellan: The castellan holding the target, from
                 ``get_attack_info(...).defending_castellan()``. Its equipment
                 raises the fortification and multiplies the defenders,

@@ -45,7 +45,10 @@ From the coordinates it reads the target's area type and structures, the
 defenders each flank holds and the castellan holding it, the area effects that
 widen your flanks, your general's skills, and your own legend and Hall of
 Legends skills. A camp's level comes from the victory count in its map row; a
-player's from the owner records beside it.
+player's from the owner records beside it. A robber baron camp's defenders,
+tools and commander come from its row in the game data
+([`camp_army`](../reference/attack.md#empire_core.attack.service.AttackService.camp_army)),
+unless you pass your own `spy_army`.
 
 Every one of those can be passed instead, and passing one skips the request
 that would have found it. The keyword arguments of

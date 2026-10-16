@@ -10,18 +10,15 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterable, Sequence
-from typing import TYPE_CHECKING
 
+from empire_core.army.spy_army import SpyArmy
+from empire_core.commanders.models.roster import Commander
 from empire_core.enums import CombatEffectType, Flank, Kingdom, MapItemType
 from empire_core.gamedata import GameData, NpcCampDefence, ToolStats
 from empire_core.map.models.items import MapAreaItem
 
 from .bonuses import Bonus, EffectResolver, commander_bonuses, effect_value_bonuses
 from .effects import DefenderFlankEffects
-
-if TYPE_CHECKING:
-    from empire_core.army.spy_army import SpyArmy
-    from empire_core.commanders.models.roster import Commander
 
 logger = logging.getLogger(__name__)
 
@@ -363,14 +360,14 @@ LEGEND_MOAT_BONUS = "moatBonus"
 
 def spied_castle_defense(
     game_data: GameData,
-    spy_army: "SpyArmy",
+    spy_army: SpyArmy,
     *,
     wall_bonus: float = 0.0,
     gate_bonus: float = 0.0,
     moat_bonus: float = 0.0,
     melee_bonus: float = 1.0,
     range_bonus: float = 1.0,
-    castellan: "Commander | None" = None,
+    castellan: Commander | None = None,
     defender_legend_skill_ids: Sequence[int] | None = None,
     area_type: int | None = None,
 ) -> dict[Flank, DefenderFlankEffects]:
@@ -494,10 +491,13 @@ def npc_camp_defense(
     kingdom_id: Kingdom = Kingdom.GREEN,
 ) -> dict[Flank, DefenderFlankEffects] | None:
     """
-    What defends an NPC camp, per flank, without asking the server.
+    What defends a robber baron camp, per flank, without asking the server.
 
-    The items payload lists a camp's defenders by victory count, so a robber
-    baron camp's defense can be computed offline instead of spying it.
+    The camp's row (:meth:`GameData.dungeon_defense`) gives its defenders and
+    tools as a spy report would (:meth:`SpyArmy.from_camp`), and they go
+    through :func:`spied_castle_defense` with the wall and gate its level
+    implies. The row's commander is not applied: nothing shows the server
+    defends the camp with it.
 
     Args:
         game_data: Loaded stats
@@ -505,31 +505,21 @@ def npc_camp_defense(
         kingdom_id: Kingdom the camp sits in
 
     Returns:
-        Effects per flank, or None when the payload lists no such camp. The
-        camp's own wall and gate protection is included, derived from the level
-        its victory count implies.
+        Effects per flank, or None when the payload lists no such camp
     """
     row = game_data.dungeon_defense(victories, kingdom_id)
     if row is None:
         return None
-
     level = camp_level(victories, kingdom_id)
     wall_level, gate_level = camp_fortification_levels(level)
     wall, gate, moat = fortification_bonuses(game_data, wall_level=wall_level, gate_level=gate_level)
-
-    # Defending tools (row.tools_*) are not folded in: their contributions live
-    # in the tool's unresolved effects block, so the fortification here is the
-    # camp's own walls.
-    per_flank = {
-        Flank.LEFT: row.units_left,
-        Flank.MIDDLE: row.units_middle,
-        Flank.RIGHT: row.units_right,
-        Flank.YARD: row.units_keep,
-    }
-    return {
-        flank: defender_flank_effects(units, game_data, flank=flank, wall_bonus=wall, gate_bonus=gate, moat_bonus=moat)
-        for flank, units in per_flank.items()
-    }
+    return spied_castle_defense(
+        game_data,
+        SpyArmy.from_camp(row),
+        wall_bonus=wall,
+        gate_bonus=gate,
+        moat_bonus=moat,
+    )
 
 
 def event_camp_defense(

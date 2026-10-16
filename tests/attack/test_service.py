@@ -113,6 +113,37 @@ class TestCreateAttackReply:
         assert (reply.arrival_seconds, reply.army_size) == (95, 40)
 
 
+class TestCampArmy:
+    def client(self):
+        from tests.combat.combat_helpers import data
+
+        client = make_client(castles=OWN)
+        client.game_data = data()
+        return client
+
+    def test_a_robber_baron_camp_is_read_from_the_game_data(self):
+        from empire_core.map import MapAreaItem
+
+        client = self.client()
+        camp = MapAreaItem.from_list([2, 700, 710, 0, -6, 0, 0])
+
+        army = client.attack.camp_army(camp)
+
+        assert army is not None
+        assert army.middle == (WodAmount(601, 10), WodAmount(211, 5), WodAmount(646, 2))
+        assert army.left == (WodAmount(601, 2),)
+        assert conn(client).request_payloads == []
+
+    def test_anything_else_has_none(self):
+        from empire_core.map import MapAreaItem
+
+        client = self.client()
+
+        assert client.attack.camp_army(MapAreaItem.from_list([1, 700, 710, 900, 4242, 1, 1, 1, 0, 0, "x"])) is None
+        assert client.attack.camp_army(MapAreaItem.from_list([2, 700, 710, 0, -6, 0, 2])) is None
+        assert client.attack.camp_army(MapAreaItem.from_list([7, -1, -1, 1, 0, 0, 0])) is None
+
+
 class TestAttackService:
     def test_an_attack_already_on_its_way_raises_with_its_details(self):
         from empire_core import AttackInProgressError

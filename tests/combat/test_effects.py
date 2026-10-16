@@ -187,14 +187,40 @@ class TestNpcCampDefence:
 
     def test_unknown_camp_returns_none(self):
         assert npc_camp_defense(data(), victories=-6, kingdom_id=Kingdom.ICE) is None
-        assert npc_camp_defense(data(), victories=99) is None
+        assert npc_camp_defense(data(), victories=-7) is None
+        # Past the highest row, the client reads the highest
+        assert npc_camp_defense(data(), victories=99) is not None
 
-    def test_defending_tools_are_not_folded_in_yet(self):
-        # toolM is "646+2"; its fortification is not resolvable yet, so the
-        # bonuses stay at zero rather than being guessed.
-        effects = npc_camp_defense(data(), victories=-6)
+    def test_defending_tools_raise_the_flank_they_stand_on(self):
+        # toolM is "646+2", a moat tool
+        game = data()
+        stakes = game.get_tool(646)
+        assert stakes is not None and stakes.moat_bonus > 0
 
-        assert flanks_of(effects)[Flank.MIDDLE].moat_bonus == 0.0
+        effects = flanks_of(npc_camp_defense(game, victories=-6))
+
+        assert effects[Flank.MIDDLE].moat_bonus == pytest.approx(stakes.moat_bonus)
+        assert effects[Flank.LEFT].moat_bonus == 0.0
+
+    def test_the_camps_commander_is_not_applied(self):
+        # Live rows: lord -21 holds the camp with effects 10 and 11, melee and ranged bonus
+        payload = dict(
+            PAYLOAD,
+            lords=[{"lordID": "-21", "type": "Dungeonbaron", "wearerID": "1", "effects": "10&15,11&15"}],
+            equipment_effects=[
+                {"equipmentEffectID": "10", "wearerID": "1", "effectID": "10"},
+                {"equipmentEffectID": "11", "wearerID": "1", "effectID": "11"},
+            ],
+            effects=[
+                {"effectID": "10", "name": "meleeBonus", "effectTypeID": "9", "capID": "9"},
+                {"effectID": "11", "name": "rangeBonus", "effectTypeID": "10", "capID": "10"},
+            ],
+        )
+
+        effects = flanks_of(npc_camp_defense(GameData.parse("test", payload), victories=-6))
+
+        # Nothing shows the server defends the camp with the row's commander
+        assert (effects[Flank.LEFT].melee_bonus, effects[Flank.LEFT].range_bonus) == (1.0, 1.0)
 
 
 class TestValueObjects:

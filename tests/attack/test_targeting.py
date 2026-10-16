@@ -129,3 +129,63 @@ class TestTargetReading(FillClient):
         _read_target(client.attack, read, castle_id=12345, timeout=1.0)
         assert (read.row, read.level) == (row, 70)
         assert conn(client).requested.count("gaa") == 1
+
+
+class TestCampDefense(FillClient):
+    """A robber baron camp's defenders come from the items payload unless the caller passes a spy report."""
+
+    def test_the_camps_row_brings_its_tools(self):
+        from empire_core.attack.targeting import _Target
+        from empire_core.enums import Flank
+        from tests.combat.combat_helpers import data
+
+        game = data()
+        stakes = game.get_tool(646)
+        assert stakes is not None
+
+        defense = _target_defense(game, _Target(x=5, y=6, camp_victories=-6))
+
+        assert defense is not None
+        assert defense[Flank.MIDDLE].melee_units_melee_strength == 600
+        assert defense[Flank.MIDDLE].moat_bonus == pytest.approx(stakes.moat_bonus)
+
+    def test_a_spy_report_overrides_the_row(self):
+        from empire_core.attack.targeting import _Target
+        from empire_core.enums import Flank
+        from tests.combat.combat_helpers import data
+
+        spied = SpyArmy.model_validate([[], [[211, 4]], [], []])
+
+        defense = _target_defense(data(), _Target(x=5, y=6, camp_victories=-6, spy_army=spied))
+
+        assert defense is not None
+        middle = defense[Flank.MIDDLE]
+        assert (middle.melee_units_melee_strength, middle.range_units_range_strength) == (0, 4 * 42)
+        assert middle.moat_bonus == 0.0
+        assert defense[Flank.LEFT].melee_units_melee_strength == 0
+
+    def test_the_pre_calculations_spy_report_does_not_override_the_row(self):
+        from empire_core.attack.targeting import _Target
+        from empire_core.enums import Flank
+        from tests.combat.combat_helpers import data
+
+        client = self.build([[601, 100_000]])
+        spied = SpyArmy.model_validate([[], [[211, 4]], [], []])
+        client.attack.get_attack_info = lambda **_: SimpleNamespace(
+            target_row=lambda: None,
+            spy_army=spied,
+            defending_castellan=lambda: None,
+            attacker_bonuses=lambda: [],
+            owner_records=lambda: [],
+            defender_legend_skill_ids=None,
+        )
+        camp = _Target(x=5, y=6, area_type=MapItemType.DUNGEON, camp_victories=-6)
+        castle = _Target(x=5, y=6, area_type=MapItemType.CASTLE)
+
+        _read_precalculation(client.attack, camp, timeout=1.0)
+        _read_precalculation(client.attack, castle, timeout=1.0)
+
+        assert camp.spy_army is None and castle.spy_army == spied
+        defense = _target_defense(data(), camp)
+        assert defense is not None
+        assert defense[Flank.MIDDLE].melee_units_melee_strength == 600

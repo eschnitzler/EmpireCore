@@ -19,7 +19,7 @@ from typing import Annotated, Any, ClassVar
 from pydantic import BeforeValidator, ConfigDict, Field, model_validator
 
 from empire_core.enums import SpyArmySection
-from empire_core.gamedata import WodAmount, wod_amount_pairs
+from empire_core.gamedata import DungeonDefence, WodAmount, parse_stacks, wod_amount_pairs
 from empire_core.protocol.base import EmpireModel
 
 
@@ -67,6 +67,22 @@ class SpyArmy(EmpireModel):
         if not isinstance(data, list):
             return data
         return {section.value: data[index] for index, section in enumerate(SpyArmySection) if index < len(data)}
+
+    @classmethod
+    def from_camp(cls, row: DungeonDefence) -> SpyArmy:
+        """
+        A camp's defenders from its row in the items payload, each flank's units then its tools.
+
+        A tool stack the row lists twice stays two stacks, as a spy report keeps them.
+        """
+        return cls.model_validate(
+            [
+                parse_stacks(row.raw_units_left) + parse_stacks(row.raw_tools_left),
+                parse_stacks(row.raw_units_middle) + parse_stacks(row.raw_tools_middle),
+                parse_stacks(row.raw_units_right) + parse_stacks(row.raw_tools_right),
+                parse_stacks(row.raw_units_keep),
+            ]
+        )
 
     def section(self, section: SpyArmySection) -> tuple[WodAmount, ...]:
         """The stacks at one position."""

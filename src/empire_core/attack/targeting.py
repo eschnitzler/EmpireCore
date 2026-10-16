@@ -344,7 +344,8 @@ def _read_precalculation(service: AttackService, target: "_Target", *, timeout: 
         # CastleAttackInfoVO.fillFromParamObject fills gui.I and gui.SHI, and the dialog's
         # AttackDialogUnitPicker adds the stronghold units into the same inventory it fills from
         target.inventory = _merged(info.inventory(), info.stronghold_inventory())
-    if target.spy_army is None:
+    if target.spy_army is None and area_type is not MapItemType.DUNGEON:
+        # A robber baron camp's defenders come from its row; only a caller's spy_army overrides it
         target.spy_army = info.spy_army
     if target.castellan is None:
         target.castellan = info.defending_castellan()

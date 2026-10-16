@@ -288,7 +288,7 @@ class TestReferencedIds:
         "relicEffects": [{"id": "4", "effectID": "1"}],
         "generalSkills": [{"skillID": "10110201", "generalID": "101"}],
         "lords": [{"lordID": "-14", "wearerID": "1"}],
-        "dungeons": [{"countVictories": "0", "kID": "2"}],
+        "dungeons": [{"countVictories": "0", "kID": "2", "lordID": "-14"}],
         "leaguetypes": [{"leaguetypeID": "1", "eventID": "5"}],
         "buildings": [{"wodID": "501", "name": "Castlewall", "wallBonus": "30"}],
         "units": [{"wodID": "1", "slotTypes": "1,9"}],
@@ -309,6 +309,7 @@ class TestReferencedIds:
         assert data.general_skills[10110201].general_id is ids.General.TORIL
         assert data.default_lords[-14].wearer_id is WearerType.CASTELLAN
         assert data.dungeons[0].kingdom_id is Kingdom.ICE
+        assert data.dungeons[0].commander == data.default_lords[-14]
         assert data.league_brackets[0].event_id is ids.Event.NOMAD_INVASION
         assert type(data.fortifications[501].wod_id) is ids.Building
         assert data.tools[1].slot_types == (1, 9)
@@ -322,3 +323,4 @@ class TestReferencedIds:
         assert again is not None and again == data
         assert again.equipment_effects[9].item_group_ids == (ids.EquipmentGroup.ATTACK_PVP, 4711)
         assert again.dungeons[0].kingdom_id is Kingdom.ICE
+        assert again.dungeons[0].commander == data.default_lords[-14]
