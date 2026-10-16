@@ -336,7 +336,13 @@ class EmpireModel(pydantic.BaseModel):
     fields, so every later rebuild of the model sees it. The key must be on the assigned
     ``Field(...)``, not inside ``Annotated[...]``. An ``AliasChoices`` or ``AliasPath`` field names
     its ``serialization_alias`` itself.
+
+    Validators are built on a model's first use, not as its class is created: the library defines
+    hundreds of models and a program uses a few, so building them all made ``import empire_core``
+    take over a second.
     """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(defer_build=True)
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
