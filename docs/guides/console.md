@@ -39,7 +39,9 @@ Results print as indented models, sized to the pane, and the last one is kept as
 ends with `✓ 37 ms` (or `✗` when it raised). Enter runs the input once it is a complete statement;
 a block (`for`, `def`, `with`) runs on an empty line, as in the Python REPL, and Esc then Enter runs
 whatever is typed. Code runs on a worker thread, so frames keep streaming while a request waits;
-the toolbar shows a timer while it runs. History is kept in `~/.empire_console_history`.
+the toolbar shows a timer while it runs. Ctrl-C stops it: the input is free again at once, and a
+call still waiting for its reply ends quietly when its wait does. History is kept in
+`~/.empire_console_history`.
 
 ## Reading frames
 

@@ -361,7 +361,10 @@ class Console:
 
         @keys.add("c-c", filter=in_input)
         def _(event: KeyPressEvent) -> None:
-            self.input.buffer.reset()
+            if self.runner.interrupt():
+                self._queue_output("✗ interrupted\n")
+            else:
+                self.input.buffer.reset()
 
         for key in ("c-c", "y"):
             keys.add(key, filter=in_text)(lambda event: self._copy_pane(event.current_buffer))
@@ -558,6 +561,7 @@ class Console:
             elapsed = time.monotonic() - self.runner.started_at
             spin = SPINNER[int(elapsed * 4) % len(SPINNER)]
             parts.append(("class:toolbar.busy", f"  {spin} running {duration_label(elapsed)} "))
+            parts += [("class:toolbar.key", " Ctrl-C"), ("class:toolbar", " stop ")]
         return parts
 
     def detail_title_text(self) -> str:
