@@ -94,7 +94,6 @@ GAME_DATA_SCALAR_IDS: dict[str, str] = {
     "gamedata.models.ConstructionItemDef.rareness_id": "not established that it shares the equipment Rareness ids",
     "gamedata.models.ConstructionItemDef.slot_type_id": "construction item slot types: the client names none",
     "gamedata.models.DefaultLordDef.lord_id": "default commanders have no name to make an enum of",
-    "gamedata.models.DungeonDefence.lord_id": "a default commander id, which has no enum",
     "gamedata.models.EffectCapDef.cap_id": "effect caps have no name to make an enum of",
     "gamedata.models.EffectDef.cap_id": "effect caps have no name to make an enum of",
     "gamedata.models.EquipmentEffectDef.equipment_effect_id": "equipment effects have no name to make an enum of",

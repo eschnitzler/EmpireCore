@@ -441,7 +441,7 @@ def default_cache_dir() -> Path:
     return Path(base) / "empire_core"
 
 
-def _rows(entries: object, model: type[R]) -> list[R]:
+def _rows(entries: object, model: type[R], context: dict[str, Any] | None = None) -> list[R]:
     """Validate a table, skipping rows that do not fit rather than failing."""
     parsed: list[R] = []
     skipped = 0
@@ -452,7 +452,7 @@ def _rows(entries: object, model: type[R]) -> list[R]:
             skipped += 1
             continue
         try:
-            parsed.append(model.model_validate(entry))
+            parsed.append(model.model_validate(entry, context=context))
         except ValueError:
             skipped += 1
     if skipped:
@@ -851,12 +851,27 @@ class GameData(EmpireModel):
         effect_type = self.effect_types.get(effect.effect_type_id)
         return effect_type.name if effect_type else ""
 
-    def dungeon_defense(self, victories: int, kingdom_id: Kingdom = Kingdom.GREEN) -> DungeonDefence | None:
-        """The camp defense for a victory count in a kingdom."""
-        for row in self.dungeons:
-            if row.count_victories == victories and row.kingdom_id == kingdom_id:
-                return row
-        return None
+    def dungeon_defense(self, victories: int, kingdom_id: Kingdom | int = Kingdom.GREEN) -> DungeonDefence | None:
+        """
+        The robber baron camp's defense for a victory count in a kingdom.
+
+        A count past the kingdom's highest row reads that row; one below its
+        lowest, or a kingdom with no rows, finds None, where the client gets
+        ``undefined``. A treasure map dungeon is looked up by its node's own
+        ``countVictories`` and its map's ``kID``, as
+        ``TreasureDungeonMapObjectVO.skipCooldownCostC2`` does (bundle line 22007).
+
+        Client: ``CastleDungeonData.getDungeon`` (bundle lines 111765-111766)
+
+        Args:
+            victories: The robber baron camp's victory count, from ``MapAreaItem.victory_count``
+            kingdom_id: The robber baron camp's kingdom, or a treasure map's ``kID``
+        """
+        rows = [row for row in self.dungeons if row.kingdom_id == kingdom_id]
+        if not rows:
+            return None
+        victories = min(victories, max(row.count_victories for row in rows))
+        return next((row for row in rows if row.count_victories == victories), None)
 
     def raw(self, table: str) -> list[Any]:
         """An unmodeled table, exactly as the payload had it."""
@@ -997,6 +1012,7 @@ class GameData(EmpireModel):
         equipment_sets: dict[int, list[EquipmentSetDef]] = {}
         for row in _rows(items_data.get("equipment_sets"), EquipmentSetDef):
             equipment_sets.setdefault(row.set_id, []).append(row)
+        default_lords = {r.lord_id: r for r in _rows(items_data.get("lords"), DefaultLordDef)}
 
         data = cls(
             version=version,
@@ -1022,9 +1038,9 @@ class GameData(EmpireModel):
             alliance_buffs={r.alliance_buff_id: r for r in _rows(items_data.get("alliancebuffs"), AllianceBuffDef)},
             attack_slots={r.slot_id: r for r in _rows(items_data.get("attackSetupSlots"), AttackSlotDef)},
             tool_categories={r.tool_category_id: r for r in _rows(items_data.get("toolCategories"), ToolCategoryDef)},
-            default_lords={r.lord_id: r for r in _rows(items_data.get("lords"), DefaultLordDef)},
+            default_lords=default_lords,
             vip_levels={r.vip_level_id: r for r in _rows(items_data.get("viplevels"), VipLevelDef)},
-            dungeons=_rows(items_data.get("dungeons"), DungeonDefence),
+            dungeons=_rows(items_data.get("dungeons"), DungeonDefence, context={"default_lords": default_lords}),
             camps={
                 table: _rows(items_data.get(table), NpcCampDefence) for table in CAMP_TABLES if items_data.get(table)
             },
