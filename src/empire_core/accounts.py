@@ -10,7 +10,7 @@ import os
 import stat
 import threading
 
-from pydantic import Field, ValidationError
+from pydantic import Field, SecretStr, ValidationError
 
 from empire_core.client.client import EmpireClient
 from empire_core.config import EmpireConfig, default_config, instance_for_zone
@@ -82,9 +82,7 @@ class Account(EmpireModel):
     """
 
     username: str
-    # repr=False: repr()/str() of this model ends up in logs and in traceback
-    # locals captured by error reporters, so the secret must stay out of it.
-    password: str = Field(..., repr=False, description="Plain text password")
+    password: SecretStr = Field(..., description="The password; prints masked")
     world: str = Field(default="EmpireEx_21", description="Game world/zone (e.g., EmpireEx_21)")
     alias: str | None = Field(default=None, description="Short name for this account (e.g., 'main', 'farmer1')")
     tags: list[str] = Field(default_factory=list, description="Categorization tags (e.g., ['farmer', 'k1'])")
@@ -290,7 +288,9 @@ class AccountRegistry:
             world = parts[2].strip() if len(parts) > 2 else "EmpireEx_21"
 
             self._add_account(
-                Account(username=username, password=password, world=world, alias=alias, tags=["env"], active=True)
+                Account(
+                    username=username, password=SecretStr(password), world=world, alias=alias, tags=["env"], active=True
+                )
             )
 
     # === Query Methods ===

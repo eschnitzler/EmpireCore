@@ -110,13 +110,10 @@ environment variable:
 
 === "accounts.json"
 
-    ```json
-    [
-        {
-            "username": "YOUR_USERNAME",
-            "password": "YOUR_PASSWORD"
-        }
-    ]
+    Copy `examples/accounts.json.template` and fill it in:
+
+    ```json title="examples/accounts.json.template"
+    --8<-- "examples/accounts.json.template"
     ```
 
 === "Environment"

@@ -11,10 +11,11 @@ import time
 from typing import IO, Any
 
 import pytest
-from pydantic import ValidationError
+from pydantic import SecretStr, ValidationError
 
 import empire_core.accounts
 import empire_core.accounts as accounts_module
+from empire_core import EmpireClient
 from empire_core.accounts import Account, AccountRegistry, account_registry
 from empire_core.config import LOGIN_DEFAULTS, EmpireConfig, NetworkInstance, default_config, generate_aid, resolve_aid
 from empire_core.exceptions import LoginCooldownError, LoginError
@@ -66,7 +67,7 @@ class TestAccountRegistryEnv:
         acc = registry.get_by_alias("main")
         assert acc is not None
         assert acc.username == "user1"
-        assert acc.password == "pass1"
+        assert acc.password.get_secret_value() == "pass1"
 
     def test_json_env_account_with_comma_password(self, monkeypatch):
         payload = json.dumps({"username": "user2", "password": "pa,ss,word", "world": "EmpireEx_21"})
@@ -75,7 +76,7 @@ class TestAccountRegistryEnv:
         registry.load()
         acc = registry.get_by_username("user2")
         assert acc is not None
-        assert acc.password == "pa,ss,word"
+        assert acc.password.get_secret_value() == "pa,ss,word"
         assert acc.alias == "alt"
 
     def test_env_takes_priority_over_file(self, monkeypatch, tmp_path):
@@ -88,7 +89,7 @@ class TestAccountRegistryEnv:
         acc = registry.get_by_username("shared")
         assert acc is not None
         # Documented priority: env wins
-        assert acc.password == "from_env"
+        assert acc.password.get_secret_value() == "from_env"
         # And no duplicate entry exists
         assert len([a for a in registry.get_all() if a.username == "shared"]) == 1
 
@@ -113,7 +114,7 @@ class TestAccountRegistryEnv:
             countries=[],
         )
         monkeypatch.setattr(accounts_module, "instance_for_zone", lambda zone: instance)
-        config = Account(username="u", password="p", world="EmpireEx_2").to_empire_config()
+        config = Account(username="u", password=SecretStr("p"), world="EmpireEx_2").to_empire_config()
         assert (config.game_url, config.default_zone) == ("wss://ep-live-de1-game.example.com:443", "EmpireEx_2")
 
     def test_the_default_world_needs_no_server_list(self, monkeypatch):
@@ -121,7 +122,7 @@ class TestAccountRegistryEnv:
             raise AssertionError("looked up the default world")
 
         monkeypatch.setattr(accounts_module, "instance_for_zone", no_lookup)
-        config = Account(username="u", password="p").to_empire_config()
+        config = Account(username="u", password=SecretStr("p")).to_empire_config()
         assert (config.game_url, config.default_zone) == (default_config.game_url, default_config.default_zone)
 
     @pytest.mark.parametrize("world", ["EmpireEx_21", "EmpireEx_2"])
@@ -140,7 +141,7 @@ class TestAccountRegistryEnv:
             countries=[],
         )
         monkeypatch.setattr(accounts_module, "instance_for_zone", lambda zone: instance)
-        assert Account(username="u", password="p", world=world).to_empire_config().client_version is None
+        assert Account(username="u", password=SecretStr("p"), world=world).to_empire_config().client_version is None
         account = Account.model_validate({"username": "u", "password": "p", "world": world, "client_version": "1.2.3"})
         assert account.to_empire_config().client_version == "1.2.3"
 
@@ -300,9 +301,9 @@ class TestDefaultConfigIsNotSharedMutableState:
         # so only the shared default instance is frozen.
         cfg = EmpireConfig()
         cfg.username = "bob"
-        cfg.password = "s3cret"
+        cfg.password = SecretStr("s3cret")
         cfg.default_zone = "EmpireEx_1"
-        assert (cfg.username, cfg.password, cfg.default_zone) == ("bob", "s3cret", "EmpireEx_1")
+        assert (cfg.username, cfg.password, cfg.default_zone) == ("bob", SecretStr("s3cret"), "EmpireEx_1")
 
     def test_derived_copy_of_the_default_is_usable(self):
         # The documented way to start from the defaults and change something.
@@ -364,7 +365,7 @@ class SlowRegistry(AccountRegistry):
 
     def _load_from_env(self):
         for i in range(self.ACCOUNT_COUNT):
-            self._add_account(Account(username=f"u{i}", password="p"))
+            self._add_account(Account(username=f"u{i}", password=SecretStr("p")))
             time.sleep(0.02)
 
     def _load_from_file(self, path_str: str, required: bool):
@@ -410,26 +411,60 @@ class TestSecretsNotInRepr:
     SECRET = "SuperSecret123"
 
     def test_account_repr_hides_password(self):
-        acc = Account(username="bob", password=self.SECRET)
+        acc = Account(username="bob", password=SecretStr(self.SECRET))
         assert self.SECRET not in repr(acc)
         assert self.SECRET not in str(acc)
-        # The field itself must still be readable by callers.
-        assert acc.password == self.SECRET
+        assert acc.password.get_secret_value() == self.SECRET
 
     def test_empire_config_repr_hides_password(self):
-        cfg = EmpireConfig(username="bob", password=self.SECRET)
+        cfg = EmpireConfig(username="bob", password=SecretStr(self.SECRET))
         assert self.SECRET not in repr(cfg)
         assert self.SECRET not in str(cfg)
-        assert cfg.password == self.SECRET
+        assert cfg.password is not None
+        assert cfg.password.get_secret_value() == self.SECRET
+
+    def test_the_password_itself_never_prints(self):
+        acc = Account(username="bob", password=SecretStr(self.SECRET))
+        cfg = acc.to_empire_config()
+        for shown in (acc.password, cfg.password, acc.model_dump(), cfg.model_dump()):
+            assert self.SECRET not in str(shown)
+            assert self.SECRET not in repr(shown)
+
+    def test_an_assigned_password_is_a_secret_too(self):
+        cfg = EmpireConfig()
+        cfg.password = self.SECRET  # type: ignore[assignment]
+        assert self.SECRET not in repr(cfg.password)
+        assert cfg.password is not None
+        assert cfg.password.get_secret_value() == self.SECRET
+
+    def test_client_hides_password(self):
+        client = Account(username="bob", password=SecretStr(self.SECRET)).get_client()
+        try:
+            assert self.SECRET not in repr(client)
+            assert self.SECRET not in repr(vars(client))
+            assert client.password is not None
+            assert client.password.get_secret_value() == self.SECRET
+        finally:
+            client.close()
+
+    def test_a_password_assigned_to_a_client_is_a_secret(self):
+        client = EmpireClient(username="bob")
+        try:
+            client.password = self.SECRET
+            assert self.SECRET not in repr(vars(client))
+            assert client.password is not None
+            assert client.password.get_secret_value() == self.SECRET
+        finally:
+            client.close()
 
     def test_derived_config_repr_hides_password(self):
         # to_empire_config() copies the password across, so cover that path too.
-        cfg = Account(username="bob", password=self.SECRET).to_empire_config()
+        cfg = Account(username="bob", password=SecretStr(self.SECRET)).to_empire_config()
         assert self.SECRET not in repr(cfg)
         assert self.SECRET not in str(cfg)
 
     def test_formatted_account_hides_password(self):
-        acc = Account(username="bob", password=self.SECRET)
+        acc = Account(username="bob", password=SecretStr(self.SECRET))
         assert self.SECRET not in f"{acc}"
 
 
@@ -491,8 +526,8 @@ class FakeRegistry(AccountRegistry):
 @pytest.fixture
 def fake_accounts(monkeypatch):
     accs = [
-        Account(username="alpha", password="p", tags=["Farmer"]),
-        Account(username="beta", password="p", tags=["scanner"]),
+        Account(username="alpha", password=SecretStr("p"), tags=["Farmer"]),
+        Account(username="beta", password=SecretStr("p"), tags=["scanner"]),
     ]
     clients: dict[str, FakeClient] = {}
 
@@ -545,8 +580,8 @@ class TestAccountPool:
     def test_injected_registry_is_used_instead_of_global(self, monkeypatch):
         # No monkeypatching of module globals: two pools, two disjoint account sets.
         monkeypatch.setattr(Account, "get_client", lambda self: FakeClient(self.username))
-        pool_a = AccountPool(registry=FakeRegistry([Account(username="only_a", password="p")]))
-        pool_b = AccountPool(registry=FakeRegistry([Account(username="only_b", password="p")]))
+        pool_a = AccountPool(registry=FakeRegistry([Account(username="only_a", password=SecretStr("p"))]))
+        pool_b = AccountPool(registry=FakeRegistry([Account(username="only_b", password=SecretStr("p"))]))
 
         assert [a.username for a in pool_a.all_accounts] == ["only_a"]
         assert [a.username for a in pool_b.all_accounts] == ["only_b"]
@@ -619,7 +654,7 @@ class TestAccountPool:
                 raise LoginError("bad credentials")
 
         monkeypatch.setattr(Account, "get_client", lambda self: RaisingLoginClient(self.username))
-        pool = AccountPool(registry=FakeRegistry([Account(username="alpha", password="p")]))
+        pool = AccountPool(registry=FakeRegistry([Account(username="alpha", password=SecretStr("p"))]))
         with pytest.raises(LoginError):
             pool.lease()
         assert pool.busy_count == 0
@@ -634,18 +669,18 @@ class TestLeaseByUsernameMatchesRegistrySemantics:
 
     def test_username_match_is_case_insensitive(self):
         # AccountRegistry.get_by_username and Account.has_tag both fold case.
-        pool = AccountPool(registry=FakeRegistry([Account(username="alpha", password="p")]))
+        pool = AccountPool(registry=FakeRegistry([Account(username="alpha", password=SecretStr("p"))]))
         client = pool.lease(username="ALPHA")
         assert client is not None
         assert client.username == "alpha"
 
     def test_inactive_account_is_not_leasable_by_name(self):
-        pool = AccountPool(registry=FakeRegistry([Account(username="dormant", password="p", active=False)]))
+        pool = AccountPool(registry=FakeRegistry([Account(username="dormant", password=SecretStr("p"), active=False)]))
         assert pool.lease(username="dormant") is None
         assert pool.busy_count == 0
 
     def test_tag_filter_applies_to_the_username_branch(self):
-        pool = AccountPool(registry=FakeRegistry([Account(username="alpha", password="p", tags=["Farmer"])]))
+        pool = AccountPool(registry=FakeRegistry([Account(username="alpha", password=SecretStr("p"), tags=["Farmer"])]))
         assert pool.lease(username="alpha", tag="scanner") is None
         client = pool.lease(username="alpha", tag="FARMER")
         assert client is not None
@@ -740,7 +775,9 @@ class TestConcurrentLeases:
                 super().login()
 
         monkeypatch.setattr(Account, "get_client", lambda self: SlowLoginClient(self.username))
-        pool = AccountPool(SameMomentRegistry([Account(username=f"user{i}", password="p") for i in range(count)]))
+        pool = AccountPool(
+            SameMomentRegistry([Account(username=f"user{i}", password=SecretStr("p")) for i in range(count)])
+        )
         leased: list[str] = []
         errors: list[BaseException] = []
         lock = threading.Lock()
@@ -774,7 +811,7 @@ class TestConcurrentLeases:
                 super().login()
 
         monkeypatch.setattr(Account, "get_client", lambda self: FailOnceClient(self.username))
-        pool = AccountPool(FakeRegistry([Account(username="alpha", password="p")]))
+        pool = AccountPool(FakeRegistry([Account(username="alpha", password=SecretStr("p"))]))
 
         with pytest.raises(LoginError):
             pool.lease()
@@ -793,7 +830,7 @@ class TestConcurrentLeases:
             return clients[-1]
 
         monkeypatch.setattr(Account, "get_client", make)
-        pool = AccountPool(FakeRegistry([Account(username="alpha", password="p")]))
+        pool = AccountPool(FakeRegistry([Account(username="alpha", password=SecretStr("p"))]))
 
         with pytest.raises(KeyboardInterrupt):
             pool.lease()
@@ -815,7 +852,9 @@ class TestKeepAlive:
 
     @staticmethod
     def pool(*usernames: str) -> AccountPool:
-        return AccountPool(FakeRegistry([Account(username=name, password="p") for name in usernames]), keep_alive=True)
+        return AccountPool(
+            FakeRegistry([Account(username=name, password=SecretStr("p")) for name in usernames]), keep_alive=True
+        )
 
     def test_release_keeps_the_client_and_the_next_lease_reuses_it(self, made):
         pool = self.pool("alpha")
@@ -1074,7 +1113,7 @@ class TestKeepAlive:
         assert pool.get_client("alpha") is None
 
     def test_default_pool_still_closes_on_release(self, made):
-        pool = AccountPool(FakeRegistry([Account(username="alpha", password="p")]))
+        pool = AccountPool(FakeRegistry([Account(username="alpha", password=SecretStr("p"))]))
         with pool.leased():
             pass
         assert made[0].closed
