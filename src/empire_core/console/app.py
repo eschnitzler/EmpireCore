@@ -7,6 +7,7 @@ import logging
 import os
 import re
 import sys
+import threading
 import time
 from collections.abc import Callable
 from contextlib import redirect_stderr, redirect_stdout
@@ -17,7 +18,7 @@ from typing import Any
 
 from prompt_toolkit.application import Application
 from prompt_toolkit.buffer import Buffer
-from prompt_toolkit.completion import ThreadedCompleter
+from prompt_toolkit.completion import CompleteEvent, ThreadedCompleter
 from prompt_toolkit.data_structures import Point
 from prompt_toolkit.document import Document
 from prompt_toolkit.filters import Condition, has_focus, to_filter
@@ -73,7 +74,6 @@ from empire_core.console.widgets import Panel, ScrollbarControl, TextPane, osc52
 from empire_core.exceptions import EmpireError
 
 HISTORY = Path.home() / ".empire_console_history"
-RENDER_ROWS = 500
 PAGE = 20
 NOTICE_SECONDS = 2.5
 SPINNER = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
@@ -132,6 +132,9 @@ class Console:
         }
         self.output_log = OutputLog()
         self._cursor_row = 0
+        self._top = 0
+        self.logging_in = False
+        self.completer = NamespaceCompleter(self.namespace)
         self._signature_cache: tuple[tuple[str, int, int], str] | None = None
         self._shown: tuple[Row | None, bool, int] = (None, False, 0)
         self._detail = Detail("")
@@ -150,7 +153,7 @@ class Console:
             multiline=True,
             focus_on_click=True,
             lexer=python,
-            completer=ThreadedCompleter(NamespaceCompleter(self.namespace)),
+            completer=ThreadedCompleter(self.completer),
             complete_while_typing=True,
             history=FileHistory(str(history or HISTORY)),
             get_line_prefix=lambda line, _wrap: [("class:output.prompt", "... " if line else ">>> ")],
@@ -433,6 +436,29 @@ class Console:
         else:
             command(args)
 
+    def start(self, *, login: bool) -> None:
+        """Begin the background work of a fresh console: warm up completion and, with ``login``, log in."""
+        threading.Thread(target=self._warm_up, name="console-warm-up", daemon=True).start()
+        if login:
+            self.logging_in = True
+            threading.Thread(target=self._login, name="console-login", daemon=True).start()
+
+    def _warm_up(self) -> None:
+        # jedi's first completion takes a few hundred ms; pay it before anyone presses Tab.
+        list(self.completer.get_completions(Document("client."), CompleteEvent()))
+
+    def _login(self) -> None:
+        started = time.monotonic()
+        try:
+            self.client.login()
+        except Exception as e:  # noqa: BLE001 - any failure to log in is shown in the console, not lost on its thread
+            self._queue_output(f"✗ {type(e).__name__}: {e}\n")
+        else:
+            self._queue_output(f"✓ logged in as {self.who} in {duration_label(time.monotonic() - started)}\n")
+        finally:
+            self.logging_in = False
+            self.application.invalidate()
+
     def quit(self) -> None:
         """Exit the console; safe from any thread, so code can call ``exit()``."""
         loop = self.application.loop
@@ -480,15 +506,26 @@ class Console:
     def close(self) -> None:
         self.client.connection.remove_frame_listener(self.frames.add)
 
+    def list_height(self) -> int:
+        """The frame list's rows on screen: its panel less the borders and the column header."""
+        return max(self._frames_height() - 3, 1)
+
     def render_frame_list(self) -> StyleAndTextTuples:
-        """The rows around the cursor only; the list may hold thousands."""
+        """The rows that fit, scrolled only as far as keeps the selection in view."""
         rows = self.frames.visible()
+        height = self.list_height()
         current = self._row_index(rows)
-        top = max(0, min(current - RENDER_ROWS // 2, len(rows) - RENDER_ROWS))
+        if self.selected is None:
+            self._top = len(rows) - height
+        elif current < self._top:
+            self._top = current
+        elif current >= self._top + height:
+            self._top = current - height + 1
+        top = self._top = max(0, min(self._top, len(rows) - height))
         # The cursor must point into these rows, even if frames arrive before it is asked for.
         self._cursor_row = max(current - top, 0)
         lines: StyleAndTextTuples = []
-        for row in rows[top : top + RENDER_ROWS]:
+        for row in rows[top : top + height]:
             chosen = row is self.selected
             highlight = "class:frame.selected " if chosen else ""
             handler = self._mouse_handler(row)
@@ -499,8 +536,13 @@ class Console:
 
     def toolbar(self) -> StyleAndTextTuples:
         online = self.client.connection.connected
-        status = f" ● {self.who} " if online else f" ○ {self.who} offline "
-        parts: StyleAndTextTuples = [("class:toolbar.online" if online else "class:toolbar.offline", status)]
+        if self.logging_in:
+            spin = SPINNER[int(time.monotonic() * 8) % len(SPINNER)]
+            parts: StyleAndTextTuples = [("class:toolbar.busy", f" {spin} logging in {self.who} ")]
+        elif online:
+            parts = [("class:toolbar.online", f" ● {self.who} ")]
+        else:
+            parts = [("class:toolbar.offline", f" ○ {self.who} offline ")]
         layout = self.application.layout
         keys = CODE_KEYS
         if layout.has_focus(self.frame_list):
@@ -731,15 +773,6 @@ def run(argv: list[str]) -> int:
     username, password = (args.username, None) if args.no_login else credentials(args.username)
     client = EmpireClient(username=username, password=password, config=config)
     console = Console(client, theme=args.theme)
-    if not args.no_login:
-        print(f"Logging in as {username} on {config.default_zone}…")
-        try:
-            client.login()
-        except EmpireError as e:
-            print(f"{type(e).__name__}: {e}", file=sys.stderr)
-            console.close()
-            client.close()
-            return 1
 
     handler = logging.StreamHandler(console.writer)
     handler.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
@@ -748,7 +781,7 @@ def run(argv: list[str]) -> int:
     root.setLevel(args.log_level.upper())
     try:
         with redirect_stdout(console.writer), redirect_stderr(console.writer):
-            console.application.run()
+            console.application.run(pre_run=lambda: console.start(login=not args.no_login))
     finally:
         root.removeHandler(handler)
         console.close()
