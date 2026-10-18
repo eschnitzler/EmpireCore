@@ -1,5 +1,5 @@
 """
-Map areas, kingdom scans and finding map objects, enemy castles and Berimond towers.
+Map areas, kingdom scans, ruins and finding map objects, enemy castles and Berimond towers.
 
 Reading the map moves the session off the castle it had joined: a
 castle-scoped read after a scan fails with NOT_IN_OWNED_CASTLE until the
@@ -27,6 +27,7 @@ from empire_core.map.models.areas import (
     GetMapAreaResponse,
 )
 from empire_core.map.models.items import parse_area_rows
+from empire_core.map.models.ruins import RememberRuinRequest, RuinInfoRequest, RuinInfoResponse
 from empire_core.map.models.world import MapSize
 from empire_core.map.pacing import MapAreaPacer
 from empire_core.map.scanner import ChunkHandler, MapScanner, ScanResult
@@ -286,6 +287,28 @@ class MapService(BaseService):
         ``SearchEnemyPanelButton.onButtonClicked`` (bundle line 108075) in Berimond
         """
         return self._find(FindNextTowerRequest(), FindNextTowerResponse, Kingdom.BERIMOND, timeout)
+
+    def get_ruin_info(self, x: int, y: int, *, timeout: float = 5.0) -> RuinInfoResponse:
+        """
+        How long the ruin at ``(x, y)`` stays a ruin before a castle can relocate onto it.
+
+        The request names no kingdom.
+
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+
+        Client: ``C2SRuinInfoVO`` (bundle line 109346), ``RUICommand.executeCommand`` (bundle line 126835)
+        """
+        return self.request(RuinInfoRequest(x=x, y=y), RuinInfoResponse, timeout=timeout)
+
+    def remember_ruin(self, x: int, y: int) -> None:
+        """
+        Ask to be reminded when the ruin at ``(x, y)`` frees. The client has no handler for an answer,
+        so none is waited for.
+
+        Client: ``CastleRelocateRuinDialog.onClick`` (bundle line 60533)
+        """
+        self.send(RememberRuinRequest(x=x, y=y))
 
     def _find(self, request: BaseRequest, response_type: type[_F], kingdom: Kingdom, timeout: float) -> _F | None:
         """Send a find-next request; None for NO_PLAYER_FOUND, as ``FNMCommand`` reads it (bundle line 40185)."""

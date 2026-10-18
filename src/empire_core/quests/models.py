@@ -1,6 +1,7 @@
 """
 Your quests as ``client.state`` keeps them: the active quests (``qli``), the quest book's main
-quests, and the daily quests (``dql``).
+quests, and the daily quests (``dql``); and the requests that donate for a quest (``qdr``, ``qdc``)
+and finish a condition the client counts itself (``fcq``).
 
 The state has no game data, so a quest is its id (a ``QuestId`` or ``DailyQuestId``) and the
 progress the server sent; its conditions, rewards and texts are in the items' ``quests`` and
@@ -14,8 +15,9 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 from pydantic import ConfigDict, Field
 
-from empire_core.gamedata import Collectable, EnumOrInt
-from empire_core.protocol.base import EmpireModel
+from empire_core.enums import QuestConditionType
+from empire_core.gamedata import Collectable, CurrencyId, EnumOrInt
+from empire_core.protocol.base import BaseRequest, BaseResponse, EmpireModel
 from empire_core.protocol.js import js_int, js_loose_equals, js_truthy
 
 if TYPE_CHECKING:
@@ -189,3 +191,94 @@ class DailyQuests(EmpireModel):
             quests=tuple(sorted(quests, key=lambda quest: quest.quest_id)),
             threshold_rewards=rewards,
         )
+
+
+class QuestDonateResourcesRequest(BaseRequest):
+    """
+    Donate resources for a quest's donate condition.
+
+    Command: qdr
+    Payload: {"QID": quest_id, "F": food, "W": wood, "S": stone, "C1": coins, "O": oil, "C": coal,
+    "I": iron, "G": glass, "PWR": 0, "PO": -1}
+
+    ``DonateForQuestCommand.performAction`` puts the condition's amount in the one field of its
+    resource and leaves the rest 0. ``PWR`` 1 with a merchant in ``PO`` buys missing resources
+    with rubies, which only the resource wait dialog sends (bundle line 35225).
+
+    Client: ``C2SQuestDonateRessourcesVO`` (bundle line 47687), sent by
+    ``DonateForQuestCommand.performAction`` (bundle lines 101001-101021)
+    """
+
+    command = "qdr"
+
+    quest_id: EnumOrInt["QuestId"] = Field(validation_alias="QID", description="The quest")
+    food: int = Field(validation_alias="F", default=0, description="Food to donate")
+    wood: int = Field(validation_alias="W", default=0, description="Wood to donate")
+    stone: int = Field(validation_alias="S", default=0, description="Stone to donate")
+    coins: int = Field(validation_alias="C1", default=0, description="Coins to donate")
+    oil: int = Field(validation_alias="O", default=0, description="Oil to donate")
+    coal: int = Field(validation_alias="C", default=0, description="Coal to donate")
+    iron: int = Field(validation_alias="I", default=0, description="Iron to donate")
+    glass: int = Field(validation_alias="G", default=0, description="Glass to donate")
+    pay_with_rubies: int = Field(validation_alias="PWR", default=0, description="0: donate what you hold")
+    private_offer: int = Field(validation_alias="PO", default=-1, description="The ruby merchant; -1 for none")
+
+
+class QuestDonateResourcesResponse(BaseResponse):
+    """
+    The answer to a resource donation; the client reads nothing from it.
+
+    Command: qdr
+
+    Client: ``QDRCommand.executeCommand`` (bundle line 126553)
+    """
+
+    command = "qdr"
+
+
+class QuestDonateCurrencyRequest(BaseRequest):
+    """
+    Donate a currency, khan medals or samurai tokens, for a quest's donate condition.
+
+    Command: qdc
+    Payload: {"QID": quest_id, "CID": currency_id, "A": amount}
+
+    Client: ``C2SQuestDonateCurrencyVO`` (bundle line 101033), sent by
+    ``DonateForQuestCommand.performAction`` (bundle lines 101019-101021)
+    """
+
+    command = "qdc"
+
+    quest_id: EnumOrInt["QuestId"] = Field(validation_alias="QID", description="The quest")
+    currency_id: CurrencyId = Field(validation_alias="CID", description="The currency donated")
+    amount: int = Field(validation_alias="A", description="How much to donate")
+
+
+class QuestDonateCurrencyResponse(BaseResponse):
+    """
+    The answer to a currency donation; the client reads nothing from it.
+
+    Command: qdc
+
+    Client: ``QDCCommand.executeCommand`` (bundle line 126540)
+    """
+
+    command = "qdc"
+
+
+class FinishQuestConditionRequest(BaseRequest):
+    """
+    Report a quest condition done that only the client sees done, such as visiting a screen.
+
+    Command: fcq
+    Payload: {"QC": condition_type, "QTID": target_id}
+
+    The client has no handler for an answer.
+
+    Client: ``C2SFinishQuestConditionVO`` (bundle line 41691)
+    """
+
+    command = "fcq"
+
+    condition_type: QuestConditionType = Field(validation_alias="QC", description="The condition done")
+    target_id: int = Field(validation_alias="QTID", default=-1, description="The condition's target; -1 for none")
