@@ -952,6 +952,9 @@ class ConstructionItemDef(EffectSpecRow):
     rareness_id: int = Field(validation_alias="rarenessID", default=0)
     slot_type_id: int = Field(validation_alias="slotTypeID", default=0)
     effect_group_id: int = Field(validation_alias="constructionItemEffectGroupID", default=0)
+    duration_seconds: int = Field(
+        validation_alias="duration", default=0, description="Temporary item lifetime; 0 for permanent"
+    )
     is_premium: bool = Field(
         validation_alias="isPremium",
         default=False,

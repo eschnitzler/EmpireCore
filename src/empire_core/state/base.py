@@ -15,7 +15,11 @@ from empire_core.alliance.models.help import AllianceHelpRequest
 from empire_core.alliance.models.info import AllianceInfo
 from empire_core.attack.models.counter import AttackCounterResponse
 from empire_core.castle.models.collect import MineStatus, ResourceCart
-from empire_core.castle.models.construction_items import ConstructionItemInventory
+from empire_core.castle.models.construction_items import (
+    ConstructionItemInventory,
+    ConstructionItemSpace,
+    ExpiredConstructionItemsResponse,
+)
 from empire_core.castle.models.kingdoms import KingdomInfoResponse
 from empire_core.castle.models.mercenaries import MercenaryMissionsResponse
 from empire_core.castle.models.objects import BuildingConstructionItems
@@ -204,6 +208,8 @@ class StateBase:
         self.mercenary_missions: MercenaryMissionsResponse | None = None
         self.tax: TaxInfo | None = None
         self.construction_items: ConstructionItemInventory | None = None
+        self.construction_item_space: ConstructionItemSpace | None = None
+        self.expired_construction_items: ExpiredConstructionItemsResponse | None = None
         self.construction_item_expiry: ConstructionItemExpiryResponse | None = None
         self.resource_pool: ResourcePoolResponse | None = None
 

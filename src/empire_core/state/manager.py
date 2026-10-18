@@ -149,7 +149,7 @@ _SUCCESS_ONLY = frozenset(
     | (set(_NESTED_SECTIONS) - {"cpm", "crm"})
     | {"rue", "kik", "gsm", "rci", "cmr", "rcc", "jaa", "fbe", "cbx", "gdb", "gcb", "csl", "gab", "gec"}
     | {"qli", "qst", "qpg", "qfi", "msp", "cqs"}
-    | {"nfo", "aqs", "bse", "bbs", "saq", "caq", "caaq", "raq", "scq"}
+    | {"nfo", "aqs", "bse", "bbs", "saq", "caq", "caaq", "raq", "scq", "aec"}
 )
 
 
@@ -352,6 +352,7 @@ class GameState(
         # Any map read leaves the joined castle, refused or not
         "gaa": "_handle_gaa",
         "gec": "_handle_gec",
+        "aec": "_handle_aec",
         "qli": "_handle_qli",
         "qst": "_handle_qst",
         "qpg": "_handle_qpg",
@@ -373,7 +374,7 @@ class GameState(
         ok = error_code == 0
         with self._lock:
             self._packet_sequence += 1
-            if ok and cmd_id in {"rpc", "cri"}:
+            if ok and cmd_id in {"rpc", "cri", "ubc"}:
                 self._construction_item_reply_order[cmd_id] = (payload, self._packet_sequence)
             if not ok and cmd_id in _SUCCESS_ONLY:
                 pass

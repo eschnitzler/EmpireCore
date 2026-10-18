@@ -3,14 +3,25 @@
 from typing import TYPE_CHECKING
 
 from empire_core.castle.models.construction_items import (
+    BoostConstructionItemRequest,
+    BoostConstructionItemResponse,
     ConstructionItemInventory,
     ConstructionItemPlacement,
+    ConstructionItemSpace,
     ConstructionItemStack,
     DisassembleConstructionItemRequest,
     DisassembleConstructionItemResponse,
     EquipConstructionItemRequest,
     EquipConstructionItemResponse,
+    ExpiredConstructionItem,
+    ExpiredConstructionItemArea,
+    ExpiredConstructionItemsResponse,
     GetConstructionItemsRequest,
+    GetExpiredConstructionItemsRequest,
+    MarkExpiredConstructionItemsSeenRequest,
+    MarkExpiredConstructionItemsSeenResponse,
+    MoveConstructionSlotRequest,
+    MoveConstructionSlotResponse,
     RemoveConstructionItemRequest,
     RemoveConstructionItemResponse,
 )
@@ -144,7 +155,7 @@ from .models import (
 from .service import CastleService
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import ConstructionItem, Currency, Horse, Research, Tool, Unit
+    from empire_core.gamedata import Building, ConstructionItem, Currency, CurrencyId, Horse, Research, Tool, Unit
 
 __all__ = [
     "ConstructionItemPlacement",
@@ -158,6 +169,17 @@ __all__ = [
     "ConstructionItemStack",
     "GetConstructionItemsRequest",
     "ConstructionItemInventory",
+    "ConstructionItemSpace",
+    "ExpiredConstructionItem",
+    "ExpiredConstructionItemArea",
+    "GetExpiredConstructionItemsRequest",
+    "ExpiredConstructionItemsResponse",
+    "MarkExpiredConstructionItemsSeenRequest",
+    "MarkExpiredConstructionItemsSeenResponse",
+    "MoveConstructionSlotRequest",
+    "MoveConstructionSlotResponse",
+    "BoostConstructionItemRequest",
+    "BoostConstructionItemResponse",
     "MercenaryMissionRarity",
     "MercenaryMissionState",
     "Research",
@@ -280,7 +302,9 @@ __all__ = [
     "ResourcePoolResponse",
     "Kingdom",
     "MapItemType",
+    "Building",
     "ConstructionItem",
+    "CurrencyId",
     "Currency",
     "Horse",
     "Tool",
@@ -290,5 +314,7 @@ __all__ = [
 
 if not TYPE_CHECKING:
     __getattr__ = lazy_exports(
-        __name__, "empire_core.gamedata.ids", ("ConstructionItem", "Currency", "Horse", "Research", "Tool", "Unit")
+        __name__,
+        "empire_core.gamedata.ids",
+        ("Building", "ConstructionItem", "Currency", "CurrencyId", "Horse", "Research", "Tool", "Unit"),
     )

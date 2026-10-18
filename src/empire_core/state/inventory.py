@@ -1,9 +1,15 @@
 """Inventory and economy sections: gems, loot boxes, inventory space, kingdoms, mercenaries, tax,
 construction item expiry and the resource citizen."""
 
+import logging
 from typing import Any
 
-from empire_core.castle.models.construction_items import ConstructionItemInventory, ConstructionItemPlacement
+from empire_core.castle.models.construction_items import (
+    ConstructionItemInventory,
+    ConstructionItemPlacement,
+    ConstructionItemSpace,
+    ExpiredConstructionItemsResponse,
+)
 from empire_core.castle.models.kingdoms import KingdomInfoResponse
 from empire_core.castle.models.mercenaries import MercenaryMissionsResponse
 from empire_core.castle.models.objects import BuildingConstructionItems
@@ -13,10 +19,11 @@ from empire_core.commanders.models.inventory import GemInventoryResponse, Invent
 from empire_core.enums import Kingdom
 from empire_core.exceptions import PacketError, ReplyMismatchError
 from empire_core.player.models.economy import LootBoxesResponse, LootBoxKeys
-from empire_core.protocol.js import js_truthy
+from empire_core.protocol.base import read_or_none
+from empire_core.protocol.js import js_int, js_number, js_number_or_none, js_string, js_truthy
 from empire_core.state.base import StateBase, read_section
 
-INVENTORY_SECTIONS = ("gii", "ggm", "gls", "esl", "kpi", "mpe", "txi", "nec", "irc")
+INVENTORY_SECTIONS = ("gii", "csp", "ggm", "gls", "esl", "kpi", "mpe", "txi", "nec", "irc")
 
 
 class InventoryState(StateBase):
@@ -29,11 +36,34 @@ class InventoryState(StateBase):
         only when ``ggm`` and ``nec`` are truthy; ``irc`` comes only as a push (``IRCCommand``, bundle line 123090)
         """
         applied: set[str] = set()
+        if "csp" in data:
+            if (
+                construction_space := read_section(ConstructionItemSpace, data["csp"], "the construction item space")
+            ) is not None:
+                self.construction_item_space = construction_space
+                applied.add("csp")
         if "gii" in data:
             if (
                 inventory := read_section(ConstructionItemInventory, data["gii"], "the construction inventory")
             ) is not None:
                 self.construction_items = inventory
+                # ConstructionItemData.updateInventory (bundle 22954-22959), ConstructionItemConst (dll 18989).
+                total: float | str = 0.0
+                rows = data["gii"].get("CI", [])
+                if len(rows) == len(inventory.items) and all(isinstance(row, list) and len(row) >= 2 for row in rows):
+                    for row in rows:
+                        amount = row[1]
+                        total = (
+                            js_string(total) + js_string(amount)
+                            if isinstance(total, str) or isinstance(amount, str)
+                            else total + js_number(amount)
+                        )
+                    summed = js_number_or_none(total)
+                    self.construction_item_space = ConstructionItemSpace(
+                        space_left=js_int(5000 - summed) if summed is not None else 0
+                    )
+                else:
+                    self.construction_item_space = None
                 applied.add("gii")
         if js_truthy(ggm := data.get("ggm")):
             if (gems := read_section(GemInventoryResponse, ggm, "the gems")) is not None:
@@ -209,7 +239,7 @@ class InventoryState(StateBase):
     ) -> None:
         """Apply an action's CI only to the area generation that requested it.
 
-        Bare rpc/cri replies carry no area identity, so only the scoped service
+        Bare rpc/cri/ubc replies carry no area identity, so only the scoped service
         action applies them. None marks an accepted but unreadable placement unknown.
         A newer expiry placement wins over a delayed caller.
         Client: ``RPCCommand`` / ``CRICommand`` / ``NECCommand`` (bundle 123314/123256/123299)
@@ -237,3 +267,33 @@ class InventoryState(StateBase):
         """Forget the inventory after an accepted mutation until gii refreshes it."""
         with self._lock:
             self.construction_items = None
+            self.construction_item_space = None
+
+    def get_construction_item_space(self) -> ConstructionItemSpace | None:
+        """The last capacity push or the space computed by an inventory reply."""
+        with self._lock:
+            return self.construction_item_space
+
+    def get_expired_construction_items(self) -> ExpiredConstructionItemsResponse | None:
+        """The last complete expired-item list."""
+        with self._lock:
+            return (
+                self.expired_construction_items.model_copy(deep=True)
+                if self.expired_construction_items is not None
+                else None
+            )
+
+    def _handle_aec(self, data: Any) -> None:
+        result = read_or_none(
+            ExpiredConstructionItemsResponse.model_validate,
+            data,
+            warn=logging.getLogger(__name__),
+            what="expired construction items",
+        )
+        if result is not None:
+            areas = tuple(
+                area
+                for area in result.areas
+                if area.castle_id in self.castles and self.castles[area.castle_id].kingdom_id == area.kingdom_id
+            )
+            self.expired_construction_items = result.model_copy(update={"areas": areas})
