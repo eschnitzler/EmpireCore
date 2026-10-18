@@ -92,3 +92,35 @@ def test_writer_is_thread_safe():
     for t in threads:
         t.join()
     assert "".join(out) == "x" * 2000
+
+
+def test_interrupt_frees_the_runner_and_stops_a_python_loop():
+    outcomes: list[bool] = []
+
+    def done(_elapsed, ok):
+        outcomes.append(ok)
+
+    runner = CodeRunner({}, lambda _text: None, on_done=done)
+    runner.run("while True:\n    pass")
+    worker = runner._thread
+    assert runner.busy and runner.interrupt()
+    assert not runner.busy
+    assert worker is not None
+    worker.join(2)
+    assert not worker.is_alive() and outcomes == []
+
+
+def test_a_new_input_runs_right_after_an_interrupt():
+    out: list[str] = []
+    gate = threading.Event()
+    runner = CodeRunner({"gate": gate}, out.append)
+    runner.run("gate.wait(5)")
+    runner.interrupt()
+    assert runner.run("21 * 2")
+    runner.join(5)
+    gate.set()
+    assert "42\n" in out
+
+
+def test_interrupt_when_idle_does_nothing():
+    assert CodeRunner({}, lambda _text: None).interrupt() is False

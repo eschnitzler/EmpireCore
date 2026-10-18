@@ -517,3 +517,15 @@ def test_start_warms_up_completion(tmp_path):
         console.completer.get_completions = completions
         console.start(login=False)
         assert wait_for(lambda: asked == ["client."])
+
+
+def test_ctrl_c_stops_running_code(tmp_path):
+    with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+        console = make_console(tmp_path)
+        console.submit("while True:\n    pass")
+        assert wait_for(lambda: console.runner.busy)
+        assert "Ctrl-C" in "".join(fragment[1] for fragment in console.toolbar())
+        pipe.send_text("\x03\x04")
+        console.application.run()
+        console.flush()
+        assert not console.runner.busy and "✗ interrupted" in console.output_text
