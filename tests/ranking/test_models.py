@@ -82,7 +82,7 @@ HIGHSCORE_CONST_LISTS = {
     "CHRISTMAS_GACHA_EVENT": 81,
     "EASTER_GACHA_EVENT": 82,
     "SUMMER_GACHA_EVENT": 83,
-    "ALLIANCE_MOBILISATION_EVENT": 84,
+    "GRAND_TOURNAMENT": 84,
     "ANNIVERSARY_GACHA_EVENT": 85,
     "HALLOWEEN_GACHA_EVENT": 86,
     "BLACK_FRIDAY_GACHA_EVENT": 87,
@@ -144,7 +144,7 @@ class TestRankingListRequest:
     def test_defaults_match_the_client(self):
         # C2SListLeaderboardScoresPageVO: R=1; M has no default
         assert GetRankingListRequest(
-            list_type=RankingType.ALLIANCE_MOBILISATION_EVENT, league_type_id=4, max_results=10
+            list_type=RankingType.GRAND_TOURNAMENT, league_type_id=4, max_results=10
         ).to_payload() == {
             "LT": 84,
             "LID": 4,
@@ -160,7 +160,7 @@ class TestRankingListRequest:
     def test_alliance_event_keys_follow_the_vo_keys(self):
         # LeaderBoardDataProvider.sendCommand copies {SDI, EID} onto the VO after its constructor
         request = GetRankingListRequest(
-            list_type=RankingType.ALLIANCE_MOBILISATION_EVENT,
+            list_type=RankingType.GRAND_TOURNAMENT,
             league_type_id=4,
             max_results=10,
             rank=11,
@@ -239,7 +239,7 @@ class TestSearchRankingListRequest:
 
     def test_alliance_event_keys_follow_the_vo_keys(self):
         request = SearchRankingListRequest(
-            list_type=RankingType.ALLIANCE_MOBILISATION_EVENT, search_value="x", sub_division_id=2, event_id=94
+            list_type=RankingType.GRAND_TOURNAMENT, search_value="x", sub_division_id=2, event_id=94
         )
 
         assert list(request.to_payload()) == ["LT", "SV", "SDI", "EID"]
