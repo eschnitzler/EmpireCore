@@ -37,6 +37,7 @@ from empire_core.messages.models import (
     ReadMessageResponse,
     SendMessageRequest,
     SendMessageResponse,
+    ServerMessage,
     SystemNotificationEvent,
 )
 from empire_core.protocol.base import BaseResponse
@@ -63,6 +64,7 @@ class MessagesService(BaseService):
     def __init__(self, client: EmpireClient) -> None:
         super().__init__(client)
         self.on_response("sne", self._handle_update)
+        self.on_response("smg", self._handle_server_message)
 
     @property
     def mailbox(self) -> list[MessageInfo]:
@@ -82,6 +84,16 @@ class MessagesService(BaseService):
     def _handle_update(self, response: BaseResponse) -> None:
         if isinstance(response, SystemNotificationEvent):
             self._fire(self.on_new_messages, response)
+
+    on_server_message = Event[ServerMessage]()
+    """Call ``callback`` with each server message pushed (``smg``).
+
+    Removing a callback not registered is a no-op.
+    """
+
+    def _handle_server_message(self, response: BaseResponse) -> None:
+        if isinstance(response, ServerMessage):
+            self._fire(self.on_server_message, response)
 
     def read(self, message_id: int, *, timeout: float = 5.0) -> ReadMessageResponse:
         """
