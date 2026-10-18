@@ -370,7 +370,7 @@ class TestFillAttack(FillClient):
         with pytest.raises(ValueError):
             client.attack.fill_attack(12345, target_x=700, target_y=710, kingdom_id=11)
         with pytest.raises(ValueError):
-            client.attack.fill_attack(12345, camp_victories=299, camp_kingdom_id=11)
+            client.attack.fill_attack(12345, robber_baron_camp_victories=299, robber_baron_camp_kingdom=11)
 
         assert len(conn(client).request_payloads) == sent_before
 
@@ -1100,7 +1100,9 @@ class TestFillAttackLevelDerivation:
         # DungeonConst.getKingdomOffset (dll line 19137) takes the kingdom id.
         assert robber_baron_camp_level(299, Kingdom.SANDS) == 45 - 1 + 35
         assert robber_baron_camp_level(299, Kingdom.STORM) == 45 - 1
-        result = client.attack.fill_attack(12345, camp_victories=299, camp_kingdom_id=Kingdom.GREEN)
+        result = client.attack.fill_attack(
+            12345, robber_baron_camp_victories=299, robber_baron_camp_kingdom=Kingdom.GREEN
+        )
 
         # Level 45 gives 47 units per flank before bonuses.
         assert placed(result.waves[0].model_dump(by_alias=True)["L"]["U"]) == [[601, 47]]

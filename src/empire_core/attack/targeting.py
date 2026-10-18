@@ -176,8 +176,8 @@ class _Target:
     level: int | None = None
     owner_legend_level: int | None = None
     is_player: bool = False
-    camp_victories: int | None = None
-    camp_kingdom_id: Kingdom = Kingdom.GREEN
+    robber_baron_camp_victories: int | None = None
+    robber_baron_camp_kingdom: Kingdom = Kingdom.GREEN
     spy_army: SpyArmy | None = None
     castellan: Commander | None = None
     defender_legend_skill_ids: Sequence[int] | None = None
@@ -250,10 +250,10 @@ def _read_target(service: AttackService, target: "_Target", *, castle_id: int, t
     if item.item_type == MapItemType.DUNGEON:
         # A camp's level follows from how often it has been beaten, and the
         # row carries the count.
-        if target.camp_victories is None:
-            target.camp_victories = item.victory_count
-        if target.camp_kingdom_id == Kingdom.GREEN:
-            target.camp_kingdom_id = item.kingdom
+        if target.robber_baron_camp_victories is None:
+            target.robber_baron_camp_victories = item.victory_count
+        if target.robber_baron_camp_kingdom == Kingdom.GREEN:
+            target.robber_baron_camp_kingdom = item.kingdom
     elif item.is_invasion_camp:
         if target.level is None:
             player = service.client.state.get_local_player()
