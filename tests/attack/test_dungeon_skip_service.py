@@ -143,3 +143,17 @@ def test_matching_numeric_string_kingdom_returns_canonical_kingdom(command):
     else:
         result = client.attack.skip_dungeon_cooldown(100, 200, Kingdom.ICE, spend_rubies=True)
     assert result.kingdom is Kingdom.ICE
+
+
+@pytest.mark.parametrize("command", ["msd", "sdc"])
+@pytest.mark.parametrize("index", [1, 2])
+@pytest.mark.parametrize("value", [None, "broken", [], True, 100.9, float("inf")])
+def test_malformed_wire_coordinates_raise_packet_error(command, index, value):
+    row = [2, 100, 200, -1, 3, 0, 2]
+    row[index] = value
+    client = make_client({command: xt_packet(command, {"AI": row})})
+    with pytest.raises(PacketError):
+        if command == "msd":
+            client.attack.minute_skip_dungeon(100, 200, "MS1", Kingdom.ICE)
+        else:
+            client.attack.skip_dungeon_cooldown(100, 200, Kingdom.ICE, spend_rubies=True)
