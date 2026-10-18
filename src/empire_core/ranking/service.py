@@ -92,7 +92,7 @@ class RankingService(BaseService):
                 (``LongtermPointEventGlobalLeaderBoardDialog``, bundle line 100411); the other
                 dialogs are given their event
             sub_division_id: The alliance event subdivision (SDI), for an alliance event's subdivision ranking
-            event_id: The alliance mobilisation or raid event (EID), for those events' rankings
+            event_id: The alliance Grand Tournament or raid event (EID), for those events' rankings
             timeout: Timeout in seconds
 
         Returns:
@@ -133,7 +133,7 @@ class RankingService(BaseService):
             league_type_id: The league (LID), as for :meth:`get_ranking_list`: the event's league,
                 ``client.events.league_id(event_id)``
             sub_division_id: The alliance event subdivision (SDI), as for :meth:`get_ranking_list`
-            event_id: The alliance mobilisation or raid event (EID), as for :meth:`get_ranking_list`
+            event_id: The alliance Grand Tournament or raid event (EID), as for :meth:`get_ranking_list`
             timeout: Timeout in seconds
 
         Returns:
@@ -176,7 +176,7 @@ class RankingService(BaseService):
             league_type_id: The league the score is in (LID): the search result's ``league_type_id``,
                 or for your own page (empty ``score_id``) the event's league, as for :meth:`get_ranking_list`
             sub_division_id: The alliance event subdivision (SDI), as for :meth:`get_ranking_list`
-            event_id: The alliance mobilisation or raid event (EID), as for :meth:`get_ranking_list`
+            event_id: The alliance Grand Tournament or raid event (EID), as for :meth:`get_ranking_list`
             timeout: Timeout in seconds
 
         Returns:
@@ -216,7 +216,7 @@ class RankingService(BaseService):
             list_type: The event's highscore list (LT)
             search_value: The name to search for (SV); must not be empty
             sub_division_id: The alliance event subdivision (SDI), as for :meth:`get_ranking_list`
-            event_id: The alliance mobilisation or raid event (EID), as for :meth:`get_ranking_list`
+            event_id: The alliance Grand Tournament or raid event (EID), as for :meth:`get_ranking_list`
             timeout: Timeout in seconds
 
         Returns:

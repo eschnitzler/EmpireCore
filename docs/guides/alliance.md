@@ -6,6 +6,60 @@ description: Alliance chat, help requests, members, applications, ranks and the 
 
 `client.alliance` covers your own alliance and looks up others.
 
+## Founding
+
+```python
+created = client.alliance.found("New Guild", "Our description", "en")
+print(created.alliance_id)
+```
+
+The normal client flow costs 100 wood, 50 stone, 50 base coins and 375 base
+rubies; cost modifiers can adjust the coin and ruby prices. An active premium
+account waives the ruby cost. Without `spend_rubies=True`, the premium exemption
+must last beyond the request timeout. The call keeps missing-resource ruby
+payment disabled. `open_join=True` is the client's default; pass `False` to
+require invitations or accepted applications.
+
+A valid success installs the created alliance and your membership together.
+Refusals, transport failures, malformed replies and replies from a superseded
+membership keep the newer local state.
+
+## Settings and gifts
+
+Settings return the alliance details echoed by the server:
+
+```python
+client.alliance.set_description("Our alliance description")
+client.alliance.set_announcement("Next meeting at 19:00")
+client.alliance.set_language("en")
+client.alliance.rename("New Name")
+```
+
+Renaming without `spend_rubies=True` first reads fresh alliance details to verify a
+free rename remains. Otherwise it requires consent to the 10,000-ruby charge.
+Descriptions and announcements follow the client's text encoding and 1000-character
+wire limit. Permission refusals raise `CommandError`.
+
+`set_emblem(layout_id, color_ids)` validates the layout and colours against the
+client's game data. A temporary layout must still be held. It returns the selected
+crest after acknowledgment; the separate crest push updates the cached crest.
+
+Alliance fame, buffs and crest pushes update `own_alliance`. Settings and membership
+responses are scoped to the membership that sent them; later pushes keep their newer
+values. The push protocol carries no alliance id, so an untagged push arriving after
+new alliance details cannot independently identify its originating membership.
+
+Gifts arrive as pushes; reading `gifts` sends nothing and excludes expired gifts:
+
+```python
+for gift in client.alliance.gifts:
+    collected = client.alliance.collect_gift(gift.gift_id)
+    print(collected.rewards)
+```
+
+Collection returns typed rewards and removes the gift only after a valid success.
+A membership change clears the cached gift list.
+
 ## Chat
 
 ```python

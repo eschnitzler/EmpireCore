@@ -75,8 +75,6 @@ _WHOLE_SECTIONS = {
     "gli": "gli",
     "skl": "skl",
     "ain": "ain",
-    "acn": "ain",
-    "cal": "ain",
     "acl": "acl",
     **{section: section for section in ("rei", "boi", "gmu", "ufa", "uar", "vli", "gri", "cpi")},
     "dql": "dql",
@@ -111,7 +109,7 @@ _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
     "seq": ("gli", "gcu", "esl"),
     **dict.fromkeys(("aci", "abi", "acc", "adi", "aii", "ali", "avi", "cci", "coi", "cti", "gti", "cfi"), ("gli",)),
     "ego": ("skl",),
-    **dict.fromkeys(("acd", "akm", "arm"), ("ain",)),
+    **dict.fromkeys(("akm", "arm"), ("ain",)),
     "ado": ("gcu", "ain", "grc"),
     "res": ("rei", "gcu", "grc"),
     "msr": ("rei",),
@@ -143,13 +141,13 @@ _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
 # MSPCommand, CQSCommand (bundle lines 126587, 126619, 126603, 126566, 125438, 126495)
 _SUCCESS_ONLY = frozenset(
     {"sei", "see", "tei", "tee", "pep", "fjf", "bst", "acm", "aqi", "ufp", "bfs", "gtp", *_WHOLE_SECTIONS}
-    | {"ahl", "ahh", "ahd", "sne", "dms", "ams", "uac", "pre"}
+    | {"agr", "afa", "abl", "aee", "ahl", "ahh", "ahd", "sne", "dms", "ams", "uac", "pre"}
     # GBDCommand.exec (bundle line 129376) reads the login data only on ALL_OK
     | {"gbd"}
     | (set(_NESTED_SECTIONS) - {"cpm", "crm"})
     | {"rue", "kik", "gsm", "rci", "cmr", "rcc", "jaa", "fbe", "cbx", "gdb", "gcb", "csl", "gab", "gec"}
     | {"qli", "qst", "qpg", "qfi", "msp", "cqs"}
-    | {"nfo", "aqs", "bse", "bbs"}
+    | {"nfo", "aqs", "bse", "bbs", "saq", "caq", "caaq", "raq", "scq", "aec"}
 )
 
 
@@ -310,9 +308,18 @@ class GameState(
         "tee": "_handle_tee",
         "pep": "_handle_pep",
         "aqs": "_handle_aqs",
+        "saq": "_handle_grand_tournament_action",
+        "caq": "_handle_grand_tournament_action",
+        "caaq": "_handle_grand_tournament_action",
+        "raq": "_handle_grand_tournament_action",
+        "scq": "_handle_grand_tournament_action",
         "bse": "_handle_bse",
         "bbs": "_handle_raid_status",
         "bst": "_handle_bst",
+        "agr": "_handle_agr",
+        "afa": "_handle_afa",
+        "abl": "_handle_abl",
+        "aee": "_handle_aee",
         "acm": "_handle_acm",
         "aqi": "_handle_aqi",
         "ahl": "_handle_ahl",
@@ -344,6 +351,7 @@ class GameState(
         # Any map read leaves the joined castle, refused or not
         "gaa": "_handle_gaa",
         "gec": "_handle_gec",
+        "aec": "_handle_aec",
         "qli": "_handle_qli",
         "qst": "_handle_qst",
         "qpg": "_handle_qpg",
@@ -365,7 +373,10 @@ class GameState(
         ok = error_code == 0
         with self._lock:
             self._packet_sequence += 1
-            if ok and cmd_id in {"rpc", "cri"}:
+            # Settings apply after service validation, preserving later pushes by receive order.
+            if ok and cmd_id in {"acd", "acn", "cal"}:
+                self._alliance_reply_order[cmd_id] = (payload, self._packet_sequence)
+            if ok and cmd_id in {"rpc", "cri", "ubc"}:
                 self._construction_item_reply_order[cmd_id] = (payload, self._packet_sequence)
             if not ok and cmd_id in _SUCCESS_ONLY:
                 pass
@@ -377,7 +388,12 @@ class GameState(
             elif cmd_id in _WHOLE_SECTIONS:
                 # Stamped only when applied: not for an unreadable frame, a block that does not
                 # validate, or another alliance's ain
-                if isinstance(payload, dict) and "raw" not in payload:
+                stale_alliance_read = (
+                    cmd_id == "ain"
+                    and self._alliance_info_read_revision is not None
+                    and self._alliance_info_read_revision != self.membership_revision
+                )
+                if isinstance(payload, dict) and "raw" not in payload and not stale_alliance_read:
                     section = _WHOLE_SECTIONS[cmd_id]
                     if cmd_id == "acl":
                         if self._parse_chat_history({"acl": payload}, replace=True):

@@ -784,11 +784,16 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
             "events",
             "Event",
             "E",
-            "Event ids from the ``events`` table, named from ``eventType``.",
+            "Event ids from the ``events`` table, named from ``eventType`` and player-facing titles.",
             "``CastleSpecialEventData.storeXmlEvents`` (bundle line 139777) keys rows by ``eventID``, "
-            "``ASpecialEventVO.parseBasicsFromXmlNode`` (bundle line 2959) reads ``eventType``",
+            "``ASpecialEventVO.parseBasicsFromXmlNode`` (bundle line 2959) reads ``eventType``; "
+            "event 129 uses ``event_title_129`` (Grand Tournament), getter bundle line 5090",
             [
-                Row(to_snake(e.event_type) or f"E{e.event_id}", int(e.event_id), id_text(e.event_id))
+                Row(
+                    "GRAND_TOURNAMENT" if int(e.event_id) == 129 else to_snake(e.event_type) or f"E{e.event_id}",
+                    int(e.event_id),
+                    id_text(e.event_id),
+                )
                 for e in data.events.values()
             ],
             display=EVENT_TITLE,

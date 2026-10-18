@@ -30,7 +30,7 @@ def status_client(script=None):
     return client
 
 
-def test_mobilization_status_and_quest_progress_are_typed():
+def test_grand_tournament_status_and_quest_progress_are_typed():
     client = status_client(
         {
             "aqs": xt_packet(
@@ -53,7 +53,7 @@ def test_mobilization_status_and_quest_progress_are_typed():
         }
     )
     before = client.events.running[129]
-    result = client.events.get_mobilization_status()
+    result = client.events.get_grand_tournament_status()
     assert (result.event_id, result.participants) == (129, 4)
     slot, empty = result.slots
     assert (slot.slot_id, slot.alliance_quest_id, slot.player_id, slot.player_name, slot.remaining_seconds) == (
@@ -76,23 +76,23 @@ def test_mobilization_status_and_quest_progress_are_typed():
     assert conn(client).request_payloads == [("aqs", {"EID": 129})]
 
 
-def test_empty_mobilization_slots_are_a_success():
+def test_empty_grand_tournament_slots_are_a_success():
     client = status_client({"aqs": xt_packet("aqs", {"EID": 129, "APC": 0, "AQS": []})})
-    assert client.events.get_mobilization_status().slots == ()
+    assert client.events.get_grand_tournament_status().slots == ()
 
 
-def test_mobilization_skips_bad_slots_without_renumbering(caplog):
+def test_grand_tournament_skips_bad_slots_without_renumbering(caplog):
     client = status_client(
         {"aqs": xt_packet("aqs", {"EID": 129, "APC": 0, "AQS": [None, {"QID": 4, "PID": -1, "RS": 9}]})}
     )
-    result = client.events.get_mobilization_status()
+    result = client.events.get_grand_tournament_status()
     assert result.slots[0].slot_id == 1
     assert "unreadable" in caplog.text
 
 
-def test_mobilization_contributions():
+def test_grand_tournament_contributions():
     client = status_client({"aqpc": xt_packet("aqpc", {"AQPC": [{"R": 1, "PN": "Member", "OP": 44}]})})
-    (row,) = client.events.get_mobilization_contributions()
+    (row,) = client.events.get_grand_tournament_contributions()
     assert (row.rank, row.player_name, row.points) == (1, "Member", 44)
     assert conn(client).request_payloads == [("aqpc", {"EID": 129})]
 
@@ -102,25 +102,25 @@ def test_missing_or_wrong_shape_status_raises_and_keeps_prior_event(payload):
     client = status_client({"aqs": xt_packet("aqs", payload)})
     before = client.events.running[129]
     with pytest.raises(PacketError):
-        client.events.get_mobilization_status()
+        client.events.get_grand_tournament_status()
     assert client.events.running[129] is before
 
 
-def test_mobilization_different_event_reply_is_not_accepted_or_cached():
+def test_grand_tournament_different_event_reply_is_not_accepted_or_cached():
     client = status_client({"aqs": xt_packet("aqs", {"EID": 133, "APC": 4, "AQS": []})})
     before = client.events.running
     with pytest.raises(EmpireTimeoutError):
-        client.events.get_mobilization_status(timeout=0.1)
+        client.events.get_grand_tournament_status(timeout=0.1)
     assert client.events.running == before
     client._on_packet(xt_packet("aqs", {"EID": 133, "APC": 4, "AQS": []}))
     assert client.events.running == before
 
 
 @pytest.mark.parametrize(
-    "command,method", [("aqs", "get_mobilization_status"), ("aqpc", "get_mobilization_contributions")]
+    "command,method", [("aqs", "get_grand_tournament_status"), ("aqpc", "get_grand_tournament_contributions")]
 )
 @pytest.mark.parametrize("error", [145, EmpireTimeoutError("late"), ConnectionClosedError("gone")])
-def test_mobilization_failures_do_not_mutate(command, method, error):
+def test_grand_tournament_failures_do_not_mutate(command, method, error):
     client = status_client({command: xt_packet(command, error_code=error) if isinstance(error, int) else error})
     before = client.events.running
     with pytest.raises(CommandError if isinstance(error, int) else type(error)):
@@ -128,8 +128,8 @@ def test_mobilization_failures_do_not_mutate(command, method, error):
     assert client.events.running == before
 
 
-@pytest.mark.parametrize("method", ["get_mobilization_status", "get_mobilization_contributions"])
-def test_inactive_mobilization_does_not_send(method):
+@pytest.mark.parametrize("method", ["get_grand_tournament_status", "get_grand_tournament_contributions"])
+def test_inactive_grand_tournament_does_not_send(method):
     client = make_client({}, state=GameState())
     with pytest.raises(EventNotRunningError):
         getattr(client.events, method)()
@@ -258,8 +258,8 @@ def test_bad_contributions_and_cards_warn_once_per_response(caplog):
             "bse": xt_packet("bse", raid_payload(BCDS=[None, {}, {"BID": 1, "CST": 98765, "ULV": 2}])),
         }
     )
-    assert len(client.events.get_mobilization_contributions()) == 1
-    messages = [r.message for r in caplog.records if "unreadable mobilisation contributions" in r.message]
+    assert len(client.events.get_grand_tournament_contributions()) == 1
+    messages = [r.message for r in caplog.records if "unreadable Grand Tournament contributions" in r.message]
     assert len(messages) == 1 and "2/3" in messages[0]
     from empire_core.events import GetRaidBossStatusResponse
 
@@ -273,9 +273,9 @@ def test_bad_contributions_and_cards_warn_once_per_response(caplog):
 
 def test_empty_contributions_and_missing_contributions_differ():
     client = status_client({"aqpc": [xt_packet("aqpc", {"AQPC": []}), xt_packet("aqpc", {})]})
-    assert client.events.get_mobilization_contributions() == ()
+    assert client.events.get_grand_tournament_contributions() == ()
     with pytest.raises(PacketError):
-        client.events.get_mobilization_contributions()
+        client.events.get_grand_tournament_contributions()
 
 
 def test_unparseable_raid_packet_cannot_clear_active_boss():
