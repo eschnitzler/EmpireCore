@@ -330,7 +330,7 @@ class MovementOwner(BasePayload):
     name: str = Field(validation_alias="N", default="")
     crest: OwnerCrest | None = Field(validation_alias="E", default=None)
     level: int = Field(validation_alias="L", default=0)
-    legend_level: int = Field(validation_alias="LL", default=0)
+    legendary_level: int = Field(validation_alias="LL", default=0, description="Legendary level")
     beginner_protection_seconds: int = Field(validation_alias="RNP", default=-1, description="-1 when not protected")
     honor: int = Field(validation_alias="H", default=0)
     might: int = Field(validation_alias="MP", default=0)

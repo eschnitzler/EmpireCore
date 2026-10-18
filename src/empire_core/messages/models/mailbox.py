@@ -6,6 +6,7 @@ Commands:
 - rms, mmr, ams, dms, sms: Read, mark read, archive, delete and send mail
 - bsd: Spy report (the client's S2C_SPY_LOG_DETAIL)
 - mfs: Forward a spy report
+- ili, ipl: The players you ignore, and ignoring or unignoring one
 """
 
 from __future__ import annotations
@@ -16,7 +17,14 @@ import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Annotated, Any
 
-from pydantic import BeforeValidator, Field, ValidatorFunctionWrapHandler, field_validator, model_validator
+from pydantic import (
+    BeforeValidator,
+    Field,
+    ValidatorFunctionWrapHandler,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
 
 from empire_core.alliance.models.bookmarks import Bookmark
 from empire_core.army.spy_army import SpyArmyBlock
@@ -437,6 +445,28 @@ class SystemNotificationEvent(BaseResponse):
     @classmethod
     def _readable_rows(cls, value: Any) -> Any:
         return readable_list(MessageInfo, value)
+
+
+class ServerMessage(BaseResponse):
+    """
+    A server message, pushed by the server; the client shows it in a dialog titled "SERVER MESSAGE".
+
+    Command: smg
+
+    Client: ``SMGCommand.executeCommand`` (bundle line 120952)
+    """
+
+    command = "smg"
+
+    text: str = Field(validation_alias="MSG", default="", description="The message")
+    big: bool = Field(
+        validation_alias="BIG", default=False, description="Whether the client shows it in its large dialog"
+    )
+
+    @field_validator("big", mode="before")
+    @classmethod
+    def _big(cls, value: Any) -> bool:
+        return js_loose_equals(value, 1)
 
 
 # =============================================================================
@@ -931,7 +961,106 @@ class SendMessageResponse(BaseResponse):
     command = "sms"
 
 
+class GetIgnoredPlayersRequest(BaseRequest):
+    """
+    Request the players you ignore.
+
+    Command: ili
+    Payload: {}
+
+    Client: ``C2SGetIgnoredPlayersVO`` (bundle line 135077, no fields), sent by
+    ``CastleMessageData.getIgnoredPlayer`` (bundle line 135009)
+    """
+
+    command = "ili"
+
+
+class IgnoredPlayer(BasePayload):
+    """
+    A player you ignore, an entry of ``IPS``.
+
+    Client: ``CastleMessageData.parse_IPS`` (bundle line 135012)
+    """
+
+    player_id: ClientInt = Field(validation_alias="PID", default=0, description="The player")
+    name: str = Field(validation_alias="N", default="", description="The player's name")
+
+
+class IgnoreList(BasePayload):
+    """
+    The players you ignore, the ``ili`` block.
+
+    Client: ``CastleMessageData.parse_IPS`` (bundle line 135012), which replaces the list whole
+    """
+
+    players: list[IgnoredPlayer] = Field(
+        validation_alias="IPS", default_factory=list, description="The players you ignore"
+    )
+
+    @field_validator("players", mode="before")
+    @classmethod
+    def _readable_players(cls, value: Any) -> Any:
+        return readable_list(IgnoredPlayer, value)
+
+
+class IgnoredPlayersResponse(BaseResponse, IgnoreList):
+    """
+    The players you ignore.
+
+    Command: ili
+    Payload: {"IPS": [{"PID": player_id, "N": name}, ..]}
+
+    Client: ``ILICommand.executeCommand`` (bundle line 125319)
+    """
+
+    command = "ili"
+
+
+class IgnorePlayerRequest(BaseRequest):
+    """
+    Ignore a player, or stop ignoring one.
+
+    Command: ipl
+    Payload: {"IPID": player_id, "IGN": 1 or 0}
+
+    Client: ``C2SIgnorePlayerVO`` (bundle line 60860); ``PlayerIgnoreList_Item.unignorePlayer``
+    (bundle line 106828) sends ``IGN`` 0
+    """
+
+    command = "ipl"
+
+    player_id: int = Field(validation_alias="IPID", description="The player to ignore or unignore")
+    ignore: bool = Field(validation_alias="IGN", default=True, description="Ignore; False unignores. Sent as 1 or 0")
+
+    @field_serializer("ignore")
+    def _flag(self, value: bool) -> int:
+        return 1 if value else 0
+
+
+class IgnorePlayerResponse(BaseResponse):
+    """
+    The players you ignore after the change.
+
+    Command: ipl
+    Payload: {"ili": {"IPS": [..]}}
+
+    Client: ``IPLCommand.executeCommand`` (bundle line 125334) passes ``ili.IPS`` to ``parse_IPS``
+    """
+
+    command = "ipl"
+
+    ignore_list: IgnoreList = Field(
+        validation_alias="ili", default_factory=IgnoreList, description="The players you ignore now"
+    )
+
+
 __all__ = [
+    "GetIgnoredPlayersRequest",
+    "IgnoredPlayer",
+    "IgnoreList",
+    "IgnoredPlayersResponse",
+    "IgnorePlayerRequest",
+    "IgnorePlayerResponse",
     "MAX_SUBJECT_LENGTH",
     "MAX_TEXT_LENGTH",
     "MIN_TEXT_LENGTH",
@@ -959,5 +1088,6 @@ __all__ = [
     "EventAnnouncementHeader",
     "SpyReportArea",
     "SpyReportResponse",
+    "ServerMessage",
     "SystemNotificationEvent",
 ]

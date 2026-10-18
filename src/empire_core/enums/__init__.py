@@ -16,12 +16,14 @@ from .alliance import (
     AllianceRank,
     BookmarkType,
     DiplomacyStatus,
+    ForumRankGroup,
     HelpType,
     OnlineState,
 )
-from .army import ProductionListId, SlotType
+from .army import ProductionListId, RecruitmentMode, SlotType
 from .castle import (
     BuildingState,
+    ConstructionItemMode,
     ExpansionType,
     KingdomTransferType,
     MarketScope,
@@ -42,6 +44,7 @@ from .combat import (
 )
 from .commanders import EquipmentSlot, EquipmentType, Rareness, WearerType
 from .errors import GGEError
+from .events import PerformanceStatistic, RaidBossCardStatus
 from .gamedata import (
     BuildingGroundType,
     BuildingGroup,
@@ -59,7 +62,7 @@ from .login import VersionCheckStatus
 from .map import Kingdom, MapItemType, NPCOwner, PeaceModeStatus
 from .messages import BattleLogAttackType, LogResult, MessageType
 from .movements import MovementType
-from .player import MercenaryMissionRarity, MercenaryMissionState, PremiumAccountType, TitleSystem
+from .player import MercenaryMissionRarity, MercenaryMissionState, MysteryBoxKey, PremiumAccountType, TitleSystem
 from .ranking import RankingType
 from .rewards import LoginBonusSpecial
 from .spy import SpyArmySection, SpyLogType, SpyOutcome, SpyStep, SpyType
@@ -80,8 +83,11 @@ if TYPE_CHECKING:
         EquipmentGroup,
         Event,
         Gem,
+        GemColor,
         General,
         GeneralAbility,
+        GeneralRarity,
+        GeneralsHubCharacter,
         GeneralSkill,
         GlobalEffect,
         Horse,
@@ -99,6 +105,9 @@ if TYPE_CHECKING:
     )
 
 __all__ = [
+    "ConstructionItemMode",
+    "RaidBossCardStatus",
+    "PerformanceStatistic",
     # Map / kingdom
     "Kingdom",
     "MapItemType",
@@ -126,6 +135,7 @@ __all__ = [
     "SpyArmySection",
     # Army
     "ProductionListId",
+    "RecruitmentMode",
     "SlotType",
     # Castle
     "BuildingState",
@@ -148,6 +158,7 @@ __all__ = [
     "AllianceBuffType",
     "AllianceChronicleAction",
     "AllianceRank",
+    "ForumRankGroup",
     "BookmarkType",
     "DiplomacyStatus",
     "OnlineState",
@@ -158,6 +169,7 @@ __all__ = [
     "BattleLogAttackType",
     # Player
     "TitleSystem",
+    "MysteryBoxKey",
     "PremiumAccountType",
     "MercenaryMissionRarity",
     "MercenaryMissionState",
@@ -192,9 +204,12 @@ __all__ = [
     "EquipmentGroup",
     "Event",
     "Gem",
+    "GemColor",
     "General",
     "GeneralAbility",
+    "GeneralRarity",
     "GeneralSkill",
+    "GeneralsHubCharacter",
     "GlobalEffect",
     "Horse",
     "LegendSkill",

@@ -5,6 +5,8 @@ Commands:
 - spl: Get a production list
 - bou: Double the units of a production slot
 - mcu: Cancel a production slot
+- mup: Move a queued slot to another position
+- srm: Set a list's recruitment mode
 
 These act on the castle the session has joined (``jca``);
 ``bup`` and ``bou`` also name that castle and its kingdom.
@@ -16,7 +18,7 @@ from typing import Annotated, Any, ClassVar
 
 from pydantic import BeforeValidator, Field, model_validator
 
-from empire_core.enums import Kingdom, ProductionListId, SlotType
+from empire_core.enums import Kingdom, ProductionListId, RecruitmentMode, SlotType
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, CurrencyBlock, object_or_none
 from empire_core.protocol.js import ParseInt, js_int, js_loose_equals, js_number, js_same_number, js_truthy
 
@@ -223,10 +225,10 @@ class ProductionList(BasePayload):
         default_factory=lambda: CurrentProductionSlot.model_validate({"position": 0}),
         description="The slot producing now",
     )
-    recruitment_mode: int = Field(
+    recruitment_mode: RecruitmentMode = Field(
         validation_alias="RM",
-        default=0,
-        description="0 finishes the first stack first, 1 finishes the stacks equally",
+        default=RecruitmentMode.FINISH_FIRST_STACK,
+        description="The order the queue is worked through; soldier, tool and auxiliary lists only",
     )
     remaining_seconds: int = Field(
         validation_alias="TCT",
@@ -497,6 +499,86 @@ class CancelProductionResponse(BaseResponse):
     production_list: ProductionListBlock = Field(validation_alias="spl", default=None)
 
 
+# =============================================================================
+# MUP - Move Production Slot
+# =============================================================================
+
+
+class MoveProductionSlotRequest(BaseRequest):
+    """
+    Move a slot of a production list of the joined castle to another position.
+
+    Command: mup
+    Payload: {"LID": list_id, "OS": old_position, "NS": new_position}
+
+    Client: ``C2SMoveUnitPackageVO`` (bundle line 83777), built by
+    ``UnitBuildListComponent.requestMoveFromServer`` (bundle line 50938) when a dragged slot is dropped
+    """
+
+    command = "mup"
+
+    list_id: ProductionListId = Field(validation_alias="LID")
+    old_position: int = Field(validation_alias="OS", description="The slot's position before the move")
+    new_position: int = Field(validation_alias="NS", description="The position it moves to")
+
+
+class MoveProductionSlotResponse(BaseResponse):
+    """
+    The production list after an ``mup``.
+
+    Command: mup
+    Payload: {"spl": {...}}
+
+    Client: ``MUPCommand.executeCommand`` (bundle line 125631) hands ``spl`` to ``parse_SPL``
+    """
+
+    command = "mup"
+
+    production_list: ProductionList = Field(validation_alias="spl")
+
+
+# =============================================================================
+# SRM - Set Recruitment Mode
+# =============================================================================
+
+
+class SetRecruitmentModeRequest(BaseRequest):
+    """
+    Set the recruitment mode of a production list of the joined castle.
+
+    Command: srm
+    Payload: {"LID": list_id, "SID": kingdom_id, "AID": castle_id, "RM": mode}
+
+    Client: ``C2SSetRecruitmentModeVO`` (bundle line 83852), sent by
+    ``CastleRecruitDialogUnits.onClick`` (bundle line 23686) with the mode it switches to
+    """
+
+    command = "srm"
+
+    list_id: ProductionListId = Field(validation_alias="LID")
+    kingdom_id: Kingdom = Field(validation_alias="SID", description="The joined castle's kingdom")
+    castle_id: int = Field(
+        validation_alias="AID",
+        description=(
+            "The castle the session is in, a Castle.id from client.state.get_castles(); ArmyService joins it first"
+        ),
+    )
+    mode: RecruitmentMode = Field(validation_alias="RM")
+
+
+class SetRecruitmentModeResponse(BaseResponse):
+    """
+    The server's answer to an ``srm``.
+
+    Command: srm
+
+    Client: ``SRMCommand.executeCommand`` (bundle line 126787) reads nothing; the dialog
+    has already set the mode on its list (bundle line 23686)
+    """
+
+    command = "srm"
+
+
 __all__ = [
     "ProductionList",
     "ProductionSlot",
@@ -511,4 +593,8 @@ __all__ = [
     "DoubleProductionSlotResponse",
     "CancelProductionRequest",
     "CancelProductionResponse",
+    "MoveProductionSlotRequest",
+    "MoveProductionSlotResponse",
+    "SetRecruitmentModeRequest",
+    "SetRecruitmentModeResponse",
 ]

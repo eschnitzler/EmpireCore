@@ -4,6 +4,8 @@ Commands:
 - jca: Join a castle (answered as jaa)
 - jaa: Join an area by its position
 - arc: Rename castle
+- mas: Abandon a castle
+- mac: Cancel abandoning a castle
 - rst: Relocate castle
 """
 
@@ -289,6 +291,113 @@ class RenameCastleResponse(BaseResponse):
 
 
 # =============================================================================
+# MAS / MAC - Abandon Castle
+# =============================================================================
+
+
+class AbandonCastleRequest(BaseRequest):
+    """
+    Start abandoning one of your castles.
+
+    Command: mas
+    Payload: {"CID": castle_id, "KID": kingdom_id}
+
+    The castle is given up after ``OutpostConst.ABANDON_TIME`` (86400 s),
+    and the abandon may be cancelled within ``ABANDON_CANCEL_TIME`` (10800 s).
+
+    Client: ``C2SAbandonOutpostStartVO`` (bundle line 104735), sent by
+    ``CastleManagementDialog.onAbandonOutpost`` (bundle line 24630);
+    ``OutpostConst`` (dll line 19530)
+    """
+
+    command = "mas"
+
+    castle_id: int = Field(
+        validation_alias="CID",
+        description="The castle to abandon, a CastleInfo.castle_id from client.castle.get_all()",
+    )
+    kingdom_id: Kingdom = Field(validation_alias="KID", default=Kingdom.GREEN, description="The castle's kingdom")
+
+    def accepts_reply(self, payload: Any) -> bool:
+        """Whether a mas reply is about this castle: its ``CID``, and its ``KID`` when sent.
+
+        Client: ``CastleUserData.parse_MAS`` (bundle line 9893) looks the castle up by ``CID`` and ``KID``.
+        """
+        if not isinstance(payload, dict) or not js_same_number(payload.get("CID"), self.castle_id):
+            return False
+        return "KID" not in payload or js_same_number(payload["KID"], self.kingdom_id)
+
+
+class AbandonCastleResponse(BaseResponse):
+    """
+    The castle being abandoned and its timers.
+
+    Command: mas
+    Payload: {"CID": castle_id, "KID": kingdom_id, "AOT": seconds, "CAT": seconds}
+
+    Client: ``MASCommand.executeCommand`` (bundle line 125051),
+    ``CastleUserData.parse_MAS`` (bundle line 9893)
+    """
+
+    command = "mas"
+
+    castle_id: int = Field(validation_alias="CID", description="The castle being abandoned")
+    kingdom_id: Kingdom = Field(validation_alias="KID", default=Kingdom.GREEN, description="The castle's kingdom")
+    abandon_seconds: int = Field(validation_alias="AOT", default=-1, description="Seconds until it is abandoned")
+    cancel_seconds: int = Field(validation_alias="CAT", default=-1, description="Seconds left to cancel the abandon")
+
+    _timers = field_validator("abandon_seconds", "cancel_seconds", mode="before")(js_int)
+
+
+class CancelAbandonCastleRequest(BaseRequest):
+    """
+    Cancel abandoning one of your castles.
+
+    Command: mac
+    Payload: {"CID": castle_id, "KID": kingdom_id}
+
+    The client offers it only while the castle's ``CAT`` is above 0.
+
+    Client: ``C2SAbandonOutpostCancelVO`` (bundle line 104726), sent by
+    ``CastleManagementDialog.onCancelAbandoning`` (bundle line 24629)
+    """
+
+    command = "mac"
+
+    castle_id: int = Field(
+        validation_alias="CID",
+        description="The castle to keep, a CastleInfo.castle_id from client.castle.get_all()",
+    )
+    kingdom_id: Kingdom = Field(validation_alias="KID", default=Kingdom.GREEN, description="The castle's kingdom")
+
+    def accepts_reply(self, payload: Any) -> bool:
+        """Whether a mac reply is about this castle: its ``CID``, and its ``KID`` when sent.
+
+        Client: ``CastleUserData.parse_MAC`` (bundle line 9896) looks the castle up by ``CID`` and ``KID``.
+        """
+        if not isinstance(payload, dict) or not js_same_number(payload.get("CID"), self.castle_id):
+            return False
+        return "KID" not in payload or js_same_number(payload["KID"], self.kingdom_id)
+
+
+class CancelAbandonCastleResponse(BaseResponse):
+    """
+    The castle kept; the client sets both its abandon timers to -1.
+
+    Command: mac
+    Payload: {"CID": castle_id, "KID": kingdom_id}
+
+    Client: ``MACCommand.executeCommand`` (bundle line 125037),
+    ``CastleUserData.parse_MAC`` (bundle line 9896)
+    """
+
+    command = "mac"
+
+    castle_id: int = Field(validation_alias="CID", description="The castle kept")
+    kingdom_id: Kingdom = Field(validation_alias="KID", default=Kingdom.GREEN, description="The castle's kingdom")
+
+
+# =============================================================================
 # RST - Relocate Castle
 # =============================================================================
 
@@ -325,6 +434,10 @@ class RelocateCastleResponse(BaseResponse):
 
 
 __all__ = [
+    "AbandonCastleRequest",
+    "AbandonCastleResponse",
+    "CancelAbandonCastleRequest",
+    "CancelAbandonCastleResponse",
     "JoinAreaRequest",
     "SelectCastleRequest",
     "SelectCastleResponse",

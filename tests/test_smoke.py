@@ -91,13 +91,16 @@ def test_a_client_has_exactly_the_documented_services() -> None:
 
 
 def test_credentials_fall_back_to_the_config() -> None:
+    from pydantic import SecretStr
+
     from empire_core.config import EmpireConfig
 
-    config = EmpireConfig(username="from-config", password="pw")
+    config = EmpireConfig(username="from-config", password=SecretStr("pw"))
     client = EmpireClient(config=config)
     try:
         assert client.username == "from-config"
-        assert client.password == "pw"
+        assert client.password is not None
+        assert client.password.get_secret_value() == "pw"
     finally:
         client.close()
 

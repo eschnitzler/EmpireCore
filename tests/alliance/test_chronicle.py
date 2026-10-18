@@ -175,12 +175,12 @@ class TestDescribe:
 
     def test_a_daimyo_contract_names_its_rank_and_level(self, game_data: GameData) -> None:
         assert (
-            entry(Action.DAIMYO_ALLIANCE_CASTLE_CONTRACT_COMPLETED, 2).describe(game_data)
+            entry(Action.DAIMYO_ALLIANCE_CASTLE_CONTRACT_COMPLETED, 2).describe(game_data=game_data)
             == "Completed daimyo castle contract rank 1 level (2/3)"
         )
         # the client reads a township contract from the castle contracts too
         assert (
-            entry(Action.DAIMYO_ALLIANCE_TOWNSHIP_CONTRACT_COMPLETED, 3).describe(game_data)
+            entry(Action.DAIMYO_ALLIANCE_TOWNSHIP_CONTRACT_COMPLETED, 3).describe(game_data=game_data)
             == "Completed township contract rank 1 level (3/3)"
         )
 
@@ -190,7 +190,7 @@ class TestDescribe:
         loads = stub_game_data_load(game_data)
         completed = entry(Action.DAIMYO_ALLIANCE_CASTLE_CONTRACT_COMPLETED, 2)
 
-        assert completed.describe() == completed.describe(game_data)
+        assert completed.describe() == completed.describe(game_data=game_data)
         assert len(loads) == 1
 
     def test_a_daimyo_contract_fails_when_the_game_data_cannot_be_loaded(self) -> None:
@@ -199,10 +199,10 @@ class TestDescribe:
 
     def test_a_daimyo_contract_needs_the_game_data_that_has_it(self, game_data: GameData) -> None:
         with pytest.raises(KeyError):
-            entry(Action.DAIMYO_ALLIANCE_CASTLE_CONTRACT_COMPLETED, 404).describe(game_data)
+            entry(Action.DAIMYO_ALLIANCE_CASTLE_CONTRACT_COMPLETED, 404).describe(game_data=game_data)
 
     def test_series_position(self, game_data: GameData) -> None:
-        contract, level, levels = ChronicleDaimyoContract(11).series_position(game_data)
+        contract, level, levels = ChronicleDaimyoContract(11).series_position(game_data=game_data)
 
         assert (contract.contract_id, contract.rank, level, levels) == (11, 2, 1, 2)
 

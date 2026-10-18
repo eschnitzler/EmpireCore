@@ -326,7 +326,7 @@ class Connection:
                 logger.error(f"Connection failed: {e}")
                 try:
                     ws.close()
-                except Exception:
+                except (OSError, websocket.WebSocketException):
                     pass
                 if self.ws is ws:
                     self.ws = None
@@ -380,7 +380,7 @@ class Connection:
         if self.ws:
             try:
                 self.ws.close()
-            except Exception:
+            except (OSError, websocket.WebSocketException):
                 pass
             self.ws = None
 
@@ -967,13 +967,16 @@ class Connection:
             try:
                 self.send(build_command(zone, "pin", [""], self.room_id))
                 logger.debug("Sent keepalive ping")
-            except Exception as e:
+            except NetworkError as e:
                 if active():
                     logger.error(f"Keepalive failed: {e}")
                     # Don't break immediately, retry on next cycle if still running
                     # Only break if socket is explicitly closed
                     if not self.connected:
                         break
+            except Exception:
+                # The idle-session check below runs on this thread, so a bug must not end it
+                logger.exception("Keepalive ping raised unexpectedly")
 
             if active():
                 self._check_session_liveness()
@@ -1001,7 +1004,7 @@ class Connection:
         if ws is not None:
             try:
                 ws.close()
-            except Exception:
+            except (OSError, websocket.WebSocketException):
                 logger.debug("Closing a dead session's socket failed", exc_info=True)
 
     def _cancel_all_waiters(self, cause: BaseException | None = None) -> None:

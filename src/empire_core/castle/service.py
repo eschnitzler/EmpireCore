@@ -3,11 +3,12 @@ Your castles: resources, buildings, the construction queue, research and the mer
 
 It covers:
 
-- Castle management (list, join, rename)
+- Castle management (list, join, rename, abandon)
 - Resources and production
 - Buildings and the construction queue
 - Tax collection
 - Research and the mercenary camp's missions
+- A monument's or laboratory's upgrade progress
 
 Sending goods, support and troops from a castle is on ``client.movements``.
 
@@ -26,10 +27,16 @@ others) can be read with ``client.request``.
 
 from __future__ import annotations
 
+import logging
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar
+
+from pydantic import ValidationError
 
 from empire_core.castle.models.actions import (
+    AbandonCastleRequest,
+    AbandonCastleResponse,
+    CancelAbandonCastleRequest,
     JoinAreaRequest,
     RenameCastleRequest,
     SelectCastleRequest,
@@ -51,14 +58,32 @@ from empire_core.castle.models.buildings import (
 )
 from empire_core.castle.models.castles import CastleInfo, GetCastlesRequest, GetCastlesResponse
 from empire_core.castle.models.collect import CollectMineResourcesRequest, CollectResourceCartRequest
+from empire_core.castle.models.construction_items import (
+    ConstructionItemInventory,
+    DisassembleConstructionItemRequest,
+    DisassembleConstructionItemResponse,
+    EquipConstructionItemRequest,
+    EquipConstructionItemResponse,
+    GetConstructionItemsRequest,
+    RemoveConstructionItemRequest,
+    RemoveConstructionItemResponse,
+)
 from empire_core.castle.models.details import (
     CastleProductionArea,
     DetailedCastleInfo,
     GetDetailedCastleRequest,
     GetDetailedCastleResponse,
 )
+from empire_core.castle.models.landmarks import (
+    GetLaboratoryProgressRequest,
+    GetMonumentProgressRequest,
+    LaboratoryProgressResponse,
+    LandmarkProgress,
+    MonumentProgressResponse,
+)
 from empire_core.castle.models.mercenaries import MercenaryMission, MercenaryMissionsResponse, MercenaryPackageRequest
 from empire_core.castle.models.objects import (
+    BuildingConstructionItems,
     BuildingRow,
     ConstructionList,
     ShowConstructionListRequest,
@@ -86,13 +111,17 @@ from empire_core.castle.models.tax import (
 from empire_core.enums import (
     BuildingState,
     CollectableKind,
+    ConstructionItemMode,
     ExpansionType,
     Kingdom,
+    MapItemType,
     MercenaryMissionState,
     ResourceCartType,
 )
-from empire_core.exceptions import UnknownCastleError
+from empire_core.exceptions import CommandError, EmpireError, PacketError, ReplyMismatchError, UnknownCastleError
 from empire_core.gamedata import BuildingDef, Currency, HorseStats, Research
+from empire_core.map.models.items import MapAreaItem
+from empire_core.protocol.base import BaseResponse
 from empire_core.protocol.js import js_truthy
 from empire_core.services.base import BaseService
 
@@ -103,7 +132,10 @@ if TYPE_CHECKING:
     from empire_core.castle.models.research import ResearchInfoResponse
     from empire_core.castle.models.upkeep import ConstructionItemExpiryResponse, ResourcePoolResponse
     from empire_core.castle.models.wishing_well import WishingWellResponse
+    from empire_core.gamedata import ConstructionItem
     from empire_core.state.models import Castle, JoinedArea
+
+_ConstructionResponse = TypeVar("_ConstructionResponse", bound=BaseResponse)
 
 # PlayerConst.CHANGE_CASTLE_NAME_C2 (dll line 19599)
 _RENAME_RUBIES = 2500
@@ -111,6 +143,14 @@ _RENAME_RUBIES = 2500
 _FREE_SKIP_SECONDS = 240
 _BUILDING = (BuildingState.BUILD_STOPPED, BuildingState.BUILD_IN_PROGRESS)
 _UPGRADING = (BuildingState.UPGRADE_STOPPED, BuildingState.UPGRADE_IN_PROGRESS)
+# CastleListVO.getMainCastleByKingdomID (bundle line 13864)
+_MAIN_CASTLE_TYPES = (MapItemType.CASTLE, MapItemType.KINGDOM_CASTLE)
+_LANDMARK_PROGRESS: dict[
+    MapItemType, tuple[type[GetLaboratoryProgressRequest | GetMonumentProgressRequest], type[LandmarkProgress]]
+] = {
+    MapItemType.LABORATORY: (GetLaboratoryProgressRequest, LaboratoryProgressResponse),
+    MapItemType.MONUMENT: (GetMonumentProgressRequest, MonumentProgressResponse),
+}
 
 
 # a started mission's RD is rounded, and a collect sent while time remains is a ruby skip
@@ -138,6 +178,198 @@ class CastleService(BaseService):
         # Get resources
         resources = client.castle.get_resources(castle_id=12345)
     """
+
+    @property
+    def construction_items(self) -> ConstructionItemInventory | None:
+        """The last construction inventory received; None before the first inventory reply."""
+        return self.client.state.get_construction_items()
+
+    def get_construction_items(self, *, timeout: float = 5.0) -> ConstructionItemInventory:
+        """Request all construction items in storage, including an empty inventory.
+
+        Client: ``C2SGetContructionItemsInventoryVO`` and ``GIICommand``
+        (bundle lines 28546, 123270).
+        """
+        return self.request(GetConstructionItemsRequest(), ConstructionItemInventory, timeout=timeout)
+
+    @property
+    def placed_construction_items(self) -> tuple[BuildingConstructionItems, ...] | None:
+        """Items on the joined castle's buildings; None before joining or after a map read."""
+        return self.client.state.get_placed_construction_items()
+
+    def _refresh_construction_items(self, timeout: float) -> None:
+        self.client.state.invalidate_construction_items()
+        try:
+            self.get_construction_items(timeout=timeout)
+        except EmpireError as error:
+            logging.getLogger(__name__).warning(
+                "Construction inventory refresh failed after accepted action: %s", error
+            )
+
+    def _request_construction_action(
+        self,
+        request: EquipConstructionItemRequest | RemoveConstructionItemRequest | DisassembleConstructionItemRequest,
+        response_type: type[_ConstructionResponse],
+        timeout: float,
+        *,
+        area_revision: int | None = None,
+    ) -> tuple[_ConstructionResponse, object]:
+        packet = self.client.request_packet(request, request.get_response_command(), timeout=timeout)
+        if packet.error_code != 0:
+            raise CommandError(request.command, packet.error_code, packet.payload)
+        self.client.state.invalidate_construction_items()
+        if area_revision is not None:
+            self.client.state.apply_placed_construction_items(
+                None,
+                castle_id=request.castle_id,
+                kingdom_id=request.kingdom_id,
+                area_revision=area_revision,
+                command=request.command,
+                response_payload=packet.payload,
+            )
+        try:
+            result = response_type.model_validate(packet.payload)
+        except ValidationError as error:
+            raise PacketError(f"Could not parse '{request.command}' response: {error}") from error
+        return result, packet.payload
+
+    def _join_construction_area(self, castle_id: int, kingdom: Kingdom, timeout: float) -> int:
+        self.join(castle_id, timeout=timeout)
+        revision = self.client.state.area_revision
+        area = self.client.state.get_joined_area()
+        if area is None or area.castle_id != castle_id or area.kingdom_id != kingdom:
+            raise ReplyMismatchError(castle_id, area.castle_id if area and area.castle_id is not None else -1)
+        return revision
+
+    def equip_construction_item(
+        self,
+        castle_id: int,
+        object_id: int,
+        construction_item_id: ConstructionItem | int,
+        slot: int,
+        *,
+        mode: ConstructionItemMode = ConstructionItemMode.ADD,
+        timeout: float = 5.0,
+    ) -> EquipConstructionItemResponse:
+        """Join a castle and equip an item, returning the server's complete placement.
+
+        ADD fills an empty slot. REPLACE keeps the old item for its coin removal
+        cost; OVERWRITE discards it. A failed inventory refresh is logged and
+        leaves ``construction_items`` unknown after the accepted placement.
+
+        Client: ``AConstructionItemsActionDialog.sendReplaceCommand`` (bundle 28680),
+        ``CastleConstructionItemsOverwriteDialog`` (bundle 79306-79307).
+        """
+        kingdom = self._require_own_castle(castle_id).kingdom_id
+        request = EquipConstructionItemRequest(
+            object_id=object_id,
+            construction_item_id=construction_item_id,
+            slot=slot,
+            mode=mode,
+            kingdom_id=kingdom,
+            castle_id=castle_id,
+        )
+        with (
+            self.client.connection.command_lock("jaa", timeout=timeout),
+            self.client.connection.command_lock("gaa", timeout=timeout),
+        ):
+            revision = self._join_construction_area(castle_id, kingdom, timeout)
+            result, payload = self._request_construction_action(
+                request, EquipConstructionItemResponse, timeout, area_revision=revision
+            )
+            self.client.state.apply_placed_construction_items(
+                result,
+                castle_id=castle_id,
+                kingdom_id=kingdom,
+                area_revision=revision,
+                command=request.command,
+                response_payload=payload,
+            )
+            self._refresh_construction_items(timeout)
+            return result
+
+    def remove_construction_item(
+        self,
+        castle_id: int,
+        object_id: int,
+        construction_item_id: ConstructionItem | int,
+        slot: int,
+        *,
+        timeout: float = 5.0,
+    ) -> RemoveConstructionItemResponse:
+        """Join a castle and return an equipped item to storage for its coin removal cost.
+
+        Refusals and transport failures propagate. A failed inventory refresh is
+        logged and leaves ``construction_items`` unknown after the accepted removal.
+
+        Client: ``CastleConstructionItemsExtractDialog.onClickAccept`` (bundle 79277),
+        ``CRICommand.executeCommand`` (bundle 123255-123256).
+        """
+        kingdom = self._require_own_castle(castle_id).kingdom_id
+        request = RemoveConstructionItemRequest(
+            object_id=object_id,
+            construction_item_id=construction_item_id,
+            slot=slot,
+            kingdom_id=kingdom,
+            castle_id=castle_id,
+        )
+        with (
+            self.client.connection.command_lock("jaa", timeout=timeout),
+            self.client.connection.command_lock("gaa", timeout=timeout),
+        ):
+            revision = self._join_construction_area(castle_id, kingdom, timeout)
+            result, payload = self._request_construction_action(
+                request, RemoveConstructionItemResponse, timeout, area_revision=revision
+            )
+            self.client.state.apply_placed_construction_items(
+                result,
+                castle_id=castle_id,
+                kingdom_id=kingdom,
+                area_revision=revision,
+                command=request.command,
+                response_payload=payload,
+            )
+            self._refresh_construction_items(timeout)
+            return result
+
+    def disassemble_construction_item(
+        self,
+        castle_id: int,
+        construction_item_id: ConstructionItem | int,
+        *,
+        amount: int = 1,
+        lost_and_found_id: int = -1,
+        timeout: float = 5.0,
+    ) -> DisassembleConstructionItemResponse:
+        """Disassemble stored items and resolve their drawn rewards from game data.
+
+        Items are consumed. ``lost_and_found_id=-1`` selects storage. The reply
+        exposes the drawn reward ids and their collectables; permanent items'
+        recipe materials are not listed by the server. A failed inventory refresh
+        is logged and leaves ``construction_items`` unknown after success.
+
+        Client: ``C2SDisassembleConstructionItemVO`` (bundle 79223-79227),
+        ``onClickAccept`` / ``onDCIArrived`` (bundle 35727-35729),
+        ``showTempCIDisassembling`` (bundle 48984).
+        """
+        kingdom = self._require_own_castle(castle_id).kingdom_id
+        request = DisassembleConstructionItemRequest(
+            construction_item_id=construction_item_id,
+            kingdom_id=kingdom,
+            castle_id=castle_id,
+            amount=amount,
+            lost_and_found_id=lost_and_found_id,
+        )
+        game_data = self._require_game_data()
+        with (
+            self.client.connection.command_lock("jaa", timeout=timeout),
+            self.client.connection.command_lock("gaa", timeout=timeout),
+        ):
+            self._join_construction_area(castle_id, kingdom, timeout)
+            result, _ = self._request_construction_action(request, DisassembleConstructionItemResponse, timeout)
+            result = result.model_copy(update={"rewards": game_data.reward_list(result.reward_ids, combine=True)})
+            self._refresh_construction_items(timeout)
+            return result
 
     # =========================================================================
     # Castle List Operations
@@ -248,6 +480,27 @@ class CastleService(BaseService):
         if castle is None:
             raise UnknownCastleError(castle_id)
         return castle
+
+    def get_landmark_progress(self, landmark: MapAreaItem, *, timeout: float = 5.0) -> LandmarkProgress:
+        """
+        A monument's or laboratory's upgrade points, asked for by its map row's object id.
+
+        A laboratory is asked with ``glp``, a monument with ``gmp``, as their upgrade dialogs ask.
+
+        Args:
+            landmark: The landmark's map row, e.g. from ``client.map.scan_map_area``
+
+        Raises:
+            ValueError: The row is neither a monument nor a laboratory
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+
+        Client: ``CastleUpgradeLaboratoryDialogProperties.progressCommandVO`` and
+        ``CastleUpgradeLandmarkDialogProperties.progressCommandVO`` (bundle lines 51665, 51709)
+        """
+        if landmark.location_id is None or landmark.item_type not in _LANDMARK_PROGRESS:
+            raise ValueError(f"{landmark.item_type.name} is neither a monument nor a laboratory")
+        request_type, response_type = _LANDMARK_PROGRESS[landmark.item_type]
+        return self.request(request_type(object_id=landmark.location_id), response_type, timeout=timeout)
 
     # =========================================================================
     # Castle Selection
@@ -386,6 +639,81 @@ class CastleService(BaseService):
             ),
             timeout=timeout,
         )
+
+    def abandon_castle(self, castle_id: int, *, timeout: float = 5.0) -> AbandonCastleResponse:
+        """
+        Start abandoning one of your castles; it is given up a day later unless cancelled.
+
+        Looks the castle up in the castle list for its kingdom, as :meth:`rename`
+        does. Any castle may be abandoned but the kingdom's main castle; a
+        faction event's main camp, which the client also counts as one, is
+        left to the server. It is free.
+        The castle goes after ``OutpostConst.ABANDON_TIME`` (86400 s) and
+        :meth:`cancel_abandon` keeps it within ``ABANDON_CANCEL_TIME`` (10800 s).
+
+        Args:
+            castle_id: One of your castles, from ``client.castle.get_all()``
+                (``CastleInfo.castle_id``)
+            timeout: Timeout in seconds
+
+        Raises:
+            ValueError: ``castle_id`` is the main castle of its kingdom
+            UnknownCastleError: ``castle_id`` is not one of your castles.
+            CommandError: The server refused, as for a castle held too briefly
+                (``CastleInfo.no_abandon_seconds`` above 0), which the client
+                refuses itself with ``NOT_OWNED_LONG_ENOUGH``
+
+        Client: ``CastleManagementDialog.setDeleteOutpostAndRelocateButton`` (bundle line 24592)
+        offers it for any castle but ``CastleListVO.getMainCastleByKingdomID`` (bundle line
+        13864), the kingdom's castle of type ``CASTLE`` or ``KINGDOM_CASTLE``;
+        ``onAbandonOutpost`` (bundle line 24630) sends ``C2SAbandonOutpostStartVO``;
+        ``OutpostConst`` (dll line 19530)
+
+        Example:
+            reply = client.castle.abandon_castle(12345)
+            print(f"Abandoned in {reply.abandon_seconds} s")
+        """
+        castles = self.get_all(timeout=timeout)
+        castle = next((c for c in castles if c.castle_id == castle_id), None)
+        if castle is None:
+            raise UnknownCastleError(castle_id)
+        main = next(
+            (c for c in castles if c.kingdom_id == castle.kingdom_id and c.castle_type in _MAIN_CASTLE_TYPES), None
+        )
+        if main is castle:
+            raise ValueError(f"castle {castle_id} is the main castle of its kingdom and cannot be abandoned")
+        return self.request(
+            AbandonCastleRequest(castle_id=castle_id, kingdom_id=castle.kingdom_id),
+            AbandonCastleResponse,
+            timeout=timeout,
+        )
+
+    def cancel_abandon(self, castle_id: int, *, timeout: float = 5.0) -> None:
+        """
+        Keep a castle :meth:`abandon_castle` started to give up.
+
+        Looks the castle up in the castle list for its kingdom. The client
+        offers it while ``CastleInfo.cancel_abandon_seconds`` is above 0.
+
+        Args:
+            castle_id: One of your castles, from ``client.castle.get_all()``
+                (``CastleInfo.castle_id``)
+            timeout: Timeout in seconds
+
+        Raises:
+            UnknownCastleError: ``castle_id`` is not one of your castles.
+            CommandError: The server refused.
+
+        Client: ``CastleManagementDialog.onDeleteOutpostClick`` and ``onCancelAbandoning``
+        (bundle lines 24624, 24629) send ``C2SAbandonOutpostCancelVO``
+
+        Example:
+            client.castle.cancel_abandon(12345)
+        """
+        castle = next((c for c in self.get_all(timeout=timeout) if c.castle_id == castle_id), None)
+        if castle is None:
+            raise UnknownCastleError(castle_id)
+        self.execute(CancelAbandonCastleRequest(castle_id=castle_id, kingdom_id=castle.kingdom_id), timeout=timeout)
 
     # =========================================================================
     # Resource Operations

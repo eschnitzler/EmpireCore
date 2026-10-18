@@ -1,6 +1,23 @@
 """Castles: the castle list, castle details, buildings and castle actions: protocol models."""
 
+from empire_core.castle.models.construction_items import (
+    ConstructionItemInventory,
+    ConstructionItemPlacement,
+    ConstructionItemStack,
+    DisassembleConstructionItemRequest,
+    DisassembleConstructionItemResponse,
+    EquipConstructionItemRequest,
+    EquipConstructionItemResponse,
+    GetConstructionItemsRequest,
+    RemoveConstructionItemRequest,
+    RemoveConstructionItemResponse,
+)
+
 from .actions import (
+    AbandonCastleRequest,
+    AbandonCastleResponse,
+    CancelAbandonCastleRequest,
+    CancelAbandonCastleResponse,
     JoinAreaRequest,
     RelocateCastleRequest,
     RelocateCastleResponse,
@@ -61,6 +78,13 @@ from .kingdoms import (
     KingdomTransfer,
     KingdomUnlock,
 )
+from .landmarks import (
+    GetLaboratoryProgressRequest,
+    GetMonumentProgressRequest,
+    LaboratoryProgressResponse,
+    LandmarkProgress,
+    MonumentProgressResponse,
+)
 from .mercenaries import MercenaryMission, MercenaryMissionsResponse, MercenaryPackageRequest
 from .objects import (
     FREE_SLOT,
@@ -117,6 +141,16 @@ from .upkeep import (
 from .wishing_well import WishingWellResponse
 
 __all__ = [
+    "ConstructionItemPlacement",
+    "EquipConstructionItemRequest",
+    "EquipConstructionItemResponse",
+    "RemoveConstructionItemRequest",
+    "RemoveConstructionItemResponse",
+    "DisassembleConstructionItemRequest",
+    "DisassembleConstructionItemResponse",
+    "ConstructionItemStack",
+    "GetConstructionItemsRequest",
+    "ConstructionItemInventory",
     "ResearchInfoResponse",
     "SkipResearchRequest",
     "SkipResearchResponse",
@@ -130,6 +164,10 @@ __all__ = [
     "JoinAreaRequest",
     "RenameCastleRequest",
     "RenameCastleResponse",
+    "AbandonCastleRequest",
+    "AbandonCastleResponse",
+    "CancelAbandonCastleRequest",
+    "CancelAbandonCastleResponse",
     "RelocateCastleRequest",
     "RelocateCastleResponse",
     "CastleResources",
@@ -212,6 +250,11 @@ __all__ = [
     "TaxInfo",
     "TaxInfoResponse",
     "WishingWellResponse",
+    "GetLaboratoryProgressRequest",
+    "GetMonumentProgressRequest",
+    "LaboratoryProgressResponse",
+    "LandmarkProgress",
+    "MonumentProgressResponse",
     "KingdomInfoResponse",
     "KingdomTransfer",
     "KingdomUnlock",

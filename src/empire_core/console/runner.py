@@ -106,7 +106,7 @@ class CodeRunner:
                     self.namespace["_"] = value
                     self._show(value)
             ok = True
-        except BaseException as e:
+        except BaseException as e:  # noqa: BLE001 - the user's code may raise anything, shown as its traceback
             if generation == self._generation:
                 # The traceback starts at the user's code, not at this frame.
                 tb = e.__traceback__.tb_next if e.__traceback__ is not None else None

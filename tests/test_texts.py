@@ -121,6 +121,33 @@ class TestText:
 
         assert text("errorCode_120") == "errorCode_120"
 
+    @pytest.mark.parametrize(
+        ("metadata", "lang_file"),
+        [
+            ({}, {}),
+            ([], {}),
+            ({"@metadata": {"versionNo": 1}}, ["not", "a", "mapping"]),
+        ],
+        ids=["no-version", "metadata-not-an-object", "texts-not-an-object"],
+    )
+    def test_a_malformed_cdn_file_gives_the_key(
+        self, monkeypatch: pytest.MonkeyPatch, metadata: object, lang_file: object
+    ) -> None:
+        class Response:
+            def __init__(self, body: object) -> None:
+                self.body = body
+
+            def raise_for_status(self) -> None:
+                pass
+
+            def json(self) -> object:
+                return self.body
+
+        bodies = iter([metadata, lang_file])
+        monkeypatch.setattr(requests, "get", lambda *args, **kwargs: Response(next(bodies)))
+
+        assert text("errorCode_120") == "errorCode_120"
+
 
 class TestFill:
     @pytest.mark.parametrize(

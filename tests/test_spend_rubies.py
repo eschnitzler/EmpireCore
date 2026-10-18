@@ -35,6 +35,7 @@ RUBY_REQUESTS = {
     "StartTaxRequest": "txs, tax types 5 and 6 (TAX_RUBY_COSTS)",
     "StartResearchRequest": "res, a research priced in C2",
     "MercenaryPackageRequest": "mpe, the ruby skip of a running mission (MercenaryConst.getSkipC2Cost)",
+    "ResetSkillsRequest": "skr inside the reset cooldown (LegendSkillConst.resetSkipCostC2, skipWithRubies)",
 }
 
 SENT_WITHOUT_CONSENT = {
@@ -56,6 +57,8 @@ NOT_CONSENT = {
     "horse_booster_id": "picks the horse; one priced in rubies needs spend_rubies",
     "collector_booster": "collector event booster items, not rubies",
     "yard_boost": "the courtyard capacity effect a fill sizes against, not a purchase",
+    "admit_ruby_units": "whether the hospital takes in wounded ruby units, a free setting",
+    "free": "the generals hub's free spin, against a paid one that spends offerings, not rubies",
 }
 
 

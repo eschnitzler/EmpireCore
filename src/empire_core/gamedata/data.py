@@ -19,6 +19,7 @@ import hashlib
 import json
 import logging
 import os
+import sys
 import threading
 import time
 from collections.abc import Callable, Iterable, Mapping
@@ -84,6 +85,9 @@ from .tables import (
     DifficultyTypeDef,
     EquipmentGroupDef,
     EventDef,
+    GemColorDef,
+    GeneralRarityDef,
+    GeneralsHubCharacterDef,
     LootBoxDef,
     LootBoxTypeDef,
     QuestCondition,
@@ -112,8 +116,11 @@ if TYPE_CHECKING:
         EquipmentGroup,
         Event,
         Gem,
+        GemColor,
         General,
         GeneralAbility,
+        GeneralRarity,
+        GeneralsHubCharacter,
         GeneralSkill,
         GlobalEffect,
         Horse,
@@ -128,6 +135,7 @@ if TYPE_CHECKING:
         Tool,
         Unit,
     )
+    from .stacks import WodAmount
 
 logger = logging.getLogger(__name__)
 
@@ -170,6 +178,9 @@ _CACHED_MODELS = (
     EventDef,
     LootBoxDef,
     LootBoxTypeDef,
+    GeneralRarityDef,
+    GeneralsHubCharacterDef,
+    GemColorDef,
     EquipmentGroupDef,
     DifficultyTypeDef,
     QuestDef,
@@ -354,6 +365,8 @@ _TABLES: dict[str, _TableSource] = {
     "legend_skills": _TableSource("legendskills", LegendSkillDef, "skill_id"),
     "generals": _TableSource("generals", GeneralDef, "general_id"),
     "general_abilities": _TableSource("generalAbilities", GeneralAbilityDef, "ability_id"),
+    "general_rarities": _TableSource("generalRarities", GeneralRarityDef, "rarity_id"),
+    "generals_hub_characters": _TableSource("characters", GeneralsHubCharacterDef, "character_id"),
     "currencies": _TableSource("currencies", CurrencyDef, "currency_id"),
     "raid_bosses": _TableSource("raidBosses", RaidBossDef, "raid_boss_id"),
     "buildings": _TableSource("buildings", BuildingDef, "building_id"),
@@ -367,6 +380,7 @@ _TABLES: dict[str, _TableSource] = {
     "daily_quests": _TableSource("dailyactivities", DailyQuestDef, "quest_id"),
     "titles": _TableSource("titles", TitleDef, "title_id"),
     "gems": _TableSource("gems", GemDef, "gem_id"),
+    "gem_colors": _TableSource("gemColors", GemColorDef, "color_id"),
     "sceat_skills": _TableSource("sceatSkills", SceatSkillDef, "skill_id"),
     "horses": _TableSource("horses", HorseStats, "wod_id"),
     "achievements": _TableSource("achievements", AchievementDef, "achievement_id"),
@@ -412,6 +426,7 @@ R = TypeVar("R", bound=EmpireModel)
 
 
 _warned_versions: set[str] = set()
+_warned_unsorted: set[object] = set()
 
 _load_lock = threading.Lock()
 _loaded: GameData | None = None
@@ -438,7 +453,7 @@ def default_cache_dir() -> Path:
     return Path(base) / "empire_core"
 
 
-def _rows(entries: object, model: type[R]) -> list[R]:
+def _rows(entries: object, model: type[R], context: dict[str, Any] | None = None) -> list[R]:
     """Validate a table, skipping rows that do not fit rather than failing."""
     parsed: list[R] = []
     skipped = 0
@@ -449,7 +464,7 @@ def _rows(entries: object, model: type[R]) -> list[R]:
             skipped += 1
             continue
         try:
-            parsed.append(model.model_validate(entry))
+            parsed.append(model.model_validate(entry, context=context))
         except ValueError:
             skipped += 1
     if skipped:
@@ -561,6 +576,21 @@ class GameData(EmpireModel):
     def general_abilities(self) -> Table[GameDataId["GeneralAbility"], GeneralAbilityDef]:
         """General ability levels by ``GeneralAbility``."""
         return self._table("general_abilities")
+
+    @cached_property
+    def gem_colors(self) -> Table[GameDataId["GemColor"], GemColorDef]:
+        """Gem colours by ``GemColor``."""
+        return self._table("gem_colors")
+
+    @cached_property
+    def general_rarities(self) -> Table[GameDataId["GeneralRarity"], GeneralRarityDef]:
+        """General rarities by ``GeneralRarity``, with what unlocking and stars cost."""
+        return self._table("general_rarities")
+
+    @cached_property
+    def generals_hub_characters(self) -> Table[GameDataId["GeneralsHubCharacter"], GeneralsHubCharacterDef]:
+        """The generals hub's characters by ``GeneralsHubCharacter``."""
+        return self._table("generals_hub_characters")
 
     @cached_property
     def currencies(self) -> Table[GameDataId["CurrencyId"], CurrencyDef]:
@@ -728,6 +758,30 @@ class GameData(EmpireModel):
     def is_tool(self, wod_id: int) -> bool:
         return wod_id in self.tools
 
+    def unit_sort_key(self, stack: WodAmount) -> tuple[bool, float]:
+        """
+        A sort key putting units and tools in the client's order: ``sorted(army.courtyard(), key=data.unit_sort_key)``.
+
+        Soldiers come first by ``sort_order`` from the highest, then tools from the lowest
+        (:attr:`~empire_core.gamedata.models.UnitStats.sorts_as_tool` decides which is which). Stacks
+        that tie keep their order, as Python's and the client's sorts are both stable.
+
+        An id with no unit or tool row sorts as a soldier without a ``sort_order``, logged once per
+        id; the client fails there instead (``UnitInventoryList.addUnit`` throws, bundle line 21826).
+
+        Client: ``ClientConstSort.sortByUnitSortOrder`` (bundle line 3108), with ``_unitSortOrderNormal``
+        and ``_unitSortOrderInvert`` (bundle lines 3162-3163)
+        """
+        row = None if stack.item is None else self.units.get(stack.item) or self.tools.get(stack.item)
+        if row is None:
+            if stack.item not in _warned_unsorted:
+                _warned_unsorted.add(stack.item)
+                logger.warning(
+                    "No unit or tool %s in the game data; it sorts as a soldier without a sortOrder", stack.item
+                )
+            return False, -sys.float_info.max
+        return (True, row.sort_order) if row.sorts_as_tool else (False, -row.sort_order)
+
     def units_by_role(self, role: UnitRole) -> list[UnitStats]:
         """Every unit of one role (``SoldierUnitVO.role``, bundle line 12590)."""
         return [unit for unit in self.units.values() if unit.role == role]
@@ -824,12 +878,27 @@ class GameData(EmpireModel):
         effect_type = self.effect_types.get(effect.effect_type_id)
         return effect_type.name if effect_type else ""
 
-    def dungeon_defense(self, victories: int, kingdom_id: Kingdom = Kingdom.GREEN) -> DungeonDefence | None:
-        """The camp defense for a victory count in a kingdom."""
-        for row in self.dungeons:
-            if row.count_victories == victories and row.kingdom_id == kingdom_id:
-                return row
-        return None
+    def dungeon_defense(self, victories: int, kingdom_id: Kingdom | int = Kingdom.GREEN) -> DungeonDefence | None:
+        """
+        The robber baron camp's defense for a victory count in a kingdom.
+
+        A count past the kingdom's highest row reads that row; one below its
+        lowest, or a kingdom with no rows, finds None, where the client gets
+        ``undefined``. A treasure map dungeon is looked up by its node's own
+        ``countVictories`` and its map's ``kID``, as
+        ``TreasureDungeonMapObjectVO.skipCooldownCostC2`` does (bundle line 22007).
+
+        Client: ``CastleDungeonData.getDungeon`` (bundle lines 111765-111766)
+
+        Args:
+            victories: The robber baron camp's victory count, from ``MapAreaItem.victory_count``
+            kingdom_id: The robber baron camp's kingdom, or a treasure map's ``kID``
+        """
+        rows = [row for row in self.dungeons if row.kingdom_id == kingdom_id]
+        if not rows:
+            return None
+        victories = min(victories, max(row.count_victories for row in rows))
+        return next((row for row in rows if row.count_victories == victories), None)
 
     def raw(self, table: str) -> list[Any]:
         """An unmodeled table, exactly as the payload had it."""
@@ -970,6 +1039,7 @@ class GameData(EmpireModel):
         equipment_sets: dict[int, list[EquipmentSetDef]] = {}
         for row in _rows(items_data.get("equipment_sets"), EquipmentSetDef):
             equipment_sets.setdefault(row.set_id, []).append(row)
+        default_lords = {r.lord_id: r for r in _rows(items_data.get("lords"), DefaultLordDef)}
 
         data = cls(
             version=version,
@@ -995,9 +1065,9 @@ class GameData(EmpireModel):
             alliance_buffs={r.alliance_buff_id: r for r in _rows(items_data.get("alliancebuffs"), AllianceBuffDef)},
             attack_slots={r.slot_id: r for r in _rows(items_data.get("attackSetupSlots"), AttackSlotDef)},
             tool_categories={r.tool_category_id: r for r in _rows(items_data.get("toolCategories"), ToolCategoryDef)},
-            default_lords={r.lord_id: r for r in _rows(items_data.get("lords"), DefaultLordDef)},
+            default_lords=default_lords,
             vip_levels={r.vip_level_id: r for r in _rows(items_data.get("viplevels"), VipLevelDef)},
-            dungeons=_rows(items_data.get("dungeons"), DungeonDefence),
+            dungeons=_rows(items_data.get("dungeons"), DungeonDefence, context={"default_lords": default_lords}),
             camps={
                 table: _rows(items_data.get(table), NpcCampDefence) for table in CAMP_TABLES if items_data.get(table)
             },

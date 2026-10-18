@@ -454,7 +454,7 @@ class Console:
         started = time.monotonic()
         try:
             self.client.login()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - any failure to log in is shown in the console, not lost on its thread
             self._queue_output(f"✗ {type(e).__name__}: {e}\n")
         else:
             self._queue_output(f"✓ logged in as {self.who} in {duration_label(time.monotonic() - started)}\n")
@@ -702,7 +702,7 @@ class Console:
         if self._signature_cache is None or self._signature_cache[0] != key:
             try:
                 text = signature_at(self.namespace, *key)
-            except Exception:
+            except Exception:  # noqa: BLE001 - jedi runs live objects' code; a failure means no signature
                 text = ""
             self._signature_cache = (key, text)
         signature = self._signature_cache[1]

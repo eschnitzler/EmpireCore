@@ -655,7 +655,15 @@ def test_spy_result_defaults_carry_no_report() -> None:
     result = SpyResult(SpyOutcome.NO_SPIES_AVAILABLE)
     assert (result.success, result.step, result.error, result.report, result.army) == (False, None, None, None, None)
     assert SpyResult(SpyOutcome.SUCCESS).success is True
-    assert {f.name for f in fields(SpyResult)} == {"outcome", "step", "error", "message_id", "report", "mission"}
+    assert {f.name for f in fields(SpyResult)} == {
+        "outcome",
+        "step",
+        "error",
+        "message_id",
+        "report",
+        "mission",
+        "screen",
+    }
 
 
 # ---------------------------------------------------------------------------

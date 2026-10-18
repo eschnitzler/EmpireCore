@@ -337,7 +337,7 @@ class DetailedCastleInfo(BasePayload):
     abandon_outpost_seconds: int = Field(
         validation_alias="AOT",
         default=-1,
-        description="Seconds until the outpost is abandoned, -1 when it is not",
+        description="Seconds until the castle is abandoned, -1 when it is not",
     )
     units: WodAmounts = Field(
         validation_alias="AC",

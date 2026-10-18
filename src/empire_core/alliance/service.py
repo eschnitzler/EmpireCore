@@ -17,7 +17,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from pydantic import ValidationError
 
@@ -61,6 +61,21 @@ from empire_core.alliance.models.diplomacy import (
     SetAutoWarRequest,
     SetAutoWarResponse,
 )
+from empire_core.alliance.models.forum import (
+    CreateForumTopicRequest,
+    DeleteForumReplyRequest,
+    DeleteForumTopicRequest,
+    GetForumTopicRequest,
+    GetForumTopicResponse,
+    GetForumTopicsRequest,
+    GetForumTopicsResponse,
+    GetUnreadTopicCountRequest,
+    GetUnreadTopicCountResponse,
+    ReplyToForumTopicRequest,
+    SetForumVisibilityRequest,
+    SetForumVisibilityResponse,
+    forum_text,
+)
 from empire_core.alliance.models.help import (
     AllianceHelpListResponse,
     AllianceHelpReceived,
@@ -88,8 +103,21 @@ from empire_core.alliance.models.members import (
     RerankMemberRequest,
     RerankMemberResponse,
 )
+from empire_core.alliance.models.membership import (
+    AcceptAllianceInvitationRequest,
+    AcceptAllianceInvitationResponse,
+    ApplyToAllianceRequest,
+    FindAllianceRecruitsRequest,
+    FindAllianceRecruitsResponse,
+    GetAllianceInvitationRequest,
+    GetAllianceInvitationResponse,
+    JoinOpenAllianceRequest,
+    JoinOpenAllianceResponse,
+    SetLookingForAllianceRequest,
+    SetLookingForMembersRequest,
+)
 from empire_core.alliance.models.search import AllianceSearchResult, SearchAllianceRequest, SearchAllianceResponse
-from empire_core.enums import AllianceRank, BookmarkType, DiplomacyStatus, GGEError, HelpType, Kingdom
+from empire_core.enums import AllianceRank, BookmarkType, DiplomacyStatus, ForumRankGroup, GGEError, HelpType, Kingdom
 from empire_core.exceptions import CommandError, NotInAllianceError, PacketError
 from empire_core.protocol.base import BaseRequest, BaseResponse
 from empire_core.services.base import BaseService
@@ -99,6 +127,8 @@ if TYPE_CHECKING:
     from empire_core.client.client import EmpireClient
 
 logger = logging.getLogger(__name__)
+
+_MembershipResponse = TypeVar("_MembershipResponse", bound=BaseResponse)
 
 AllianceHelpUpdate = (
     AllianceHelpListResponse | AllianceHelpRequestChanged | AllianceHelpRequestRemoved | AllianceHelpReceived
@@ -158,6 +188,64 @@ class AllianceService(BaseService):
     def chat(self) -> list[ChatMessageData]:
         """The alliance chat history, oldest first; a copy of the list, of read-only messages."""
         return self.client.state.get_alliance_chat()
+
+    def create_topic(self, name: str, text: str, visible_ranks: list[ForumRankGroup], *, timeout: float = 5.0) -> None:
+        """Create a forum topic with explicit visibility groups and an opening post.
+
+        Titles must encode to 2–38 characters and posts to 2–2000. Server permission
+        refusals raise CommandError. No created id is returned by the client handler.
+        """
+        forum_text(name, 38)
+        forum_text(text, 2000)
+        with self._own_alliance():
+            self.execute(CreateForumTopicRequest(name=name, text=text, visible_ranks=visible_ranks), timeout=timeout)
+
+    def reply(self, topic_id: int, text: str, *, timeout: float = 5.0) -> None:
+        """Post a reply to a forum topic; permission refusals raise CommandError."""
+        forum_text(text, 2000)
+        with self._own_alliance():
+            self.execute(ReplyToForumTopicRequest(topic_id=topic_id, text=text), timeout=timeout)
+
+    def delete_topic(self, topic_id: int, *, timeout: float = 5.0) -> None:
+        """Delete a forum topic; permission refusals raise CommandError."""
+        with self._own_alliance():
+            self.execute(DeleteForumTopicRequest(topic_id=topic_id), timeout=timeout)
+
+    def delete_reply(self, topic_id: int, reply_id: int, *, timeout: float = 5.0) -> None:
+        """Delete a forum post; permission refusals raise CommandError."""
+        with self._own_alliance():
+            self.execute(DeleteForumReplyRequest(topic_id=topic_id, reply_id=reply_id), timeout=timeout)
+
+    def set_topic_visibility(
+        self, topic_id: int, visible_ranks: list[ForumRankGroup], *, timeout: float = 5.0
+    ) -> GetForumTopicResponse | None:
+        """Change the rank groups that can see a topic, returning its details when echoed."""
+        with self._own_alliance():
+            return self.request(
+                SetForumVisibilityRequest(topic_id=topic_id, visible_ranks=visible_ranks),
+                SetForumVisibilityResponse,
+                timeout=timeout,
+            ).topic
+
+    def get_forum_topics(self, *, timeout: float = 5.0) -> GetForumTopicsResponse:
+        """Get visible forum topics, newest post first, and the total including hidden topics."""
+        with self._own_alliance():
+            return self.request(GetForumTopicsRequest(), GetForumTopicsResponse, timeout=timeout)
+
+    def get_topic(self, topic_id: int, *, timeout: float = 5.0) -> GetForumTopicResponse:
+        """Open a forum topic and its posts. Opening it may mark it read on the server.
+
+        Client: ``CastleForumViewTopic.requestTopicData`` sends ``gtr`` (bundle line 33651);
+        ``GTRCommand.executeCommand`` (bundle line 121768) reads the topic, with
+        unread counts delivered separately by ``UTCCommand`` (bundle line 121785).
+        """
+        with self._own_alliance():
+            return self.request(GetForumTopicRequest(topic_id=topic_id), GetForumTopicResponse, timeout=timeout)
+
+    def get_unread_topic_count(self, *, timeout: float = 5.0) -> int:
+        """Request the number of unread forum topics."""
+        with self._own_alliance():
+            return self.request(GetUnreadTopicCountRequest(), GetUnreadTopicCountResponse, timeout=timeout).count
 
     # =========================================================================
     # Member Operations
@@ -298,6 +386,69 @@ class AllianceService(BaseService):
                 return None
             raise
         return _echoed(response.alliance, "arm")
+
+    def apply(self, alliance_id: int, text: str, *, timeout: float = 5.0) -> None:
+        """Send an application to an alliance, waiting for acceptance by the server."""
+        self.execute(ApplyToAllianceRequest(alliance_id=alliance_id, text=text), timeout=timeout)
+
+    def join_open(self, alliance_id: int, *, timeout: float = 5.0) -> AllianceInfo:
+        """Join an alliance that permits open joining and return its details.
+
+        A refused join raises CommandError. Its membership and details are applied
+        to state only after a successful, consistent reply. A newer membership
+        update or session reset raises ReplyMismatchError and keeps that newer state.
+        """
+        with self._membership_change(timeout=timeout) as revision:
+            response, data = self._request_membership(
+                JoinOpenAllianceRequest(alliance_id=alliance_id), JoinOpenAllianceResponse, timeout=timeout
+            )
+            self.client.state.apply_membership_response(data, membership_revision=revision)
+            return response.alliance
+
+    def get_invitation(self, message_id: int, *, timeout: float = 5.0) -> AllianceInfo:
+        """Read the inviting alliance using the invitation's message id."""
+        return _echoed(
+            self.request(
+                GetAllianceInvitationRequest(message_id=message_id), GetAllianceInvitationResponse, timeout=timeout
+            ).alliance,
+            "bai",
+        )
+
+    def accept_invitation(self, message_id: int, *, accept: bool = True, timeout: float = 5.0) -> AllianceInfo | None:
+        """Accept an invitation, or refuse with ``accept=False``; return echoed alliance details.
+
+        ``message_id`` is the invitation message id, not the sender's player id.
+        Refusing normally returns no alliance. A refused command still raises CommandError.
+        A newer membership update or session reset raises ReplyMismatchError;
+        it keeps the newer state even if the invitation was accepted remotely.
+        """
+        with self._membership_change(timeout=timeout) as revision:
+            response, data = self._request_membership(
+                AcceptAllianceInvitationRequest(message_id=message_id, accept=accept),
+                AcceptAllianceInvitationResponse,
+                timeout=timeout,
+            )
+            if accept and (response.membership is None or response.alliance is None):
+                raise PacketError("'aai' acceptance reply carries no membership or alliance")
+            self.client.state.apply_membership_response(data, membership_revision=revision)
+            return response.alliance
+
+    def find_recruits(self, *, timeout: float = 5.0) -> FindAllianceRecruitsResponse:
+        """Find players looking for an alliance, nearest first, with their owner records."""
+        with self._own_alliance():
+            return self.request(FindAllianceRecruitsRequest(), FindAllianceRecruitsResponse, timeout=timeout)
+
+    def set_looking_for_members(self, enabled: bool, *, open_join: bool, timeout: float = 5.0) -> None:
+        """Set recruitment and open joining independently; refresh alliance info to read them."""
+        with self._own_alliance():
+            self.execute(
+                SetLookingForMembersRequest(enabled=enabled, open_join=open_join),
+                timeout=timeout,
+            )
+
+    def set_looking_for_alliance(self, enabled: bool, *, timeout: float = 5.0) -> None:
+        """Set your player's looking-for-alliance flag."""
+        self.execute(SetLookingForAllianceRequest(enabled=enabled), timeout=timeout)
 
     def invite(self, player_id: int, *, timeout: float = 5.0) -> None:
         """
@@ -547,6 +698,28 @@ class AllianceService(BaseService):
         if alliance_id is None:
             raise NotInAllianceError()
         return alliance_id
+
+    def _request_membership(
+        self, request: BaseRequest, response_type: type[_MembershipResponse], *, timeout: float
+    ) -> tuple[_MembershipResponse, dict[str, Any]]:
+        packet = self.client.request_packet(request, request.command, timeout=timeout)
+        if packet.error_code != 0:
+            raise CommandError(request.command, packet.error_code, packet.payload)
+        if not isinstance(packet.payload, dict):
+            raise PacketError(f"'{request.command}' reply payload is not an object")
+        try:
+            response = response_type.model_validate(packet.payload)
+        except ValidationError as error:
+            raise PacketError(f"Could not parse '{request.command}' response: {error}") from error
+        return response, packet.payload
+
+    @contextmanager
+    def _membership_change(self, *, timeout: float) -> Iterator[int]:
+        with (
+            self.client.connection.command_lock("joa", timeout=timeout),
+            self.client.connection.command_lock("aai", timeout=timeout),
+        ):
+            yield self.client.state.membership_revision
 
     @contextmanager
     def _own_alliance(self, *, sent_outside_one: bool = False) -> Iterator[None]:
