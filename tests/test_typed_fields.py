@@ -94,6 +94,9 @@ ALLOWED: dict[str, str] = {
 
 
 GAME_DATA_SCALAR_IDS: dict[str, str] = {
+    "gamedata.models.AllianceBuffDef.required_buff_id": (
+        "alliancebuffs row reference; series has an enum, individual levels do not"
+    ),
     "gamedata.models.AllianceBuffDef.alliance_buff_id": "alliance buffs have no name to make an enum of",
     "gamedata.models.AttackSlotDef.slot_id": "attack slots have no name to make an enum of",
     "gamedata.models.ConstructionItemDef.effect_group_id": "construction item effect groups have no table",
