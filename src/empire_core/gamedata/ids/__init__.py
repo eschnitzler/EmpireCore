@@ -55,6 +55,7 @@ if TYPE_CHECKING:
     from .effects import Effect
     from .equipment_groups import EquipmentGroup
     from .events import Event
+    from .gem_colors import GemColor
     from .gems import Gem
     from .general_abilities import GeneralAbility
     from .general_rarities import GeneralRarity
@@ -94,6 +95,7 @@ _MODULES = {
     "EquipmentGroup": "equipment_groups",
     "Event": "events",
     "Gem": "gems",
+    "GemColor": "gem_colors",
     "General": "generals",
     "GeneralAbility": "general_abilities",
     "GeneralRarity": "general_rarities",
@@ -149,6 +151,7 @@ __all__ = [
     "EquipmentGroup",
     "Event",
     "Gem",
+    "GemColor",
     "General",
     "GeneralAbility",
     "GeneralRarity",

@@ -47,6 +47,7 @@ if TYPE_CHECKING:
         DifficultyType,
         EquipmentGroup,
         Event,
+        GemColor,
         GeneralRarity,
         GeneralsHubCharacter,
         LootBox,
@@ -780,6 +781,28 @@ class GeneralsHubCharacterDef(_Row):
         return [offering for parts in tombolas if (offering := js_parse_int(parts[0])) is not None]
 
     @field_validator("name", mode="before")
+    @classmethod
+    def _text_column(cls, value: object) -> str:
+        return _text(value)
+
+
+class GemColorDef(_Row):
+    """
+    A gem colour, by which the auto-sell rules sell gems.
+
+    Client: ``GemColorVO.parseXml`` (bundle line 144489), read by ``CastleGemData.parseGemColors`` (bundle line
+    144298)
+    """
+
+    color_id: GameDataId["GemColor"] = Field(validation_alias="gemColorID", description="The gem colour")
+    color_code: str = Field(validation_alias="colorCode", default="", description="Its colour, e.g. 0x29ABE2")
+
+    @field_validator("color_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator("color_code", mode="before")
     @classmethod
     def _text_column(cls, value: object) -> str:
         return _text(value)
@@ -1540,6 +1563,7 @@ __all__ = [
     "LootBoxTypeDef",
     "GeneralRarityDef",
     "GeneralsHubCharacterDef",
+    "GemColorDef",
     "QuestCondition",
     "QuestDef",
     "ResearchDef",

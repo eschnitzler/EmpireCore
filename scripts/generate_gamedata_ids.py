@@ -429,6 +429,21 @@ def gem_rows(data: GameData, texts: Texts | None) -> list[Row]:
     return rows
 
 
+def gem_color_rows(data: GameData, texts: Texts | None) -> list[Row]:
+    """
+    ``gemColor_<gemColorID>_tt`` up to its "gem effects": ``Light blue gem effects:`` -> ``LIGHT_BLUE``.
+
+    Client: ``AutoSellDialogGemsItem.updateWithNewData`` (bundle line 73853), the auto-sell dialog's tooltip
+    """
+    rows = []
+    for row in data.gem_colors.values():
+        color_id = int(row.color_id)
+        text = texts.get(f"gemColor_{color_id}_tt") if texts is not None else None
+        name = re.split(r"\s+gem\b", text, maxsplit=1)[0] if text else None
+        rows.append(Row(name or f"GEM_COLOR_{color_id}", color_id, id_text(color_id)))
+    return rows
+
+
 def sceat_skill_rows(data: GameData, texts: Texts | None) -> list[Row]:
     """
     ``dialog_legendTemple_sceat_<skillGroupID>_name`` and level.
@@ -871,6 +886,14 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
                 TEXT_ID,
             ),
             display=GEM_NAME,
+        ),
+        Table(
+            "gem_colors",
+            "GemColor",
+            "C",
+            "Gem colour ids from the ``gemColors`` table, named from the game's English tooltip for the colour.",
+            "``GemColorVO.parseXml`` (bundle line 144489)",
+            gem_color_rows(data, texts),
         ),
         Table(
             "sceat_skills",
