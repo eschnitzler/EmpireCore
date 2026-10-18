@@ -1,13 +1,19 @@
 """The player's commanders and castellans (gli) and legend and sceat skills (skl)."""
 
+from __future__ import annotations
+
 import logging
-from typing import Any
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any
 
 from empire_core.commanders.models.roster import CommanderRoster
 from empire_core.commanders.models.skills import SkillList
 from empire_core.protocol.base import read_or_none
 from empire_core.protocol.js import js_truthy
 from empire_core.state.base import StateBase, loaded
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import LegendSkill
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +48,25 @@ class CommanderState(StateBase):
             return False
         self.skills = skills
         return True
+
+    def add_legend_skills(self, bought: Mapping[LegendSkill | int, LegendSkill | int | None]) -> None:
+        """Apply the legend skill levels a ``skp`` reply bought, each with the level it replaces.
+
+        ``client.player.add_legend_skill_point`` calls it with the replaced levels from the game data.
+        Nothing is applied before a skill list arrived.
+
+        Client: ``CastleLegendSkillData.parse_SKP`` (bundle line 112073)
+        """
+        with self._lock:
+            if self.skills is None:
+                return
+            held = list(self.skills.legend_skill_ids)
+            for skill, previous in bought.items():
+                if previous is not None and previous in held:
+                    held.remove(previous)
+                if skill not in held:
+                    held.append(skill)
+            self.skills = self.skills.model_copy(update={"legend_skill_ids": tuple(held)})
 
     def get_commanders(self) -> CommanderRoster:
         """Your commanders and castellans as the last ``gli`` listed them.

@@ -35,6 +35,7 @@ RUBY_REQUESTS = {
     "StartTaxRequest": "txs, tax types 5 and 6 (TAX_RUBY_COSTS)",
     "StartResearchRequest": "res, a research priced in C2",
     "MercenaryPackageRequest": "mpe, the ruby skip of a running mission (MercenaryConst.getSkipC2Cost)",
+    "ResetSkillsRequest": "skr inside the reset cooldown (LegendSkillConst.resetSkipCostC2, skipWithRubies)",
 }
 
 SENT_WITHOUT_CONSENT = {
