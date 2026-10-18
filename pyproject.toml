@@ -38,8 +38,17 @@ dependencies = [
 [project.urls]
 Repository = "https://github.com/eschnitzler/EmpireCore"
 
+[project.scripts]
+empire-console = "empire_core.console:main"
+
 [project.optional-dependencies]
+console = [
+    "prompt_toolkit>=3.0.43",
+    "jedi>=0.19",
+    "pygments>=2.17",
+]
 dev = [
+    "empire-core[console]",
     "pytest>=7.0",
     "pytest-cov>=5.0",
     "ruff>=0.1.0",

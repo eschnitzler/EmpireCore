@@ -63,7 +63,7 @@ PUBLIC_MODULES = (
     "empire_core.texts",
 )
 # What these hold that callers need is exported from the root or an area.
-PRIVATE_MODULES = ("empire_core.client", "empire_core.network", "empire_core.utils")
+PRIVATE_MODULES = ("empire_core.client", "empire_core.console", "empire_core.network", "empire_core.utils")
 PUBLIC_SUBMODULES: tuple[str, ...] = ()  # OWNER TO DECIDE: ("empire_core.protocol.models",) keeps that path public
 PUBLIC_PATHS = ("empire_core", *PUBLIC_MODULES, *PUBLIC_SUBMODULES)
 

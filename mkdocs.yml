@@ -184,6 +184,7 @@ nav:
           - Multiple accounts: guides/multiple-accounts.md
           - Protocol models: guides/protocol-models.md
           - Error handling: guides/errors.md
+          - Console: guides/console.md
   - API reference:
       - reference/index.md
       - Core:
