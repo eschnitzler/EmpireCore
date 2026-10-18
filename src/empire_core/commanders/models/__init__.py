@@ -2,8 +2,20 @@
 
 from empire_core.protocol.base import CommanderEffect, CommanderEffects
 
+from .auto_sell import (
+    AUTO_SELL_RARENESSES,
+    AUTO_SELL_SLOTS,
+    MAX_GEM_LEVEL,
+    AutoSellEquipment,
+    AutoSellRules,
+    GetAutoSellRequest,
+    GetAutoSellResponse,
+    SetAutoSellEquipmentRequest,
+    SetAutoSellGemsRequest,
+)
 from .equipment import (
     NO_GEM_ID,
+    BindGemRequest,
     EquipEquipmentRequest,
     Equipment,
     EquipmentBonus,
@@ -12,6 +24,8 @@ from .equipment import (
     RelicBonus,
     RelicGem,
     RelicInfo,
+    SellEquipmentRequest,
+    SellGemRequest,
 )
 from .generals import (
     ClearGeneralFlagsRequest,
@@ -99,6 +113,18 @@ __all__ = [
     "AssignGeneralResponse",
     "SetGeneralAbilitiesRequest",
     "UnlockGeneralSkillRequest",
+    "BindGemRequest",
+    "SellEquipmentRequest",
+    "SellGemRequest",
+    "AUTO_SELL_RARENESSES",
+    "AUTO_SELL_SLOTS",
+    "MAX_GEM_LEVEL",
+    "AutoSellEquipment",
+    "AutoSellRules",
+    "GetAutoSellRequest",
+    "GetAutoSellResponse",
+    "SetAutoSellEquipmentRequest",
+    "SetAutoSellGemsRequest",
     "ClearGeneralFlagsRequest",
     "GeneralsHubCharacterStatus",
     "GeneralsHubReward",

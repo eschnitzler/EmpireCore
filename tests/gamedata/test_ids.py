@@ -92,6 +92,7 @@ IDS_PAYLOAD: dict[str, Any] = {
     "lootBoxTypes": [{"lootBoxTypeID": "1", "lootBoxTheme": "MysteryBox", "lootBoxKeyPayoutThreshold": "10"}],
     "generalRarities": [{"generalRarityID": "4", "name": "legendary", "unlockCosts": "150"}],
     "characters": [{"characterID": "1", "name": "fatKing", "tombolas": "6001+10001"}],
+    "gemColors": [{"gemColorID": "6", "colorCode": "0xD3222F"}],
     "quests": [
         {"questID": "3047", "questSeriesID": "159", "conditions": "buyRubies+1"},
         {"questID": "3600", "eventID": "129", "comment1": "AME", "conditions": "spendCurrency1+1000"},
@@ -166,6 +167,7 @@ TABLE_OF: dict[str, str] = {
     "RaidBoss": "raid_bosses",
     "GlobalEffect": "global_effects",
     "Gem": "gems",
+    "GemColor": "gem_colors",
     "SceatSkill": "sceat_skills",
     "Achievement": "achievements",
     "Horse": "horses",

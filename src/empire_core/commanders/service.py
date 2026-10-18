@@ -5,8 +5,9 @@
   to a commander, choosing its abilities, unlocking and resetting its skills,
   feeding it xp items, unlocking it and raising its stars with shards, and spinning
   the generals hub for them. A general's skills widen the flanks whatever the target is.
-- EquipmentService reads the equipment inventory and moves items on and off
-  commanders and castellans.
+- EquipmentService reads the equipment inventory, moves items on and off
+  commanders and castellans, sells items and gems, sets gems in worn items, and
+  reads and sets the auto-sell rules.
 """
 
 from __future__ import annotations
@@ -16,11 +17,25 @@ import time
 from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING
 
+from empire_core.commanders.models.auto_sell import (
+    AUTO_SELL_RARENESSES,
+    AUTO_SELL_SLOTS,
+    MAX_GEM_LEVEL,
+    AutoSellRules,
+    GetAutoSellRequest,
+    GetAutoSellResponse,
+    SetAutoSellEquipmentRequest,
+    SetAutoSellGemsRequest,
+)
 from empire_core.commanders.models.equipment import (
+    BindGemRequest,
     EquipEquipmentRequest,
     Equipment,
     GetEquipmentInventoryRequest,
     GetEquipmentInventoryResponse,
+    RelicGem,
+    SellEquipmentRequest,
+    SellGemRequest,
 )
 from empire_core.commanders.models.generals import (
     ClearGeneralFlagsRequest,
@@ -32,6 +47,7 @@ from empire_core.commanders.models.generals import (
     UnlockGeneralRequest,
     UpgradeGeneralStarsRequest,
 )
+from empire_core.commanders.models.inventory import GemStack
 from empire_core.commanders.models.roster import (
     PREMIUM_COMMANDER_ID,
     Castellan,
@@ -60,7 +76,7 @@ from empire_core.services.base import BaseService
 if TYPE_CHECKING:
     from empire_core.client.client import EmpireClient
     from empire_core.commanders.models.inventory import GemInventoryResponse, InventorySpace, NewRelicsResponse
-    from empire_core.gamedata import Currency, General, GeneralsHubCharacter
+    from empire_core.gamedata import Currency, Gem, General, GeneralsHubCharacter
 
 
 class CommandersService(BaseService):
@@ -570,7 +586,8 @@ class CommandersService(BaseService):
 
 class EquipmentService(BaseService):
     """
-    The equipment inventory, and putting items on and off commanders and castellans.
+    The equipment inventory: putting items on and off commanders and castellans, selling items and gems,
+    setting gems, and the auto-sell rules.
 
     Reached as client.equipment. What a leader
     wears comes with ``client.commanders`` (``gli`` ``EQ``).
@@ -635,3 +652,120 @@ class EquipmentService(BaseService):
         """
         request = EquipEquipmentRequest(equipment_id=equipment_id, commander_id=commander_id, equip=0)
         self.execute(request, timeout=timeout)
+
+    def sell_equipment(self, equipment_id: int, *, commander_id: int | None = None, timeout: float = 5.0) -> None:
+        """
+        Sell an item for coins.
+
+        The reply's commanders, coins and inventory space reach ``client.state``.
+
+        Args:
+            equipment_id: An item in the inventory, its ``Equipment.equipment_id`` from :meth:`get_inventory`
+            commander_id: The commander wearing a relic sold straight off it, as the relic enchanter sells
+                one (``RelicUpgradeDialogStatus.confirmSellCallback``, bundle line 36757); None for an
+                inventory item
+            timeout: Timeout in seconds
+
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: The request failed
+        """
+        request = SellEquipmentRequest(
+            equipment_id=equipment_id, commander_id=-1 if commander_id is None else commander_id
+        )
+        self.execute(request, timeout=timeout)
+
+    def sell_gem(self, gem: Gem | GemStack | RelicGem, *, timeout: float = 5.0) -> None:
+        """
+        Sell a gem, or a relic gem, for coins.
+
+        Args:
+            gem: A gem, a ``GemStack`` or ``RelicGem`` of :attr:`gems`
+            timeout: Timeout in seconds
+
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: The request failed
+        """
+        gem_id, relic = self._gem(gem)
+        self.execute(SellGemRequest(gem_id=gem_id, relic_gem=relic), timeout=timeout)
+
+    def bind_gem(
+        self, gem: Gem | GemStack | RelicGem, equipment_id: int, commander_id: int, *, timeout: float = 5.0
+    ) -> None:
+        """
+        Set a gem in an item a commander or castellan wears.
+
+        A gem already set in the item is not taken back: the client shows it broken
+        (``CastleReplaceSocketDialog.renderIcons``, bundle line 42224). Taking it back costs rubies or
+        relic fragments and is not offered here. Setting a gem costs coins: the gem level's
+        ``insertCostC1``, or ``RelicItemConst.INSERT_RELIC_GEM_C1_COST`` (95000, dll line 19669) for a
+        relic gem (``ACastleSocketDialog.getCosts``, bundle line 32488).
+
+        Args:
+            gem: A gem, a ``GemStack`` or ``RelicGem`` of :attr:`gems`
+            equipment_id: The worn item's ``Equipment.equipment_id``, from ``client.commanders.get_all()``
+            commander_id: The ``commander_id`` of the commander or castellan wearing it; the client sets gems
+                only in a worn item (``EquipmentGemClickHandler.addGemToEquipment``, bundle line 73572)
+            timeout: Timeout in seconds
+
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: The request failed
+        """
+        gem_id, relic = self._gem(gem)
+        request = BindGemRequest(gem_id=gem_id, equipment_id=equipment_id, commander_id=commander_id, relic_gem=relic)
+        self.execute(request, timeout=timeout)
+
+    def get_auto_sell(self, *, timeout: float = 5.0) -> AutoSellRules:
+        """
+        The auto-sell rules: which new equipment and gems the server sells as they drop.
+
+        The client asks for them only while the auto-sell subscription effect runs.
+
+        Args:
+            timeout: Timeout in seconds
+
+        Returns:
+            The rules, from the ``asg`` reply
+
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: The request failed
+        """
+        response = self.request(GetAutoSellRequest(), GetAutoSellResponse, timeout=timeout)
+        return AutoSellRules(equipment=response.equipment, gems=response.gems)
+
+    def set_auto_sell(self, rules: AutoSellRules, *, timeout: float = 5.0) -> None:
+        """
+        Replace the auto-sell rules, the equipment ones and then the gem ones, as the client saves them.
+
+        Every gem colour is sent, 0 for one ``rules.gems`` leaves out.
+
+        Client: ``AutoSellVO.sendConfigToServer`` (bundle line 120132)
+
+        Args:
+            rules: The rules; the equipment from ``AUTO_SELL_SLOTS`` and ``AUTO_SELL_RARENESSES``,
+                gem levels 0 to ``MAX_GEM_LEVEL``
+            timeout: Timeout in seconds
+
+        Raises:
+            ValueError: A rule the auto-sell dialog cannot set, or a gem colour the game data lacks
+            GameDataNotLoadedError: The game data cannot be loaded
+            CommandError / EmpireTimeoutError / ConnectionClosedError: The request failed
+        """
+        for rule in rules.equipment:
+            if rule.slot not in AUTO_SELL_SLOTS or rule.rareness not in AUTO_SELL_RARENESSES:
+                raise ValueError(f"the auto-sell dialog has no box for {rule.slot!r} at {rule.rareness!r}")
+        colors = self._require_game_data().gem_colors
+        for color, level in rules.gems.items():
+            if color not in colors:
+                raise ValueError(f"gem colour {color} is not in the game data")
+            if not 0 <= level <= MAX_GEM_LEVEL:
+                raise ValueError(f"gem level {level} is outside 0 to {MAX_GEM_LEVEL}")
+        gems = {color: rules.gems.get(color, 0) for color in colors}
+        self.execute(SetAutoSellEquipmentRequest(equipment=rules.equipment), timeout=timeout)
+        self.execute(SetAutoSellGemsRequest(gems=gems), timeout=timeout)
+
+    @staticmethod
+    def _gem(gem: Gem | GemStack | RelicGem) -> tuple[int, bool]:
+        """The gem id the client sends for ``gem``, and whether it is a relic gem."""
+        if isinstance(gem, RelicGem):
+            return gem.gem_id, True
+        return (gem.gem_id if isinstance(gem, GemStack) else int(gem)), False
