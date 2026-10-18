@@ -286,7 +286,7 @@ def test_partial_member_updates_keep_activity_links(changed_section):
     state.update_from_packet("ain", {"A": {"AID": 301, "M": [{"OID": 8, "RNP": 60}], "AMI": [[8, 0, 0, 0, 4]]}})
     before = state.get_own_alliance()
     assert before is not None
-    fields = {"M": [{"OID": 8, "RNP": 60}]} if changed_section == "M" else {"AMI": [[8, 0, 0, 0, 0]]}
+    fields: dict[str, object] = {"M": [{"OID": 8, "RNP": 60}]} if changed_section == "M" else {"AMI": [[8, 0, 0, 0, 0]]}
     client = make_client({"acd": xt_packet("acd", {"ain": {"A": {"AID": 301, **fields}}})}, state=state)
     client.alliance.set_description("Description")
     current = state.get_own_alliance()
