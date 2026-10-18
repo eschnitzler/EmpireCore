@@ -17,7 +17,9 @@ from empire_core.commanders.models.skills import (
     ResetSkillsRequest,
     SkillList,
 )
+from empire_core.enums import MysteryBoxKey
 from empire_core.exceptions import CommandError, EmpireTimeoutError, PacketError
+from empire_core.player.models.economy import LootBoxKeys, OpenLootBoxRequest, OpenLootBoxResponse
 from empire_core.player.models.info import (
     GetPlayerInfoRequest,
     GetPlayerInfoResponse,
@@ -30,7 +32,7 @@ from empire_core.utils.callbacks import Event
 
 if TYPE_CHECKING:
     from empire_core.client.client import EmpireClient
-    from empire_core.gamedata import Currency, LegendSkill
+    from empire_core.gamedata import Currency, LegendSkill, LootBox
     from empire_core.player.models.account import (
         BoostedGlobalEffectsResponse,
         DailyResetResponse,
@@ -334,6 +336,58 @@ class PlayerService(BaseService):
                 )
         self.execute(ResetSkillsRequest(), timeout=timeout)
         return self.get_skills(timeout=timeout)
+
+    def open_loot_box(
+        self,
+        loot_box: LootBox,
+        key: MysteryBoxKey = MysteryBoxKey.COMMON,
+        *,
+        open_all: bool = False,
+        timeout: float = 5.0,
+    ) -> OpenLootBoxResponse:
+        """
+        Open a loot box, or every box of the kind, with a mystery box key.
+
+        The common key never runs out; a rarer one must be held (:attr:`currencies`) and opens one box
+        only. The box type's key progress in :attr:`loot_boxes` is set to the reply's; the box count
+        changes with the server's next ``gls``. Reward ids in the reply are resolved through the game data.
+
+        Client: ``RewardHubDialogMysteryBoxItem.fillItem`` (bundle line 92191) enables the single open
+        with a held or common key and the open-all with the common key only; ``OLECommand`` (bundle line 124819)
+
+        Args:
+            loot_box: The box to open, as :attr:`loot_boxes` lists it
+            key: The key to open it with
+            open_all: Open every box of the kind; the common key only
+            timeout: Timeout in seconds
+
+        Returns:
+            What the boxes gave, and the keys won
+
+        Raises:
+            ValueError: ``open_all`` with a key other than the common one, or a rarer key not held
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+        """
+        if key is not MysteryBoxKey.COMMON:
+            if open_all:
+                raise ValueError("only the common key opens every box of a kind")
+            held = (
+                amount for currency, amount in self.currencies.items() if getattr(currency, "currency_id", None) == key
+            )
+            if next(held, 0) <= 0:
+                raise ValueError(f"no {key.name} mystery box key is held")
+        response = self.request(
+            OpenLootBoxRequest(loot_box_id=loot_box, key=key, open_all=open_all), OpenLootBoxResponse, timeout=timeout
+        )
+        game_data = self._require_game_data()
+        if response.reward_ids and not response.rewards:
+            response = response.model_copy(update={"rewards": game_data.reward_list(response.reward_ids)})
+        box = game_data.loot_boxes.get(response.loot_box_id)
+        if box is not None:
+            self.client.state.set_loot_box_keys(
+                LootBoxKeys(loot_box_type_id=box.loot_box_type_id, keys=response.key_progress)
+            )
+        return response
 
     on_skill_list = Event[SkillList]()
     """
