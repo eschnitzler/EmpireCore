@@ -7,6 +7,8 @@ from collections import deque
 from collections.abc import Callable, Iterable, Sequence
 from typing import Any, NamedTuple, Protocol
 
+from pydantic import ValidationError
+
 from empire_core.enums import GGEError, Kingdom, MapItemType
 from empire_core.exceptions import CommandError, EmpireTimeoutError, NetworkError
 from empire_core.map.models.areas import GetMapAreaRequest, MapObject
@@ -247,7 +249,7 @@ class MapScanner:
                 continue
             try:
                 obj = MapObject.model_validate(raw_obj)
-            except Exception as e:
+            except ValidationError as e:
                 skipped_owners += 1
                 sample = raw_obj if sample is None else sample
                 logger.debug("Chunk (%s, %s): skipping invalid owner record %r: %s", cx, cy, raw_obj, e)
@@ -673,7 +675,7 @@ class _Scan:
                             aborted = self.error is not None or self.stopped == "interrupted"
                         if not aborted:
                             self.on_chunk(chunk, result.items, result.owners)
-            except BaseException as e:
+            except BaseException as e:  # noqa: BLE001 - handed to the scan's caller, which re-raises it
                 with self.lock:
                     self.active -= 1
                     self.error = self.error or e

@@ -8,6 +8,7 @@ from empire_core.enums import (
     MapItemType,
     MercenaryMissionRarity,
     MercenaryMissionState,
+    MysteryBoxKey,
     PremiumAccountType,
     TitleSystem,
 )
@@ -24,6 +25,7 @@ from .models import (
     DailyResetResponse,
     FactionPointsResponse,
     Festival,
+    GetLootBoxesRequest,
     GetPlayerInfoRequest,
     GetPlayerInfoResponse,
     GloryPointsResponse,
@@ -35,6 +37,8 @@ from .models import (
     MightPointsResponse,
     OfficerBonus,
     OfficerTraining,
+    OpenLootBoxRequest,
+    OpenLootBoxResponse,
     PlayerGift,
     PlayerGiftsResponse,
     PlayerOwnerInfo,
@@ -42,6 +46,8 @@ from .models import (
     RelocationInfoResponse,
     SearchPlayerRequest,
     SearchPlayerResponse,
+    SelectTitleRequest,
+    SelectTitleResponse,
     TitleRanksResponse,
     TopTitleRanking,
 )
@@ -49,7 +55,17 @@ from .service import PlayerDetailsBulkResult, PlayerService
 from .titles import held_titles, player_title_ids, titles_in_order
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import Achievement, Currency, Effect, GlobalEffect, LootBox, LootBoxType, Research, Title
+    from empire_core.gamedata import (
+        Achievement,
+        Currency,
+        Effect,
+        GlobalEffect,
+        LegendSkill,
+        LootBox,
+        LootBoxType,
+        Research,
+        Title,
+    )
 
 __all__ = [
     "GetPlayerInfoRequest",
@@ -71,6 +87,8 @@ __all__ = [
     "IslandTitle",
     "MightPointsResponse",
     "RelocationInfoResponse",
+    "SelectTitleRequest",
+    "SelectTitleResponse",
     "TitleRanksResponse",
     "TitleSystem",
     "PremiumAccountType",
@@ -88,7 +106,11 @@ __all__ = [
     "PlayerGiftsResponse",
     "LootBoxAmount",
     "LootBoxKeys",
+    "GetLootBoxesRequest",
     "LootBoxesResponse",
+    "OpenLootBoxRequest",
+    "OpenLootBoxResponse",
+    "MysteryBoxKey",
     "MercenaryMissionRarity",
     "MercenaryMissionState",
     "AllianceRank",
@@ -98,6 +120,7 @@ __all__ = [
     "Currency",
     "Effect",
     "GlobalEffect",
+    "LegendSkill",
     "LootBox",
     "LootBoxType",
     "Research",
@@ -109,5 +132,15 @@ if not TYPE_CHECKING:
     __getattr__ = lazy_exports(
         __name__,
         "empire_core.gamedata.ids",
-        ("Achievement", "Currency", "Effect", "GlobalEffect", "LootBox", "LootBoxType", "Research", "Title"),
+        (
+            "Achievement",
+            "Currency",
+            "Effect",
+            "GlobalEffect",
+            "LegendSkill",
+            "LootBox",
+            "LootBoxType",
+            "Research",
+            "Title",
+        ),
     )

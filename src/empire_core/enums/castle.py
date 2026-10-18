@@ -109,3 +109,18 @@ class KingdomTransferType(IntEnum):
 
     UNITS = 1
     GOODS = 2
+
+
+class ConstructionItemMode(IntEnum):
+    """How to equip a construction item.
+
+    REPLACE returns the previous item to storage for its coin removal cost;
+    OVERWRITE discards it. ADD fills an empty slot.
+
+    Client: ``C2SConstructionItemModeEnum`` (bundle lines 49017-49018),
+    ``CastleConstructionItemsOverwriteDialog`` (bundle lines 79292-79307).
+    """
+
+    ADD = 0
+    REPLACE = 1
+    OVERWRITE = 2

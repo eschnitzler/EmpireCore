@@ -176,8 +176,8 @@ class _Target:
     level: int | None = None
     owner_legend_level: int | None = None
     is_player: bool = False
-    camp_victories: int | None = None
-    camp_kingdom_id: Kingdom = Kingdom.GREEN
+    robber_baron_camp_victories: int | None = None
+    robber_baron_camp_kingdom: Kingdom = Kingdom.GREEN
     spy_army: SpyArmy | None = None
     castellan: Commander | None = None
     defender_legend_skill_ids: Sequence[int] | None = None
@@ -250,14 +250,14 @@ def _read_target(service: AttackService, target: "_Target", *, castle_id: int, t
     if item.item_type == MapItemType.DUNGEON:
         # A camp's level follows from how often it has been beaten, and the
         # row carries the count.
-        if target.camp_victories is None:
-            target.camp_victories = item.victory_count
-        if target.camp_kingdom_id == Kingdom.GREEN:
-            target.camp_kingdom_id = item.kingdom
+        if target.robber_baron_camp_victories is None:
+            target.robber_baron_camp_victories = item.victory_count
+        if target.robber_baron_camp_kingdom == Kingdom.GREEN:
+            target.robber_baron_camp_kingdom = item.kingdom
     elif item.is_invasion_camp:
         if target.level is None:
             player = service.client.state.get_local_player()
-            target.level = invasion_camp_level(service._require_game_data(), item, player.level)
+            target.level = invasion_camp_level(item, player.level, game_data=service._require_game_data())
     elif item.dungeon_level is not None and item.dungeon_level > 0:
         # A camp whose row gives its level (an alien camp, the wolf king, an event
         # or boss dungeon, a faction object) has an NPC owner and no record to read;
@@ -344,7 +344,8 @@ def _read_precalculation(service: AttackService, target: "_Target", *, timeout: 
         # CastleAttackInfoVO.fillFromParamObject fills gui.I and gui.SHI, and the dialog's
         # AttackDialogUnitPicker adds the stronghold units into the same inventory it fills from
         target.inventory = _merged(info.inventory(), info.stronghold_inventory())
-    if target.spy_army is None:
+    if target.spy_army is None and area_type is not MapItemType.DUNGEON:
+        # A robber baron camp's defenders come from its row; only a caller's spy_army overrides it
         target.spy_army = info.spy_army
     if target.castellan is None:
         target.castellan = info.defending_castellan()

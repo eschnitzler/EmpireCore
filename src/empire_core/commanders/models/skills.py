@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, field_validator, model_validator
 
-from empire_core.gamedata import EnumOrInt
+from empire_core.gamedata import EnumOrInt, GameData
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, object_or_none, readable_list
 from empire_core.protocol.js import ClientInt, js_loose_equals
 
@@ -401,6 +401,25 @@ class SkillList(BasePayload):
             return []
         return [entry for entry in value if isinstance(entry, dict)]
 
+    def spent_points(self, *, game_data: GameData | None = None) -> int:
+        """
+        The skill points the held legend skills cost, each level counted with those below it.
+
+        Client: ``CastleLegendSkillData.getSpentPoints`` (bundle line 112097)
+        """
+        game_data = game_data if game_data is not None else GameData.require()
+        skills = game_data.legend_skills
+        return sum(row.total_cost_skill_points for row in map(skills.get, self.legend_skill_ids) if row is not None)
+
+    def available_points(self, *, game_data: GameData | None = None) -> int:
+        """
+        The skill points left to spend.
+
+        Client: ``CastleLegendSkillData.parse_SKL`` (bundle line 112063)
+        """
+        game_data = game_data if game_data is not None else GameData.require()
+        return self.total_points - self.spent_points(game_data=game_data)
+
 
 class GetSkillsResponse(BaseResponse, SkillList):
     """
@@ -414,6 +433,66 @@ class GetSkillsResponse(BaseResponse, SkillList):
     """
 
     command = "skl"
+
+
+class AddSkillPointRequest(BaseRequest):
+    """
+    Buy a legend skill level with skill points.
+
+    Command: skp
+    Payload: {"ID": skill_id}
+
+    The client sends the next level of a skill held, or the first of one not held, once
+    ``CastleLegendSkillItem.canBuy`` passes: the skill is not at its last level, its tier and node
+    are unlocked, the points are there, and no sceat skill is being activated.
+
+    Client: ``C2SAddSkillPointVO`` (bundle line 78767), ``CastleLegendSkillItem.onClick`` and
+    ``canBuy`` (bundle lines 35643, 35652)
+    """
+
+    command = "skp"
+
+    skill: EnumOrInt["LegendSkill"] = Field(validation_alias="ID", description="The legend skill level to buy")
+
+
+class AddSkillPointResponse(BaseResponse):
+    """
+    The legend skill levels bought.
+
+    Command: skp
+    Payload: {"IDS": [skill_id, ..]}
+
+    Client: ``SKPCommand.executeCommand`` (bundle line 129756) hands it to
+    ``CastleLegendSkillData.parse_SKP`` (bundle line 112073), which reads ``IDS`` only when it is set
+    """
+
+    command = "skp"
+
+    skill_ids: tuple[EnumOrInt["LegendSkill"], ...] = Field(
+        validation_alias="IDS", default=(), description="The levels bought"
+    )
+
+    @field_validator("skill_ids", mode="before")
+    @classmethod
+    def _skill_ids(cls, value: Any) -> Any:
+        return _id_list(value)
+
+
+class ResetSkillsRequest(BaseRequest):
+    """
+    Take back every legend skill point.
+
+    Command: skr
+    Payload: {}
+
+    Free once the reset cooldown has run out; inside it the same request spends rubies. The
+    server replies with no body, and the client then asks for the skill list again.
+
+    Client: ``C2SSkillsResetVO`` (bundle line 112227), ``CastleLegendSkillData.requestSkillReset``
+    and ``resetSkills`` (bundle lines 112137, 112104), ``SKRCommand`` (bundle line 129767)
+    """
+
+    command = "skr"
 
 
 class ObjectUpdateEvent(BaseResponse):
@@ -457,5 +536,8 @@ __all__ = [
     "GetSkillsResponse",
     "SkillList",
     "ActivatingSceatSkill",
+    "AddSkillPointRequest",
+    "AddSkillPointResponse",
+    "ResetSkillsRequest",
     "ObjectUpdateEvent",
 ]

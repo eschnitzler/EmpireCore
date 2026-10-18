@@ -109,7 +109,7 @@ rewards, through `GameData.reward_list`.
 ## Keeping them current
 
 `ITEMS_VERSION` is the items version the enums came from, and
-`is_current(game_data)` says whether loaded data matches it; `GameData.load()`
+`is_current()` says whether the process game data matches it; `GameData.load()`
 logs a warning when it does not. Ids added since are not in the enums, but the
 [lookups by name](game-data.md#lookups-by-name) cover them.
 

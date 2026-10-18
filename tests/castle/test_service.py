@@ -214,6 +214,48 @@ class TestCastleActions:
         with pytest.raises(ValueError, match="12345"):
             client.castle.rename(12345, "nope", spend_rubies=True)
 
+    def test_abandon_sends_the_kingdom_from_the_castle_list(self):
+        reply = {"CID": 2002, "KID": 0, "AOT": 86400, "CAT": 10800}
+        client = make_client({"gcl": xt_packet("gcl", GOLDEN_GCL), "mas": xt_packet("mas", reply)})
+
+        response = client.castle.abandon_castle(2002)
+
+        assert conn(client).request_payloads[-1] == ("mas", {"CID": 2002, "KID": 0})
+        assert (response.abandon_seconds, response.cancel_seconds) == (86400, 10800)
+
+    def test_the_kingdoms_main_castle_cannot_be_abandoned(self):
+        client = make_client({"gcl": xt_packet("gcl", GOLDEN_GCL)})
+        with pytest.raises(ValueError, match="main castle"):
+            client.castle.abandon_castle(2001)
+        assert [command for command, _ in conn(client).request_payloads] == ["gcl"]
+
+    def test_abandoning_a_castle_you_do_not_own_raises(self):
+        client = make_client({"gcl": xt_packet("gcl", GOLDEN_GCL)})
+        with pytest.raises(UnknownCastleError):
+            client.castle.abandon_castle(12345)
+
+    def test_a_refused_abandon_raises(self):
+        client = make_client({"gcl": xt_packet("gcl", GOLDEN_GCL), "mas": xt_packet("mas", error_code=140)})
+        with pytest.raises(CommandError):
+            client.castle.abandon_castle(2002)
+
+    def test_cancel_abandon_sends_the_kingdom_from_the_castle_list(self):
+        client = make_client({"gcl": xt_packet("gcl", GOLDEN_GCL), "mac": xt_packet("mac", {"CID": 2002, "KID": 0})})
+
+        client.castle.cancel_abandon(2002)
+
+        assert conn(client).request_payloads[-1] == ("mac", {"CID": 2002, "KID": 0})
+
+    def test_a_refused_cancel_raises(self):
+        client = make_client({"gcl": xt_packet("gcl", GOLDEN_GCL), "mac": xt_packet("mac", error_code=21)})
+        with pytest.raises(CommandError):
+            client.castle.cancel_abandon(2002)
+
+    def test_cancelling_for_a_castle_you_do_not_own_raises(self):
+        client = make_client({"gcl": xt_packet("gcl", GOLDEN_GCL)})
+        with pytest.raises(UnknownCastleError):
+            client.castle.cancel_abandon(12345)
+
     def test_send_support_builds_the_documented_payload(self):
         client = make_client()
 

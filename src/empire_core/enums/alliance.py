@@ -262,3 +262,13 @@ _BUFF_TEXT_IDS = {
         "dialog_alliance_temporaryBoost_TemporaryLegendaryAttackBonus"
     ),
 }
+
+
+class ForumRankGroup(IntEnum):
+    """Forum visibility groups. Client: ``AllianceConst`` (i420/dllsplit.js line 18805)."""
+
+    LEADER = 0
+    GENERAL = 1
+    SERGEANT = 2
+    MEMBER = 3
+    APPLICANT = 4

@@ -106,7 +106,7 @@ class TestMalformedMovementBatch:
             "HF": 0,
         }
         record = GetMovementsResponse.model_validate({"M": [], "O": [owner]}).owners[0]
-        assert (record.player_id, record.level, record.legend_level, record.honor) == (5, 70, 12, 250)
+        assert (record.player_id, record.level, record.legendary_level, record.honor) == (5, 70, 12, 250)
         assert (record.alliance_id, record.alliance_rank, record.alliance_name) == (301, 8, "Clan")
         assert record.has_vip and not record.has_premium and not record.is_ruin and not record.is_searching_alliance
         assert record.crest is not None and record.crest.is_set and record.crest.background_color1 == 3

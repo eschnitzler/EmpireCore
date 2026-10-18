@@ -47,10 +47,12 @@ class FillOptions(EmpireModel):
     ``AutoFillOptions.createNewUnitFilter`` and ``createNewToolFilter``. Turning
     one off excludes what carries that cost or category: ``allow_ruby_cost=False``
     keeps units whose healing costs rubies out of the wave, ``allow_event_tools=False``
-    keeps event tools out. ``use_tools``, ``fill_yard`` and ``max_waves`` are the
-    library's own and have no counterpart in the client's auto-fill.
+    keeps event tools out. ``waves`` and ``fill_yard`` are the client's per-wave
+    checkboxes: it fills each selected wave in send order and leaves the others as
+    they are. ``use_tools`` is the library's own.
 
-    Client: ``AutoFillOptions`` (bundle line 56371)
+    Client: ``AutoFillOptions`` (bundle line 26311),
+    ``AttackDialogAutoFill.autoFillSelectedWaves`` (bundle line 101320)
     """
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
@@ -60,8 +62,9 @@ class FillOptions(EmpireModel):
     fill_right: bool = True
     use_tools: bool = Field(default=True, description="Place tools on the flanks; False fills soldiers only")
     fill_yard: bool = Field(default=True, description="Fill the courtyard wave; False leaves every slot empty")
-    max_waves: int | None = Field(
-        default=None, ge=1, description="The most waves to fill; None fills every wave the attack may carry"
+    waves: frozenset[int] | None = Field(
+        default=None,
+        description="The 0-based indexes of the waves to fill, the rest left empty; None fills every wave",
     )
     allow_coin_cost: bool = True
     allow_ruby_cost: bool = True
@@ -82,7 +85,7 @@ class FillOptions(EmpireModel):
         A tool without a category always passes; one whose category the client
         does not name never does.
 
-        Client: ``AFillWaveStrategy.createFilteredInventory`` (bundle line 221038)
+        Client: ``AFillWaveStrategy.createFilteredInventory`` (bundle line 101383)
         """
         allowed: dict[str, bool] = {
             ToolCategory.BASIC: self.allow_basic_tools,
@@ -108,8 +111,9 @@ class Inventory:
     def available(self, wod_id: int) -> int:
         return self.counts.get(wod_id, 0)
 
-    def soldier_count(self, game_data: GameData) -> int:
+    def soldier_count(self, *, game_data: GameData | None = None) -> int:
         """How many actual units are left, ignoring tools and boost items."""
+        game_data = game_data if game_data is not None else GameData.require()
         return sum(count for wod_id, count in self.counts.items() if game_data.is_unit(wod_id))
 
     def deduct(self, wod_id: int, limit: int) -> int:
@@ -165,12 +169,12 @@ def _is_eligible(unit, options: FillOptions) -> bool:
 def pick_soldier_stack(
     free_items: int,
     inventory: Inventory,
-    game_data: GameData,
     *,
     attacker: AttackerFlankEffects | None = None,
     defender: DefenderFlankEffects | None = None,
     options: FillOptions | None = None,
     unit_attack_bonuses: Mapping[int, float] | None = None,
+    game_data: GameData | None = None,
 ) -> tuple[int, int] | None:
     """
     Choose one stack for a flank slot and take it out of the inventory.
@@ -193,6 +197,7 @@ def pick_soldier_stack(
     Returns:
         ``(wod_id, count)`` placed, or None when nothing is eligible
     """
+    game_data = game_data if game_data is not None else GameData.require()
     attacker = attacker or AttackerFlankEffects()
     options = options or FillOptions()
 
@@ -245,12 +250,12 @@ def fill_flank_with_soldiers(
     capacity: int,
     slots: int,
     inventory: Inventory,
-    game_data: GameData,
     *,
     attacker: AttackerFlankEffects | None = None,
     defender: DefenderFlankEffects | None = None,
     options: FillOptions | None = None,
     unit_attack_bonuses: Mapping[int, float] | None = None,
+    game_data: GameData | None = None,
 ) -> list[tuple[int, int]]:
     """
     Fill one flank's unit slots.
@@ -271,19 +276,20 @@ def fill_flank_with_soldiers(
     Returns:
         ``(wod_id, count)`` per filled slot
     """
+    game_data = game_data if game_data is not None else GameData.require()
     placed: list[tuple[int, int]] = []
     free = capacity
     for _slot in range(max(0, slots)):
-        if free <= 0 or inventory.soldier_count(game_data) <= 0:
+        if free <= 0 or inventory.soldier_count(game_data=game_data) <= 0:
             break
         stack = pick_soldier_stack(
             free,
             inventory,
-            game_data,
             attacker=attacker,
             defender=defender,
             options=options,
             unit_attack_bonuses=unit_attack_bonuses,
+            game_data=game_data,
         )
         if stack is None:
             break
@@ -294,7 +300,6 @@ def fill_flank_with_soldiers(
 
 def fill_wave(
     inventory: Inventory,
-    game_data: GameData,
     capacity: WaveCapacity,
     *,
     attacker: AttackerFlankEffects | None = None,
@@ -306,6 +311,7 @@ def fill_wave(
     space_id: int | None = None,
     target_is_player: bool = True,
     active_raid_boss_id: int | None = None,
+    game_data: GameData | None = None,
 ) -> AttackWave:
     """
     Build one wave, flank by flank.
@@ -342,6 +348,7 @@ def fill_wave(
     every slot of the container's ``CombatConst.ITEMS_*`` table (dll lines
     18864-18876), unlocked ones first
     """
+    game_data = game_data if game_data is not None else GameData.require()
     options = options or FillOptions()
     # The client fills left, then right, then middle. The order is visible in
     # the output because the flanks share one inventory and one per-wave tool
@@ -383,7 +390,6 @@ def fill_wave(
                 capacity.tool_slots(flank),
                 capacity.tool_slot_type(flank),
                 usable,
-                game_data,
                 pool,
                 attacker=attacker,
                 defender=defender,
@@ -394,19 +400,20 @@ def fill_wave(
                     active_raid_boss_id=active_raid_boss_id,
                 ),
                 used_per_type=used_per_type,
+                game_data=game_data,
             )
             placed_tools = tools_placed.placed
             placed_units = fill_flank_with_soldiers(
                 capacity.soldier_capacity(flank),
                 capacity.unit_slots(flank),
                 usable,
-                game_data,
                 # The tools just placed have dented this flank's defense, and the
                 # client scores its soldiers against the dented values.
                 attacker=tools_placed.effects,
                 defender=defender,
                 options=options,
                 unit_attack_bonuses=unit_attack_bonuses,
+                game_data=game_data,
             )
             check_flank(placed_tools, placed_units, usable, game_data=game_data, used_per_type=used_per_type)
 
@@ -429,13 +436,13 @@ def fill_wave(
 
 def fill_yard_wave(
     inventory: Inventory,
-    game_data: GameData,
     capacity: int,
     *,
     slots: int = YARD_SLOTS,
     defender: DefenderFlankEffects | None = None,
     options: FillOptions | None = None,
     unit_attack_bonuses: Mapping[int, float] | None = None,
+    game_data: GameData | None = None,
 ) -> tuple[WodAmount, ...]:
     """
     Fill the courtyard wave, which goes out in ``cra``'s RW field.
@@ -458,15 +465,16 @@ def fill_yard_wave(
         One :class:`WodAmount` per slot, in slot order, for the RW field.
         The client sends every slot, so an empty one goes out as ``[-1, 0]`` (``EMPTY_SLOT``).
     """
+    game_data = game_data if game_data is not None else GameData.require()
     stacks = fill_flank_with_soldiers(
         capacity,
         slots,
         inventory,
-        game_data,
         attacker=None,
         defender=defender,
         options=options,
         unit_attack_bonuses=unit_attack_bonuses,
+        game_data=game_data,
     )
     filled = tuple(WodAmount(item=wod_id, amount=count) for wod_id, count in stacks)
     return filled + (EMPTY_SLOT,) * (slots - len(filled))
@@ -474,7 +482,6 @@ def fill_yard_wave(
 
 def fill_waves(
     inventory: Inventory,
-    game_data: GameData,
     *,
     level: int,
     attacker_level: int | None = None,
@@ -491,14 +498,16 @@ def fill_waves(
     space_id: int | None = None,
     target_is_player: bool = True,
     active_raid_boss_id: int | None = None,
+    game_data: GameData | None = None,
 ) -> list[AttackWave]:
     """
     Fill every wave the attack may carry, front to back.
 
     Sizes itself the way the client does: each flank's capacity and slots follow
     the level of whoever owns the target, while the number of waves follows the
-    attacker's own level. Waves that come out empty are dropped, so the result is ready
-    for ``send_attack``.
+    attacker's own level. Filling stops at the first wave that comes out empty. A
+    wave ``options.waves`` leaves out stays empty in its place, so every wave keeps
+    its index; ``send_attack`` drops the empty ones.
 
     Args:
         inventory: Pool to draw from; shared across every wave
@@ -523,8 +532,9 @@ def fill_waves(
             raid bosses is not carried
 
     Returns:
-        One :class:`AttackWave` per filled wave, in send order
+        One :class:`AttackWave` per wave in send order, up to the first one the pool could not fill
     """
+    game_data = game_data if game_data is not None else GameData.require()
     capacity = WaveCapacity.for_level(
         level,
         flank_bonus_percent=flank_bonus_percent,
@@ -537,12 +547,13 @@ def fill_waves(
         conquer=conquer,
         bonus=wave_bonus,
     )
-    if options is not None and options.max_waves is not None:
-        wave_count = min(wave_count, options.max_waves)
-    for _index in range(wave_count):
+    selected = options.waves if options is not None else None
+    for index in range(wave_count):
+        if selected is not None and index not in selected:
+            waves.append(AttackWave())
+            continue
         wave = fill_wave(
             inventory,
-            game_data,
             capacity,
             attacker=attacker,
             defense=defense,
@@ -552,6 +563,7 @@ def fill_waves(
             space_id=space_id,
             target_is_player=target_is_player,
             active_raid_boss_id=active_raid_boss_id,
+            game_data=game_data,
         )
         if not wave.is_complete():
             break

@@ -71,6 +71,9 @@ class AreaState(StateBase):
         reply = read_or_none(SelectCastleResponse.model_validate, data, warn=logger, what="a jaa reply")
         if reply is None:
             return
+        self.area_revision += 1
+        self._placed_construction_item_sequence = self._packet_sequence
+        self.placed_construction_items = reply.buildings.construction_items if reply.buildings is not None else None
         self.resource_pool = None
         kingdom = enum_or_none(Kingdom, reply.kingdom_id)
         castle_id = None
@@ -163,6 +166,9 @@ class AreaState(StateBase):
         the resource carts, so state keeps ``joined_area`` and the carts too.
         """
         self.mines = {}
+        self.area_revision += 1
+        self._placed_construction_item_sequence = self._packet_sequence
+        self.placed_construction_items = None
 
     def _handle_csl(self, data: Any) -> None:
         """Apply a ``csl`` push to the joined area: its slum level.

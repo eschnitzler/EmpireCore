@@ -9,9 +9,12 @@ from .account import (
     PlayerGiftsResponse,
 )
 from .economy import (
+    GetLootBoxesRequest,
     LootBoxAmount,
     LootBoxesResponse,
     LootBoxKeys,
+    OpenLootBoxRequest,
+    OpenLootBoxResponse,
 )
 from .info import (
     GetPlayerInfoRequest,
@@ -35,6 +38,8 @@ from .progress import (
     IslandTitle,
     MightPointsResponse,
     RelocationInfoResponse,
+    SelectTitleRequest,
+    SelectTitleResponse,
     TitleRanksResponse,
     TopTitleRanking,
 )
@@ -59,6 +64,8 @@ __all__ = [
     "IslandTitle",
     "MightPointsResponse",
     "RelocationInfoResponse",
+    "SelectTitleRequest",
+    "SelectTitleResponse",
     "TitleRanksResponse",
     "TopTitleRanking",
     "BoostedGlobalEffectsResponse",
@@ -69,5 +76,8 @@ __all__ = [
     "PlayerGiftsResponse",
     "LootBoxAmount",
     "LootBoxKeys",
+    "GetLootBoxesRequest",
     "LootBoxesResponse",
+    "OpenLootBoxRequest",
+    "OpenLootBoxResponse",
 ]

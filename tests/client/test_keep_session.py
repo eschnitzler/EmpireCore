@@ -23,6 +23,7 @@ from empire_core.exceptions import (
     NetworkError,
     VersionCheckStatus,
 )
+from empire_core.protocol.packet import Packet
 from tests.client.test_disconnect import arrive_packet, drop, new_session
 from tests.service_helpers import xt_packet
 from tests.state.state_helpers import gam_payload, wait_for
@@ -33,8 +34,12 @@ OCCUPATION = MovementType.SIEGE
 
 # An attack by its movement id, or a movement of another type as (movement id, type).
 Listed = int | tuple[int, int]
-# What one login attempt does: raise, be refused with a cooldown of that many seconds, or log in and list these.
-Attempt = Exception | float | list[Listed]
+# What one login attempt does: raise, be refused with a cooldown of that many seconds or with this lli,
+# or log in and list these.
+Attempt = Exception | float | Packet | list[Listed]
+
+TIMED_BAN = xt_packet("lli", {"RS": 3600}, error_code=GGEError.IS_BANNED)
+DELETED = xt_packet("lli", {"RS": 3600, "GDPR": 1}, error_code=GGEError.IS_BANNED)
 
 
 def list_movement(client: EmpireClient, listed: Listed) -> None:
@@ -80,6 +85,8 @@ class FakeServer:
             self.client._session._raise_login_refusal(
                 xt_packet("lli", {"CD": attempt}, error_code=GGEError.LOGIN_COOLDOWN_ACTIVE)
             )
+        if isinstance(attempt, Packet):
+            self.client._session._raise_login_refusal(attempt)
         arrive_packet(self.client, "gbd", GBD)
         self.client.is_logged_in = True
         arrive_packet(self.client, "gam", {"M": []})
@@ -177,6 +184,30 @@ class TestRestore:
         assert not client.is_logged_in
         assert not client.connection.connected
         assert restored == []
+
+    def test_a_timed_ban_is_waited_out_like_a_cooldown(self, client, monkeypatch, waits):
+        server = serve(client, monkeypatch, TIMED_BAN, [])
+        restored: list[bool] = []
+        client.on_session_restored(lambda: restored.append(True))
+        logged_in(client)
+
+        drop(client)
+
+        assert wait_for(lambda: restored == [True])
+        assert server.logins == 2
+        assert waits[1] == pytest.approx(3600.0, abs=0.05)
+
+    def test_a_deleted_account_ends_the_attempts(self, client, monkeypatch, waits):
+        server = serve(client, monkeypatch, DELETED, [])
+        lost: list[Exception] = []
+        client.on_session_lost(lost.append)
+        logged_in(client)
+
+        drop(client)
+
+        assert wait_for(lambda: len(lost) == 1)
+        assert isinstance(lost[0], AccountBannedError) and lost[0].deleted
+        assert server.logins == 1
 
     def test_a_removed_lost_callback_no_longer_fires(self, client, monkeypatch, waits):
         serve(client, monkeypatch, AccountBannedError(None))
@@ -497,6 +528,15 @@ class TestFirstLoginRetry:
         assert waits == []
         assert not client.connection.connected
 
+    def test_a_timed_ban_is_waited_out(self, client, monkeypatch, waits):
+        server = serve(client, monkeypatch, TIMED_BAN, [])
+
+        client.login(retry=True)
+
+        assert server.logins == 2
+        assert waits == [pytest.approx(3600.0, abs=0.05)]
+        assert client.is_logged_in
+
     def test_close_during_the_wait_raises_the_last_failure_at_once(self, client, monkeypatch):
         client.config = EmpireConfig(relogin_first_delay=60.0)
         down = NetworkError("down")
@@ -624,6 +664,22 @@ class TestCooldown:
         assert refused.value.cooldown == 30
         assert client.remaining_login_cooldown() == 20.5
         now[0] = 200.0
+        assert client.remaining_login_cooldown() == 0.0
+
+    def test_the_remaining_cooldown_counts_a_timed_ban(self, client, monkeypatch):
+        now = [100.0]
+        monkeypatch.setattr(session_module.time, "monotonic", lambda: now[0])
+
+        with pytest.raises(AccountBannedError):
+            client._session._raise_login_refusal(TIMED_BAN)
+        now[0] = 160.0
+
+        assert client.remaining_login_cooldown() == 3540.0
+
+    def test_a_deleted_account_sets_no_cooldown(self, client):
+        with pytest.raises(AccountBannedError):
+            client._session._raise_login_refusal(DELETED)
+
         assert client.remaining_login_cooldown() == 0.0
 
 

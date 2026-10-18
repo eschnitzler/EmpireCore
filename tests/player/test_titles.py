@@ -44,9 +44,9 @@ def game_data() -> GameData:
 
 class TestHeldTitles:
     def test_each_system_in_chain_order(self, game_data):
-        assert titles_in_order(game_data, TitleSystem.GLORY) == list(range(34))
-        assert titles_in_order(game_data, TitleSystem.FACTION) == list(range(100, 118))
-        assert titles_in_order(game_data, TitleSystem.ISLAND) == [54, 53, 52, 51, 50]
+        assert titles_in_order(TitleSystem.GLORY, game_data=game_data) == list(range(34))
+        assert titles_in_order(TitleSystem.FACTION, game_data=game_data) == list(range(100, 118))
+        assert titles_in_order(TitleSystem.ISLAND, game_data=game_data) == [54, 53, 52, 51, 50]
 
     # Expected values from CastleTitleData.setupThisUsersTitlesinSystem (bundle line 21048) run in node
     @pytest.mark.parametrize(
@@ -64,7 +64,7 @@ class TestHeldTitles:
         ],
     )
     def test_as_the_client_works_them_out(self, game_data, system, points, rank, expected):
-        assert held_titles(game_data, system, points, rank) == expected
+        assert held_titles(system, points, rank, game_data=game_data) == expected
 
     def test_every_title_you_hold(self, game_data):
         glory = GloryPointsResponse.model_validate({"CF": "10000", "HF": 20000})
@@ -72,5 +72,5 @@ class TestHeldTitles:
         ranks = TitleRanksResponse.model_validate(
             {"FTM": {"CTXT": -1}, "BTM": {"CTXT": -1}, "ITM": {"TID": 53}, "PFX": "FAME", "SFX": "FACTION"}
         )
-        assert player_title_ids(game_data, glory, faction, ranks) == [0, 1, 2, 3, 100, 101, 54, 53]
-        assert player_title_ids(game_data, None, None, None) == []
+        assert player_title_ids(glory, faction, ranks, game_data=game_data) == [0, 1, 2, 3, 100, 101, 54, 53]
+        assert player_title_ids(None, None, None, game_data=game_data) == []

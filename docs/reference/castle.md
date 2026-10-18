@@ -22,6 +22,10 @@ Castles, buildings, resources, research and the mercenary camp behind `client.ca
 
 ::: empire_core.castle.models.collect
 
+## `castle.models.construction_items`
+
+::: empire_core.castle.models.construction_items
+
 ## `castle.models.details`
 
 ::: empire_core.castle.models.details

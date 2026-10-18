@@ -1,6 +1,10 @@
 import json
+import logging
+
+import pytest
 
 from empire_core.protocol.models import (
+    Commander,
     EquipEquipmentRequest,
     Equipment,
     EquipmentSlot,
@@ -77,3 +81,58 @@ class TestEquipEquipment:
         request = EquipEquipmentRequest.model_validate({"EID": 880, "LID": 91, "E": 0})
 
         assert (request.equipment_id, request.commander_id, request.equip) == (880, 91, 0)
+
+
+# Wire rows as CastleEquipmentFactory.createEquipmentVO (bundle line 18134) hands them to the
+# parseEquipFromArray of BasicEquipmentVO (7115), CastleHeroVO (40585) and RelicEquipmentVO (25039)
+DUMPED_ROWS = {
+    "generic": [101, 1, 2, 3, 5, [[1, [10]]], 0, -1, 0, -1, -1, 0],
+    "gem": [102, 2, 2, 4, 6, [[53, [25.0]]], 803, -1, 1, 3600, 1, 0],
+    "hero_text": [103, 6, 2, 10, 0, [[242, [25.0]]], 802, 22, 0, -1, -1, "242&25"],
+    "hero_numeric": HERO_ROW,
+    "relic_with_gem": [*RELIC_ROW[:12], [1, 6, 2980, [890593, 32, 6, 2770, [[302, 61, [34.7]]], 0]]],
+    "relic_without_gem": RELIC_ROW,
+}
+
+
+class TestADumpReadsBack:
+    """A model validated again from its own field-name dump is the same model, without a warning."""
+
+    @pytest.mark.parametrize("row", DUMPED_ROWS.values(), ids=DUMPED_ROWS.keys())
+    def test_a_commander(self, row, caplog):
+        with caplog.at_level(logging.WARNING):
+            commander = Commander.model_validate({"ID": 7, "EQ": [row]})
+            assert Commander.model_validate(commander.model_dump()) == commander
+            assert Commander.model_validate_json(commander.model_dump_json()) == commander
+        assert len(commander.equipment) == 1
+        assert caplog.records == []
+
+    @pytest.mark.parametrize("row", DUMPED_ROWS.values(), ids=DUMPED_ROWS.keys())
+    def test_the_equipment_inventory(self, row, caplog):
+        with caplog.at_level(logging.WARNING):
+            response = GetEquipmentInventoryResponse.model_validate({"I": [row]})
+            assert GetEquipmentInventoryResponse.model_validate(response.model_dump()) == response
+            assert GetEquipmentInventoryResponse.model_validate_json(response.model_dump_json()) == response
+        assert len(response.items) == 1
+        assert caplog.records == []
+
+    def test_no_gem_stays_no_gem(self, caplog):
+        with caplog.at_level(logging.WARNING):
+            item = Equipment.model_validate(Equipment.model_validate(DUMPED_ROWS["generic"]).model_dump())
+        assert item.gem_id is None
+        assert caplog.records == []
+
+    def test_a_commander_with_equipment_keeps_its_alien_block_out(self):
+        commander = Commander.model_validate({"ID": 7, "EQ": [DUMPED_ROWS["generic"]], "AIE": [[37, [10]]]})
+        dumped = Commander.model_validate(commander.model_dump())
+
+        assert dumped == commander
+        assert dumped.alien_equipment is not None
+        assert not dumped.uses_alien_equipment
+
+    def test_a_commander_on_alien_equipment_keeps_it(self):
+        commander = Commander.model_validate({"ID": 7, "EQ": [], "AIE": [[37, [10]]], "GEM": [1]})
+        dumped = Commander.model_validate(commander.model_dump())
+
+        assert dumped == commander
+        assert dumped.uses_alien_equipment

@@ -149,7 +149,7 @@ _SUCCESS_ONLY = frozenset(
     | (set(_NESTED_SECTIONS) - {"cpm", "crm"})
     | {"rue", "kik", "gsm", "rci", "cmr", "rcc", "jaa", "fbe", "cbx", "gdb", "gcb", "csl", "gab", "gec"}
     | {"qli", "qst", "qpg", "qfi", "msp", "cqs"}
-    | {"nfo"}
+    | {"nfo", "aqs", "bse", "bbs"}
 )
 
 
@@ -309,6 +309,9 @@ class GameState(
         "tei": "_handle_tei",
         "tee": "_handle_tee",
         "pep": "_handle_pep",
+        "aqs": "_handle_aqs",
+        "bse": "_handle_bse",
+        "bbs": "_handle_raid_status",
         "bst": "_handle_bst",
         "acm": "_handle_acm",
         "aqi": "_handle_aqi",
@@ -361,6 +364,9 @@ class GameState(
         handler_name = self._DISPATCH.get(cmd_id)
         ok = error_code == 0
         with self._lock:
+            self._packet_sequence += 1
+            if ok and cmd_id in {"rpc", "cri"}:
+                self._construction_item_reply_order[cmd_id] = (payload, self._packet_sequence)
             if not ok and cmd_id in _SUCCESS_ONLY:
                 pass
             elif cmd_id in _SECTION_PUSHES:
@@ -399,8 +405,9 @@ class GameState(
         """
         self._parse_player_sections(data)
         self._parse_special_currencies(data)
+        previous_alliance_id = self.local_player.AID if self.local_player is not None else None
         self._parse_alliance_info(data)
-        self._apply_gal_reset(data)
+        self._apply_gal_reset(data, previous_alliance_id=previous_alliance_id)
         skipped = {
             section
             for section, applied in (

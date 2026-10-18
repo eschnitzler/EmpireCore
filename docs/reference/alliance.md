@@ -37,3 +37,13 @@ Alliance info, members, chat and help behind `client.alliance`.
 ## `alliance.models.search`
 
 ::: empire_core.alliance.models.search
+
+
+## Forum
+
+::: empire_core.alliance.models.forum
+
+
+## Membership
+
+::: empire_core.alliance.models.membership

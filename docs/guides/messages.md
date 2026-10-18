@@ -33,6 +33,16 @@ client.messages.delete_many(read)
 empty receiver, a subject over 20 characters, or a text over 1300 characters or
 with fewer than 3 that are not whitespace.
 
+## Ignore list
+
+```python
+ignored = client.messages.get_ignored_players()   # IgnoredPlayer: player_id, name
+client.messages.ignore(player_id)
+client.messages.unignore(ignored[0].player_id)
+```
+
+`ignore` and `unignore` return the list as the server has it after the change.
+
 ## New mail
 
 ```python

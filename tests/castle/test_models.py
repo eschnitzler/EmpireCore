@@ -1,6 +1,13 @@
 """Tests for the castle models."""
 
-from empire_core.castle.models.actions import RenameCastleRequest, RenameCastleResponse
+from empire_core.castle.models.actions import (
+    AbandonCastleRequest,
+    AbandonCastleResponse,
+    CancelAbandonCastleRequest,
+    CancelAbandonCastleResponse,
+    RenameCastleRequest,
+    RenameCastleResponse,
+)
 from empire_core.castle.models.castles import GetCastlesRequest, GetCastlesResponse, PlayerCastle
 from empire_core.castle.models.details import CastleProductionArea, DetailedCastleInfo, GetDetailedCastleResponse
 from empire_core.enums import Kingdom, MapItemType
@@ -199,6 +206,33 @@ class TestRenameCastle:
 
     def test_the_reply_reads_p(self):
         assert RenameCastleResponse.model_validate({"CID": 1, "KID": 2, "P": 0}).is_rename == 0
+
+
+class TestAbandonCastle:
+    def test_an_abandon_sends_cid_then_kid(self):
+        payload = AbandonCastleRequest(castle_id=5, kingdom_id=Kingdom.ICE).to_payload()
+        assert list(payload) == ["CID", "KID"]
+        assert payload == {"CID": 5, "KID": 2}
+
+    def test_the_reply_reads_both_timers(self):
+        reply = AbandonCastleResponse.model_validate({"CID": 5, "KID": 2, "AOT": "86400", "CAT": 10800})
+        assert (reply.castle_id, reply.kingdom_id) == (5, Kingdom.ICE)
+        assert (reply.abandon_seconds, reply.cancel_seconds) == (86400, 10800)
+
+    def test_a_cancel_sends_cid_then_kid(self):
+        payload = CancelAbandonCastleRequest(castle_id=5, kingdom_id=Kingdom.ICE).to_payload()
+        assert list(payload) == ["CID", "KID"]
+        assert payload == {"CID": 5, "KID": 2}
+
+    def test_the_cancel_reply_names_the_castle(self):
+        reply = CancelAbandonCastleResponse.model_validate({"CID": 5, "KID": 2})
+        assert (reply.castle_id, reply.kingdom_id) == (5, Kingdom.ICE)
+
+    def test_a_reply_for_another_castle_is_not_this_ones(self):
+        request = AbandonCastleRequest(castle_id=5, kingdom_id=Kingdom.ICE)
+        assert request.accepts_reply({"CID": 5, "KID": 2})
+        assert not request.accepts_reply({"CID": 6, "KID": 2})
+        assert not request.accepts_reply({"CID": 5, "KID": 0})
 
 
 def test_rename_castle_sends_the_client_keys_and_encodes_the_name():
