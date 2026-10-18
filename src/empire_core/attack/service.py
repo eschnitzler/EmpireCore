@@ -545,7 +545,9 @@ class AttackService(BaseService):
             owner_id = ALIEN_INVASION_AREA_TYPES.get(area_type)
 
         if defense is None and robber_baron_camp_victories is not None:
-            defense = robber_baron_camp_defense(game_data, robber_baron_camp_victories, robber_baron_camp_kingdom)
+            defense = robber_baron_camp_defense(
+                robber_baron_camp_victories, robber_baron_camp_kingdom, game_data=game_data
+            )
 
         resolver = EffectResolver(game_data)
         tools = _support_tools(game_data, support_tools)
@@ -566,7 +568,7 @@ class AttackService(BaseService):
             has_other_player_info=area_type in OTHER_PLAYER_INFO_AREA_TYPES,
         )
         merged = attack_dialog_bonuses(
-            game_data, commander, area_effects=area_bonuses, general_skill_ids=general_skill_ids
+            commander, area_effects=area_bonuses, general_skill_ids=general_skill_ids, game_data=game_data
         )
         if attacker is None:
             attacker = attacker_flank_effects(
@@ -584,15 +586,17 @@ class AttackService(BaseService):
         if legend_skill_ids:
             if legendary.unit_amount:
                 flank_bonus_percent += int(
-                    legend_skill_value(game_data, legend_skill_ids, "additionalUnitAmountOnFlank")
+                    legend_skill_value(legend_skill_ids, "additionalUnitAmountOnFlank", game_data=game_data)
                 )
                 front_bonus_percent += int(
-                    legend_skill_value(game_data, legend_skill_ids, "additionalUnitAmountOnFront")
+                    legend_skill_value(legend_skill_ids, "additionalUnitAmountOnFront", game_data=game_data)
                 )
             if legendary.extra_wave:
-                wave_bonus += int(legend_skill_value(game_data, legend_skill_ids, "additionalWave"))
+                wave_bonus += int(legend_skill_value(legend_skill_ids, "additionalWave", game_data=game_data))
             if legendary.flank_tools:
-                tool_bonus += legend_skill_value(game_data, legend_skill_ids, "additionalAttackToolAmountFlank")
+                tool_bonus += legend_skill_value(
+                    legend_skill_ids, "additionalAttackToolAmountFlank", game_data=game_data
+                )
         # initWaves: int() of effect 156 over the merged list plus the support
         # tools' ADDITIONAL_WAVE. Its add-while-below, then remove-while-above
         # loops settle on the floor of that total.
@@ -600,7 +604,7 @@ class AttackService(BaseService):
             resolver.accumulate(
                 merged, CombatEffectType.ADDITIONAL_WAVE, area_type=area_type, player_target=player_target
             )
-        ) + support_tool_waves(game_data, tools)
+        ) + support_tool_waves(tools, game_data=game_data)
         wave_bonus += math.floor(extra_waves)
 
         unit_attack_bonuses = self._unit_attack_bonuses(game_data, self._global_effects(global_effects), attacker_level)
@@ -610,7 +614,7 @@ class AttackService(BaseService):
 
         return solve_waves(
             inventory,
-            game_data,
+            game_data=game_data,
             level=level,
             attacker_level=attacker_level,
             conquer=conquer,
@@ -664,7 +668,9 @@ class AttackService(BaseService):
             if boosted is not None and isinstance(booster, GlobalEffectBuffEvent)
             else {}
         )
-        return global_unit_attack_bonuses(game_data, running, player_level=player_level, boosts=boosts) or None
+        return (
+            global_unit_attack_bonuses(running, player_level=player_level, boosts=boosts, game_data=game_data) or None
+        )
 
     def read_inventory(self, castle_id: int, *, timeout: float = 5.0) -> Inventory:
         """
@@ -959,13 +965,13 @@ class AttackService(BaseService):
         )
         yard = fill_yard_wave(
             pool,
-            game_data,
             yard_capacity(attacker_level, yard_level, bonus=yard_bonus, boost=yard_boost) if options.fill_yard else 0,
             defender=(defense or {}).get(Flank.YARD),
             options=options,
             # The courtyard runs the same pick as a flank, so a buffed unit is
             # worth as much here as it is out front.
             unit_attack_bonuses=self._unit_attack_bonuses(game_data, global_effects, attacker_level),
+            game_data=game_data,
         )
         # Client: CastleFightScreenVO.targetOwnerLevel (bundle line 30562)
         owner_level = (

@@ -313,7 +313,7 @@ class TestCommanderBonuses:
             }
         )
 
-        bonuses = commander_bonuses(data(), commander)
+        bonuses = commander_bonuses(commander, game_data=data())
 
         # LordVO.getUniqueBoni adds the equipment slots before E and AE
         assert bonuses == [
@@ -332,7 +332,7 @@ class TestCommanderBonuses:
             {"ID": 1, "EQ": [[6291449662, 6, 2, 15, -1, [[100, 91, [13.7]]], -1, -1, 0, -1, -1, 3]]}
         )
 
-        bonuses = commander_bonuses(data(), commander)
+        bonuses = commander_bonuses(commander, game_data=data())
 
         assert bonuses == [Bonus(effect_id=100, value=13.7, via_relic=True, raw_values=(13.7,))]
         # Resolved in the relic space, this is a flank unit bonus, not an
@@ -344,12 +344,14 @@ class TestCommanderBonuses:
         commander = Commander.model_validate({"ID": 1, "E": [[110, [40.0], "AB"]], "AE": [[120, [50.0], "RH"]]})
         aci = [Bonus(effect_id=120, value=30.0)]
 
-        assert commander_bonuses(data(), commander, area_effects=aci) == [
+        assert commander_bonuses(commander, area_effects=aci, game_data=data()) == [
             Bonus(effect_id=110, value=40.0, raw_values=(40.0,)),
             Bonus(effect_id=120, value=30.0),
         ]
         # LordVO's areaEffects setter ignores an empty list.
-        assert commander_bonuses(data(), commander, area_effects=[]) == commander_bonuses(data(), commander)
+        assert commander_bonuses(commander, area_effects=[], game_data=data()) == commander_bonuses(
+            commander, game_data=data()
+        )
 
     def test_a_slotted_gem_adds_its_bonuses(self):
         # Index 10 is the gem id; its effects are plain effect ids.
@@ -357,7 +359,7 @@ class TestCommanderBonuses:
             {"ID": 1, "EQ": [[1, 2, 2, 5, -1, [[300, [10.0]]], -1, -1, 0, -1, 400, 1]]}
         )
 
-        bonuses = commander_bonuses(data(), commander)
+        bonuses = commander_bonuses(commander, game_data=data())
 
         assert bonuses == [
             Bonus(effect_id=300, value=10.0, via_equipment=True, raw_values=(10.0,)),
@@ -370,7 +372,7 @@ class TestCommanderBonuses:
     def test_a_gem_missing_from_the_table_adds_nothing(self):
         commander = Commander.model_validate({"ID": 1, "EQ": [[1, 2, 2, 5, -1, [], -1, -1, 0, -1, 999, 1]]})
 
-        assert commander_bonuses(data(), commander) == []
+        assert commander_bonuses(commander, game_data=data()) == []
 
     def test_a_relic_gem_adds_its_relic_bonuses(self):
         # EQ[12] = [relic_type, relic_category, might, gem]; the gem's bonuses
@@ -380,7 +382,7 @@ class TestCommanderBonuses:
             {"ID": 1, "EQ": [[1, 2, 2, 15, -1, [[100, 91, [13.7]]], -1, -1, 0, -1, -1, 3, [5, 2, 1200, gem]]]}
         )
 
-        bonuses = commander_bonuses(data(), commander)
+        bonuses = commander_bonuses(commander, game_data=data())
 
         assert bonuses == [
             Bonus(effect_id=100, value=13.7, via_relic=True, raw_values=(13.7,)),
@@ -394,19 +396,19 @@ class TestCommanderBonuses:
             {"ID": 1, "EQ": [[1, 2, 2, 15, -1, [], -1, -1, 0, -1, 400, 3, [5, 2, 1200, []]]]}
         )
 
-        assert commander_bonuses(data(), commander) == []
+        assert commander_bonuses(commander, game_data=data()) == []
 
     def test_a_short_relic_item_keeps_its_index_10_gem(self):
         commander = Commander.model_validate({"ID": 1, "EQ": [[1, 2, 2, 15, -1, [], -1, -1, 0, -1, 401, 3]]})
 
-        assert commander_bonuses(data(), commander) == [Bonus(effect_id=110, value=8.0)]
+        assert commander_bonuses(commander, game_data=data()) == [Bonus(effect_id=110, value=8.0)]
 
     def test_a_bare_commander_grants_nothing(self):
-        assert commander_bonuses(data(), Commander.model_validate({"ID": 1})) == []
+        assert commander_bonuses(Commander.model_validate({"ID": 1}), game_data=data()) == []
 
     def test_malformed_equipment_is_skipped(self):
         commander = Commander.model_validate({"ID": 1, "EQ": [[1, 2], "junk", [1, 2, 3, 4, 5, "not a list"]]})
-        assert commander_bonuses(data(), commander) == []
+        assert commander_bonuses(commander, game_data=data()) == []
 
 
 # The lords rows of items v786.03
@@ -431,7 +433,7 @@ class TestDefaultCommanderBonuses:
 
     def test_a_robber_baron_attack_commander_has_its_row_effects(self):
         commander = Commander.model_validate({"DLID": -15, "WID": 2})
-        assert commander_bonuses(lords_data(), commander) == [
+        assert commander_bonuses(commander, game_data=lords_data()) == [
             Bonus(effect_id=57, value=14.0, via_equipment=True),
             Bonus(effect_id=58, value=12.0, via_equipment=True),
             Bonus(effect_id=61, value=12.0, via_equipment=True),
@@ -442,7 +444,7 @@ class TestDefaultCommanderBonuses:
         commander = Commander.model_validate(
             {"ID": -14, "E": [[110, [5.0], "AB"]], "AE": [[120, [50.0], "RH"]], "EQ": [item(38, slot=1)]}
         )
-        assert commander_bonuses(lords_data(), commander) == [
+        assert commander_bonuses(commander, game_data=lords_data()) == [
             Bonus(effect_id=57, value=23.0, via_equipment=True),
             Bonus(effect_id=61, value=19.0, via_equipment=True),
             Bonus(effect_id=62, value=19.0, via_equipment=True),
@@ -453,11 +455,11 @@ class TestDefaultCommanderBonuses:
     def test_aci_area_effects_replace_its_own(self):
         commander = Commander.model_validate({"ID": -14, "AE": [[120, [50.0], "RH"]]})
         aci = [Bonus(effect_id=121, value=3.0)]
-        assert commander_bonuses(lords_data(), commander, area_effects=aci)[-1] == aci[0]
+        assert commander_bonuses(commander, area_effects=aci, game_data=lords_data())[-1] == aci[0]
 
     def test_a_default_commander_without_a_row_grants_nothing(self):
         commander = Commander.model_validate({"ID": -99, "E": [[110, [5.0], "AB"]]})
-        assert commander_bonuses(lords_data(), commander) == []
+        assert commander_bonuses(commander, game_data=lords_data()) == []
 
 
 SET_PAYLOAD = dict(
@@ -497,10 +499,12 @@ class TestEquipmentSetBonuses:
 
     def test_worn_set_items_reach_each_threshold(self):
         commander = Commander.model_validate({"ID": 1, "EQ": [item(38, slot=1), item(38, slot=2)]})
-        assert commander_bonuses(set_data(), commander) == [Bonus(effect_id=300, value=5.0, via_equipment=True)]
+        assert commander_bonuses(commander, game_data=set_data()) == [
+            Bonus(effect_id=300, value=5.0, via_equipment=True)
+        ]
 
         commander = Commander.model_validate({"ID": 1, "EQ": [item(38, slot=1), item(38, slot=2), item(38, slot=3)]})
-        assert equipment_set_bonuses(set_data(), commander.worn_items()) == [
+        assert equipment_set_bonuses(commander.worn_items(), game_data=set_data()) == [
             Bonus(effect_id=300, value=5.0, via_equipment=True),
             Bonus(effect_id=301, value=7.0, via_equipment=True),
             Bonus(effect_id=300, value=1.0, via_equipment=True),
@@ -508,7 +512,7 @@ class TestEquipmentSetBonuses:
 
     def test_set_bonuses_come_after_the_area_effects(self):
         commander = Commander.model_validate({"ID": 1, "AE": [[120, [50.0], "RH"]], "EQ": [item(39, slot=1)]})
-        assert commander_bonuses(set_data(), commander) == [
+        assert commander_bonuses(commander, game_data=set_data()) == [
             Bonus(effect_id=120, value=50.0, raw_values=(50.0,)),
             Bonus(effect_id=302, value=2.0, via_equipment=True),
         ]
@@ -516,26 +520,26 @@ class TestEquipmentSetBonuses:
     def test_a_set_gem_counts_once_however_many_items_hold_it(self):
         # Gem 400 belongs to set 38
         one_item = Commander.model_validate({"ID": 1, "EQ": [item(38, gem_id=400, slot=1)]})
-        assert Bonus(effect_id=300, value=5.0, via_equipment=True) in commander_bonuses(set_data(), one_item)
+        assert Bonus(effect_id=300, value=5.0, via_equipment=True) in commander_bonuses(one_item, game_data=set_data())
 
         two_gems = Commander.model_validate(
             {"ID": 1, "EQ": [item(-1, gem_id=400, slot=1), item(-1, gem_id=400, slot=2)]}
         )
-        assert equipment_set_bonuses(set_data(), two_gems.worn_items()) == []
+        assert equipment_set_bonuses(two_gems.worn_items(), game_data=set_data()) == []
 
     def test_items_without_a_set_and_relic_gems_count_toward_none(self):
         relic = [*item(38, gem_id=400, slot=2, equipment_type=3), [5, 2, 1200, []]]
         commander = Commander.model_validate({"ID": 1, "EQ": [item(-1, slot=1), relic]})
-        assert equipment_set_bonuses(set_data(), commander.worn_items()) == []
+        assert equipment_set_bonuses(commander.worn_items(), game_data=set_data()) == []
 
     def test_only_worn_items_count(self):
         # Two items for the same slot: the later one is worn
         commander = Commander.model_validate({"ID": 1, "EQ": [item(38, slot=1), item(38, slot=1)]})
-        assert equipment_set_bonuses(set_data(), commander.worn_items()) == []
+        assert equipment_set_bonuses(commander.worn_items(), game_data=set_data()) == []
 
     def test_set_bonuses_resolve_through_the_equipment_effect_table(self):
         commander = Commander.model_validate({"ID": 1, "EQ": [item(38, slot=1), item(38, slot=2), item(38, slot=3)]})
-        bonuses = commander_bonuses(set_data(), commander)
+        bonuses = commander_bonuses(commander, game_data=set_data())
         assert EffectResolver(set_data()).accumulate(bonuses, CombatEffectType.MELEE_BONUS) == 6.0
         assert EffectResolver(set_data()).accumulate(bonuses, CombatEffectType.ATTACK_BONUS) == 7.0
 
@@ -616,33 +620,33 @@ class TestSources:
     def test_construction_items(self):
         game = source_data()
 
-        bonuses = construction_item_bonuses(game, [440])
+        bonuses = construction_item_bonuses([440], game_data=game)
 
         assert bonuses == [Bonus(effect_id=120, value=30)]
         # Resolves as a flank unit limit, which is what the item is named for.
         assert EffectResolver(game).flank_unit_bonus(bonuses) == 30
 
     def test_unknown_ids_are_ignored(self):
-        assert construction_item_bonuses(source_data(), [999999]) == []
+        assert construction_item_bonuses([999999], game_data=source_data()) == []
 
     def test_alliance_global_sceat_and_general_sources(self):
         game = source_data()
 
-        assert alliance_buff_bonuses(game, [7]) == [Bonus(effect_id=100, value=12)]
-        assert global_effect_bonuses(game, [5]) == [
+        assert alliance_buff_bonuses([7], game_data=game) == [Bonus(effect_id=100, value=12)]
+        assert global_effect_bonuses([5], game_data=game) == [
             Bonus(effect_id=100, value=13),
             Bonus(effect_id=110, value=4),
         ]
-        assert sceat_skill_bonuses(game, [41]) == [Bonus(effect_id=100, value=6)]
-        assert general_skill_bonuses(game, [10110201]) == [Bonus(effect_id=110, value=9)]
+        assert sceat_skill_bonuses([41], game_data=game) == [Bonus(effect_id=100, value=6)]
+        assert general_skill_bonuses([10110201], game_data=game) == [Bonus(effect_id=110, value=9)]
 
     def test_sources_combine_into_one_total(self):
         game = source_data()
         r = EffectResolver(game)
         bonuses = [
-            *alliance_buff_bonuses(game, [7]),
-            *global_effect_bonuses(game, [5]),
-            *sceat_skill_bonuses(game, [41]),
+            *alliance_buff_bonuses([7], game_data=game),
+            *global_effect_bonuses([5], game_data=game),
+            *sceat_skill_bonuses([41], game_data=game),
         ]
 
         # Effect 100 is an attack bonus in cap 10, which tops out at 50.
@@ -661,29 +665,29 @@ class TestSources:
         )
         game = GameData.parse("test", payload)
 
-        assert general_passive_bonuses(game, [1, 2, 999]) == [Bonus(effect_id=110, value=9)]
+        assert general_passive_bonuses([1, 2, 999], game_data=game) == [Bonus(effect_id=110, value=9)]
 
     def test_the_attack_dialog_list_joins_commander_area_and_general(self):
         game = source_data()
         commander = Commander.model_validate({"ID": 1, "E": [[100, [3.0], "A"]], "AE": [[120, [50.0], "RH"]]})
         area = [Bonus(effect_id=110, value=7)]
 
-        bonuses = attack_dialog_bonuses(game, commander, area_effects=area, general_skill_ids=[10110201])
+        bonuses = attack_dialog_bonuses(commander, area_effects=area, general_skill_ids=[10110201], game_data=game)
 
         assert bonuses == [
             Bonus(effect_id=100, value=3.0, raw_values=(3.0,)),
             Bonus(effect_id=110, value=7),
             Bonus(effect_id=110, value=9),
         ]
-        assert attack_dialog_bonuses(game, None, area_effects=area) == area
+        assert attack_dialog_bonuses(None, area_effects=area, game_data=game) == area
 
     def test_legend_skills_sum_by_effect_type_name(self):
         game = source_data()
 
-        assert legend_skill_value(game, [1, 2], "gateReduction") == 10
-        assert legend_skill_value(game, [1, 9], "wallReduction") == 5
-        assert legend_skill_value(game, [1], "moatReduction") == 0
-        assert legend_skill_value(game, [999], "gateReduction") == 0
+        assert legend_skill_value([1, 2], "gateReduction", game_data=game) == 10
+        assert legend_skill_value([1, 9], "wallReduction", game_data=game) == 5
+        assert legend_skill_value([1], "moatReduction", game_data=game) == 0
+        assert legend_skill_value([999], "gateReduction", game_data=game) == 0
 
 
 class TestAttackerFlankEffects:
@@ -788,12 +792,9 @@ class TestAttackerFlankEffects:
                 ]
             },
         )
-        unbuffed = pick_soldier_stack(10, Inventory({1: 100, 2: 100}), units)
+        unbuffed = pick_soldier_stack(10, Inventory({1: 100, 2: 100}), game_data=units)
         melee_buffed = pick_soldier_stack(
-            10,
-            Inventory({1: 100, 2: 100}),
-            units,
-            attacker=AttackerFlankEffects(melee_bonus=2.0),
+            10, Inventory({1: 100, 2: 100}), attacker=AttackerFlankEffects(melee_bonus=2.0), game_data=units
         )
 
         assert (unbuffed or (0, 0))[0] == 2
@@ -829,51 +830,54 @@ class TestGlobalUnitAttackBonus:
         return GameData.parse("test", self.PAYLOAD)
 
     def test_per_unit_map_is_parsed(self):
-        bonuses = global_unit_attack_bonuses(self.data(), [5])
+        bonuses = global_unit_attack_bonuses([5], game_data=self.data())
 
         assert bonuses == {602: 13.0, 608: 13.0}
 
     def test_only_active_effects_count(self):
-        assert global_unit_attack_bonuses(self.data(), []) == {}
-        assert global_unit_attack_bonuses(self.data(), [999]) == {}
+        assert global_unit_attack_bonuses([], game_data=self.data()) == {}
+        assert global_unit_attack_bonuses([999], game_data=self.data()) == {}
 
     def test_effects_of_other_types_are_ignored(self):
         # Effect 100 is an attack bonus, not a per-unit one.
-        assert global_unit_attack_bonuses(self.data(), [1]) == {}
+        assert global_unit_attack_bonuses([1], game_data=self.data()) == {}
 
     def test_several_active_effects_combine(self):
-        bonuses = global_unit_attack_bonuses(self.data(), [5, 9])
+        bonuses = global_unit_attack_bonuses([5, 9], game_data=self.data())
 
         assert bonuses == {602: 13.0, 608: 13.0, 9: 60.0, 10: 60.0}
 
     def test_a_live_strength_replaces_the_tables(self):
         # the GLOBAL_EFFECT event sends [id, seconds_left, strength]; one scalar lands on every unit
         # in the map.
-        bonuses = global_unit_attack_bonuses(self.data(), [[5, 3600, 25]])
+        bonuses = global_unit_attack_bonuses([[5, 3600, 25]], game_data=self.data())
 
         assert bonuses == {602: 25.0, 608: 25.0}
 
     def test_a_strength_of_minus_one_leaves_the_table_alone(self):
-        assert global_unit_attack_bonuses(self.data(), [[5, 3600, -1]]) == {602: 13.0, 608: 13.0}
+        assert global_unit_attack_bonuses([[5, 3600, -1]], game_data=self.data()) == {602: 13.0, 608: 13.0}
 
     def test_an_effect_is_skipped_outside_its_level_bracket(self):
         game = self.data()
 
-        assert global_unit_attack_bonuses(game, [11], player_level=20) == {602: 13.0}
-        assert global_unit_attack_bonuses(game, [11], player_level=70) == {}
-        assert global_unit_attack_bonuses(game, [11], player_level=5) == {}
+        assert global_unit_attack_bonuses([11], player_level=20, game_data=game) == {602: 13.0}
+        assert global_unit_attack_bonuses([11], player_level=70, game_data=game) == {}
+        assert global_unit_attack_bonuses([11], player_level=5, game_data=game) == {}
         # No level to check against, so the bracket is not applied.
-        assert global_unit_attack_bonuses(game, [11]) == {602: 13.0}
+        assert global_unit_attack_bonuses([11], game_data=game) == {602: 13.0}
 
     def test_an_absent_ceiling_is_not_a_bar(self):
-        assert global_unit_attack_bonuses(self.data(), [5], player_level=70) == {602: 13.0, 608: 13.0}
+        assert global_unit_attack_bonuses([5], player_level=70, game_data=self.data()) == {602: 13.0, 608: 13.0}
 
     def test_a_boosted_effect_adds_the_boost_to_its_strength(self):
         # addBuffStrengthValue: the effect's strength plus the booster's BV, on every unit
         boosts: dict[GlobalEffect | int, float] = {GlobalEffect.ATTACK_BOOST_SPEERMAN_BOWMAN: 50.0}
 
-        assert global_unit_attack_bonuses(self.data(), [5], boosts=boosts) == {602: 63.0, 608: 63.0}
-        assert global_unit_attack_bonuses(self.data(), [[5, 47884, 10]], boosts=boosts) == {602: 60.0, 608: 60.0}
+        assert global_unit_attack_bonuses([5], boosts=boosts, game_data=self.data()) == {602: 63.0, 608: 63.0}
+        assert global_unit_attack_bonuses([[5, 47884, 10]], boosts=boosts, game_data=self.data()) == {
+            602: 60.0,
+            608: 60.0,
+        }
 
     def test_the_boost_lands_on_the_first_units_strength_as_an_int(self):
         # setEffectStrength writes one value for every key, and EffectValueMap parses it with parseInt
@@ -882,14 +886,16 @@ class TestGlobalUnitAttackBonus:
             dict(self.PAYLOAD, globalEffects=[{"globalEffectID": "5", "effects": "273&602+13#608+99"}]),
         )
 
-        assert global_unit_attack_bonuses(game, [5], boosts={5: 2.5}) == {602: 15.0, 608: 15.0}
-        assert global_unit_attack_bonuses(game, [5]) == {602: 13.0, 608: 99.0}
+        assert global_unit_attack_bonuses([5], boosts={5: 2.5}, game_data=game) == {602: 15.0, 608: 15.0}
+        assert global_unit_attack_bonuses([5], game_data=game) == {602: 13.0, 608: 99.0}
 
     def test_only_the_boosted_effects_are_boosted(self):
-        bonuses = global_unit_attack_bonuses(self.data(), [5, 9], boosts={GlobalEffect.ATTACK_BOOST_SPEERMAN_BOWMAN: 7})
+        bonuses = global_unit_attack_bonuses(
+            [5, 9], boosts={GlobalEffect.ATTACK_BOOST_SPEERMAN_BOWMAN: 7}, game_data=self.data()
+        )
 
         assert bonuses == {602: 20.0, 608: 20.0, 9: 60.0, 10: 60.0}
-        assert global_unit_attack_bonuses(self.data(), [9], boosts={5: 50.0}) == {9: 60.0, 10: 60.0}
+        assert global_unit_attack_bonuses([9], boosts={5: 50.0}, game_data=self.data()) == {9: 60.0, 10: 60.0}
 
     def test_the_buff_is_added_before_the_multiplier(self):
         # The client adds the flat buff to the raw attack, then multiplies.
@@ -920,7 +926,7 @@ class TestGlobalUnitAttackBonus:
         commander_side = EffectResolver(game).accumulate([Bonus(effect_id=273, value=195)], 148)
 
         assert commander_side == 195  # it resolves...
-        assert global_unit_attack_bonuses(game, []) == {}  # ...but never reaches a unit
+        assert global_unit_attack_bonuses([], game_data=game) == {}  # ...but never reaches a unit
 
 
 class TestKeyedEffectValues:

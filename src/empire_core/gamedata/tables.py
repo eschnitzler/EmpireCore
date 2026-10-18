@@ -1118,13 +1118,16 @@ class TitleDef(EffectSpecRow):
     )
     might_value: int = Field(validation_alias="mightValue", default=-1, description="Might points it gives")
 
-    def rewards(self, data: GameData) -> tuple[Collectable, ...]:
+    def rewards(self, *, game_data: GameData | None = None) -> tuple[Collectable, ...]:
         """
         What holding the title gives; nothing when it has no reward.
 
         Client: ``CastleTitleSystemHelper.getTitleRewardText`` reads ``getListById(rewardID)`` when it is
         above -1 (bundle line 4444)
         """
+        from empire_core.gamedata.data import GameData
+
+        data = game_data if game_data is not None else GameData.require()
         return data.reward_list((self.reward_id,))
 
     @field_validator("title_id", mode="before")

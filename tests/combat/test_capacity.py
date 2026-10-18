@@ -257,7 +257,7 @@ class TestFillWaves:
         # Level 13: 73 attackers, so 15 per flank and 43 in the middle.
         inventory = Inventory({601: 10_000})
 
-        waves = fill_waves(inventory, game, level=13)
+        waves = fill_waves(inventory, level=13, game_data=game)
 
         assert len(waves) == 2
         first = waves[0].model_dump(by_alias=True)
@@ -268,45 +268,47 @@ class TestFillWaves:
     def test_filling_stops_when_the_pool_runs_dry(self):
         game = solver_data()
         # Enough for the first wave and a little of the second.
-        waves = fill_waves(Inventory({601: 80}), game, level=13)
+        waves = fill_waves(Inventory({601: 80}), level=13, game_data=game)
 
         assert len(waves) == 2
         assert waves[0].unit_count() == 73
         assert waves[1].unit_count() == 7
 
     def test_no_units_means_no_waves(self):
-        assert fill_waves(Inventory({}), solver_data(), level=70) == []
+        assert fill_waves(Inventory({}), level=70, game_data=solver_data()) == []
 
     def test_conquest_attacks_get_more_waves(self):
         game = solver_data()
         pool = {601: 10_000}
 
-        normal = fill_waves(Inventory(pool), game, level=70)
-        conquest = fill_waves(Inventory(pool), game, level=70, conquer=True)
+        normal = fill_waves(Inventory(pool), level=70, game_data=game)
+        conquest = fill_waves(Inventory(pool), level=70, conquer=True, game_data=game)
 
         assert len(normal) == 4
         assert len(conquest) == 6
 
     def test_unselected_waves_stay_empty_in_their_place(self):
         # Level 70 carries four waves of 320; wave 2 gets what wave 0 left.
-        waves = fill_waves(Inventory({601: 500}), solver_data(), level=70, options=FillOptions(waves=frozenset({0, 2})))
+        waves = fill_waves(
+            Inventory({601: 500}), level=70, options=FillOptions(waves=frozenset({0, 2})), game_data=solver_data()
+        )
 
         assert [wave.unit_count() for wave in waves] == [320, 0, 180, 0]
 
     def test_a_wave_past_the_wave_count_is_ignored(self):
         waves = fill_waves(
-            Inventory({601: 10_000}), solver_data(), level=70, options=FillOptions(waves=frozenset({0, 9}))
+            Inventory({601: 10_000}), level=70, options=FillOptions(waves=frozenset({0, 9})), game_data=solver_data()
         )
 
         assert [wave.unit_count() for wave in waves] == [320, 0, 0, 0]
 
     def test_no_selection_fills_every_wave(self):
-        waves = fill_waves(Inventory({601: 10_000}), solver_data(), level=70, options=FillOptions(waves=None))
+        waves = fill_waves(Inventory({601: 10_000}), level=70, options=FillOptions(waves=None), game_data=solver_data())
 
         assert [wave.unit_count() for wave in waves] == [320] * 4
 
     def test_a_level_70_wave_maxes_out(self):
-        waves = fill_waves(Inventory({601: 10_000}), solver_data(), level=70)
+        waves = fill_waves(Inventory({601: 10_000}), level=70, game_data=solver_data())
 
         assert waves[0].unit_count() == 320
 
@@ -409,7 +411,7 @@ class TestWaveWithTools:
             for f in (Flank.LEFT, Flank.MIDDLE, Flank.RIGHT)
         }
 
-        wave = fill_wave(inv, game, self.capacity(), defense=defense)
+        wave = fill_wave(inv, self.capacity(), defense=defense, game_data=game)
 
         payload = wave.model_dump(by_alias=True)
         assert placed(payload["L"]["T"]) == [[611, 3]]  # 30 gate / 10 per ram
@@ -421,7 +423,7 @@ class TestWaveWithTools:
         inv = Inventory({611: 100})
         defense = {Flank.LEFT: DefenderFlankEffects(gate_bonus=0.30)}
 
-        wave = fill_wave(inv, game, self.capacity(), defense=defense)
+        wave = fill_wave(inv, self.capacity(), defense=defense, game_data=game)
 
         payload = wave.model_dump(by_alias=True)
         assert placed(payload["L"]["T"]) == []
@@ -432,7 +434,7 @@ class TestWaveWithTools:
         inv = Inventory({601: 100, 611: 100})
         defense = {Flank.LEFT: DefenderFlankEffects(gate_bonus=0.30)}
 
-        wave = fill_wave(inv, game, self.capacity(), defense=defense, strategies=[])
+        wave = fill_wave(inv, self.capacity(), defense=defense, strategies=[], game_data=game)
 
         assert placed(wave.model_dump(by_alias=True)["L"]["T"]) == []
         assert inv.available(611) == 100
@@ -442,7 +444,7 @@ class TestWaveWithTools:
         inv = Inventory({601: 100, 611: 100})
         defense = {Flank.LEFT: DefenderFlankEffects(gate_bonus=0.30)}
 
-        wave = fill_wave(inv, game, self.capacity(), defense=defense, options=FillOptions(use_tools=False))
+        wave = fill_wave(inv, self.capacity(), defense=defense, options=FillOptions(use_tools=False), game_data=game)
 
         payload = wave.model_dump(by_alias=True)
         assert placed(payload["L"]["T"]) == []
@@ -454,8 +456,10 @@ class TestWaveWithTools:
         inv = Inventory({601: 100, 612: 100})
         defense = {Flank.LEFT: DefenderFlankEffects(gate_bonus=0.30)}
 
-        allowed = fill_wave(Inventory(inv.counts), game, self.capacity(), defense=defense)
-        wave = fill_wave(inv, game, self.capacity(), defense=defense, options=FillOptions(allow_event_tools=False))
+        allowed = fill_wave(Inventory(inv.counts), self.capacity(), defense=defense, game_data=game)
+        wave = fill_wave(
+            inv, self.capacity(), defense=defense, options=FillOptions(allow_event_tools=False), game_data=game
+        )
 
         assert placed(allowed.model_dump(by_alias=True)["L"]["T"]) == [[612, 3]]
         payload = wave.model_dump(by_alias=True)
@@ -476,7 +480,7 @@ class TestWaveWithTools:
             allow_combo_tools=False,
         )
 
-        wave = fill_wave(inv, game, self.capacity(), defense=defense, options=options)
+        wave = fill_wave(inv, self.capacity(), defense=defense, options=options, game_data=game)
 
         assert placed(wave.model_dump(by_alias=True)["L"]["T"]) == [[611, 3]]
         assert inv.available(611) == 97
@@ -486,7 +490,7 @@ class TestWaveWithTools:
         inv = Inventory({601: 100, 613: 100})
         defense = {Flank.LEFT: DefenderFlankEffects(gate_bonus=0.30)}
 
-        wave = fill_wave(inv, game, self.capacity(), defense=defense)
+        wave = fill_wave(inv, self.capacity(), defense=defense, game_data=game)
 
         assert placed(wave.model_dump(by_alias=True)["L"]["T"]) == []
         assert inv.available(613) == 100
@@ -497,14 +501,14 @@ class TestYardWave:
         game = GameData.parse("test", SOLVER_PAYLOAD)
         inv = Inventory({601: 10_000})
 
-        yard = fill_yard_wave(inv, game, 3349)
+        yard = fill_yard_wave(inv, 3349, game_data=game)
 
         assert yard == ((601, 3349),) + (EMPTY_SLOT,) * 7
         assert inv.available(601) == 10_000 - 3349
 
     def test_every_slot_goes_out_even_when_empty(self):
         game = GameData.parse("test", SOLVER_PAYLOAD)
-        assert fill_yard_wave(Inventory({}), game, 3349) == (EMPTY_SLOT,) * 8
+        assert fill_yard_wave(Inventory({}), 3349, game_data=game) == (EMPTY_SLOT,) * 8
 
 
 class TestYardRounding:
@@ -660,7 +664,7 @@ class TestCastellanDefence:
         from empire_core.protocol.models import Commander
 
         game = GameData.parse("test", self.PAYLOAD)
-        return EffectResolver(game), commander_bonuses(game, Commander.model_validate(self.CASTELLAN))
+        return EffectResolver(game), commander_bonuses(Commander.model_validate(self.CASTELLAN), game_data=game)
 
     def test_the_fortification_matches_the_effects_panel(self):
         from empire_core.combat import castellan_fortification
@@ -731,7 +735,7 @@ class TestInvasionCampLevel:
         return GameData.parse("test", self.PAYLOAD)
 
     def level(self, data: GameData, row: list, player_level: int) -> int | None:
-        return invasion_camp_level(data, MapAreaItem.from_list(row), player_level)
+        return invasion_camp_level(MapAreaItem.from_list(row), player_level, game_data=data)
 
     def test_a_samurai_camp_starts_where_the_players_league_starts(self, data):
         row = [29, 624, 240, -1, 0, -1787922790, 0, -651, -1, 110, 110, 0]
@@ -879,7 +883,9 @@ class TestSpiedCastleDefence:
         army = SpyArmy.model_validate(self.ARMY)
         assert army is not None
         game = GameData.parse("test", self.PAYLOAD)
-        return spied_castle_defense(game, army, wall_bonus=0.5, gate_bonus=0.4, moat_bonus=0.3, area_type=1, **kwargs)
+        return spied_castle_defense(
+            army, wall_bonus=0.5, gate_bonus=0.4, moat_bonus=0.3, area_type=1, **kwargs, game_data=game
+        )
 
     def assert_matches(self, defense: dict[Flank, DefenderFlankEffects], expected) -> None:
         for flank, (strength, fortification) in expected.items():

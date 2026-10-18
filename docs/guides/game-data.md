@@ -49,10 +49,19 @@ client's `getListByIdArray` does. A campaign and a title turn their rewards
 into collectables with it:
 
 ```python
-campaign.rewards(data)                  # (Collectable(kind=UNITS, item=Unit..., amount=5), ...)
-data.titles[title].rewards(data)
+campaign.rewards()                  # (Collectable(kind=UNITS, item=Unit..., amount=5), ...)
+data.titles[title].rewards()
 data.reward_list([40054, 170])          # any reward ids
 ```
+
+Public calculators, reward readers and effect formatters use the process's game
+data automatically. For an offline or separately parsed dataset, pass the optional
+`game_data=data` keyword. For example, `campaign.rewards(game_data=saved_data)`.
+
+Cached player reads are available directly as `client.player.spent_skill_points`,
+`client.player.available_skill_points`, and `client.player.title_ids`. They use
+that client's configured game data and send no game requests. The point reads
+are `None` until a skill list arrives; title reads require login data.
 
 The cache keeps each table as JSON text until the table is first read, so
 loading from the cache does not build rows nobody reads.
@@ -147,3 +156,16 @@ no named lookup: the game tells them apart only by their place in the travel
 dialog, so use `get_horse` or the `Horse` enum.
 
 **API:** [`GameData`](../reference/gamedata.md#empire_core.gamedata.data.GameData)
+
+## Migrating explicit game-data arguments
+
+Calculators and formatters no longer require a positional dataset. For example,
+`commander_bonuses(data, commander)` becomes `commander_bonuses(commander)`;
+`skills.available_points(data)` becomes `client.player.available_skill_points`.
+To keep a separately parsed dataset, use `commander_bonuses(commander, game_data=data)`
+or `skills.available_points(game_data=data)`. The same keyword applies to title,
+chronicle, reward, tooltip and wave-filling helpers.
+
+The `EffectResolver` constructor also loads data automatically when omitted.
+Tool-strategy callbacks still receive their calculator's resolved dataset, so
+custom strategies work with the same data as the rest of a fill.

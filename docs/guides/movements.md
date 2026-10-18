@@ -209,15 +209,12 @@ of equipment.
 
 ```python
 from empire_core.combat import EffectResolver, attacker_flank_effects, commander_bonuses
-from empire_core.gamedata import GameData
-
-game_data = GameData.load()
-resolver = EffectResolver(game_data)
+resolver = EffectResolver()
 
 def on_attack(movement):
     if movement.commander is None:
         return
-    bonuses = commander_bonuses(game_data, movement.commander)
+    bonuses = commander_bonuses(movement.commander)
     effects = attacker_flank_effects(
         resolver, bonuses, area_type=movement.target_type, player_target=True
     )

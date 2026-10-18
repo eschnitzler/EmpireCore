@@ -102,10 +102,11 @@ class ToolStrategy(Protocol):
 
 
 def conditioned_effect_bonus(
-    game_data: GameData,
     tool: ToolStats,
     effect_type: CombatEffectType | int,
     area_type: int | None = None,
+    *,
+    game_data: GameData | None = None,
 ) -> float:
     """
     A tool's contribution from its effects rather than its columns.
@@ -115,6 +116,7 @@ def conditioned_effect_bonus(
     target's area. Six tools today carry a defense malus this way and no column
     at all, so without this they look useless to the strategies.
     """
+    game_data = game_data if game_data is not None else GameData.require()
     total = 0.0
     for bonus in effect_value_bonuses(tool.effects):
         effect = game_data.effects.get(bonus.effect_id)
@@ -182,11 +184,11 @@ class ReduceDefenceBonusStrategy:
             tool = game_data.get_tool(wod_id)
             if tool is None or not tool.is_attack_tool or available <= 0:
                 continue
-            if not can_use_tool_on_target(tool, target, game_data):
+            if not can_use_tool_on_target(tool, target, game_data=game_data):
                 continue
             bonus = self.tool_bonus(tool)
             if self.malus_effect_type is not None:
-                bonus += conditioned_effect_bonus(game_data, tool, self.malus_effect_type, target.area_type)
+                bonus += conditioned_effect_bonus(tool, self.malus_effect_type, target.area_type, game_data=game_data)
             if bonus <= 0:
                 continue
             needed = math.ceil(remaining / bonus)
@@ -220,7 +222,7 @@ def _per_wave_allowance(tool: ToolStats, used_per_type: Mapping[str, int], free_
     return free_items
 
 
-def can_use_tool_on_target(tool: ToolStats, target: TargetContext, game_data: GameData) -> bool:
+def can_use_tool_on_target(tool: ToolStats, target: TargetContext, *, game_data: GameData | None = None) -> bool:
     """
     Whether this tool may be carried against this target at all.
 
@@ -243,17 +245,16 @@ def can_use_tool_on_target(tool: ToolStats, target: TargetContext, game_data: Ga
     Returns:
         True when the tool may be used
     """
+    game_data = game_data if game_data is not None else GameData.require()
     usable_against_owner = tool.can_attack_npc or target.is_player or target.is_alien_invasion
     allowed = tool.is_allowed_by_attack_target(target.space_id, target.area_type)
-    if not is_tool_usable_against_active_raid_boss(tool, game_data, target.active_raid_boss_id):
+    if not is_tool_usable_against_active_raid_boss(tool, target.active_raid_boss_id, game_data=game_data):
         return False
     return usable_against_owner and allowed
 
 
 def is_tool_usable_against_active_raid_boss(
-    tool: ToolStats,
-    game_data: GameData,
-    active_raid_boss_id: int | None,
+    tool: ToolStats, active_raid_boss_id: int | None, *, game_data: GameData | None = None
 ) -> bool:
     """
     Whether a tool's raid-boss ties, if any, allow it now.
@@ -278,6 +279,7 @@ def is_tool_usable_against_active_raid_boss(
     Returns:
         True when the tool may be used
     """
+    game_data = game_data if game_data is not None else GameData.require()
     tied = False
     for entry in tool.effects:
         effect = game_data.effects.get(entry.effect_id)
@@ -336,13 +338,13 @@ def fill_flank_with_tools(
     slots: int,
     slot_type: int,
     inventory: "Inventory",
-    game_data: GameData,
     strategies: Sequence[ToolStrategy],
     *,
     attacker: AttackerFlankEffects | None = None,
     defender: DefenderFlankEffects | None = None,
     target: TargetContext | None = None,
     used_per_type: dict[str, int] | None = None,
+    game_data: GameData | None = None,
 ) -> FilledTools:
     """
     Fill one flank's tool slots.
@@ -382,6 +384,7 @@ def fill_flank_with_tools(
         The effects passed in are not mutated; the updated ones come back in
         :attr:`FilledTools.effects`.
     """
+    game_data = game_data if game_data is not None else GameData.require()
     effects = attacker or AttackerFlankEffects()
     area_type = (target or TargetContext()).area_type
     if used_per_type is None:
@@ -423,8 +426,12 @@ def fill_flank_with_tools(
         effects = effects.apply_tool(
             tool,
             taken,
-            range_malus=conditioned_effect_bonus(game_data, tool, CombatEffectType.RANGE_DEFENSE_MALUS, area_type),
-            melee_malus=conditioned_effect_bonus(game_data, tool, CombatEffectType.MELEE_DEFENSE_MALUS, area_type),
+            range_malus=conditioned_effect_bonus(
+                tool, CombatEffectType.RANGE_DEFENSE_MALUS, area_type, game_data=game_data
+            ),
+            melee_malus=conditioned_effect_bonus(
+                tool, CombatEffectType.MELEE_DEFENSE_MALUS, area_type, game_data=game_data
+            ),
         )
 
     return FilledTools(list(placed.items()), effects)

@@ -49,7 +49,7 @@ class TestInventory:
 
     def test_soldier_count_ignores_non_units(self):
         inv = Inventory({601: 5, 999999: 100})
-        assert inv.soldier_count(solver_data()) == 5
+        assert inv.soldier_count(game_data=solver_data()) == 5
 
     def test_non_positive_stacks_are_dropped(self):
         assert Inventory({601: 0, 211: -2}).counts == {}
@@ -60,7 +60,7 @@ class TestPickSoldierStack:
         game = solver_data()
         inv = Inventory({601: 100, 211: 100})
 
-        pick = pick_soldier_stack(10, inv, game)
+        pick = pick_soldier_stack(10, inv, game_data=game)
 
         # 270 > 100 per unit, so the ranged unit is chosen and deducted.
         assert pick == (211, 10)
@@ -71,7 +71,7 @@ class TestPickSoldierStack:
         # A defense made only of ranged-defense strength: melee attack counters.
         defender = DefenderFlankEffects(range_units_range_strength=1000)
 
-        pick = pick_soldier_stack(10, Inventory({601: 100, 211: 100}), game, defender=defender)
+        pick = pick_soldier_stack(10, Inventory({601: 100, 211: 100}), defender=defender, game_data=game)
 
         assert stack_of(pick)[0] == 601
 
@@ -79,12 +79,12 @@ class TestPickSoldierStack:
         game = solver_data()
         defender = DefenderFlankEffects(melee_units_melee_strength=1000)
 
-        pick = pick_soldier_stack(10, Inventory({601: 100, 211: 100}), game, defender=defender)
+        pick = pick_soldier_stack(10, Inventory({601: 100, 211: 100}), defender=defender, game_data=game)
 
         assert stack_of(pick)[0] == 211
 
     def test_pure_defenders_are_never_picked(self):
-        pick = pick_soldier_stack(10, Inventory({800: 100}), solver_data())
+        pick = pick_soldier_stack(10, Inventory({800: 100}), game_data=solver_data())
         assert pick is None
 
     def test_defensive_units_are_not_candidates_even_with_attack_value(self):
@@ -93,40 +93,48 @@ class TestPickSoldierStack:
         game = solver_data()
 
         assert not unit_of(game, 604).is_offensive
-        assert pick_soldier_stack(1000, Inventory({604: 5000}), game) is None
+        assert pick_soldier_stack(1000, Inventory({604: 5000}), game_data=game) is None
 
-        pick = pick_soldier_stack(1000, Inventory({604: 5000, 601: 50}), game)
+        pick = pick_soldier_stack(1000, Inventory({604: 5000, 601: 50}), game_data=game)
         assert pick == (601, 50)
 
     def test_ruby_filter_excludes_the_expensive_unit(self):
         game = solver_data()
         inv = Inventory({601: 100, 700: 100})
 
-        allowed = pick_soldier_stack(10, Inventory(inv.counts), game)
-        blocked = pick_soldier_stack(10, Inventory(inv.counts), game, options=FillOptions(allow_ruby_cost=False))
+        allowed = pick_soldier_stack(10, Inventory(inv.counts), game_data=game)
+        blocked = pick_soldier_stack(
+            10, Inventory(inv.counts), options=FillOptions(allow_ruby_cost=False), game_data=game
+        )
 
         assert stack_of(allowed)[0] == 700
         assert stack_of(blocked)[0] == 601
 
     def test_mead_filter_excludes_the_mead_unit(self):
         game = solver_data()
-        pick = pick_soldier_stack(10, Inventory({211: 100, 601: 100}), game, options=FillOptions(allow_mead=False))
+        pick = pick_soldier_stack(
+            10, Inventory({211: 100, 601: 100}), options=FillOptions(allow_mead=False), game_data=game
+        )
         assert stack_of(pick)[0] == 601
 
     def test_role_filters_restrict_the_pool(self):
         game = solver_data()
 
-        melee_only = pick_soldier_stack(10, Inventory({601: 50, 211: 50}), game, options=FillOptions(use_ranged=False))
+        melee_only = pick_soldier_stack(
+            10, Inventory({601: 50, 211: 50}), options=FillOptions(use_ranged=False), game_data=game
+        )
         assert stack_of(melee_only)[0] == 601
 
-        assert pick_soldier_stack(10, Inventory({211: 50}), game, options=FillOptions(use_ranged=False)) is None
+        assert (
+            pick_soldier_stack(10, Inventory({211: 50}), options=FillOptions(use_ranged=False), game_data=game) is None
+        )
 
     def test_no_capacity_picks_nothing(self):
-        assert pick_soldier_stack(0, Inventory({601: 10}), solver_data()) is None
+        assert pick_soldier_stack(0, Inventory({601: 10}), game_data=solver_data()) is None
 
     def test_stack_is_capped_by_remaining_capacity(self):
         inv = Inventory({601: 1000})
-        assert pick_soldier_stack(7, inv, solver_data()) == (601, 7)
+        assert pick_soldier_stack(7, inv, game_data=solver_data()) == (601, 7)
         assert inv.available(601) == 993
 
 
@@ -135,23 +143,23 @@ class TestFillFlank:
         game = solver_data()
         inv = Inventory({601: 10, 211: 10})
 
-        placed = fill_flank_with_soldiers(15, 4, inv, game)
+        placed = fill_flank_with_soldiers(15, 4, inv, game_data=game)
 
         # First slot takes 10 ranged (all of it), second the 5 melee that fit.
         assert placed == [(211, 10), (601, 5)]
         assert sum(count for _wod, count in placed) == 15
 
     def test_fill_stops_when_the_pool_is_empty(self):
-        placed = fill_flank_with_soldiers(100, 5, Inventory({601: 3}), solver_data())
+        placed = fill_flank_with_soldiers(100, 5, Inventory({601: 3}), game_data=solver_data())
         assert placed == [(601, 3)]
 
     def test_no_slots_places_nothing(self):
         inv = Inventory({601: 10})
-        assert fill_flank_with_soldiers(100, 0, inv, solver_data()) == []
+        assert fill_flank_with_soldiers(100, 0, inv, game_data=solver_data()) == []
         assert inv.available(601) == 10
 
     def test_empty_pool_places_nothing(self):
-        assert fill_flank_with_soldiers(100, 3, Inventory({}), solver_data()) == []
+        assert fill_flank_with_soldiers(100, 3, Inventory({}), game_data=solver_data()) == []
 
 
 class TestFillWave:
@@ -159,7 +167,7 @@ class TestFillWave:
         game = solver_data()
         inv = Inventory({601: 30})
 
-        wave = fill_wave(inv, game, _capacity(10, 1))
+        wave = fill_wave(inv, _capacity(10, 1), game_data=game)
 
         assert wave.is_complete()
         payload = wave.model_dump(by_alias=True)
@@ -176,7 +184,7 @@ class TestFillWave:
         game = solver_data()
         inv = Inventory({601: 15})
 
-        wave = fill_wave(inv, game, _capacity(10, 1))
+        wave = fill_wave(inv, _capacity(10, 1), game_data=game)
 
         payload = wave.model_dump(by_alias=True)
         assert placed(payload["L"]["U"]) == [[601, 10]]
@@ -187,12 +195,7 @@ class TestFillWave:
         game = solver_data()
         inv = Inventory({601: 100})
 
-        wave = fill_wave(
-            inv,
-            game,
-            _capacity(10, 1),
-            options=FillOptions(fill_left=False, fill_right=False),
-        )
+        wave = fill_wave(inv, _capacity(10, 1), options=FillOptions(fill_left=False, fill_right=False), game_data=game)
 
         payload = wave.model_dump(by_alias=True)
         assert placed(payload["L"]["U"]) == []
@@ -200,7 +203,7 @@ class TestFillWave:
         assert placed(payload["R"]["U"]) == []
 
     def test_an_unfillable_wave_is_incomplete_not_an_error(self):
-        wave = fill_wave(Inventory({}), solver_data(), _capacity(10, 2))
+        wave = fill_wave(Inventory({}), _capacity(10, 2), game_data=solver_data())
 
         assert not wave.is_complete()
         assert wave.unit_count() == 0
@@ -211,12 +214,12 @@ class TestFillWave:
 
         wave = fill_wave(
             inv,
-            game,
             _capacity(10, 1),
             defense={
                 Flank.LEFT: DefenderFlankEffects(melee_units_melee_strength=1000),
                 Flank.RIGHT: DefenderFlankEffects(range_units_range_strength=1000),
             },
+            game_data=game,
         )
 
         payload = wave.model_dump(by_alias=True)
