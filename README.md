@@ -72,6 +72,8 @@ pip install 'empire-core[console]'
 empire-console                    # asks for the username and password; --zone for another world
 ```
 
+<img alt="empire-console: Python output and input on the left; the socket frames, with the selected reply parsed into its model, on the right" src="https://raw.githubusercontent.com/eschnitzler/EmpireCore/master/docs/assets/console.png">
+
 ## Quick start
 
 ```python

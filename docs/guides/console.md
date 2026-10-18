@@ -8,6 +8,8 @@ description: An interactive Python console on a live client, beside every socket
 code on the left; every frame the connection sends and receives scrolls by on the right, parsed
 into the same models the library returns.
 
+![empire-console: Python output and input on the left; the socket frames, with the selected reply parsed into its model, on the right](../assets/console.png)
+
 It runs on Linux and macOS. It is untested on Windows: it may work there, but dragging to resize
 the panes probably does not.
 
