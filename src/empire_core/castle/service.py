@@ -459,6 +459,8 @@ class CastleService(BaseService):
             raise CommandError("scl", packet.error_code, packet.payload)
         if not isinstance(packet.payload, dict) or not isinstance(packet.payload.get("OIDL"), list):
             raise PacketError("The construction queue reply must contain a building list")
+        if any(isinstance(entry, (dict, list)) for entry in packet.payload["OIDL"]):
+            raise PacketError("The construction queue reply must contain scalar building ids")
         try:
             return ShowConstructionListResponse.model_validate(packet.payload)
         except ValidationError as error:
