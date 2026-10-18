@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING
 
-from empire_core.enums import Kingdom, ProductionListId, SlotType, SpyArmySection
+from empire_core.enums import Kingdom, ProductionListId, RecruitmentMode, SlotType, SpyArmySection
 from empire_core.utils.lazy import lazy_exports
 
 from .models import (
@@ -29,13 +29,24 @@ from .models import (
     HealAllResponse,
     HealUnitsRequest,
     HealUnitsResponse,
+    HospitalFlags,
+    HospitalFlagsRequest,
+    HospitalFlagsResponse,
     HospitalSlot,
+    MoveProductionSlotRequest,
+    MoveProductionSlotResponse,
     ProduceUnitsRequest,
     ProduceUnitsResponse,
     ProductionList,
     ProductionSlot,
+    SetRecruitmentModeRequest,
+    SetRecruitmentModeResponse,
     SkipHealRequest,
     SkipHealResponse,
+    StoreSoldiersRequest,
+    StoreSoldiersResponse,
+    TakeSoldiersRequest,
+    TakeSoldiersResponse,
     UnitInventory,
     WaveFlank,
     WoundedUnits,
@@ -80,7 +91,19 @@ __all__ = [
     "GetUnitsResponse",
     "DismissUnitsRequest",
     "DismissUnitsResponse",
+    "HospitalFlags",
+    "HospitalFlagsRequest",
+    "HospitalFlagsResponse",
+    "MoveProductionSlotRequest",
+    "MoveProductionSlotResponse",
+    "SetRecruitmentModeRequest",
+    "SetRecruitmentModeResponse",
+    "StoreSoldiersRequest",
+    "StoreSoldiersResponse",
+    "TakeSoldiersRequest",
+    "TakeSoldiersResponse",
     "ProductionListId",
+    "RecruitmentMode",
     "SlotType",
     "ArmyService",
     "SpyArmy",

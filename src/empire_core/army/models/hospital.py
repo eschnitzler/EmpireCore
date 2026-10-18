@@ -6,15 +6,20 @@ Commands:
 - hss: Skip a hospital slot (rubies)
 - hdu: Dismiss wounded units
 - hra: Heal all wounded units (rubies)
+- hfl: Read or set the hospital flags
 
-These act on the castle the session has joined (``jca``).
+These act on the castle the session has joined (``jca``); ``hfl`` also names it.
 """
 
 from __future__ import annotations
 
-from pydantic import Field
+from typing import Any
 
+from pydantic import Field, field_validator
+
+from empire_core.enums import Kingdom
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, CurrencyBlock
+from empire_core.protocol.js import js_same_number, js_truthy
 
 from .production import ProductionListBlock
 from .units import RawBlock, UnitInventoryBlock
@@ -240,6 +245,88 @@ class HealAllResponse(BaseResponse):
     )
 
 
+# =============================================================================
+# HFL - Hospital Flags
+# =============================================================================
+
+
+class HospitalFlagsRequest(BaseRequest):
+    """
+    Read or set the hospital flags of the joined castle.
+
+    Command: hfl
+    Payload: {"KID": kingdom_id, "AID": castle_id, "HRF": -1, 0 or 1}
+
+    ``HRF`` -1 only reads the flags, as the hospital dialog does when it opens
+    (``CastleRecruitDialogHospital.show``, bundle line 83456); 0 or 1 sets whether wounded
+    ruby units are admitted, as its checkbox does (``toggleRubyBlock``, bundle line 83605).
+
+    Client: ``C2SHospitalFlagsVO`` (bundle line 84184)
+    """
+
+    command = "hfl"
+
+    kingdom_id: Kingdom = Field(validation_alias="KID", description="The joined castle's kingdom")
+    castle_id: int = Field(
+        validation_alias="AID",
+        description=(
+            "The castle the session is in, a Castle.id from client.state.get_castles(); ArmyService joins it first"
+        ),
+    )
+    admit_ruby_units: int = Field(
+        validation_alias="HRF",
+        default=-1,
+        description="-1 to only read the flags, 1 to admit wounded ruby units, 0 not to",
+    )
+
+    def accepts_reply(self, payload: Any) -> bool:
+        """Whether an hfl reply is about this castle: its ``KID`` and ``AID`` are the ones sent.
+
+        Client: ``CastleRecruitDialogHospital.onHospitalFlagsReceived`` (bundle line 83606) takes
+        only flags for which ``HospitalFlagsVO.isCurrentCastle`` (bundle line 124502) holds.
+        """
+        if not isinstance(payload, dict):
+            return False
+        return js_same_number(payload.get("KID"), self.kingdom_id) and js_same_number(
+            payload.get("AID"), self.castle_id
+        )
+
+
+class HospitalFlags(BasePayload):
+    """
+    The hospital flags of a castle, the ``hfl`` reply.
+
+    Client: ``HospitalFlagsVO.parse_HFL`` (bundle line 124501). ``HRF`` is the dialog's checkbox
+    "Admit wounded ruby units to the hospital" (``dialog_hospital_rubyUnitsFilter_desc``), ticked
+    while ``HRF`` is 1 (``onHospitalFlagsReceived``, bundle line 83606)
+    """
+
+    kingdom_id: Kingdom = Field(validation_alias="KID", default=Kingdom.GREEN)
+    castle_id: int = Field(validation_alias="AID", default=0)
+    admits_ruby_units: bool = Field(
+        validation_alias="HRF",
+        default=False,
+        description="Wounded ruby units are admitted to the hospital",
+    )
+
+    @field_validator("admits_ruby_units", mode="before")
+    @classmethod
+    def _client_truthy(cls, value: Any) -> bool:
+        return js_truthy(value)
+
+
+class HospitalFlagsResponse(BaseResponse, HospitalFlags):
+    """
+    The hospital flags of the joined castle.
+
+    Command: hfl
+
+    Client: ``HFLCommand.executeCommand`` (bundle line 124489)
+    """
+
+    command = "hfl"
+
+
 __all__ = [
     "HealUnitsRequest",
     "HealUnitsResponse",
@@ -253,4 +340,7 @@ __all__ = [
     "DismissWoundedResponse",
     "HealAllRequest",
     "HealAllResponse",
+    "HospitalFlagsRequest",
+    "HospitalFlags",
+    "HospitalFlagsResponse",
 ]
