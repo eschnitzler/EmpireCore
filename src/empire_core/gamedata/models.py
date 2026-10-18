@@ -152,6 +152,11 @@ class _UnitRow(_Row):
         default="",
         description="The row's name, e.g. Barracks or Eventtool",
     )
+    group: str = Field(
+        validation_alias="group",
+        default="",
+        description="The row's group, Unit on every live row; part of its asset_name",
+    )
     level: int = Field(default=-1, description="Upgrade level; -1 when the row has none")
     speed: int = Field(default=0, description="Base travel speed, before research bonuses")
     fight_type: int = Field(
@@ -204,7 +209,7 @@ class _UnitRow(_Row):
         """
         return self.source in _TOOL_UNIT_NAMES
 
-    @field_validator("source", mode="before")
+    @field_validator("source", "group", mode="before")
     @classmethod
     def _string_attribute(cls, value: object) -> object:
         # getStringAttribute: a missing or empty value reads as ""
@@ -291,6 +296,19 @@ class UnitStats(_UnitRow):
     @classmethod
     def _type(cls, value: object) -> object:
         return cls._type_attribute(value)
+
+    @property
+    def asset_name(self) -> str:
+        """
+        The class name the client draws it by, e.g. ``Barracks_Unit_Speerman``.
+
+        ``<name>_<group>``, then ``_<type>`` when the type is not empty:
+        ``AVisualVO.getVisualClassName`` (bundle line 17795), which
+        ``WodPicHelper.addUnitPic`` (bundle line 2248) loads. The full asset
+        path comes from the client's versioned item map (ItemVersions, in
+        ggs.dll), which the library does not load.
+        """
+        return f"{self.source}_{self.group}" + (f"_{self.unit_type}" if self.unit_type else "")
 
     @property
     def name_text_id(self) -> str:
@@ -454,6 +472,22 @@ class ToolStats(_UnitRow):
     @classmethod
     def _type(cls, value: object) -> object:
         return cls._type_attribute(value)
+
+    @property
+    def asset_name(self) -> str:
+        """
+        The class name the client draws it by, e.g. ``Workshop_Unit_Ram``.
+
+        ``<name>_<group>``, then ``_<type>`` when the type is not empty:
+        ``AVisualVO.getVisualClassName`` (bundle line 17795), which
+        ``WodPicHelper.addUnitPic`` (bundle line 2248) loads.
+        ``ToolUnitVO.getVisualClassName`` (bundle line 6539) draws
+        ``Unknown_Unit_Tools`` instead when that name has no versioned asset;
+        that check, and the full asset path, need the client's versioned item
+        map (ItemVersions, in ggs.dll), which the library does not load, so
+        this is the name before the fallback.
+        """
+        return f"{self.source}_{self.group}" + (f"_{self.tool_type}" if self.tool_type else "")
 
     @property
     def name_text_id(self) -> str:
