@@ -65,7 +65,7 @@ uv add empire-core        # or: pip install empire-core
 Python 3.10 or newer.
 
 For an interactive console on a live client, with completion and a live view of every socket
-frame, install the `console` extra and run `empire-console`:
+frame, install the `console` extra and run `empire-console` (Linux and macOS; untested on Windows):
 
 ```bash
 pip install 'empire-core[console]'
