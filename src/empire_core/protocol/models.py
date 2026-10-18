@@ -74,6 +74,12 @@ from empire_core.alliance.models.forum import (
     SetForumVisibilityRequest,
     SetForumVisibilityResponse,
 )
+from empire_core.alliance.models.gifts import (
+    AllianceGift,
+    AllianceGiftReceived,
+    CollectAllianceGiftRequest,
+    CollectAllianceGiftResponse,
+)
 from empire_core.alliance.models.help import (
     REPAIR_HELP_COOLDOWN_SECONDS,
     AllianceHelpListResponse,
@@ -137,6 +143,20 @@ from empire_core.alliance.models.membership import (
     SetLookingForMembersResponse,
 )
 from empire_core.alliance.models.search import AllianceSearchResult, SearchAllianceRequest, SearchAllianceResponse
+from empire_core.alliance.models.settings import (
+    ALLIANCE_DESCRIPTION_MAX_LENGTH,
+    ALLIANCE_NAME_MAX_LENGTH,
+    ALLIANCE_NAME_MIN_LENGTH,
+    ALLIANCE_RENAME_RUBIES,
+    ChangeAllianceDescriptionRequest,
+    ChangeAllianceDescriptionResponse,
+    ChangeAllianceLanguageRequest,
+    ChangeAllianceLanguageResponse,
+    ChangeAllianceNameRequest,
+    ChangeAllianceNameResponse,
+    SetAllianceEmblemRequest,
+    SetAllianceEmblemResponse,
+)
 from empire_core.army.models.hospital import (
     CancelHealRequest,
     CancelHealResponse,
@@ -1375,4 +1395,20 @@ __all__ = [
     "MoveConstructionSlotResponse",
     "BoostConstructionItemRequest",
     "BoostConstructionItemResponse",
+    "ALLIANCE_NAME_MIN_LENGTH",
+    "ALLIANCE_NAME_MAX_LENGTH",
+    "ALLIANCE_DESCRIPTION_MAX_LENGTH",
+    "ALLIANCE_RENAME_RUBIES",
+    "ChangeAllianceDescriptionRequest",
+    "ChangeAllianceDescriptionResponse",
+    "ChangeAllianceNameRequest",
+    "ChangeAllianceNameResponse",
+    "ChangeAllianceLanguageRequest",
+    "ChangeAllianceLanguageResponse",
+    "SetAllianceEmblemRequest",
+    "SetAllianceEmblemResponse",
+    "AllianceGift",
+    "AllianceGiftReceived",
+    "CollectAllianceGiftRequest",
+    "CollectAllianceGiftResponse",
 ]
