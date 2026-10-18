@@ -16,7 +16,16 @@ ITEMS = {
     "rewards": [{"rewardID": "77", "addC2": "15"}],
 }
 GLS = {"ALL": [{"ID": 5, "AMT": 3}], "KEY": [{"ID": 1, "AMT": 4}, {"ID": 2, "AMT": 1}]}
-OPENED = {"LID": 5, "LTR": [["C2", 15]], "KBS": 6, "TBF": 0, "KTR": [{"ID": 5001, "AMT": 1}], "UKI": 5}
+# The shape of a live ole reply: LTR lists one reward id per box, LTRR each box's collectable rows
+OPENED = {
+    "LID": 5,
+    "UKI": 5000,
+    "LTR": [77],
+    "LTRR": [[["C2", 15], ["LM", 3]]],
+    "KBS": 6,
+    "TBF": 0,
+    "KTR": [{"ID": 5001, "AMT": 1}],
+}
 
 
 def _client(script: dict | None = None, sce: list | None = None):
@@ -32,29 +41,41 @@ class TestWireShapes:
         # C2SOpenLootBoxVO (bundle line 112368): ALL is 1 or 0
         request = OpenLootBoxRequest(loot_box_id=LootBox(5), key=MysteryBoxKey.RARE, open_all=True)
         assert request.to_payload() == {"LID": 5, "CID": 5001, "ALL": 1}
-        assert OpenLootBoxRequest(loot_box_id=LootBox(5)).to_payload() == {"LID": 5, "CID": 5, "ALL": 0}
+        assert OpenLootBoxRequest(loot_box_id=LootBox(5)).to_payload() == {"LID": 5, "CID": 5000, "ALL": 0}
 
     def test_the_reply(self):
         reply = OpenLootBoxResponse.model_validate(OPENED)
 
         assert reply.loot_box_id is LootBox(5)
-        assert [(c.kind, c.amount) for c in reply.rewards] == [(CollectableKind.RUBIES, 15)]
-        assert reply.reward_ids == ()
+        assert [(c.kind, c.amount) for c in reply.rewards] == [
+            (CollectableKind.RUBIES, 15),
+            (CollectableKind.CURRENCY, 3),
+        ]
+        assert reply.reward_ids == (RewardId(77),)
         assert (reply.key_progress, reply.key_bar_fills, reply.key_used) == (6, 0, MysteryBoxKey.COMMON)
         assert reply.keys_won == (Collectable.of_currency(5001, 1),)
-        assert reply.raw_rewards == [["C2", 15]]
+        assert reply.raw_rewards == [77]
 
-    def test_the_second_reward_list_wins(self):
-        reply = OpenLootBoxResponse.model_validate({**OPENED, "LTRR": [["C2", 30]]})
+    def test_without_reward_rows_only_the_ids_are_read(self):
+        reply = OpenLootBoxResponse.model_validate({key: value for key, value in OPENED.items() if key != "LTRR"})
 
-        assert [c.amount for c in reply.rewards] == [30]
-
-    def test_reward_ids_are_kept_as_ids(self):
-        # Unverified: getHighestCategoryForRewards (bundle line 112417) compares LTR to tombola rewardIDs
-        reply = OpenLootBoxResponse.model_validate({**OPENED, "LTR": [77, 78]})
-
-        assert reply.reward_ids == (RewardId(77), RewardId(78))
+        assert reply.reward_ids == (RewardId(77),)
         assert reply.rewards == ()
+
+
+class TestGetLootBoxes:
+    def test_the_status_is_requested_and_kept(self):
+        # RewardHubMainDialogMysteryBoxes.show sends C2SGetLootBoxesStatus, with no fields
+        client = _client({"gls": xt_packet("gls", {"ALL": [{"ID": 5, "AMT": 9}], "KEY": [{"ID": 1, "AMT": 2}]})})
+
+        boxes = client.player.get_loot_boxes()
+
+        assert conn(client).request_payloads == [("gls", {})]
+        assert [(box.loot_box_id, box.amount) for box in boxes.loot_boxes] == [(LootBox(5), 9)]
+        kept = client.player.loot_boxes
+        assert kept is not None and kept.loot_boxes == boxes.loot_boxes
+        # parse_GLS keeps the key progress of the types a gls leaves out
+        assert [(int(keys.loot_box_type_id), keys.keys) for keys in kept.key_progress] == [(1, 2), (2, 1)]
 
 
 class TestOpenLootBox:
@@ -63,7 +84,7 @@ class TestOpenLootBox:
 
         opened = client.player.open_loot_box(LootBox(5))
 
-        assert conn(client).request_payloads == [("ole", {"LID": 5, "CID": 5, "ALL": 0})]
+        assert conn(client).request_payloads == [("ole", {"LID": 5, "CID": 5000, "ALL": 0})]
         assert opened.key_progress == 6
         boxes = client.player.loot_boxes
         assert boxes is not None
@@ -72,7 +93,8 @@ class TestOpenLootBox:
         assert boxes.amount(LootBox(5)) == 3
 
     def test_reward_ids_are_resolved_from_the_game_data(self):
-        client = _client({"ole": xt_packet("ole", {**OPENED, "LTR": [77]})})
+        ids_only = {key: value for key, value in OPENED.items() if key != "LTRR"}
+        client = _client({"ole": xt_packet("ole", ids_only)})
 
         opened = client.player.open_loot_box(LootBox(5))
 
@@ -85,7 +107,7 @@ class TestOpenLootBox:
         with pytest.raises(ValueError, match="common key"):
             client.player.open_loot_box(LootBox(5), MysteryBoxKey.RARE, open_all=True)
 
-        assert conn(client).request_payloads == [("ole", {"LID": 5, "CID": 5, "ALL": 1})]
+        assert conn(client).request_payloads == [("ole", {"LID": 5, "CID": 5000, "ALL": 1})]
 
     def test_a_rarer_key_must_be_held(self):
         client = _client({"ole": xt_packet("ole", OPENED)}, sce=[["RMBK", 1]])
@@ -108,5 +130,5 @@ class TestOpenLootBox:
 
 def test_the_key_currencies():
     # ClientConstCurrency.ID_MYSTERY_BOX_KEY_* (bundle line 1920)
-    assert [key.value for key in MysteryBoxKey] == [5, 5001, 5002, 5003]
+    assert [key.value for key in MysteryBoxKey] == [5000, 5001, 5002, 5003]
     assert Currency.RARE_MYSTERY_KEY.currency_id == MysteryBoxKey.RARE

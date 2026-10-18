@@ -9,6 +9,7 @@ from .account import (
     PlayerGiftsResponse,
 )
 from .economy import (
+    GetLootBoxesRequest,
     LootBoxAmount,
     LootBoxesResponse,
     LootBoxKeys,
@@ -75,6 +76,7 @@ __all__ = [
     "PlayerGiftsResponse",
     "LootBoxAmount",
     "LootBoxKeys",
+    "GetLootBoxesRequest",
     "LootBoxesResponse",
     "OpenLootBoxRequest",
     "OpenLootBoxResponse",
