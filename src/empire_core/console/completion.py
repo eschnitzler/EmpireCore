@@ -40,7 +40,7 @@ class NamespaceCompleter(Completer):
             completion = self._last.get(name)
             try:
                 self._docs[name] = completion.docstring() if completion is not None else ""
-            except Exception:
+            except Exception:  # noqa: BLE001 - jedi runs live objects' code; a failure means no docs
                 self._docs[name] = ""
         return self._docs[name]
 
