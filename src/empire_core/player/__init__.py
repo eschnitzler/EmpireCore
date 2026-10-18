@@ -45,6 +45,8 @@ from .models import (
     RelocationInfoResponse,
     SearchPlayerRequest,
     SearchPlayerResponse,
+    SelectTitleRequest,
+    SelectTitleResponse,
     TitleRanksResponse,
     TopTitleRanking,
 )
@@ -84,6 +86,8 @@ __all__ = [
     "IslandTitle",
     "MightPointsResponse",
     "RelocationInfoResponse",
+    "SelectTitleRequest",
+    "SelectTitleResponse",
     "TitleRanksResponse",
     "TitleSystem",
     "PremiumAccountType",

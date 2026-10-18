@@ -37,6 +37,8 @@ from .progress import (
     IslandTitle,
     MightPointsResponse,
     RelocationInfoResponse,
+    SelectTitleRequest,
+    SelectTitleResponse,
     TitleRanksResponse,
     TopTitleRanking,
 )
@@ -61,6 +63,8 @@ __all__ = [
     "IslandTitle",
     "MightPointsResponse",
     "RelocationInfoResponse",
+    "SelectTitleRequest",
+    "SelectTitleResponse",
     "TitleRanksResponse",
     "TopTitleRanking",
     "BoostedGlobalEffectsResponse",

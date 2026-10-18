@@ -8,6 +8,7 @@ Commands:
 - ufa: glory points
 - ufp: Berimond (faction) points
 - uar: top-X title ranks, the island title and the displayed title systems
+- ste: choosing the displayed title systems
 - vli: achievements
 - gri: relocation
 
@@ -17,13 +18,21 @@ Each model is read once and never changes; the times in it count from ``received
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Annotated, Any, ClassVar
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Literal
 
 from pydantic import BeforeValidator, ConfigDict, Field, field_validator
 
 from empire_core.enums import PremiumAccountType, TitleSystem
 from empire_core.gamedata import EnumOrInt, EnumOrStr
-from empire_core.protocol.base import BasePayload, TimedPayload, TimedResponse, object_or_none, readable_list
+from empire_core.protocol.base import (
+    BasePayload,
+    BaseRequest,
+    BaseResponse,
+    TimedPayload,
+    TimedResponse,
+    object_or_none,
+    readable_list,
+)
 from empire_core.protocol.js import ClientInt, ClientNumber, js_int, js_loose_equals, js_parse_int
 
 if TYPE_CHECKING:
@@ -533,6 +542,53 @@ class RelocationInfoResponse(TimedResponse):
         return max(0.0, self.cooldown_seconds - self._elapsed(now))
 
 
+class SelectTitleRequest(BaseRequest):
+    """
+    Choose the title systems shown before and after your name.
+
+    Command: ste
+    Payload: {"PRE": prefix system, "SUF": suffix system, "" for none}
+
+    The dialog offers the systems whose titles you hold.
+
+    Client: ``C2SSelectTitleVO`` (bundle line 45062), ``CastleTitleSelectDialog.confirmSelection``
+    (bundle line 45050)
+    """
+
+    command = "ste"
+
+    prefix: TitleSystem = Field(validation_alias="PRE", description="The system shown before your name")
+    suffix: TitleSystem | Literal[""] = Field(
+        validation_alias="SUF", default="", description='The system shown after your name; "" for none'
+    )
+
+
+class SelectTitleResponse(BaseResponse):
+    """
+    The title systems your name shows now.
+
+    Command: ste
+    Payload: {"PFX": prefix system, "SFX": suffix system}, either left out, or no body
+
+    Client: ``STECommand.executeCommand`` (bundle line 128925), ``CastleTitleData.parseSTE``
+    (bundle line 21041), which sets each only when it is truthy
+    """
+
+    command = "ste"
+
+    prefix_system: EnumOrStr[TitleSystem] | None = Field(
+        validation_alias="PFX", default=None, description="The system shown before your name; None when not sent"
+    )
+    suffix_system: EnumOrStr[TitleSystem] | None = Field(
+        validation_alias="SFX", default=None, description="The system shown after your name; None when not sent"
+    )
+
+    @field_validator("prefix_system", "suffix_system", mode="before")
+    @classmethod
+    def _system(cls, value: Any) -> Any:
+        return value if isinstance(value, str) and value else None
+
+
 __all__ = [
     "PERMANENT_BOOSTER_DURATION",
     "AchievementProgress",
@@ -546,6 +602,8 @@ __all__ = [
     "IslandTitle",
     "MightPointsResponse",
     "RelocationInfoResponse",
+    "SelectTitleRequest",
+    "SelectTitleResponse",
     "TitleRanksResponse",
     "TopTitleRanking",
 ]

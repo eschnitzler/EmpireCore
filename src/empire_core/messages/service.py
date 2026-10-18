@@ -26,6 +26,11 @@ from empire_core.messages.models import (
     GetBattleLogDetailRequest,
     GetBattleLogMiddleRequest,
     GetBattleLogShortRequest,
+    GetIgnoredPlayersRequest,
+    IgnoredPlayer,
+    IgnoredPlayersResponse,
+    IgnorePlayerRequest,
+    IgnorePlayerResponse,
     MarkMessageReadRequest,
     MessageInfo,
     ReadMessageRequest,
@@ -232,6 +237,54 @@ class MessagesService(BaseService):
         self.send(
             ForwardBattleLogRequest(message_id=message_id, player_ids=list(player_ids)), wait=True, timeout=timeout
         )
+
+    def get_ignored_players(self, *, timeout: float = 5.0) -> list[IgnoredPlayer]:
+        """
+        The players you ignore, whose mail does not reach you.
+
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+
+        Client: ``CastleMessageData.getIgnoredPlayer`` (bundle line 135009), ``ILICommand`` (bundle line 125319)
+        """
+        return self.request(GetIgnoredPlayersRequest(), IgnoredPlayersResponse, timeout=timeout).players
+
+    def ignore(self, player_id: int, *, timeout: float = 5.0) -> list[IgnoredPlayer]:
+        """
+        Ignore a player.
+
+        Args:
+            player_id: The player: a ``MessageInfo.sender_id``, or
+                ``client.player.search_player_by_name(name).get_player().owner_id``
+
+        Returns:
+            The players you ignore now
+
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+
+        Client: ``CastleMessageData.ignorePlayer`` (bundle line 135008), ``IPLCommand`` (bundle line 125334)
+        """
+        request = IgnorePlayerRequest(player_id=player_id, ignore=True)
+        return self.request(request, IgnorePlayerResponse, timeout=timeout).ignore_list.players
+
+    def unignore(self, player_id: int, *, timeout: float = 5.0) -> list[IgnoredPlayer]:
+        """
+        Stop ignoring a player.
+
+        Args:
+            player_id: An ``IgnoredPlayer.player_id`` from :meth:`get_ignored_players`
+
+        Returns:
+            The players you ignore now
+
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+
+        Client: ``PlayerIgnoreList_Item.unignorePlayer`` (bundle line 106828), ``IPLCommand`` (bundle line 125334)
+        """
+        request = IgnorePlayerRequest(player_id=player_id, ignore=False)
+        return self.request(request, IgnorePlayerResponse, timeout=timeout).ignore_list.players
 
 
 __all__ = ["BattleReportDetail", "MessagesService"]
