@@ -149,7 +149,7 @@ _SUCCESS_ONLY = frozenset(
     | (set(_NESTED_SECTIONS) - {"cpm", "crm"})
     | {"rue", "kik", "gsm", "rci", "cmr", "rcc", "jaa", "fbe", "cbx", "gdb", "gcb", "csl", "gab", "gec"}
     | {"qli", "qst", "qpg", "qfi", "msp", "cqs"}
-    | {"nfo"}
+    | {"nfo", "aqs", "bse", "bbs"}
 )
 
 
@@ -309,6 +309,9 @@ class GameState(
         "tei": "_handle_tei",
         "tee": "_handle_tee",
         "pep": "_handle_pep",
+        "aqs": "_handle_aqs",
+        "bse": "_handle_bse",
+        "bbs": "_handle_raid_status",
         "bst": "_handle_bst",
         "acm": "_handle_acm",
         "aqi": "_handle_aqi",
