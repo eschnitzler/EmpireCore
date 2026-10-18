@@ -28,6 +28,7 @@ from empire_core.alliance.models.settings import (
     SetAllianceEmblemRequest,
     SetAllianceEmblemResponse,
 )
+from empire_core.alliance.models.upgrades import AllianceUpgradeRequest, AllianceUpgradeResponse
 
 from .bookmarks import (
     ATTACK_ORDER_MAX_SECONDS,
@@ -171,6 +172,8 @@ from .membership import (
 from .search import AllianceSearchResult, SearchAllianceRequest, SearchAllianceResponse
 
 __all__ = [
+    "AllianceUpgradeRequest",
+    "AllianceUpgradeResponse",
     "ALLIANCE_FOUND_COINS",
     "ALLIANCE_FOUND_RUBIES",
     "ALLIANCE_FOUND_WOOD",

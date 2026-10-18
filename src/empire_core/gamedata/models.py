@@ -32,6 +32,7 @@ from empire_core.enums import (
 from empire_core.protocol.base import EmpireModel
 from empire_core.protocol.js import js_falsy, js_number, js_number_or_none, js_parse_float, js_parse_int, js_truthy
 
+from .collectables import _XML_COST_PREFIX, Collectable
 from .lenient import GameDataId, GameDataKey
 
 if TYPE_CHECKING:
@@ -980,16 +981,37 @@ class ConstructionItemDef(EffectSpecRow):
 
 
 class AllianceBuffDef(EffectSpecRow):
-    """One level of an alliance buff."""
+    """One alliance buff level and its alliance treasury cost.
 
-    alliance_buff_id: int = Field(validation_alias="allianceBuffID")
+    Client: AllianceBuffVO.fillFromParamXml (bundle lines 70591–70593),
+    AllianceBuffData.getCosts (27731–27732).
+    """
+
+    alliance_buff_id: int = Field(validation_alias="allianceBuffID", description="Individual buff level row")
     series_id: GameDataId[AllianceBuffType] = Field(
         validation_alias="allianceBuffSeriesID",
         default=0,
         description="The upgrade or boost the level belongs to",
     )
-    level: int = 0
-    max_level: int = Field(validation_alias="maxLevel", default=0)
+    level: int = Field(default=0, description="Level within the buff series")
+    max_level: int = Field(validation_alias="maxLevel", default=0, description="Maximum series level")
+    duration_seconds: int = Field(
+        validation_alias="duration", default=-1, description="Boost duration; -1 is permanent"
+    )
+    required_buff_id: int = Field(
+        validation_alias="requiredBuffID", default=-1, description="Required buff; -1 is none"
+    )
+    costs: tuple[Collectable, ...] = Field(default=(), description="Costs paid from the alliance treasury")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _read_costs(cls, row: object, info: ValidationInfo) -> object:
+        if not isinstance(row, dict) or "costs" in row:
+            return row
+        if "costC2" in row and js_parse_int(row["costC2"]) is None:
+            raise ValueError("alliance ruby cost is unreadable")
+        currency_ids = (info.context or {}).get("currency_ids", {})
+        return {**row, "costs": Collectable.from_columns(row, _XML_COST_PREFIX, currency_ids)}
 
 
 class GlobalEffectDef(EffectSpecRow):

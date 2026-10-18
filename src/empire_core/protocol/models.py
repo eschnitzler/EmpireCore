@@ -165,6 +165,10 @@ from empire_core.alliance.models.settings import (
     SetAllianceEmblemRequest,
     SetAllianceEmblemResponse,
 )
+from empire_core.alliance.models.upgrades import (
+    AllianceUpgradeRequest,
+    AllianceUpgradeResponse,
+)
 from empire_core.army.models.hospital import (
     CancelHealRequest,
     CancelHealResponse,
@@ -1437,4 +1441,6 @@ __all__ = [
     "GetBerimondTargetsRequest",
     "GetBerimondTargetsResponse",
     "GetBerimondBalanceRequest",
+    "AllianceUpgradeRequest",
+    "AllianceUpgradeResponse",
 ]

@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Annotated, Any
 
 from pydantic import BeforeValidator, Field, PrivateAttr, field_validator, model_validator
 
-from empire_core.enums import AllianceRank, DiplomacyStatus, OnlineState
+from empire_core.enums import AllianceBuffType, AllianceRank, DiplomacyStatus, OnlineState
 from empire_core.gamedata import EnumOrInt
 from empire_core.map.models.items import MapAreaItem, parse_area_rows
 from empire_core.map.models.owners import AllianceCrest
@@ -89,11 +89,13 @@ class AllianceMember(PlayerProfileBase):
 
 
 class AllianceBuilding(BasePayload):
-    """Alliance building info from ABL array."""
+    """One alliance buff; Client: AllianceInfoVO.parseBuffList (bundle 25962–25966)."""
 
-    building_type: int = Field(validation_alias="BT", default=0)
-    level: int = Field(validation_alias="L", default=0)
-    cooldown: int = Field(validation_alias="CD", default=-1)
+    building_type: EnumOrInt[AllianceBuffType] = Field(
+        validation_alias="BT", default=0, description="Alliance buff series"
+    )
+    level: int = Field(validation_alias="L", default=0, description="Current buff level")
+    cooldown: int = Field(validation_alias="CD", default=-1, description="Remaining boost seconds; -1 is permanent")
 
 
 # =============================================================================
