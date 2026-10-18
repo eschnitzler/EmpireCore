@@ -291,14 +291,20 @@ class BuildingConstructionItems(BasePayload):
     """
 
     object_id: ClientInt = Field(validation_alias="OID", description="The building's object id")
-    items: tuple[PlacedConstructionItem, ...] = Field(
-        validation_alias="CIL", default=(), description="Its construction items"
-    )
+    items: tuple[PlacedConstructionItem, ...] = Field(validation_alias="CIL", description="Its construction items")
 
     @field_validator("items", mode="before")
     @classmethod
     def _readable(cls, value: Any) -> Any:
-        return readable_list(PlacedConstructionItem, value, accept=lambda entry: isinstance(entry, dict))
+        if not isinstance(value, (list, tuple)):
+            return value
+        return readable_list(
+            PlacedConstructionItem,
+            value,
+            accept=lambda entry: isinstance(entry, dict),
+            warn=logger,
+            what="placed construction items",
+        )
 
 
 class CastleBuildings(BasePayload):
@@ -355,7 +361,13 @@ class CastleBuildings(BasePayload):
     @field_validator("construction_items", mode="before")
     @classmethod
     def _construction_items(cls, value: Any) -> Any:
-        return readable_list(BuildingConstructionItems, value, accept=lambda entry: isinstance(entry, dict))
+        return readable_list(
+            BuildingConstructionItems,
+            value,
+            accept=lambda entry: isinstance(entry, dict),
+            warn=logger,
+            what="building construction items",
+        )
 
     @model_validator(mode="before")
     @classmethod

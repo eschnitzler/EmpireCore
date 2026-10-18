@@ -1,5 +1,18 @@
 """Castles: the castle list, castle details, buildings and castle actions: protocol models."""
 
+from empire_core.castle.models.construction_items import (
+    ConstructionItemInventory,
+    ConstructionItemPlacement,
+    ConstructionItemStack,
+    DisassembleConstructionItemRequest,
+    DisassembleConstructionItemResponse,
+    EquipConstructionItemRequest,
+    EquipConstructionItemResponse,
+    GetConstructionItemsRequest,
+    RemoveConstructionItemRequest,
+    RemoveConstructionItemResponse,
+)
+
 from .actions import (
     AbandonCastleRequest,
     AbandonCastleResponse,
@@ -128,6 +141,16 @@ from .upkeep import (
 from .wishing_well import WishingWellResponse
 
 __all__ = [
+    "ConstructionItemPlacement",
+    "EquipConstructionItemRequest",
+    "EquipConstructionItemResponse",
+    "RemoveConstructionItemRequest",
+    "RemoveConstructionItemResponse",
+    "DisassembleConstructionItemRequest",
+    "DisassembleConstructionItemResponse",
+    "ConstructionItemStack",
+    "GetConstructionItemsRequest",
+    "ConstructionItemInventory",
     "ResearchInfoResponse",
     "SkipResearchRequest",
     "SkipResearchResponse",

@@ -22,6 +22,7 @@ from .alliance import (
 from .army import ProductionListId, RecruitmentMode, SlotType
 from .castle import (
     BuildingState,
+    ConstructionItemMode,
     ExpansionType,
     KingdomTransferType,
     MarketScope,
@@ -99,6 +100,7 @@ if TYPE_CHECKING:
     )
 
 __all__ = [
+    "ConstructionItemMode",
     # Map / kingdom
     "Kingdom",
     "MapItemType",

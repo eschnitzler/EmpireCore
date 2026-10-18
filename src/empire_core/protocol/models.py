@@ -279,6 +279,18 @@ from empire_core.castle.models import (
     UpgradeWallRequest,
     UpgradeWallResponse,
 )
+from empire_core.castle.models.construction_items import (
+    ConstructionItemInventory,
+    ConstructionItemPlacement,
+    ConstructionItemStack,
+    DisassembleConstructionItemRequest,
+    DisassembleConstructionItemResponse,
+    EquipConstructionItemRequest,
+    EquipConstructionItemResponse,
+    GetConstructionItemsRequest,
+    RemoveConstructionItemRequest,
+    RemoveConstructionItemResponse,
+)
 from empire_core.castle.models.kingdoms import KingdomInfoResponse
 from empire_core.castle.models.landmarks import (
     GetLaboratoryProgressRequest,
@@ -583,6 +595,16 @@ from empire_core.spy.models import (
 )
 
 __all__ = [
+    "ConstructionItemPlacement",
+    "EquipConstructionItemRequest",
+    "EquipConstructionItemResponse",
+    "RemoveConstructionItemRequest",
+    "RemoveConstructionItemResponse",
+    "DisassembleConstructionItemRequest",
+    "DisassembleConstructionItemResponse",
+    "ConstructionItemStack",
+    "GetConstructionItemsRequest",
+    "ConstructionItemInventory",
     "AreaBooster",
     "BuildingEfficiencyChanged",
     "BuildingFinished",

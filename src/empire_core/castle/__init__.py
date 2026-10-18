@@ -2,8 +2,21 @@
 
 from typing import TYPE_CHECKING
 
+from empire_core.castle.models.construction_items import (
+    ConstructionItemInventory,
+    ConstructionItemPlacement,
+    ConstructionItemStack,
+    DisassembleConstructionItemRequest,
+    DisassembleConstructionItemResponse,
+    EquipConstructionItemRequest,
+    EquipConstructionItemResponse,
+    GetConstructionItemsRequest,
+    RemoveConstructionItemRequest,
+    RemoveConstructionItemResponse,
+)
 from empire_core.enums import (
     BuildingState,
+    ConstructionItemMode,
     ExpansionType,
     Kingdom,
     KingdomTransferType,
@@ -134,6 +147,17 @@ if TYPE_CHECKING:
     from empire_core.gamedata import ConstructionItem, Currency, Horse, Research, Tool, Unit
 
 __all__ = [
+    "ConstructionItemPlacement",
+    "EquipConstructionItemRequest",
+    "EquipConstructionItemResponse",
+    "RemoveConstructionItemRequest",
+    "RemoveConstructionItemResponse",
+    "DisassembleConstructionItemRequest",
+    "DisassembleConstructionItemResponse",
+    "ConstructionItemMode",
+    "ConstructionItemStack",
+    "GetConstructionItemsRequest",
+    "ConstructionItemInventory",
     "MercenaryMissionRarity",
     "MercenaryMissionState",
     "Research",

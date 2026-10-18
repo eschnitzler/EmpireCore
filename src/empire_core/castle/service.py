@@ -27,8 +27,11 @@ others) can be read with ``client.request``.
 
 from __future__ import annotations
 
+import logging
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar
+
+from pydantic import ValidationError
 
 from empire_core.castle.models.actions import (
     AbandonCastleRequest,
@@ -55,6 +58,16 @@ from empire_core.castle.models.buildings import (
 )
 from empire_core.castle.models.castles import CastleInfo, GetCastlesRequest, GetCastlesResponse
 from empire_core.castle.models.collect import CollectMineResourcesRequest, CollectResourceCartRequest
+from empire_core.castle.models.construction_items import (
+    ConstructionItemInventory,
+    DisassembleConstructionItemRequest,
+    DisassembleConstructionItemResponse,
+    EquipConstructionItemRequest,
+    EquipConstructionItemResponse,
+    GetConstructionItemsRequest,
+    RemoveConstructionItemRequest,
+    RemoveConstructionItemResponse,
+)
 from empire_core.castle.models.details import (
     CastleProductionArea,
     DetailedCastleInfo,
@@ -70,6 +83,7 @@ from empire_core.castle.models.landmarks import (
 )
 from empire_core.castle.models.mercenaries import MercenaryMission, MercenaryMissionsResponse, MercenaryPackageRequest
 from empire_core.castle.models.objects import (
+    BuildingConstructionItems,
     BuildingRow,
     ConstructionList,
     ShowConstructionListRequest,
@@ -97,15 +111,17 @@ from empire_core.castle.models.tax import (
 from empire_core.enums import (
     BuildingState,
     CollectableKind,
+    ConstructionItemMode,
     ExpansionType,
     Kingdom,
     MapItemType,
     MercenaryMissionState,
     ResourceCartType,
 )
-from empire_core.exceptions import UnknownCastleError
+from empire_core.exceptions import CommandError, EmpireError, PacketError, ReplyMismatchError, UnknownCastleError
 from empire_core.gamedata import BuildingDef, Currency, HorseStats, Research
 from empire_core.map.models.items import MapAreaItem
+from empire_core.protocol.base import BaseResponse
 from empire_core.protocol.js import js_truthy
 from empire_core.services.base import BaseService
 
@@ -116,7 +132,10 @@ if TYPE_CHECKING:
     from empire_core.castle.models.research import ResearchInfoResponse
     from empire_core.castle.models.upkeep import ConstructionItemExpiryResponse, ResourcePoolResponse
     from empire_core.castle.models.wishing_well import WishingWellResponse
+    from empire_core.gamedata import ConstructionItem
     from empire_core.state.models import Castle, JoinedArea
+
+_ConstructionResponse = TypeVar("_ConstructionResponse", bound=BaseResponse)
 
 # PlayerConst.CHANGE_CASTLE_NAME_C2 (dll line 19599)
 _RENAME_RUBIES = 2500
@@ -159,6 +178,198 @@ class CastleService(BaseService):
         # Get resources
         resources = client.castle.get_resources(castle_id=12345)
     """
+
+    @property
+    def construction_items(self) -> ConstructionItemInventory | None:
+        """The last construction inventory received; None before the first inventory reply."""
+        return self.client.state.get_construction_items()
+
+    def get_construction_items(self, *, timeout: float = 5.0) -> ConstructionItemInventory:
+        """Request all construction items in storage, including an empty inventory.
+
+        Client: ``C2SGetContructionItemsInventoryVO`` and ``GIICommand``
+        (bundle lines 28546, 123270).
+        """
+        return self.request(GetConstructionItemsRequest(), ConstructionItemInventory, timeout=timeout)
+
+    @property
+    def placed_construction_items(self) -> tuple[BuildingConstructionItems, ...] | None:
+        """Items on the joined castle's buildings; None before joining or after a map read."""
+        return self.client.state.get_placed_construction_items()
+
+    def _refresh_construction_items(self, timeout: float) -> None:
+        self.client.state.invalidate_construction_items()
+        try:
+            self.get_construction_items(timeout=timeout)
+        except EmpireError as error:
+            logging.getLogger(__name__).warning(
+                "Construction inventory refresh failed after accepted action: %s", error
+            )
+
+    def _request_construction_action(
+        self,
+        request: EquipConstructionItemRequest | RemoveConstructionItemRequest | DisassembleConstructionItemRequest,
+        response_type: type[_ConstructionResponse],
+        timeout: float,
+        *,
+        area_revision: int | None = None,
+    ) -> tuple[_ConstructionResponse, object]:
+        packet = self.client.request_packet(request, request.get_response_command(), timeout=timeout)
+        if packet.error_code != 0:
+            raise CommandError(request.command, packet.error_code, packet.payload)
+        self.client.state.invalidate_construction_items()
+        if area_revision is not None:
+            self.client.state.apply_placed_construction_items(
+                None,
+                castle_id=request.castle_id,
+                kingdom_id=request.kingdom_id,
+                area_revision=area_revision,
+                command=request.command,
+                response_payload=packet.payload,
+            )
+        try:
+            result = response_type.model_validate(packet.payload)
+        except ValidationError as error:
+            raise PacketError(f"Could not parse '{request.command}' response: {error}") from error
+        return result, packet.payload
+
+    def _join_construction_area(self, castle_id: int, kingdom: Kingdom, timeout: float) -> int:
+        self.join(castle_id, timeout=timeout)
+        revision = self.client.state.area_revision
+        area = self.client.state.get_joined_area()
+        if area is None or area.castle_id != castle_id or area.kingdom_id != kingdom:
+            raise ReplyMismatchError(castle_id, area.castle_id if area and area.castle_id is not None else -1)
+        return revision
+
+    def equip_construction_item(
+        self,
+        castle_id: int,
+        object_id: int,
+        construction_item_id: ConstructionItem | int,
+        slot: int,
+        *,
+        mode: ConstructionItemMode = ConstructionItemMode.ADD,
+        timeout: float = 5.0,
+    ) -> EquipConstructionItemResponse:
+        """Join a castle and equip an item, returning the server's complete placement.
+
+        ADD fills an empty slot. REPLACE keeps the old item for its coin removal
+        cost; OVERWRITE discards it. A failed inventory refresh is logged and
+        leaves ``construction_items`` unknown after the accepted placement.
+
+        Client: ``AConstructionItemsActionDialog.sendReplaceCommand`` (bundle 28680),
+        ``CastleConstructionItemsOverwriteDialog`` (bundle 79306-79307).
+        """
+        kingdom = self._require_own_castle(castle_id).kingdom_id
+        request = EquipConstructionItemRequest(
+            object_id=object_id,
+            construction_item_id=construction_item_id,
+            slot=slot,
+            mode=mode,
+            kingdom_id=kingdom,
+            castle_id=castle_id,
+        )
+        with (
+            self.client.connection.command_lock("jaa", timeout=timeout),
+            self.client.connection.command_lock("gaa", timeout=timeout),
+        ):
+            revision = self._join_construction_area(castle_id, kingdom, timeout)
+            result, payload = self._request_construction_action(
+                request, EquipConstructionItemResponse, timeout, area_revision=revision
+            )
+            self.client.state.apply_placed_construction_items(
+                result,
+                castle_id=castle_id,
+                kingdom_id=kingdom,
+                area_revision=revision,
+                command=request.command,
+                response_payload=payload,
+            )
+            self._refresh_construction_items(timeout)
+            return result
+
+    def remove_construction_item(
+        self,
+        castle_id: int,
+        object_id: int,
+        construction_item_id: ConstructionItem | int,
+        slot: int,
+        *,
+        timeout: float = 5.0,
+    ) -> RemoveConstructionItemResponse:
+        """Join a castle and return an equipped item to storage for its coin removal cost.
+
+        Refusals and transport failures propagate. A failed inventory refresh is
+        logged and leaves ``construction_items`` unknown after the accepted removal.
+
+        Client: ``CastleConstructionItemsExtractDialog.onClickAccept`` (bundle 79277),
+        ``CRICommand.executeCommand`` (bundle 123255-123256).
+        """
+        kingdom = self._require_own_castle(castle_id).kingdom_id
+        request = RemoveConstructionItemRequest(
+            object_id=object_id,
+            construction_item_id=construction_item_id,
+            slot=slot,
+            kingdom_id=kingdom,
+            castle_id=castle_id,
+        )
+        with (
+            self.client.connection.command_lock("jaa", timeout=timeout),
+            self.client.connection.command_lock("gaa", timeout=timeout),
+        ):
+            revision = self._join_construction_area(castle_id, kingdom, timeout)
+            result, payload = self._request_construction_action(
+                request, RemoveConstructionItemResponse, timeout, area_revision=revision
+            )
+            self.client.state.apply_placed_construction_items(
+                result,
+                castle_id=castle_id,
+                kingdom_id=kingdom,
+                area_revision=revision,
+                command=request.command,
+                response_payload=payload,
+            )
+            self._refresh_construction_items(timeout)
+            return result
+
+    def disassemble_construction_item(
+        self,
+        castle_id: int,
+        construction_item_id: ConstructionItem | int,
+        *,
+        amount: int = 1,
+        lost_and_found_id: int = -1,
+        timeout: float = 5.0,
+    ) -> DisassembleConstructionItemResponse:
+        """Disassemble stored items and resolve their drawn rewards from game data.
+
+        Items are consumed. ``lost_and_found_id=-1`` selects storage. The reply
+        exposes the drawn reward ids and their collectables; permanent items'
+        recipe materials are not listed by the server. A failed inventory refresh
+        is logged and leaves ``construction_items`` unknown after success.
+
+        Client: ``C2SDisassembleConstructionItemVO`` (bundle 79223-79227),
+        ``onClickAccept`` / ``onDCIArrived`` (bundle 35727-35729),
+        ``showTempCIDisassembling`` (bundle 48984).
+        """
+        kingdom = self._require_own_castle(castle_id).kingdom_id
+        request = DisassembleConstructionItemRequest(
+            construction_item_id=construction_item_id,
+            kingdom_id=kingdom,
+            castle_id=castle_id,
+            amount=amount,
+            lost_and_found_id=lost_and_found_id,
+        )
+        game_data = self._require_game_data()
+        with (
+            self.client.connection.command_lock("jaa", timeout=timeout),
+            self.client.connection.command_lock("gaa", timeout=timeout),
+        ):
+            self._join_construction_area(castle_id, kingdom, timeout)
+            result, _ = self._request_construction_action(request, DisassembleConstructionItemResponse, timeout)
+            result = result.model_copy(update={"rewards": game_data.reward_list(result.reward_ids, combine=True)})
+            self._refresh_construction_items(timeout)
+            return result
 
     # =========================================================================
     # Castle List Operations
