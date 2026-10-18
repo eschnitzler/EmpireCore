@@ -2,6 +2,116 @@
 
 <!-- version list -->
 
+## v0.58.0 (2026-10-18)
+
+### Bug Fixes
+
+- **console**: A themed, two-column help overlay
+  ([#465](https://github.com/eschnitzler/EmpireCore/pull/465),
+  [`e252243`](https://github.com/eschnitzler/EmpireCore/commit/e252243e9144cd09b927906d7c5df2f47073b88b))
+
+- **console**: An unknown --log-level or Ctrl-C at the login prompt exits without a traceback
+  ([`c0d79df`](https://github.com/eschnitzler/EmpireCore/commit/c0d79df1f42edff7f44757b8c16cd676504eb7f3))
+
+- **console**: Show docs beside the completion menu, not under it
+  ([`c7cb4e9`](https://github.com/eschnitzler/EmpireCore/commit/c7cb4e94735cce50c55b4686efc84f8e609422c8))
+
+- **network**: Mask bearer tokens in redacted frames
+  ([#465](https://github.com/eschnitzler/EmpireCore/pull/465),
+  [`e252243`](https://github.com/eschnitzler/EmpireCore/commit/e252243e9144cd09b927906d7c5df2f47073b88b))
+
+### Code Style
+
+- **console**: Say why each catch-all except is one
+  ([#465](https://github.com/eschnitzler/EmpireCore/pull/465),
+  [`e252243`](https://github.com/eschnitzler/EmpireCore/commit/e252243e9144cd09b927906d7c5df2f47073b88b))
+
+- **console**: Say why the completion docs catch every error
+  ([`13f61e6`](https://github.com/eschnitzler/EmpireCore/commit/13f61e6d73df3c5c3a8e3feccc8389d34e8fa7f1))
+
+- **console**: Say why the login catches every error
+  ([#474](https://github.com/eschnitzler/EmpireCore/pull/474),
+  [`390526c`](https://github.com/eschnitzler/EmpireCore/commit/390526c5a92e87a129ac399abd10d270f5e31318))
+
+### Documentation
+
+- **console**: A screenshot in the README and the console guide
+  ([`ba7c67c`](https://github.com/eschnitzler/EmpireCore/commit/ba7c67cef2e57eb87fb62890b8b445b39ac1d124))
+
+- **console**: Runs on Linux and macOS, untested on Windows
+  ([`a6fb1a7`](https://github.com/eschnitzler/EmpireCore/commit/a6fb1a7d1cb39c227afd491a3deeb61ac8921dd6))
+
+### Features
+
+- **console**: :run a Python file in the console
+  ([`887bfca`](https://github.com/eschnitzler/EmpireCore/commit/887bfcac068128ca95bb5e311f02c1a49c0a9139))
+
+- **console**: Any world, a username prompt and a quieter toolbar
+  ([#465](https://github.com/eschnitzler/EmpireCore/pull/465),
+  [`e252243`](https://github.com/eschnitzler/EmpireCore/commit/e252243e9144cd09b927906d7c5df2f47073b88b))
+
+- **console**: Ctrl-C stops running code
+  ([#476](https://github.com/eschnitzler/EmpireCore/pull/476),
+  [`4806e29`](https://github.com/eschnitzler/EmpireCore/commit/4806e2935bde953dda43a469591444b2982825b0))
+
+- **console**: Dark and light themes, dark by default
+  ([#465](https://github.com/eschnitzler/EmpireCore/pull/465),
+  [`e252243`](https://github.com/eschnitzler/EmpireCore/commit/e252243e9144cd09b927906d7c5df2f47073b88b))
+
+- **console**: Empire-console, a REPL with a live frame view
+  ([#465](https://github.com/eschnitzler/EmpireCore/pull/465),
+  [`e252243`](https://github.com/eschnitzler/EmpireCore/commit/e252243e9144cd09b927906d7c5df2f47073b88b))
+
+- **console**: Fixed pane sizes, resized by dragging their borders
+  ([#465](https://github.com/eschnitzler/EmpireCore/pull/465),
+  [`e252243`](https://github.com/eschnitzler/EmpireCore/commit/e252243e9144cd09b927906d7c5df2f47073b88b))
+
+- **console**: Focus and scroll every pane
+  ([#465](https://github.com/eschnitzler/EmpireCore/pull/465),
+  [`e252243`](https://github.com/eschnitzler/EmpireCore/commit/e252243e9144cd09b927906d7c5df2f47073b88b))
+
+- **console**: Open at once, log in inside the console
+  ([#474](https://github.com/eschnitzler/EmpireCore/pull/474),
+  [`390526c`](https://github.com/eschnitzler/EmpireCore/commit/390526c5a92e87a129ac399abd10d270f5e31318))
+
+- **console**: Pair requests with their replies, parse sent frames
+  ([`26e4a4b`](https://github.com/eschnitzler/EmpireCore/commit/26e4a4bd1884eec56f12f7dd74c2921e5785f6c5))
+
+- **console**: Pane contents re-flow when a pane is resized or shown
+  ([#465](https://github.com/eschnitzler/EmpireCore/pull/465),
+  [`e252243`](https://github.com/eschnitzler/EmpireCore/commit/e252243e9144cd09b927906d7c5df2f47073b88b))
+
+- **console**: Parsed frames, panels and a richer REPL
+  ([#465](https://github.com/eschnitzler/EmpireCore/pull/465),
+  [`e252243`](https://github.com/eschnitzler/EmpireCore/commit/e252243e9144cd09b927906d7c5df2f47073b88b))
+
+- **console**: Remember the layout, theme, filter and world
+  ([`3162561`](https://github.com/eschnitzler/EmpireCore/commit/3162561b1f99733a678c68c785bfc1f85836fba5))
+
+- **console**: Search panes, complete commands, docs while completing
+  ([`c39e250`](https://github.com/eschnitzler/EmpireCore/commit/c39e2505ec321df8360dc8f8c583620dd927754d))
+
+- **console**: Select and copy text, green and red direction arrows
+  ([#465](https://github.com/eschnitzler/EmpireCore/pull/465),
+  [`e252243`](https://github.com/eschnitzler/EmpireCore/commit/e252243e9144cd09b927906d7c5df2f47073b88b))
+
+- **console**: Show a dropped session, :login reconnects
+  ([`b3c3129`](https://github.com/eschnitzler/EmpireCore/commit/b3c312933a91ace76b9d3de5dd9137c214327e8b))
+
+- **console**: Solid direction badges in the frame list
+  ([#465](https://github.com/eschnitzler/EmpireCore/pull/465),
+  [`e252243`](https://github.com/eschnitzler/EmpireCore/commit/e252243e9144cd09b927906d7c5df2f47073b88b))
+
+- **network**: Frame listeners on the connection
+  ([#465](https://github.com/eschnitzler/EmpireCore/pull/465),
+  [`e252243`](https://github.com/eschnitzler/EmpireCore/commit/e252243e9144cd09b927906d7c5df2f47073b88b))
+
+### Performance Improvements
+
+- **protocol**: Build model validators on first use
+  ([`f5d6d5c`](https://github.com/eschnitzler/EmpireCore/commit/f5d6d5cdac2ee678d4638a391ab7feb5a3f0e123))
+
+
 ## v0.57.0 (2026-10-18)
 
 ### Bug Fixes
