@@ -76,3 +76,23 @@ These actions have no client ruby payment path and accept keyword-only `timeout`
 Both return typed acknowledgements without inventing a boss status. The existing `bbs`
 broadcast handler updates the event in receive order; use `get_raid_boss_status()` to request
 a fresh snapshot. Refusals raise `CommandError`; timeouts and malformed replies raise.
+
+## Battle for Berimond reads
+
+`get_berimond_targets()` requests the special camps currently eligible for attack and
+returns a tuple of `BerimondTarget` records in server order. Each `special_camp_id` is
+an opaque event camp identifier; unknown identifiers and duplicates are preserved.
+These identifiers are not map area ids or coordinates. Obtain map positions separately;
+`client.attack.get_attack_info()` already supports Berimond village, tower and capital
+attack pre-calculations through its `area_type` argument.
+
+`get_berimond_balance()` returns a `BerimondBalance` with `red_players` and `blue_players`.
+Negative counts clamp to zero as in the client. No faction percentage is inferred when
+both counts are zero because the client retains its prior percentage in that case.
+
+Both reads require a running Battle for Berimond event, accept keyword-only `timeout`,
+and return fresh results without caching them. Choosing or joining a faction is not
+required. Refusals raise `CommandError`, transport failures retain their typed exception,
+and missing or malformed successful payloads raise `PacketError`.
+
+::: empire_core.events.faction_models
