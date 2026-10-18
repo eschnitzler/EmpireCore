@@ -88,10 +88,11 @@ Remove it with `client.player.on_skill_list.remove(callback)`.
 ### Spending and resetting legend skill points
 
 ```python
-from empire_core.gamedata import GameData, LegendSkill
+from empire_core.gamedata import LegendSkill
 
 client.player.add_legend_skill_point(LegendSkill.GATE_REDUCTION_T0_G1_L1)
-print(client.player.skills.available_points(GameData.require()))
+print(client.player.available_skill_points)
+print(client.player.spent_skill_points)
 
 client.player.reset_skills()
 ```

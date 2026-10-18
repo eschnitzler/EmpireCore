@@ -72,7 +72,7 @@ def legend_spy_bonus(game_data: GameData, legend_skill_ids: Iterable[int]) -> fl
 
     Client: ``CastleLegendSkillData.getTotalValueOfLegendSkillEffect`` (bundle line 112086)
     """
-    return legend_skill_value(game_data, legend_skill_ids, _SPY_AMOUNT_BONUS)
+    return legend_skill_value(legend_skill_ids, _SPY_AMOUNT_BONUS, game_data=game_data)
 
 
 def title_spy_percent(game_data: GameData, title_ids: Iterable[int]) -> float:

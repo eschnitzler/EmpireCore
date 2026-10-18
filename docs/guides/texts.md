@@ -124,8 +124,8 @@ is a "Valkyrie ranger".
 ## Effect descriptions
 
 `describe_effect()` writes one bonus with its value the way the game's
-tooltips do, and `describe_effects()` a list of them. They need a loaded
-[`GameData`](game-data.md) to know what the effect is and how its value reads
+tooltips do, and `describe_effects()` a list of them. They load
+[`GameData`](game-data.md) on first use to know what the effect is and how its value reads
 (one number, a value per unit, a list of unlocked ids, ...).
 `describe_construction_item()` writes a construction item's whole tooltip:
 the fixed bonuses in columns of its own (`castle_effects`) first, then its
@@ -142,10 +142,10 @@ from empire_core.gamedata import (
 )
 
 game_data = GameData.load()
-describe_construction_item(game_data.construction_items[1], game_data)  # "-2% recruitment costs"
+describe_construction_item(game_data.construction_items[1])  # "-2% recruitment costs"
 
 gem = game_data.gems[55]
-describe_effect(gem.effects[0], game_data, EffectTemplate.EQUIPMENT, trigger_chance=gem.trigger_chance)
+describe_effect(gem.effects[0], EffectTemplate.EQUIPMENT, trigger_chance=gem.trigger_chance)
 # "30% chance of 13% more glory when defending an attack"
 ```
 

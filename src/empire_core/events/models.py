@@ -1444,12 +1444,15 @@ class CampaignEvent(SpecialEvent):
             quests=quests,
         )
 
-    def rewards(self, data: GameData) -> tuple[Collectable, ...]:
+    def rewards(self, *, game_data: GameData | None = None) -> tuple[Collectable, ...]:
         """
         What the campaign's rewards give, in order, as the client lists them.
 
         Client: ``getListByIdArray(e.RIDS)`` (``TimeLimitedCampaignEventEventVO.parseParamObject``, bundle line 118536)
         """
+        from empire_core.gamedata.data import GameData
+
+        data = game_data if game_data is not None else GameData.require()
         return data.reward_list(self.reward_ids)
 
     def with_campaign(self, data: dict[str, Any], now: float) -> CampaignEvent:

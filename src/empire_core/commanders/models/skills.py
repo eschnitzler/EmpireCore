@@ -13,14 +13,14 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, field_validator, model_validator
 
-from empire_core.gamedata import EnumOrInt
+from empire_core.gamedata import EnumOrInt, GameData
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, object_or_none, readable_list
 from empire_core.protocol.js import ClientInt, js_loose_equals
 
 from .roster import CommanderRoster, SelectedAbility
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import GameData, GeneralSkill, LegendSkill, SceatSkill
+    from empire_core.gamedata import GeneralSkill, LegendSkill, SceatSkill
     from empire_core.gamedata.models import GeneralDef
 
 logger = logging.getLogger(__name__)
@@ -401,22 +401,24 @@ class SkillList(BasePayload):
             return []
         return [entry for entry in value if isinstance(entry, dict)]
 
-    def spent_points(self, game_data: GameData) -> int:
+    def spent_points(self, *, game_data: GameData | None = None) -> int:
         """
         The skill points the held legend skills cost, each level counted with those below it.
 
         Client: ``CastleLegendSkillData.getSpentPoints`` (bundle line 112097)
         """
+        game_data = game_data if game_data is not None else GameData.require()
         skills = game_data.legend_skills
         return sum(row.total_cost_skill_points for row in map(skills.get, self.legend_skill_ids) if row is not None)
 
-    def available_points(self, game_data: GameData) -> int:
+    def available_points(self, *, game_data: GameData | None = None) -> int:
         """
         The skill points left to spend.
 
         Client: ``CastleLegendSkillData.parse_SKL`` (bundle line 112063)
         """
-        return self.total_points - self.spent_points(game_data)
+        game_data = game_data if game_data is not None else GameData.require()
+        return self.total_points - self.spent_points(game_data=game_data)
 
 
 class GetSkillsResponse(BaseResponse, SkillList):

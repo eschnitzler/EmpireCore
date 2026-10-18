@@ -60,7 +60,7 @@ class TestAttackerEffects:
 
 class TestDefenderAggregation:
     def test_defenders_credit_both_defenses_to_their_own_role(self):
-        effects = defender_flank_effects([(601, 10), (211, 5)], data())
+        effects = defender_flank_effects([(601, 10), (211, 5)], game_data=data())
 
         # 601 is melee: 60 melee / 20 range defense, ten of them.
         assert effects.melee_units_melee_strength == 600
@@ -70,30 +70,30 @@ class TestDefenderAggregation:
         assert effects.range_units_range_strength == 210
 
     def test_defense_values_combine_both_groups(self):
-        effects = defender_flank_effects([(601, 10), (211, 5)], data())
+        effects = defender_flank_effects([(601, 10), (211, 5)], game_data=data())
 
         assert effects.melee_defense_value() == 600 + 125
         assert effects.range_defense_value() == 210 + 200
 
     def test_reductions_are_subtracted_from_the_matching_bonus(self):
-        effects = defender_flank_effects([(601, 10)], data())
+        effects = defender_flank_effects([(601, 10)], game_data=data())
 
         # melee_units_melee_strength * (1.0 - 0.25)
         assert effects.melee_defense_value(melee_reduction=0.25) == 450
 
     def test_bonuses_multiply(self):
-        effects = defender_flank_effects([(601, 10)], data(), melee_bonus=1.5)
+        effects = defender_flank_effects([(601, 10)], melee_bonus=1.5, game_data=data())
         assert effects.melee_defense_value() == 900
 
     def test_tools_among_the_stacks_are_not_counted_as_units(self):
-        effects = defender_flank_effects([(646, 2)], data())
+        effects = defender_flank_effects([(646, 2)], game_data=data())
         assert effects.is_empty()
 
     def test_a_defending_tool_raises_the_fortification(self):
         # 646 is a moat tool worth 80%. The client adds a defending tool's
         # bonus once per stack, whatever the stack holds, so two of them are
         # still one 80%.
-        effects = defender_flank_effects([(646, 2)], data(), moat_bonus=0.5)
+        effects = defender_flank_effects([(646, 2)], moat_bonus=0.5, game_data=data())
 
         assert effects.moat_bonus == pytest.approx(1.3)
 
@@ -101,8 +101,8 @@ class TestDefenderAggregation:
         stacks = [(601, 10)]
         kwargs = {"wall_bonus": 0.3, "gate_bonus": 0.3, "moat_bonus": 0.3}
 
-        middle = defender_flank_effects(stacks, data(), flank=Flank.MIDDLE, **kwargs)
-        left = defender_flank_effects(stacks, data(), flank=Flank.LEFT, **kwargs)
+        middle = defender_flank_effects(stacks, flank=Flank.MIDDLE, **kwargs, game_data=data())
+        left = defender_flank_effects(stacks, flank=Flank.LEFT, **kwargs, game_data=data())
 
         assert middle.gate_bonus == 0.3
         assert left.gate_bonus == 0.0
@@ -114,13 +114,13 @@ class TestDefenderAggregation:
         import logging
 
         with caplog.at_level(logging.WARNING, logger="empire_core.combat.defense"):
-            effects = defender_flank_effects([(999999, 5)], data())
+            effects = defender_flank_effects([(999999, 5)], game_data=data())
 
         assert effects.is_empty()
         assert "matched no known unit or tool" in caplog.text
 
     def test_zero_and_negative_counts_are_ignored(self):
-        assert defender_flank_effects([(601, 0), (211, -3)], data()).is_empty()
+        assert defender_flank_effects([(601, 0), (211, -3)], game_data=data()).is_empty()
 
 
 class TestEventCampDefence:
@@ -143,7 +143,7 @@ class TestEventCampDefence:
         return GameData.parse("test", self.PAYLOAD)
 
     def test_wall_and_gate_are_read_as_fractions(self):
-        effects = event_camp_defense(self.data(), "nomadCamps", 48)
+        effects = event_camp_defense("nomadCamps", 48, game_data=self.data())
 
         assert effects is not None
         middle = effects[Flank.MIDDLE]
@@ -152,7 +152,7 @@ class TestEventCampDefence:
     def test_only_the_middle_keeps_the_gate(self):
         # Same rule as every other per-flank builder: getDefenceBonuses zeroes
         # the gate everywhere but the middle.
-        effects = event_camp_defense(self.data(), "nomadCamps", 48)
+        effects = event_camp_defense("nomadCamps", 48, game_data=self.data())
 
         assert effects is not None
         assert effects[Flank.MIDDLE].gate_bonus == 0.3
@@ -162,19 +162,19 @@ class TestEventCampDefence:
             assert effects[flank].wall_bonus == 0.3
 
     def test_every_flank_is_defended(self):
-        effects = event_camp_defense(self.data(), "nomadCamps", 48)
+        effects = event_camp_defense("nomadCamps", 48, game_data=self.data())
 
         # These tables list one defending force rather than a per-flank split.
         assert all(not e.is_empty() for e in flanks_of(effects).values())
 
     def test_unknown_camp_or_table(self):
-        assert event_camp_defense(self.data(), "nomadCamps", 999) is None
-        assert event_camp_defense(self.data(), "notATable", 48) is None
+        assert event_camp_defense("nomadCamps", 999, game_data=self.data()) is None
+        assert event_camp_defense("notATable", 48, game_data=self.data()) is None
 
 
 class TestNpcCampDefence:
     def test_camp_defense_is_read_per_flank(self):
-        effects = robber_baron_camp_defense(data(), victories=-6, kingdom_id=Kingdom.GREEN)
+        effects = robber_baron_camp_defense(victories=-6, kingdom_id=Kingdom.GREEN, game_data=data())
 
         assert effects is not None
         middle = effects[Flank.MIDDLE]
@@ -186,10 +186,10 @@ class TestNpcCampDefence:
         assert effects[Flank.YARD].is_empty()
 
     def test_unknown_camp_returns_none(self):
-        assert robber_baron_camp_defense(data(), victories=-6, kingdom_id=Kingdom.ICE) is None
-        assert robber_baron_camp_defense(data(), victories=-7) is None
+        assert robber_baron_camp_defense(victories=-6, kingdom_id=Kingdom.ICE, game_data=data()) is None
+        assert robber_baron_camp_defense(victories=-7, game_data=data()) is None
         # Past the highest row, the client reads the highest
-        assert robber_baron_camp_defense(data(), victories=99) is not None
+        assert robber_baron_camp_defense(victories=99, game_data=data()) is not None
 
     def test_defending_tools_raise_the_flank_they_stand_on(self):
         # toolM is "646+2", a moat tool
@@ -197,7 +197,7 @@ class TestNpcCampDefence:
         stakes = game.get_tool(646)
         assert stakes is not None and stakes.moat_bonus > 0
 
-        effects = flanks_of(robber_baron_camp_defense(game, victories=-6))
+        effects = flanks_of(robber_baron_camp_defense(victories=-6, game_data=game))
 
         assert effects[Flank.MIDDLE].moat_bonus == pytest.approx(stakes.moat_bonus)
         assert effects[Flank.LEFT].moat_bonus == 0.0
@@ -217,7 +217,7 @@ class TestNpcCampDefence:
             ],
         )
 
-        effects = flanks_of(robber_baron_camp_defense(GameData.parse("test", payload), victories=-6))
+        effects = flanks_of(robber_baron_camp_defense(victories=-6, game_data=GameData.parse("test", payload)))
 
         # Nothing shows the server defends the camp with the row's commander
         assert (effects[Flank.LEFT].melee_bonus, effects[Flank.LEFT].range_bonus) == (1.0, 1.0)

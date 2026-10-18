@@ -117,8 +117,12 @@ _MODULES = {
 }
 
 
-def is_current(game_data: GameData) -> bool:
+def is_current(game_data: GameData | None = None) -> bool:
     """Whether ``game_data`` is the items version these enums were generated from."""
+    if game_data is None:
+        from empire_core.gamedata.data import GameData
+
+        game_data = GameData.require()
     return game_data.version == ITEMS_VERSION
 
 

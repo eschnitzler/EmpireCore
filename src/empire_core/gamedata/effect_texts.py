@@ -5,8 +5,8 @@ Usage:
     from empire_core.gamedata import EffectTemplate, describe_construction_item, describe_effect
 
     item = game_data.construction_items[ConstructionItem.BARRACKS_COST_G1_L1]
-    describe_construction_item(item, game_data)        # "-2% recruitment costs"
-    describe_effect(gem.effects[0], game_data, EffectTemplate.EQUIPMENT, trigger_chance=gem.trigger_chance)
+    describe_construction_item(item)        # "-2% recruitment costs"
+    describe_effect(gem.effects[0], EffectTemplate.EQUIPMENT, trigger_chance=gem.trigger_chance)
 
 The text comes from the language file (:mod:`empire_core.texts`), fetched on first use
 and cached; the game data names the effect and how its value reads.
@@ -22,11 +22,11 @@ from typing import TYPE_CHECKING
 from empire_core.enums import EffectTemplate
 from empire_core.texts import LocalizedNumber, text
 
+from .data import GameData
 from .ids import EffectType
 from .models import ConstructionItemDef, EffectDef, EffectValue, EquipmentEffectValue
 
 if TYPE_CHECKING:
-    from .data import GameData
     from .tables import BuildingDef
 
 Number = int | float | None
@@ -302,11 +302,11 @@ def _boss_names(effect: EffectDef, game_data: GameData, lang: str) -> list[objec
 
 def describe_effect(
     effect: EffectValue | EquipmentEffectValue,
-    game_data: GameData,
     template: EffectTemplate = EffectTemplate.CONSTRUCTION_ITEM,
     *,
     trigger_chance: int = 100,
     lang: str = "en",
+    game_data: GameData | None = None,
 ) -> str | None:
     """
     One bonus as the game describes it in ``lang``: ``"-5% recruitment costs"``.
@@ -323,6 +323,7 @@ def describe_effect(
     Client: ``EffectTypeEnum`` registrations (bundle line 1322) choose the value class, whose
     ``textReplacements`` fill the text
     """
+    game_data = game_data if game_data is not None else GameData.require()
     if isinstance(effect, EquipmentEffectValue):
         equipment_effect = game_data.equipment_effects.get(effect.equipment_effect_id)
         effect_id = equipment_effect.effect_id if equipment_effect is not None else effect.equipment_effect_id
@@ -351,17 +352,20 @@ def describe_effect(
 
 def describe_effects(
     effects: Iterable[EffectValue],
-    game_data: GameData,
     template: EffectTemplate = EffectTemplate.CONSTRUCTION_ITEM,
     *,
     lang: str = "en",
+    game_data: GameData | None = None,
 ) -> list[str]:
     """Each bonus as :func:`describe_effect` describes it; an effect ``game_data`` lacks is left out."""
-    described = (describe_effect(effect, game_data, template, lang=lang) for effect in effects)
+    game_data = game_data if game_data is not None else GameData.require()
+    described = (describe_effect(effect, template, lang=lang, game_data=game_data) for effect in effects)
     return [line for line in described if line is not None]
 
 
-def describe_construction_item(item: ConstructionItemDef, game_data: GameData, *, lang: str = "en") -> str:
+def describe_construction_item(
+    item: ConstructionItemDef, *, lang: str = "en", game_data: GameData | None = None
+) -> str:
     """
     A construction item's bonuses as its tooltip lists them, one per line: the fixed bonuses of its own
     columns (``ci_effect_<column>``, the value as it is), then its ``effects``; ``ci_effect_NA`` for none.
@@ -369,12 +373,13 @@ def describe_construction_item(item: ConstructionItemDef, game_data: GameData, *
     Client: ``ConstructionItemVO.effectText`` (bundle line 47766), the fixed bonuses' text from
     ``CastleEffectVO.constructionItemTextId`` (bundle line 79073)
     """
+    game_data = game_data if game_data is not None else GameData.require()
     fixed = [text(f"ci_effect_{bonus.effect.value}", bonus.value, lang=lang) for bonus in item.castle_effects]
-    lines = fixed + describe_effects(item.effects, game_data, lang=lang)
+    lines = fixed + describe_effects(item.effects, lang=lang, game_data=game_data)
     return "\n".join(lines) if lines else text("ci_effect_NA", lang=lang)
 
 
-def describe_building(building: BuildingDef, game_data: GameData, *, lang: str = "en") -> list[str]:
+def describe_building(building: BuildingDef, *, lang: str = "en", game_data: GameData | None = None) -> list[str]:
     """
     A decoration's effects as its info lists them, its ``effects`` then its ``area_specific_effects``, each with
     its cap.
@@ -382,8 +387,9 @@ def describe_building(building: BuildingDef, game_data: GameData, *, lang: str =
     Client: ``ABasicBuildingVO.allBuildingEffects`` (bundle line 18113) and
     ``ADecoBuildingVO.createAdditionalEffectItems`` (bundle line 11897)
     """
+    game_data = game_data if game_data is not None else GameData.require()
     effects = (*building.effects, *building.area_specific_effects)
-    return describe_effects(effects, game_data, EffectTemplate.BUILDING, lang=lang)
+    return describe_effects(effects, EffectTemplate.BUILDING, lang=lang, game_data=game_data)
 
 
 __all__ = ["describe_building", "describe_construction_item", "describe_effect", "describe_effects"]
