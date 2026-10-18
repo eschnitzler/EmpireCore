@@ -287,10 +287,23 @@ class TestFillWaves:
         assert len(normal) == 4
         assert len(conquest) == 6
 
-    def test_max_waves_caps_the_wave_count(self):
-        waves = fill_waves(Inventory({601: 10_000}), solver_data(), level=70, options=FillOptions(max_waves=1))
+    def test_unselected_waves_stay_empty_in_their_place(self):
+        # Level 70 carries four waves of 320; wave 2 gets what wave 0 left.
+        waves = fill_waves(Inventory({601: 500}), solver_data(), level=70, options=FillOptions(waves=frozenset({0, 2})))
 
-        assert len(waves) == 1
+        assert [wave.unit_count() for wave in waves] == [320, 0, 180, 0]
+
+    def test_a_wave_past_the_wave_count_is_ignored(self):
+        waves = fill_waves(
+            Inventory({601: 10_000}), solver_data(), level=70, options=FillOptions(waves=frozenset({0, 9}))
+        )
+
+        assert [wave.unit_count() for wave in waves] == [320, 0, 0, 0]
+
+    def test_no_selection_fills_every_wave(self):
+        waves = fill_waves(Inventory({601: 10_000}), solver_data(), level=70, options=FillOptions(waves=None))
+
+        assert [wave.unit_count() for wave in waves] == [320] * 4
 
     def test_a_level_70_wave_maxes_out(self):
         waves = fill_waves(Inventory({601: 10_000}), solver_data(), level=70)

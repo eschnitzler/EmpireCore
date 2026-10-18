@@ -47,10 +47,12 @@ class FillOptions(EmpireModel):
     ``AutoFillOptions.createNewUnitFilter`` and ``createNewToolFilter``. Turning
     one off excludes what carries that cost or category: ``allow_ruby_cost=False``
     keeps units whose healing costs rubies out of the wave, ``allow_event_tools=False``
-    keeps event tools out. ``use_tools``, ``fill_yard`` and ``max_waves`` are the
-    library's own and have no counterpart in the client's auto-fill.
+    keeps event tools out. ``waves`` and ``fill_yard`` are the client's per-wave
+    checkboxes: it fills each selected wave in send order and leaves the others as
+    they are. ``use_tools`` is the library's own.
 
-    Client: ``AutoFillOptions`` (bundle line 56371)
+    Client: ``AutoFillOptions`` (bundle line 26311),
+    ``AttackDialogAutoFill.autoFillSelectedWaves`` (bundle line 101320)
     """
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
@@ -60,8 +62,9 @@ class FillOptions(EmpireModel):
     fill_right: bool = True
     use_tools: bool = Field(default=True, description="Place tools on the flanks; False fills soldiers only")
     fill_yard: bool = Field(default=True, description="Fill the courtyard wave; False leaves every slot empty")
-    max_waves: int | None = Field(
-        default=None, ge=1, description="The most waves to fill; None fills every wave the attack may carry"
+    waves: frozenset[int] | None = Field(
+        default=None,
+        description="The 0-based indexes of the waves to fill, the rest left empty; None fills every wave",
     )
     allow_coin_cost: bool = True
     allow_ruby_cost: bool = True
@@ -82,7 +85,7 @@ class FillOptions(EmpireModel):
         A tool without a category always passes; one whose category the client
         does not name never does.
 
-        Client: ``AFillWaveStrategy.createFilteredInventory`` (bundle line 221038)
+        Client: ``AFillWaveStrategy.createFilteredInventory`` (bundle line 101383)
         """
         allowed: dict[str, bool] = {
             ToolCategory.BASIC: self.allow_basic_tools,
@@ -497,8 +500,9 @@ def fill_waves(
 
     Sizes itself the way the client does: each flank's capacity and slots follow
     the level of whoever owns the target, while the number of waves follows the
-    attacker's own level. Waves that come out empty are dropped, so the result is ready
-    for ``send_attack``.
+    attacker's own level. Filling stops at the first wave that comes out empty. A
+    wave ``options.waves`` leaves out stays empty in its place, so every wave keeps
+    its index; ``send_attack`` drops the empty ones.
 
     Args:
         inventory: Pool to draw from; shared across every wave
@@ -523,7 +527,7 @@ def fill_waves(
             raid bosses is not carried
 
     Returns:
-        One :class:`AttackWave` per filled wave, in send order
+        One :class:`AttackWave` per wave in send order, up to the first one the pool could not fill
     """
     capacity = WaveCapacity.for_level(
         level,
@@ -537,9 +541,11 @@ def fill_waves(
         conquer=conquer,
         bonus=wave_bonus,
     )
-    if options is not None and options.max_waves is not None:
-        wave_count = min(wave_count, options.max_waves)
-    for _index in range(wave_count):
+    selected = options.waves if options is not None else None
+    for index in range(wave_count):
+        if selected is not None and index not in selected:
+            waves.append(AttackWave())
+            continue
         wave = fill_wave(
             inventory,
             game_data,
