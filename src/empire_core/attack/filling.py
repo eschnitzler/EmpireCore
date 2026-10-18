@@ -68,11 +68,13 @@ def _target_defense(game_data: GameData, target: "_Target") -> dict[Flank, Defen
     spy block when one is available - each flank's own stacks, so a defending
     tool raises only the flank it stands on.
     """
-    if target.camp_victories is not None:
+    if target.robber_baron_camp_victories is not None:
         if target.spy_army is None:
-            return robber_baron_camp_defense(game_data, target.camp_victories, target.camp_kingdom_id)
+            return robber_baron_camp_defense(
+                game_data, target.robber_baron_camp_victories, target.robber_baron_camp_kingdom
+            )
         wall_level, gate_level = robber_baron_camp_fortification_levels(
-            robber_baron_camp_level(target.camp_victories, target.camp_kingdom_id)
+            robber_baron_camp_level(target.robber_baron_camp_victories, target.robber_baron_camp_kingdom)
         )
         wall, gate, moat = fortification_bonuses(game_data, wall_level=wall_level, gate_level=gate_level)
     else:

@@ -143,7 +143,7 @@ class TestCampDefense(FillClient):
         stakes = game.get_tool(646)
         assert stakes is not None
 
-        defense = _target_defense(game, _Target(x=5, y=6, camp_victories=-6))
+        defense = _target_defense(game, _Target(x=5, y=6, robber_baron_camp_victories=-6))
 
         assert defense is not None
         assert defense[Flank.MIDDLE].melee_units_melee_strength == 600
@@ -156,7 +156,7 @@ class TestCampDefense(FillClient):
 
         spied = SpyArmy.model_validate([[], [[211, 4]], [], []])
 
-        defense = _target_defense(data(), _Target(x=5, y=6, camp_victories=-6, spy_army=spied))
+        defense = _target_defense(data(), _Target(x=5, y=6, robber_baron_camp_victories=-6, spy_army=spied))
 
         assert defense is not None
         middle = defense[Flank.MIDDLE]
@@ -179,7 +179,7 @@ class TestCampDefense(FillClient):
             owner_records=lambda: [],
             defender_legend_skill_ids=None,
         )
-        camp = _Target(x=5, y=6, area_type=MapItemType.DUNGEON, camp_victories=-6)
+        camp = _Target(x=5, y=6, area_type=MapItemType.DUNGEON, robber_baron_camp_victories=-6)
         castle = _Target(x=5, y=6, area_type=MapItemType.CASTLE)
 
         _read_precalculation(client.attack, camp, timeout=1.0)

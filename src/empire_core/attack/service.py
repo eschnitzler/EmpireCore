@@ -404,8 +404,8 @@ class AttackService(BaseService):
         castle_id: int,
         *,
         level: int | None = None,
-        camp_victories: int | None = None,
-        camp_kingdom_id: Kingdom = Kingdom.GREEN,
+        robber_baron_camp_victories: int | None = None,
+        robber_baron_camp_kingdom: Kingdom = Kingdom.GREEN,
         space_id: int | None = None,
         area_type: MapItemType | int | None = None,
         landmark_min_level: int = 0,
@@ -453,9 +453,9 @@ class AttackService(BaseService):
             castle_id: Castle whose troops to draw from, one of yours: a ``Castle.id``
                 from ``client.state.get_castles()``
             level: The *target owner's* level, which is what sizes a wave
-            camp_victories: An NPC camp's victory count, to derive its defense
+            robber_baron_camp_victories: A robber baron camp's victory count, to derive its defense
                 from the game data - see ``MapAreaItem.victory_count``
-            camp_kingdom_id: Kingdom the camp sits in
+            robber_baron_camp_kingdom: Kingdom the robber baron camp sits in
             space_id: Kingdom the target sits in, which some tools are limited
                 to; the camp's kingdom when not given
             landmark_min_level: A capital's or metropolis's own defense level,
@@ -467,11 +467,11 @@ class AttackService(BaseService):
                 The waves deduct what they take, so a caller filling more than
                 one thing from one pool passes the same object each time
             area_type: The target's area type, which scopes the general's
-                effects; NPC camps are area type 2
+                effects; robber baron camps are area type 2
             player_target: True when attacking a player, False for an NPC.
                 Decides which PvP- or PvE-only effects count; when not given it
                 follows ``owner_id`` (``getFilterStrategyAttackOrDefence``)
-            defense: Explicit per-flank defense, overriding ``camp_victories``
+            defense: Explicit per-flank defense, overriding ``robber_baron_camp_victories``
             attacker: Attacker multipliers; built from ``commander``, the
                 legend skills and ``support_tools`` when omitted
             commander: The commander leading the attack, whose equipment and
@@ -544,8 +544,8 @@ class AttackService(BaseService):
         if owner_id is None and area_type is not None:
             owner_id = ALIEN_INVASION_AREA_TYPES.get(area_type)
 
-        if defense is None and camp_victories is not None:
-            defense = robber_baron_camp_defense(game_data, camp_victories, camp_kingdom_id)
+        if defense is None and robber_baron_camp_victories is not None:
+            defense = robber_baron_camp_defense(game_data, robber_baron_camp_victories, robber_baron_camp_kingdom)
 
         resolver = EffectResolver(game_data)
         tools = _support_tools(game_data, support_tools)
@@ -623,7 +623,7 @@ class AttackService(BaseService):
             options=options,
             unit_attack_bonuses=unit_attack_bonuses,
             area_type=area_type,
-            space_id=camp_kingdom_id if space_id is None else space_id,
+            space_id=robber_baron_camp_kingdom if space_id is None else space_id,
             target_is_player=target_is_player,
             active_raid_boss_id=active_raid_boss_id,
         )
@@ -704,8 +704,8 @@ class AttackService(BaseService):
         target_is_player: bool = False,
         target_owner_id: int | None = None,
         target_owner_legend_level: int | None = None,
-        camp_victories: int | None = None,
-        camp_kingdom_id: Kingdom = Kingdom.GREEN,
+        robber_baron_camp_victories: int | None = None,
+        robber_baron_camp_kingdom: Kingdom = Kingdom.GREEN,
         target_row: list[Any] | None = None,
         area_type: MapItemType | int | None = None,
         landmark_min_level: int = 0,
@@ -743,7 +743,7 @@ class AttackService(BaseService):
 
         Every one of those can be passed instead, which skips the request that
         would have found it. Pass no coordinates and nothing is read: then
-        ``target_level`` or ``camp_victories`` is required, as before.
+        ``target_level`` or ``robber_baron_camp_victories`` is required, as before.
 
         A scan of the target's tile, made when its area type is not known,
         leaves the session on the map, as the client is when it attacks from
@@ -771,15 +771,15 @@ class AttackService(BaseService):
             source_y: Attacking castle's y
             target_level: The target owner's level, which sizes each flank.
                 Read from the map when coordinates are given, or derived from
-                ``camp_victories`` for a camp
+                ``robber_baron_camp_victories`` for a robber baron camp
             target_is_player: True for a player's castle or outpost
             target_owner_id: The target owner's player id, which decides the
                 legend skills; taken from ``target_row`` when not given
             target_owner_legend_level: The target owner's legend level. Read
                 from the owner records of a one-tile scan when coordinates are
                 given, 0 otherwise
-            camp_victories: An NPC camp's victory count
-            camp_kingdom_id: Kingdom the camp sits in
+            robber_baron_camp_victories: A robber baron camp's victory count
+            robber_baron_camp_kingdom: Kingdom the robber baron camp sits in
             target_row: The target's raw map row, for a castle's structures.
                 Its first field is the area type, so passing the row is enough
             landmark_min_level: A capital's or metropolis's own defense level
@@ -861,8 +861,8 @@ class AttackService(BaseService):
             level=target_level,
             owner_legend_level=target_owner_legend_level,
             is_player=target_is_player,
-            camp_victories=camp_victories,
-            camp_kingdom_id=Kingdom(camp_kingdom_id),
+            robber_baron_camp_victories=robber_baron_camp_victories,
+            robber_baron_camp_kingdom=Kingdom(robber_baron_camp_kingdom),
             spy_army=spy_army,
             castellan=defending_castellan,
             defender_legend_skill_ids=defender_legend_skill_ids,
@@ -873,11 +873,11 @@ class AttackService(BaseService):
             _read_target(self, read, castle_id=castle_id, timeout=timeout)
 
         if read.level is None:
-            if read.camp_victories is None:
+            if read.robber_baron_camp_victories is None:
                 if target_x is None or target_y is None:
                     raise ValueError(
                         "Pass target or target_x and target_y to read the target, or target_level, "
-                        "or camp_victories to derive the level from"
+                        "or robber_baron_camp_victories to derive the level from"
                     )
                 item = _row_item(read.row)
                 if item is None:
@@ -891,7 +891,7 @@ class AttackService(BaseService):
                     f"Nothing at {read.x}:{read.y} says what level to fill for: {reason}. "
                     "Pass target_level to fill it anyway"
                 )
-            read.level = robber_baron_camp_level(read.camp_victories, read.camp_kingdom_id)
+            read.level = robber_baron_camp_level(read.robber_baron_camp_victories, read.robber_baron_camp_kingdom)
         if read.area_type is None:
             row_item = _row_item(read.row)
             read.area_type = row_item.item_type if row_item is not None else None
@@ -926,7 +926,7 @@ class AttackService(BaseService):
             castle_id,
             level=read.level,
             landmark_min_level=landmark_min_level,
-            camp_kingdom_id=read.camp_kingdom_id,
+            robber_baron_camp_kingdom=read.robber_baron_camp_kingdom,
             space_id=read.kingdom_id,
             conquer=conquer,
             tool_bonus=tool_bonus,
