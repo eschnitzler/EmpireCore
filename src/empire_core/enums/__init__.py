@@ -16,6 +16,7 @@ from .alliance import (
     AllianceRank,
     BookmarkType,
     DiplomacyStatus,
+    ForumRankGroup,
     HelpType,
     OnlineState,
 )
@@ -150,6 +151,7 @@ __all__ = [
     "AllianceBuffType",
     "AllianceChronicleAction",
     "AllianceRank",
+    "ForumRankGroup",
     "BookmarkType",
     "DiplomacyStatus",
     "OnlineState",

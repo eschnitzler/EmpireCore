@@ -61,6 +61,21 @@ from empire_core.alliance.models.diplomacy import (
     SetAutoWarRequest,
     SetAutoWarResponse,
 )
+from empire_core.alliance.models.forum import (
+    CreateForumTopicRequest,
+    DeleteForumReplyRequest,
+    DeleteForumTopicRequest,
+    GetForumTopicRequest,
+    GetForumTopicResponse,
+    GetForumTopicsRequest,
+    GetForumTopicsResponse,
+    GetUnreadTopicCountRequest,
+    GetUnreadTopicCountResponse,
+    ReplyToForumTopicRequest,
+    SetForumVisibilityRequest,
+    SetForumVisibilityResponse,
+    forum_text,
+)
 from empire_core.alliance.models.help import (
     AllianceHelpListResponse,
     AllianceHelpReceived,
@@ -89,7 +104,7 @@ from empire_core.alliance.models.members import (
     RerankMemberResponse,
 )
 from empire_core.alliance.models.search import AllianceSearchResult, SearchAllianceRequest, SearchAllianceResponse
-from empire_core.enums import AllianceRank, BookmarkType, DiplomacyStatus, GGEError, HelpType, Kingdom
+from empire_core.enums import AllianceRank, BookmarkType, DiplomacyStatus, ForumRankGroup, GGEError, HelpType, Kingdom
 from empire_core.exceptions import CommandError, NotInAllianceError, PacketError
 from empire_core.protocol.base import BaseRequest, BaseResponse
 from empire_core.services.base import BaseService
@@ -158,6 +173,64 @@ class AllianceService(BaseService):
     def chat(self) -> list[ChatMessageData]:
         """The alliance chat history, oldest first; a copy of the list, of read-only messages."""
         return self.client.state.get_alliance_chat()
+
+    def create_topic(self, name: str, text: str, visible_ranks: list[ForumRankGroup], *, timeout: float = 5.0) -> None:
+        """Create a forum topic with explicit visibility groups and an opening post.
+
+        Titles must encode to 2–38 characters and posts to 2–2000. Server permission
+        refusals raise CommandError. No created id is returned by the client handler.
+        """
+        forum_text(name, 38)
+        forum_text(text, 2000)
+        with self._own_alliance():
+            self.execute(CreateForumTopicRequest(name=name, text=text, visible_ranks=visible_ranks), timeout=timeout)
+
+    def reply(self, topic_id: int, text: str, *, timeout: float = 5.0) -> None:
+        """Post a reply to a forum topic; permission refusals raise CommandError."""
+        forum_text(text, 2000)
+        with self._own_alliance():
+            self.execute(ReplyToForumTopicRequest(topic_id=topic_id, text=text), timeout=timeout)
+
+    def delete_topic(self, topic_id: int, *, timeout: float = 5.0) -> None:
+        """Delete a forum topic; permission refusals raise CommandError."""
+        with self._own_alliance():
+            self.execute(DeleteForumTopicRequest(topic_id=topic_id), timeout=timeout)
+
+    def delete_reply(self, topic_id: int, reply_id: int, *, timeout: float = 5.0) -> None:
+        """Delete a forum post; permission refusals raise CommandError."""
+        with self._own_alliance():
+            self.execute(DeleteForumReplyRequest(topic_id=topic_id, reply_id=reply_id), timeout=timeout)
+
+    def set_topic_visibility(
+        self, topic_id: int, visible_ranks: list[ForumRankGroup], *, timeout: float = 5.0
+    ) -> GetForumTopicResponse | None:
+        """Change the rank groups that can see a topic, returning its details when echoed."""
+        with self._own_alliance():
+            return self.request(
+                SetForumVisibilityRequest(topic_id=topic_id, visible_ranks=visible_ranks),
+                SetForumVisibilityResponse,
+                timeout=timeout,
+            ).topic
+
+    def get_forum_topics(self, *, timeout: float = 5.0) -> GetForumTopicsResponse:
+        """Get visible forum topics, newest post first, and the total including hidden topics."""
+        with self._own_alliance():
+            return self.request(GetForumTopicsRequest(), GetForumTopicsResponse, timeout=timeout)
+
+    def get_topic(self, topic_id: int, *, timeout: float = 5.0) -> GetForumTopicResponse:
+        """Open a forum topic and its posts. Opening it marks it read on the server.
+
+        Client: ``CastleForumViewTopic`` sends ``gtr`` (bundle line 68915);
+        ``GTRCommand.executeCommand`` (bundle line 121768) reads the topic, with
+        unread counts delivered separately by ``UTCCommand`` (bundle line 121785).
+        """
+        with self._own_alliance():
+            return self.request(GetForumTopicRequest(topic_id=topic_id), GetForumTopicResponse, timeout=timeout)
+
+    def get_unread_topic_count(self, *, timeout: float = 5.0) -> int:
+        """Request the number of unread forum topics."""
+        with self._own_alliance():
+            return self.request(GetUnreadTopicCountRequest(), GetUnreadTopicCountResponse, timeout=timeout).count
 
     # =========================================================================
     # Member Operations
