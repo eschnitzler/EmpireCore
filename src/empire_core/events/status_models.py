@@ -370,3 +370,46 @@ class SkipGrandTournamentCooldownResponse(CompleteGrandTournamentQuestResponse):
     """Client: ``SCQCommand.executeCommand`` (bundle 127495-127499)."""
 
     command: ClassVar[str] = "scq"
+
+
+class SelectRaidBossRequest(BaseRequest):
+    """Client: ``C2SSelectRaidBoss`` (current bundle 113731-113734); constants bundle 71."""
+
+    command: ClassVar[str] = "srb"
+    boss_id: EnumOrInt["RaidBoss"] = Field(validation_alias="BID", description="Raid boss to select")
+
+    @field_validator("boss_id")
+    @classmethod
+    def _positive_boss(cls, value: RaidBoss | int) -> RaidBoss | int:
+        if value <= 0:
+            raise ValueError("raid boss id must be positive")
+        return value
+
+
+class SelectRaidBossResponse(BaseResponse):
+    """Acknowledgement only.
+
+    Client: ``SRBCommand`` reads no fields (current bundle 127571-127580)."""
+
+    command: ClassVar[str] = "srb"
+
+    @model_validator(mode="before")
+    @classmethod
+    def _readable(cls, value: Any) -> Any:
+        if not isinstance(value, dict) or "raw" in value:
+            raise ValueError("Unreadable raid acknowledgement")
+        return value
+
+
+class AbortRaidRequest(BaseRequest):
+    """Client: ``C2SAbortRaid`` (current bundle 113723-113725)."""
+
+    command: ClassVar[str] = "arb"
+
+
+class AbortRaidResponse(SelectRaidBossResponse):
+    """Acknowledgement only.
+
+    Client: ``ARBCommand`` reads no fields (current bundle 127528-127537)."""
+
+    command: ClassVar[str] = "arb"

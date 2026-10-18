@@ -64,3 +64,15 @@ BREAKING CHANGE: event 129 is now `Event.GRAND_TOURNAMENT`, with ranking list
 `GrandTournamentQuestStatus`, `GrandTournamentQuestSlot`, `GrandTournamentQuestProgress`,
 `GrandTournamentContribution`, `get_grand_tournament_status()` and
 `get_grand_tournament_contributions()`. The previous backend-derived public names are removed.
+
+
+## Raid boss controls
+
+`select_raid_boss(boss_id)` selects a boss; `abort_raid()` aborts the current raid.
+Both require the running raid event and leader or deputy permission, which the server checks.
+Known boss cards must be available for selection, and the last playable boss cannot be aborted.
+These actions have no client ruby payment path and accept keyword-only `timeout`.
+
+Both return typed acknowledgements without inventing a boss status. The existing `bbs`
+broadcast handler updates the event in receive order; use `get_raid_boss_status()` to request
+a fresh snapshot. Refusals raise `CommandError`; timeouts and malformed replies raise.

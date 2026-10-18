@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, TypeVar
 from pydantic import ValidationError
 
 from empire_core.enums import RankingType
+from empire_core.enums.events import RaidBossCardStatus
 from empire_core.events.titles import get_event_titles
 from empire_core.exceptions import (
     CommandError,
@@ -33,7 +34,7 @@ from empire_core.ranking.models import (
 from empire_core.services.base import BaseService
 
 if TYPE_CHECKING:
-    pass
+    from empire_core.gamedata import RaidBoss
 
 from .board_models import (
     GetBattlegroundRankRequest,
@@ -60,6 +61,8 @@ from .models import (
     SpecialEventInfoRequest,
 )
 from .status_models import (
+    AbortRaidRequest,
+    AbortRaidResponse,
     CancelGrandTournamentQuestRequest,
     CancelGrandTournamentQuestResponse,
     CompleteGrandTournamentQuestRequest,
@@ -74,6 +77,8 @@ from .status_models import (
     RaidBossStatus,
     RerollGrandTournamentQuestRequest,
     RerollGrandTournamentQuestResponse,
+    SelectRaidBossRequest,
+    SelectRaidBossResponse,
     SkipGrandTournamentCooldownRequest,
     SkipGrandTournamentCooldownResponse,
     StartGrandTournamentQuestRequest,
@@ -587,3 +592,39 @@ class EventsService(BaseService):
                 return result
             finally:
                 self.client.state._end_quest_action()
+
+    def select_raid_boss(self, boss_id: RaidBoss | int, *, timeout: float = 5.0) -> SelectRaidBossResponse:
+        """Select an available raid boss and return the server acknowledgement.
+
+        The server checks leader/co-leader permission. Known cards must be available;
+        a newer boss id is supported. No ruby payment is shown by the client.
+        Status is updated by bbs broadcasts; call get_raid_boss_status for a fresh snapshot.
+        Client: ``AllianceRaidBossCardItem.onClick`` (current bundle 75377),
+        ``canManageAllianceRaid`` (current DLL 18796), ``SRBCommand`` (bundle 127571-127580).
+        """
+        event = self._require_running(Event.ALLIANCE_RAIDBOSS_EVENT)
+        request = SelectRaidBossRequest(boss_id=boss_id)
+        if isinstance(event, RaidBossEvent) and event.boss_status is not None:
+            card = next((card for card in event.boss_status.cards if card.boss_id == boss_id), None)
+            if card is not None and card.status != RaidBossCardStatus.AVAILABLE:
+                raise ValueError("the raid boss card is not available")
+        return self.request(request, SelectRaidBossResponse, timeout=timeout)
+
+    def abort_raid(self, *, timeout: float = 5.0) -> AbortRaidResponse:
+        """Abort the active raid boss and return the server acknowledgement.
+
+        Requires leader/co-leader permission; the server checks it. A known inactive raid
+        or last playable boss cannot be aborted. No ruby payment is shown by the client.
+        This acknowledgement does not clear the boss; bbs supplies the resulting status.
+        Client: ``AllianceRaidBossCardItem.handleAbort``, ``updateAbortButton`` (current bundle
+        75351-75365), ``isLastPlayableBoss`` (76260-76263), ``ARBCommand`` (127528-127537).
+        """
+        event = self._require_running(Event.ALLIANCE_RAIDBOSS_EVENT)
+        if isinstance(event, RaidBossEvent) and event.boss_status is not None:
+            status = event.boss_status
+            if not status.active:
+                raise ValueError("there is no active raid to abort")
+            locked = {RaidBossCardStatus.LOCKED_FINAL_DEFEATED, RaidBossCardStatus.LOCKED_ABORTED}
+            if sum(card.status not in locked for card in status.cards) <= 1:
+                raise ValueError("the last playable raid boss cannot be aborted")
+        return self.request(AbortRaidRequest(), AbortRaidResponse, timeout=timeout)
