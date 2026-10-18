@@ -27,3 +27,13 @@ class PerformanceStatistic(IntEnum):
     AQUAMARINE_SPENT = 19
     AQUAMARINE_LOST_PVP = 20
     AQUAMARINE_FIRST_POINTS_TIMESTAMP = 21
+
+
+class RaidBossCardStatus(IntEnum):
+    """Client: ``AllianceRaidConst`` (dll.pretty lines 78938-78942)."""
+
+    AVAILABLE = 0
+    UNAVAILABLE = 1
+    ONGOING = 2
+    LOCKED_FINAL_DEFEATED = 3
+    LOCKED_ABORTED = 4

@@ -37,6 +37,9 @@ if TYPE_CHECKING:
 _CONTAINERS = (list, tuple, set, frozenset)
 
 ALLOWED: dict[str, str] = {
+    "events.status_models.AllianceQuestProgress.counters": (
+        "condition counters, not ids; CastleQuestVO.fillFromParams (bundle 52463)"
+    ),
     "alliance.models.bookmarks.AddBookmarkRequest.attacker_ids": "player ids",
     "alliance.models.bookmarks.BookmarkAttackOrder.assigned_attacker_ids": "player ids",
     "alliance.models.bookmarks.DeleteAllianceBookmarkRequest.entries": "request wire shape: [bookmark_id, notify] rows",

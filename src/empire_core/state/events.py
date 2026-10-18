@@ -5,6 +5,7 @@ import time
 from collections.abc import Callable
 from typing import Any, Literal
 
+from pydantic import ValidationError
 from typing_extensions import overload
 
 from empire_core.events.models import (
@@ -40,6 +41,7 @@ from empire_core.events.models import (
     TournamentEvent,
     event_class,
 )
+from empire_core.events.status_models import MobilizationQuestStatus, RaidBossStatus
 from empire_core.gamedata.ids.events import Event
 from empire_core.protocol.js import js_int, js_truthy
 from empire_core.state.base import StateBase
@@ -209,6 +211,51 @@ class EventState(StateBase):
         self._events_updated_at = time.time()
         self._fire(self.on_events_updated, dict(self.events))
 
+    def _handle_aqs(self, data: Any) -> None:
+        """AQSCommand applies slots only to the named mobilisation event (bundle 127419-127420)."""
+        self._expire_events()
+        event = self._sent_event(data.get("EID") if isinstance(data, dict) else None)
+        if not isinstance(event, AllianceMobilizationEvent):
+            return
+        try:
+            status = MobilizationQuestStatus.model_validate(data)
+        except ValidationError:
+            logger.warning("Unreadable alliance quest status; kept previous event status")
+            return
+        updated = event.model_copy(update={"quest_status": status})
+        self.events = {**self.events, event.event_id: updated}
+        self._events_updated_at = time.time()
+        self._fire(self.on_events_updated, dict(self.events))
+
+    def _handle_bse(self, data: Any) -> None:
+        """Retain the applied reply snapshot independently of subsequent bbs broadcasts."""
+        status = self._handle_raid_status(data)
+        if status is not None:
+            self._raid_boss_receipt = (data, status)
+
+    def _raid_status_reply(self, data: Any) -> RaidBossStatus | None:
+        """The status applied for this exact packet payload, under the caller's bse command lock."""
+        with self._lock:
+            receipt = self._raid_boss_receipt
+            return receipt[1] if receipt is not None and receipt[0] is data else None
+
+    def _handle_raid_status(self, data: Any) -> RaidBossStatus | None:
+        """BSECommand and BBSCommand target the running raid event (bundle 127523,127538)."""
+        self._expire_events()
+        event = self.events.get(Event.ALLIANCE_RAIDBOSS_EVENT)
+        if not isinstance(event, RaidBossEvent):
+            return None
+        try:
+            status = RaidBossStatus.model_validate(data).with_previous(event.boss_status)
+        except ValidationError:
+            logger.warning("Unreadable raid boss status; kept previous event status")
+            return None
+        updated = event.model_copy(update={"boss_status": status})
+        self.events = {**self.events, event.event_id: updated}
+        self._events_updated_at = time.time()
+        self._fire(self.on_events_updated, dict(self.events))
+        return status
+
     def _sent_event(self, eid: Any) -> SpecialEvent | None:
         # The id as sent, compared as the client's Map compares keys: 3.0 is 3, "3" is not
         if not isinstance(eid, (int, float)) or isinstance(eid, bool):
@@ -220,6 +267,8 @@ class EventState(StateBase):
         if event is None:
             return
         self.events = {key: value for key, value in self.events.items() if key != eid}
+        if eid == Event.ALLIANCE_RAIDBOSS_EVENT:
+            self._raid_boss_receipt = None
         self._fire(self.on_event_removed, event)
         self._expire_events()
 
@@ -243,6 +292,8 @@ class EventState(StateBase):
                 return
             self.events = {eid: event for eid, event in events.items() if event.end_time > now}
             for event in ended:
+                if event.event_id == Event.ALLIANCE_RAIDBOSS_EVENT:
+                    self._raid_boss_receipt = None
                 self._fire(self.on_event_removed, event)
 
     def get_events(self) -> dict[int, SpecialEvent]:

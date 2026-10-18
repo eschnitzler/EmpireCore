@@ -4,11 +4,14 @@ The running events, as the state keeps them, and their scoreboards.
 
 from __future__ import annotations
 
+import time
 from typing import TYPE_CHECKING
+
+from pydantic import ValidationError
 
 from empire_core.enums import RankingType
 from empire_core.events.titles import get_event_titles
-from empire_core.exceptions import EventHasNoPointsError, EventNotRunningError
+from empire_core.exceptions import CommandError, EventHasNoPointsError, EventNotRunningError, PacketError
 from empire_core.gamedata.ids.events import Event
 from empire_core.ranking.models import (
     GetHighscoreRequest,
@@ -48,6 +51,16 @@ from .models import (
     ScoredEvent,
     SpecialEvent,
     SpecialEventInfoRequest,
+)
+from .status_models import (
+    GetMobilizationContributionsRequest,
+    GetMobilizationContributionsResponse,
+    GetMobilizationStatusRequest,
+    GetRaidBossStatusRequest,
+    GetRaidBossStatusResponse,
+    MobilizationContribution,
+    MobilizationQuestStatus,
+    RaidBossStatus,
 )
 
 # The part of an event's sei entry holding a board's league; other boards use the entry's own LID
@@ -401,3 +414,55 @@ class EventsService(BaseService):
         if found is None:
             raise EventNotRunningError(int(event))
         return found
+
+    def get_mobilization_status(self, *, timeout: float = 5.0) -> MobilizationQuestStatus:
+        """Request alliance mobilisation quest slots and participating member count.
+
+        Requires the running mobilisation event. Successful replies also update its quest_status.
+        Client: ``AllianceMobilizationEventEventVO.requestAllianceQuestStatus`` (bundle 5117).
+        """
+        self._require_running(Event.ALLIANCE_MOBILIZATION_EVENT)
+        return self.request(
+            GetMobilizationStatusRequest(event_id=int(Event.ALLIANCE_MOBILIZATION_EVENT)),
+            MobilizationQuestStatus,
+            timeout=timeout,
+        )
+
+    def get_mobilization_contributions(self, *, timeout: float = 5.0) -> tuple[MobilizationContribution, ...]:
+        """Request player contributions for the current alliance mobilisation.
+
+        The response carries no event identity; a late reply after timeout cannot be identified.
+        Client: ``AllianceMobilizationEventDialogContributions.show`` (bundle 47205), AQPCCommand (127404).
+        """
+        self._require_running(Event.ALLIANCE_MOBILIZATION_EVENT)
+        return self.request(
+            GetMobilizationContributionsRequest(event_id=int(Event.ALLIANCE_MOBILIZATION_EVENT)),
+            GetMobilizationContributionsResponse,
+            timeout=timeout,
+        ).contributions
+
+    def get_raid_boss_status(self, *, timeout: float = 5.0) -> RaidBossStatus:
+        """Request current alliance raid boss, health, cards and walls.
+
+        Requires the raid event. Successful replies and bbs broadcasts update RaidBossEvent.boss_status.
+        An inactive status clears the active boss fields; missing identity/stage/walls preserve prior values
+        exactly where the client does. Replies carry no event or alliance identity, so a late reply after
+        timeout cannot be correlated. Refusals/transport failures raise without changing the event.
+        Client: ``C2SGetAllianceRaidBossStatus`` (bundle 47183-47187), raid parser (76190-76205).
+        """
+        self._require_running(Event.ALLIANCE_RAIDBOSS_EVENT)
+        deadline = time.monotonic() + timeout
+        with self.client.connection.command_lock("bse", timeout=timeout):
+            packet = self.client.request_packet(
+                GetRaidBossStatusRequest(), "bse", timeout=max(0.0, deadline - time.monotonic())
+            )
+            if packet.error_code != 0:
+                raise CommandError("bse", packet.error_code, packet.payload)
+            try:
+                GetRaidBossStatusResponse.model_validate(packet.payload)
+            except ValidationError as error:
+                raise PacketError(f"Could not parse 'bse' response: {error}") from error
+            status = self.client.state._raid_status_reply(packet.payload)
+            if status is None:
+                raise PacketError("The 'bse' reply has no matching applied raid status")
+            return status

@@ -28,6 +28,7 @@ from empire_core.commanders.models.inventory import GemInventoryResponse, Invent
 from empire_core.commanders.models.roster import CommanderRoster
 from empire_core.commanders.models.skills import SkillList
 from empire_core.events.models import SpecialEvent
+from empire_core.events.status_models import RaidBossStatus
 from empire_core.exceptions import StateNotLoadedError
 from empire_core.map.models.world import ServerInfoResponse
 from empire_core.messages.models import MessageInfo
@@ -163,6 +164,7 @@ class StateBase:
         # Running events by id, in the order they started; swapped, never edited
         self.events: dict[int, SpecialEvent] = {}
         self._events_updated_at: float | None = None
+        self._raid_boss_receipt: tuple[dict[str, Any], RaidBossStatus] | None = None
 
         # Active quests by id, the quest book and the daily quests; each replaced, never edited
         self.quests: dict[int, Quest] = {}
