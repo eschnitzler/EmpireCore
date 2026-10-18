@@ -3,7 +3,7 @@ Your castles: resources, buildings, the construction queue, research and the mer
 
 It covers:
 
-- Castle management (list, join, rename)
+- Castle management (list, join, rename, abandon)
 - Resources and production
 - Buildings and the construction queue
 - Tax collection
@@ -30,6 +30,9 @@ import time
 from typing import TYPE_CHECKING
 
 from empire_core.castle.models.actions import (
+    AbandonCastleRequest,
+    AbandonCastleResponse,
+    CancelAbandonCastleRequest,
     JoinAreaRequest,
     RenameCastleRequest,
     SelectCastleRequest,
@@ -88,6 +91,7 @@ from empire_core.enums import (
     CollectableKind,
     ExpansionType,
     Kingdom,
+    MapItemType,
     MercenaryMissionState,
     ResourceCartType,
 )
@@ -111,6 +115,8 @@ _RENAME_RUBIES = 2500
 _FREE_SKIP_SECONDS = 240
 _BUILDING = (BuildingState.BUILD_STOPPED, BuildingState.BUILD_IN_PROGRESS)
 _UPGRADING = (BuildingState.UPGRADE_STOPPED, BuildingState.UPGRADE_IN_PROGRESS)
+# CastleListVO.getMainCastleByKingdomID (bundle line 13864)
+_MAIN_CASTLE_TYPES = (MapItemType.CASTLE, MapItemType.KINGDOM_CASTLE)
 
 
 # a started mission's RD is rounded, and a collect sent while time remains is a ruby skip
@@ -386,6 +392,81 @@ class CastleService(BaseService):
             ),
             timeout=timeout,
         )
+
+    def abandon_castle(self, castle_id: int, *, timeout: float = 5.0) -> AbandonCastleResponse:
+        """
+        Start abandoning one of your castles; it is given up a day later unless cancelled.
+
+        Looks the castle up in the castle list for its kingdom, as :meth:`rename`
+        does. Any castle may be abandoned but the kingdom's main castle; a
+        faction event's main camp, which the client also counts as one, is
+        left to the server. It is free.
+        The castle goes after ``OutpostConst.ABANDON_TIME`` (86400 s) and
+        :meth:`cancel_abandon` keeps it within ``ABANDON_CANCEL_TIME`` (10800 s).
+
+        Args:
+            castle_id: One of your castles, from ``client.castle.get_all()``
+                (``CastleInfo.castle_id``)
+            timeout: Timeout in seconds
+
+        Raises:
+            ValueError: ``castle_id`` is the main castle of its kingdom
+            UnknownCastleError: ``castle_id`` is not one of your castles.
+            CommandError: The server refused, as for a castle held too briefly
+                (``CastleInfo.no_abandon_seconds`` above 0), which the client
+                refuses itself with ``NOT_OWNED_LONG_ENOUGH``
+
+        Client: ``CastleManagementDialog.setDeleteOutpostAndRelocateButton`` (bundle line 24592)
+        offers it for any castle but ``CastleListVO.getMainCastleByKingdomID`` (bundle line
+        13864), the kingdom's castle of type ``CASTLE`` or ``KINGDOM_CASTLE``;
+        ``onAbandonOutpost`` (bundle line 24630) sends ``C2SAbandonOutpostStartVO``;
+        ``OutpostConst`` (dll line 19530)
+
+        Example:
+            reply = client.castle.abandon_castle(12345)
+            print(f"Abandoned in {reply.abandon_seconds} s")
+        """
+        castles = self.get_all(timeout=timeout)
+        castle = next((c for c in castles if c.castle_id == castle_id), None)
+        if castle is None:
+            raise UnknownCastleError(castle_id)
+        main = next(
+            (c for c in castles if c.kingdom_id == castle.kingdom_id and c.castle_type in _MAIN_CASTLE_TYPES), None
+        )
+        if main is castle:
+            raise ValueError(f"castle {castle_id} is the main castle of its kingdom and cannot be abandoned")
+        return self.request(
+            AbandonCastleRequest(castle_id=castle_id, kingdom_id=castle.kingdom_id),
+            AbandonCastleResponse,
+            timeout=timeout,
+        )
+
+    def cancel_abandon(self, castle_id: int, *, timeout: float = 5.0) -> None:
+        """
+        Keep a castle :meth:`abandon_castle` started to give up.
+
+        Looks the castle up in the castle list for its kingdom. The client
+        offers it while ``CastleInfo.cancel_abandon_seconds`` is above 0.
+
+        Args:
+            castle_id: One of your castles, from ``client.castle.get_all()``
+                (``CastleInfo.castle_id``)
+            timeout: Timeout in seconds
+
+        Raises:
+            UnknownCastleError: ``castle_id`` is not one of your castles.
+            CommandError: The server refused.
+
+        Client: ``CastleManagementDialog.onDeleteOutpostClick`` and ``onCancelAbandoning``
+        (bundle lines 24624, 24629) send ``C2SAbandonOutpostCancelVO``
+
+        Example:
+            client.castle.cancel_abandon(12345)
+        """
+        castle = next((c for c in self.get_all(timeout=timeout) if c.castle_id == castle_id), None)
+        if castle is None:
+            raise UnknownCastleError(castle_id)
+        self.execute(CancelAbandonCastleRequest(castle_id=castle_id, kingdom_id=castle.kingdom_id), timeout=timeout)
 
     # =========================================================================
     # Resource Operations

@@ -29,8 +29,22 @@ kingdom from the castle list the server sent at login
 raises `UnknownCastleError`.
 
 That covers `select`, `join`, `get_resources`, `get_details`, `rename`,
+`abandon_castle`, `cancel_abandon`,
 `send_resources`, `transfer_units_to_kingdom`, `transfer_goods_to_kingdom`, the `client.army` methods and
 `client.alliance.donate`.
+
+### Abandoning a castle
+
+```python
+reply = client.castle.abandon_castle(castle_id=12345)  # free; ValueError for a kingdom's main castle
+print(reply.abandon_seconds, reply.cancel_seconds)     # until it goes (a day), left to cancel (3 hours)
+client.castle.cancel_abandon(castle_id=12345)           # keeps it while cancel time is left
+```
+
+The castle list's `CastleInfo.abandon_outpost_seconds`, `cancel_abandon_seconds`
+and `no_abandon_seconds` show a running abandon and how long until a castle has
+been held long enough to abandon. Opening the gate and peace mode cost rubies
+and are not in the library.
 
 ## The joined castle
 
