@@ -451,7 +451,7 @@ class Console:
         started = time.monotonic()
         try:
             self.client.login()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - any failure to log in is shown in the console, not lost on its thread
             self._queue_output(f"✗ {type(e).__name__}: {e}\n")
         else:
             self._queue_output(f"✓ logged in as {self.who} in {duration_label(time.monotonic() - started)}\n")
