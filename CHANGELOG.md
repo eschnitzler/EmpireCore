@@ -2,6 +2,63 @@
 
 <!-- version list -->
 
+## v0.57.0 (2026-10-18)
+
+### Bug Fixes
+
+- **alliance**: Preserve member timers when applying alliance pushes
+  ([`bc0f9cf`](https://github.com/eschnitzler/EmpireCore/commit/bc0f9cf59186b8ff22c3da0b384cefabc0de4133))
+
+- **alliance**: Rebind member activity after partial settings updates
+  ([`3d5b124`](https://github.com/eschnitzler/EmpireCore/commit/3d5b1243f0380a19a0f3a974672cd7b766318ac6))
+
+- **castle**: Reject raw construction queue containers
+  ([`db6f3d4`](https://github.com/eschnitzler/EmpireCore/commit/db6f3d4e4b804d0509e552757758faf920ba489b))
+
+- **events**: Preserve quest context across event refreshes
+  ([`3dce351`](https://github.com/eschnitzler/EmpireCore/commit/3dce351ccd528f5ec6913ea5c08c6085229edf49))
+
+### Features
+
+- **alliance**: Add settings and gift collection with scoped state
+  ([`5f93515`](https://github.com/eschnitzler/EmpireCore/commit/5f935151843ea3b9b0052393ffa243541d8be45e))
+
+- **alliance**: Apply fame buff and emblem pushes to kept alliance
+  ([`0a56b67`](https://github.com/eschnitzler/EmpireCore/commit/0a56b67988060b5982f8d5937dbefd8370a0af46))
+
+- **alliance**: Found alliances with explicit premium consent
+  ([`ac24d45`](https://github.com/eschnitzler/EmpireCore/commit/ac24d458e909d90c255b4035cbda0c2ed41dbf2d))
+
+- **castle**: Complete construction item controls
+  ([`ecd1b50`](https://github.com/eschnitzler/EmpireCore/commit/ecd1b50215c1d13f8113034a359cc025c3e8a9a8))
+
+- **events**: Add Grand Tournament quest controls
+  ([`0c8b320`](https://github.com/eschnitzler/EmpireCore/commit/0c8b3208149206ba835c391fd3e5f56a7b22adf5))
+
+- **events**: Add raid boss selection and abort controls
+  ([`46ca4c7`](https://github.com/eschnitzler/EmpireCore/commit/46ca4c7e4882f25febb65d860ceb610d317190c2))
+
+- **protocol**: Export alliance founding models
+  ([`a90b3f3`](https://github.com/eschnitzler/EmpireCore/commit/a90b3f313648bee02f1aad7be033f40f0bb9bec1))
+
+- **protocol**: Export alliance settings and gift models
+  ([`cbe643d`](https://github.com/eschnitzler/EmpireCore/commit/cbe643db49a3d0c7bce30da6afb97e16da4cc95d))
+
+- **protocol**: Export construction control models
+  ([`9a49aa4`](https://github.com/eschnitzler/EmpireCore/commit/9a49aa49e744e2c25ec822819d6722e928860c44))
+
+- **protocol**: Export Grand Tournament quest action models
+  ([`81dad06`](https://github.com/eschnitzler/EmpireCore/commit/81dad06838e5bac49563ab9e04ebd50e2316e9e9))
+
+- **protocol**: Export raid action models
+  ([`53f0b89`](https://github.com/eschnitzler/EmpireCore/commit/53f0b8988f4280fbf9a96ba74e6692dc447560f5))
+
+### Testing
+
+- **alliance**: Type partial member update fixtures
+  ([`eda9b42`](https://github.com/eschnitzler/EmpireCore/commit/eda9b42fafa3157484af4f969b475e33ce1d2142))
+
+
 ## v0.56.0 (2026-10-18)
 
 ### Bug Fixes
