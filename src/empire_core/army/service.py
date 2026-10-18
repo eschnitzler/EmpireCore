@@ -11,6 +11,7 @@ Actions raise ``CommandError`` when the server refuses them; a refused join rais
 from __future__ import annotations
 
 from collections.abc import Mapping
+from typing import TYPE_CHECKING
 
 from empire_core.army.models.hospital import (
     CancelHealRequest,
@@ -18,6 +19,9 @@ from empire_core.army.models.hospital import (
     DismissWoundedRequest,
     HealAllRequest,
     HealUnitsRequest,
+    HospitalFlags,
+    HospitalFlagsRequest,
+    HospitalFlagsResponse,
     SkipHealRequest,
     WoundedUnits,
 )
@@ -26,14 +30,29 @@ from empire_core.army.models.production import (
     DoubleProductionSlotRequest,
     GetProductionListRequest,
     GetProductionListResponse,
+    MoveProductionSlotRequest,
+    MoveProductionSlotResponse,
     ProduceUnitsRequest,
     ProductionList,
+    SetRecruitmentModeRequest,
 )
-from empire_core.army.models.units import DismissUnitsRequest, GetUnitsRequest, GetUnitsResponse
+from empire_core.army.models.units import (
+    DismissUnitsRequest,
+    GetUnitsRequest,
+    GetUnitsResponse,
+    StoreSoldiersRequest,
+    StoreSoldiersResponse,
+    TakeSoldiersRequest,
+    TakeSoldiersResponse,
+    UnitInventory,
+)
 from empire_core.castle.models.actions import SelectCastleRequest, SelectCastleResponse
-from empire_core.enums import Kingdom, ProductionListId, SlotType
+from empire_core.enums import Kingdom, ProductionListId, RecruitmentMode, SlotType
 from empire_core.gamedata import UnitOrTool
 from empire_core.services.base import BaseService
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import Unit
 
 
 class ArmyService(BaseService):
@@ -123,6 +142,54 @@ class ArmyService(BaseService):
         self._join_castle(castle_id, timeout)
         request = DismissUnitsRequest(wod_id=wod_id, amount=amount, from_stronghold=1 if from_stronghold else 0)
         self.execute(request, timeout=timeout)
+
+    # =========================================================================
+    # Stronghold
+    # =========================================================================
+
+    def store_in_stronghold(self, castle_id: int, unit: Unit, amount: int, *, timeout: float = 5.0) -> UnitInventory:
+        """
+        Store soldiers of the castle in its stronghold, where they are hidden from attacks.
+
+        The client offers at most the stronghold's free space or the soldiers at home, whichever is
+        less, and nothing once the stronghold is full; the server refuses more.
+
+        Args:
+            castle_id: One of your castles, a ``Castle.id`` from ``client.state.get_castles()``
+            unit: The soldier to store
+            amount: How many to store
+            timeout: Timeout in seconds
+
+        Returns:
+            The castle's unit inventories after the move
+
+        Client: ``CastleInventoryStrongholdListItemComponent.onClickUnit`` (bundle line 84422), capped
+        by ``CastleMilitaryData.currentHiddenSoldierSpace`` and ``isStrongholdFull`` (bundle lines
+        138864-138866); the reply goes to ``parse_GUI`` (``STSCommand``, bundle line 125692)
+        """
+        self._join_castle(castle_id, timeout)
+        request = StoreSoldiersRequest(wod_id=unit, amount=amount)
+        return self.request(request, StoreSoldiersResponse, timeout=timeout)
+
+    def take_from_stronghold(self, castle_id: int, unit: Unit, amount: int, *, timeout: float = 5.0) -> UnitInventory:
+        """
+        Take soldiers of the castle out of its stronghold.
+
+        Args:
+            castle_id: One of your castles, a ``Castle.id`` from ``client.state.get_castles()``
+            unit: The soldier to take out
+            amount: How many to take out
+            timeout: Timeout in seconds
+
+        Returns:
+            The castle's unit inventories after the move
+
+        Client: ``StrongholdInventoryListItemComponent.takeSoldiers`` (bundle line 84462); the reply
+        goes to ``parse_GUI`` (``TASCommand``, bundle line 125707)
+        """
+        self._join_castle(castle_id, timeout)
+        request = TakeSoldiersRequest(wod_id=unit, amount=amount)
+        return self.request(request, TakeSoldiersResponse, timeout=timeout)
 
     # =========================================================================
     # Production
@@ -252,6 +319,69 @@ class ArmyService(BaseService):
         )
         self.execute(request, timeout=timeout)
 
+    def move_production_slot(
+        self,
+        castle_id: int,
+        list_id: ProductionListId,
+        old_position: int,
+        new_position: int,
+        *,
+        timeout: float = 5.0,
+    ) -> ProductionList:
+        """
+        Move a queued slot to another position of its list.
+
+        Positions are the queue's: a ``ProductionSlot.position``, or a ``HospitalSlot.position`` for
+        ``ProductionListId.HOSPITAL``, whose slots the client lets you drag too. The slot producing
+        now (``ProductionList.current``) is not in the queue and does not move. The client drags
+        only a slot that is neither free nor locked, and never onto a locked one.
+
+        Args:
+            castle_id: One of your castles, a ``Castle.id`` from ``client.state.get_castles()``
+            list_id: The list the slot is in
+            old_position: The slot's position now
+            new_position: The position it moves to
+            timeout: Timeout in seconds
+
+        Returns:
+            The list after the move
+
+        Client: ``UnitBuildListComponent.requestMoveFromServer`` (bundle line 50938) sends the dragged
+        slot's position before and after the drop, both indexes into ``QS`` (``parseMilitaryList``) or
+        ``PIDL`` (``parseList``, bundle lines 138899, 138907); ``initBuildListItem`` and
+        ``switchItemPos`` (bundle lines 16876, 16923) decide what drags; the reply goes to ``parse_SPL``
+        (``MUPCommand``, bundle line 125631)
+        """
+        self._join_castle(castle_id, timeout)
+        request = MoveProductionSlotRequest(list_id=list_id, old_position=old_position, new_position=new_position)
+        return self.request(request, MoveProductionSlotResponse, timeout=timeout).production_list
+
+    def set_recruitment_mode(
+        self, castle_id: int, list_id: ProductionListId, mode: RecruitmentMode, *, timeout: float = 5.0
+    ) -> None:
+        """
+        Set the order a list works through its queue, ``ProductionList.recruitment_mode``.
+
+        Args:
+            castle_id: One of your castles, a ``Castle.id`` from ``client.state.get_castles()``
+            list_id: SOLDIERS, TOOLS or AUXILIARIES
+            mode: The mode to set
+            timeout: Timeout in seconds
+
+        Raises:
+            ValueError: The list is the hospital, which has no recruitment mode
+
+        Client: ``CastleRecruitDialogUnits.onClick`` (bundle line 23686) switches the mode and sends
+        ``C2SSetRecruitmentModeVO``; the server answers ``srm`` (``SRMCommand``, registered at bundle line
+        120368), which the client does not read (bundle line 126787). ``parse_SPL`` reads ``RM`` only
+        for the soldier, tool and auxiliary lists (bundle line 138830)
+        """
+        if list_id == ProductionListId.HOSPITAL:
+            raise ValueError("the hospital list has no recruitment mode")
+        kingdom_id = self._join_castle(castle_id, timeout)
+        request = SetRecruitmentModeRequest(list_id=list_id, kingdom_id=kingdom_id, castle_id=castle_id, mode=mode)
+        self.execute(request, timeout=timeout)
+
     # =========================================================================
     # Hospital
     # =========================================================================
@@ -366,3 +496,37 @@ class ArmyService(BaseService):
         self._join_castle(castle_id, timeout)
         entries = [WoundedUnits(wod_id=wod_id, amount=amount) for wod_id, amount in units.items()]
         self.execute(DismissManyWoundedRequest(units=entries), timeout=timeout)
+
+    def get_hospital_flags(self, castle_id: int, *, timeout: float = 5.0) -> HospitalFlags:
+        """
+        Get the hospital flags of a castle: whether it admits wounded ruby units.
+
+        Args:
+            castle_id: One of your castles, a ``Castle.id`` from ``client.state.get_castles()``
+
+        Client: ``CastleRecruitDialogHospital.show`` (bundle line 83456) sends ``C2SHospitalFlagsVO``
+        with ``HRF`` -1
+        """
+        kingdom_id = self._join_castle(castle_id, timeout)
+        request = HospitalFlagsRequest(kingdom_id=kingdom_id, castle_id=castle_id)
+        return self.request(request, HospitalFlagsResponse, timeout=timeout)
+
+    def set_hospital_flags(self, castle_id: int, *, admit_ruby_units: bool, timeout: float = 5.0) -> HospitalFlags:
+        """
+        Set whether a castle's hospital admits wounded ruby units.
+
+        Args:
+            castle_id: One of your castles, a ``Castle.id`` from ``client.state.get_castles()``
+            admit_ruby_units: Admit wounded ruby units, the hospital dialog's checkbox
+            timeout: Timeout in seconds
+
+        Returns:
+            The flags after the change
+
+        Client: ``CastleRecruitDialogHospital.toggleRubyBlock`` (bundle line 83605)
+        """
+        kingdom_id = self._join_castle(castle_id, timeout)
+        request = HospitalFlagsRequest(
+            kingdom_id=kingdom_id, castle_id=castle_id, admit_ruby_units=1 if admit_ruby_units else 0
+        )
+        return self.request(request, HospitalFlagsResponse, timeout=timeout)
