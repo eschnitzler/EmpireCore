@@ -134,7 +134,7 @@ class TestOwnAlliance:
         update = alliance(N="Renamed", MF=None, IF=None, SRFU=None, HRFU=None)
         for key in ("AA", "AW", "AP", "STO"):
             del update["A"][key]
-        state.update_from_packet("acn", update)
+        state.update_from_packet("ain", update)
 
         own = state.get_own_alliance()
         assert own.name == "Renamed"

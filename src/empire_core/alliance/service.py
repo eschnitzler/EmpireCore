@@ -76,6 +76,7 @@ from empire_core.alliance.models.forum import (
     SetForumVisibilityResponse,
     forum_text,
 )
+from empire_core.alliance.models.gifts import AllianceGift, CollectAllianceGiftRequest, CollectAllianceGiftResponse
 from empire_core.alliance.models.help import (
     AllianceHelpListResponse,
     AllianceHelpReceived,
@@ -117,14 +118,29 @@ from empire_core.alliance.models.membership import (
     SetLookingForMembersRequest,
 )
 from empire_core.alliance.models.search import AllianceSearchResult, SearchAllianceRequest, SearchAllianceResponse
+from empire_core.alliance.models.settings import (
+    ALLIANCE_RENAME_RUBIES,
+    ChangeAllianceDescriptionRequest,
+    ChangeAllianceDescriptionResponse,
+    ChangeAllianceLanguageRequest,
+    ChangeAllianceLanguageResponse,
+    ChangeAllianceNameRequest,
+    ChangeAllianceNameResponse,
+    SetAllianceEmblemRequest,
+    SetAllianceEmblemResponse,
+    alliance_name,
+    settings_alliance_payload,
+)
 from empire_core.enums import AllianceRank, BookmarkType, DiplomacyStatus, ForumRankGroup, GGEError, HelpType, Kingdom
 from empire_core.exceptions import CommandError, NotInAllianceError, PacketError
+from empire_core.map.models.owners import AllianceCrest
 from empire_core.protocol.base import BaseRequest, BaseResponse
 from empire_core.services.base import BaseService
 from empire_core.utils.callbacks import Event
 
 if TYPE_CHECKING:
     from empire_core.client.client import EmpireClient
+    from empire_core.gamedata import AllianceCrestColor, AllianceCrestLayout
 
 logger = logging.getLogger(__name__)
 
@@ -188,6 +204,144 @@ class AllianceService(BaseService):
     def chat(self) -> list[ChatMessageData]:
         """The alliance chat history, oldest first; a copy of the list, of read-only messages."""
         return self.client.state.get_alliance_chat()
+
+    def set_description(self, text: str, *, timeout: float = 5.0) -> AllianceInfo:
+        """Change the alliance description, returning echoed alliance details.
+
+        Text follows the client's trim, double encoding and 1000-character wire limit.
+        Client: CastleChangeDescriptionDialog.sendDescription (bundle 69775–69778).
+        """
+        return self._change_settings(
+            ChangeAllianceDescriptionRequest(text=text, text_type=1), ChangeAllianceDescriptionResponse, timeout=timeout
+        )
+
+    def set_announcement(self, text: str, *, timeout: float = 5.0) -> AllianceInfo:
+        """Change the alliance announcement, returning echoed alliance details.
+
+        Client: CastleChangeAnouncementDialog.sendDescription (bundle 70504).
+        """
+        return self._change_settings(
+            ChangeAllianceDescriptionRequest(text=text, text_type=0), ChangeAllianceDescriptionResponse, timeout=timeout
+        )
+
+    def rename(self, name: str, *, spend_rubies: bool = False, timeout: float = 5.0) -> AllianceInfo:
+        """Rename the alliance; a fresh free rename avoids the 10,000-ruby charge.
+
+        Without consent this first requests alliance details to check free renames.
+        Client: CastleNameAllianceDialog.showLoaded (bundle 69791–69792),
+        AllianceConst.RENAME_COST_C2 (dll line 18805).
+        """
+        alliance_name(name)
+        alliance_id = self._require_local_alliance_id()
+        revision = self.client.state.membership_revision
+        with self.client.connection.command_lock("acn", timeout=timeout):
+            if not spend_rubies:
+                details = self.get_alliance_info(alliance_id, timeout=timeout)
+                self._require_spend_rubies(
+                    spend_rubies,
+                    f"renaming the alliance costs {ALLIANCE_RENAME_RUBIES} rubies"
+                    if details.free_renames == 0
+                    else None,
+                )
+            self.client.state.apply_alliance_settings({}, membership_revision=revision, alliance_id=alliance_id)
+            return self._change_settings(
+                ChangeAllianceNameRequest(name=name),
+                ChangeAllianceNameResponse,
+                membership=(alliance_id, revision),
+                timeout=timeout,
+            )
+
+    def set_language(self, language: str, *, timeout: float = 5.0) -> AllianceInfo:
+        """Set the alliance language code, returning echoed alliance details.
+
+        Client: CastleAllianceDialogManagement.onLanguageSelect (bundle 69621).
+        """
+        return self._change_settings(
+            ChangeAllianceLanguageRequest(language=language), ChangeAllianceLanguageResponse, timeout=timeout
+        )
+
+    def set_emblem(
+        self, layout_id: AllianceCrestLayout | int, color_ids: list[AllianceCrestColor | int], *, timeout: float = 5.0
+    ) -> AllianceCrest:
+        """Save an available alliance crest, returning the acknowledged selection.
+
+        Temporary layouts must still be held. The server pushes authoritative crest
+        state separately; this acknowledgment does not fabricate a crest update.
+        Client: AllianceCrestCreationDialog.update/doSave (bundle 45205–45211),
+        C2SSetAllianceEmblemVO (69672–69674), SAECommand (122004).
+        """
+        alliance_id = self._require_local_alliance_id()
+        revision = self.client.state.membership_revision
+        data = self._require_game_data()
+        layout = data.alliance_crest_layouts.get(layout_id)
+        if layout is None:
+            raise ValueError(f"unknown alliance crest layout {layout_id}")
+        if len(color_ids) != layout.color_count or any(color not in data.alliance_crest_colors for color in color_ids):
+            raise ValueError("the crest needs one known colour for each layout colour")
+        if layout.max_duration > 0:
+            details = self.get_alliance_info(alliance_id, timeout=timeout)
+            if not any(row.layout_id == layout_id and row.seconds_left > 0 for row in details.crest_layouts):
+                raise ValueError("the temporary crest layout is not currently held")
+        self.client.state.apply_alliance_settings({}, membership_revision=revision, alliance_id=alliance_id)
+        with self._own_alliance():
+            self.client.state.apply_alliance_settings({}, membership_revision=revision, alliance_id=alliance_id)
+            self.request(
+                SetAllianceEmblemRequest(layout_id=layout_id, color_ids=color_ids),
+                SetAllianceEmblemResponse,
+                timeout=timeout,
+            )
+        self.client.state.apply_alliance_settings({}, membership_revision=revision, alliance_id=alliance_id)
+        return AllianceCrest(layout_id=layout_id, color_ids=list(color_ids))
+
+    def _change_settings(
+        self,
+        request: BaseRequest,
+        response_type: type[GetAllianceInfoResponse],
+        *,
+        membership: tuple[int, int] | None = None,
+        timeout: float,
+    ) -> AllianceInfo:
+        with self.client.connection.command_lock(request.command, timeout=timeout):
+            alliance_id, revision = membership or (
+                self._require_local_alliance_id(),
+                self.client.state.membership_revision,
+            )
+            with self._own_alliance():
+                self.client.state.apply_alliance_settings({}, membership_revision=revision, alliance_id=alliance_id)
+                response, payload = self._request_membership(request, response_type, timeout=timeout)
+            alliance = _echoed(response.alliance, request.command)
+            if alliance.alliance_id != alliance_id:
+                raise PacketError(f"'{request.command}' reply names a different alliance")
+            self.client.state.apply_alliance_settings(
+                settings_alliance_payload(request.command, payload),
+                membership_revision=revision,
+                alliance_id=alliance_id,
+                command=request.command,
+                payload=payload,
+            )
+            return alliance
+
+    @property
+    def gifts(self) -> list[AllianceGift]:
+        """Your unexpired alliance gifts, soonest expiration first; received through pushes."""
+        return self.client.state.get_alliance_gifts()
+
+    def collect_gift(self, gift_id: int, *, timeout: float = 5.0) -> CollectAllianceGiftResponse:
+        """Collect a gift and return the unpacked rewards.
+
+        Client: AllianceGiftScrollItem.onMouseClick (bundle 105236),
+        AGCCommand (121823) and CastleAllianceGiftData.parse_AGC (131937–131939).
+        """
+        alliance_id = self._require_local_alliance_id()
+        revision = self.client.state.membership_revision
+        with self._own_alliance():
+            response = self.request(
+                CollectAllianceGiftRequest(gift_id=gift_id), CollectAllianceGiftResponse, timeout=timeout
+            )
+        self.client.state.apply_alliance_gift_collection(
+            response.gift_id, membership_revision=revision, alliance_id=alliance_id
+        )
+        return response
 
     def create_topic(self, name: str, text: str, visible_ranks: list[ForumRankGroup], *, timeout: float = 5.0) -> None:
         """Create a forum topic with explicit visibility groups and an opening post.
@@ -266,7 +420,11 @@ class AllianceService(BaseService):
             CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
         """
         request = GetAllianceInfoRequest(alliance_id=alliance_id)
-        return _echoed(self.request(request, GetAllianceInfoResponse, timeout=timeout).alliance, "ain")
+        with self.client.connection.command_lock("ain", timeout=timeout):
+            if self.local_alliance_id == alliance_id:
+                with self.client.state.alliance_info_read(alliance_id):
+                    return _echoed(self.request(request, GetAllianceInfoResponse, timeout=timeout).alliance, "ain")
+            return _echoed(self.request(request, GetAllianceInfoResponse, timeout=timeout).alliance, "ain")
 
     def get_members(self, alliance_id: int, *, timeout: float = 5.0) -> list[AllianceMember]:
         """
