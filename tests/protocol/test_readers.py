@@ -46,6 +46,11 @@ class TestReadableList:
             readable_list(Row, [{"ID": 1}, {"ID": "x"}, {"ID": "y"}, None], warn=logger, what="test rows")
         assert caplog.text.count("Skipped 2/4 unreadable test rows, first: {'ID': 'x'}") == 1
 
+    def test_the_warning_names_the_field_that_failed(self, caplog):
+        with caplog.at_level(logging.WARNING, logger="tests.readers"):
+            readable_list(Row, [{"ID": "x"}], warn=logger)
+        assert "first: {'ID': 'x'} (ID: Input should be a valid integer" in caplog.text
+
     def test_null_and_unkept_entries_are_skipped_quietly(self, caplog):
         with caplog.at_level(logging.WARNING, logger="tests.readers"):
             rows = readable_list(Row, [{"ID": 1}, None, {"ID": 0}], keep=lambda e: e["ID"], warn=logger)
