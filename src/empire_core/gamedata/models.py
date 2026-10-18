@@ -1006,12 +1006,33 @@ class AllianceBuffDef(EffectSpecRow):
     @model_validator(mode="before")
     @classmethod
     def _read_costs(cls, row: object, info: ValidationInfo) -> object:
-        if not isinstance(row, dict) or "costs" in row:
+        if not isinstance(row, dict):
             return row
-        if "costC2" in row and js_parse_int(row["costC2"]) is None:
-            raise ValueError("alliance ruby cost is unreadable")
+        columns = {key: value for key, value in row.items() if key.startswith(_XML_COST_PREFIX) and key != "costs"}
+        if not columns:
+            return row
+        if "costs" in row:
+            raise ValueError("alliance cost columns cannot be combined with normalized costs")
+        for value in columns.values():
+            amount = js_number_or_none(value)
+            if (
+                isinstance(value, bool)
+                or isinstance(value, str)
+                and not value.strip()
+                or amount is None
+                or not math.isfinite(amount)
+                or amount < 0
+            ):
+                raise ValueError("alliance cost is unreadable")
         currency_ids = (info.context or {}).get("currency_ids", {})
         return {**row, "costs": Collectable.from_columns(row, _XML_COST_PREFIX, currency_ids)}
+
+    @field_validator("costs")
+    @classmethod
+    def _valid_costs(cls, costs: tuple[Collectable, ...]) -> tuple[Collectable, ...]:
+        if any(not math.isfinite(cost.amount) or cost.amount < 0 for cost in costs):
+            raise ValueError("alliance costs need finite nonnegative amounts")
+        return costs
 
 
 class GlobalEffectDef(EffectSpecRow):
