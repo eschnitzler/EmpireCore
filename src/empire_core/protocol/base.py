@@ -245,6 +245,10 @@ class GGECommand:
     MCU = "mcu"  # Cancel production
     GUI = "gui"  # Get units inventory
     DUP = "dup"  # Delete units
+    STS = "sts"  # Store soldiers in the stronghold
+    TAS = "tas"  # Take soldiers from the stronghold
+    MUP = "mup"  # Move a production slot
+    SRM = "srm"  # Set a list's recruitment mode
 
     # Hospital
     HRU = "hru"  # Heal units
@@ -307,7 +311,7 @@ class GGECommand:
     # Settings
     MVF = "mvf"  # Movement filter settings
     OPT = "opt"  # Misc options
-    HFL = "hfl"  # Hospital filter settings
+    HFL = "hfl"  # Hospital flags
 
     # Misc
     TXI = "txi"  # Tax info

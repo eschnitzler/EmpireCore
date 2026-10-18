@@ -28,10 +28,13 @@ from empire_core.protocol.models import (
     HealAllRequest,
     HealAllResponse,
     HealUnitsRequest,
+    HospitalFlags,
+    HospitalFlagsRequest,
     ProduceUnitsRequest,
     ProduceUnitsResponse,
     ProductionListId,
     ProductionSlot,
+    RecruitmentMode,
     SkipHealRequest,
     SlotType,
     WoundedUnits,
@@ -202,7 +205,8 @@ class TestProductionList:
             (2, 0, 0, True),
         ]
         assert (reply.current.position, reply.current.wod_id, reply.current.remaining_seconds) == (0, 621, 250)
-        assert (reply.recruitment_mode, reply.remaining_seconds) == (1, 900)
+        assert (reply.recruitment_mode, reply.remaining_seconds) == (RecruitmentMode.FINISH_STACKS_EQUALLY, 900)
+        assert isinstance(reply.recruitment_mode, RecruitmentMode)
 
     def test_hospital_list(self):
         reply = GetProductionListResponse.model_validate(
@@ -250,6 +254,19 @@ class TestReplies:
     def test_bou_reply(self):
         reply = DoubleProductionSlotResponse.model_validate({"spl": {"LID": 0}, "gcu": {"C2": 10}})
         assert reply.production_list is not None and reply.production_list.list_id == 0
+
+
+class TestHospitalFlags:
+    def test_a_reply_for_another_castle_is_not_this_requests(self):
+        request = HospitalFlagsRequest(kingdom_id=Kingdom.ICE, castle_id=12345)
+
+        assert request.accepts_reply({"KID": 2, "AID": "12345", "HRF": 0})
+        assert not request.accepts_reply({"KID": 0, "AID": 12345, "HRF": 0})
+        assert not request.accepts_reply({"KID": 2, "AID": 777, "HRF": 0})
+
+    @pytest.mark.parametrize("hrf,admits", [(1, True), (0, False), ("1", True), (None, False)])
+    def test_hrf_reads_as_the_client_tests_it(self, hrf, admits):
+        assert HospitalFlags.model_validate({"KID": 0, "AID": 1, "HRF": hrf}).admits_ruby_units is admits
 
 
 def test_an_empty_or_zero_rut_array_reads_as_locked():
