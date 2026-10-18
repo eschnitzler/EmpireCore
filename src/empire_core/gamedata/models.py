@@ -1014,10 +1014,11 @@ class AllianceBuffDef(EffectSpecRow):
         if "costs" in row:
             raise ValueError("alliance cost columns cannot be combined with normalized costs")
         for value in columns.values():
+            if not isinstance(value, str | int | float) or isinstance(value, bool):
+                raise ValueError("alliance costs need scalar numeric values")
             amount = js_number_or_none(value)
             if (
-                isinstance(value, bool)
-                or isinstance(value, str)
+                isinstance(value, str)
                 and not value.strip()
                 or amount is None
                 or not math.isfinite(amount)
