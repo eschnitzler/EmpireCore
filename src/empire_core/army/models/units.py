@@ -3,6 +3,8 @@
 Commands:
 - gui: Get units inventory
 - dup: Dismiss units
+- sts: Store soldiers in the stronghold
+- tas: Take soldiers out of the stronghold
 
 AttackWave and WaveFlank are the waves a cra attack sends.
 """
@@ -128,6 +130,74 @@ class DismissUnitsResponse(BaseResponse):
 
 
 # =============================================================================
+# STS / TAS - Stronghold
+# =============================================================================
+
+
+class StoreSoldiersRequest(BaseRequest):
+    """
+    Store soldiers of the joined castle in its stronghold.
+
+    Command: sts
+    Payload: {"WID": wod_id, "A": amount}
+
+    The client offers at most the stronghold's free space or the soldiers at home, whichever is
+    less, and nothing once the stronghold is full (bundle lines 84422, 138864-138866).
+
+    Client: ``C2SStoreSoldiersVO`` (bundle line 84439), sent by
+    ``CastleInventoryStrongholdListItemComponent.storeSoldiers`` (bundle line 84429)
+    """
+
+    command = "sts"
+
+    wod_id: int = Field(validation_alias="WID")
+    amount: int = Field(validation_alias="A")
+
+
+class StoreSoldiersResponse(BaseResponse, UnitInventory):
+    """
+    The joined castle's unit inventories after an ``sts``: the whole reply is a ``gui`` block.
+
+    Command: sts
+
+    Client: ``STSCommand.executeCommand`` (bundle line 125692) hands the reply to
+    ``CastleMilitaryData.parse_GUI`` (bundle line 138833)
+    """
+
+    command = "sts"
+
+
+class TakeSoldiersRequest(BaseRequest):
+    """
+    Take soldiers of the joined castle out of its stronghold.
+
+    Command: tas
+    Payload: {"WID": wod_id, "A": amount}
+
+    Client: ``C2STakeSoldiersVO`` (bundle line 84480), sent by
+    ``StrongholdInventoryListItemComponent.takeSoldiers`` (bundle line 84462)
+    """
+
+    command = "tas"
+
+    wod_id: int = Field(validation_alias="WID")
+    amount: int = Field(validation_alias="A")
+
+
+class TakeSoldiersResponse(BaseResponse, UnitInventory):
+    """
+    The joined castle's unit inventories after a ``tas``: the whole reply is a ``gui`` block.
+
+    Command: tas
+
+    Client: ``TASCommand.executeCommand`` (bundle line 125707) hands the reply to
+    ``CastleMilitaryData.parse_GUI`` (bundle line 138833)
+    """
+
+    command = "tas"
+
+
+# =============================================================================
 # CRA - Create Attack
 # =============================================================================
 
@@ -193,4 +263,8 @@ __all__ = [
     "GetUnitsResponse",
     "DismissUnitsRequest",
     "DismissUnitsResponse",
+    "StoreSoldiersRequest",
+    "StoreSoldiersResponse",
+    "TakeSoldiersRequest",
+    "TakeSoldiersResponse",
 ]

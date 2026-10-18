@@ -17,6 +17,18 @@ class ProductionListId(IntEnum):
     AUXILIARIES = 3
 
 
+class RecruitmentMode(IntEnum):
+    """
+    The order a soldier, tool or auxiliary list works through its queue.
+
+    Client: ``RecruitmentConst.FINISH_FIRST_STACK_MODE_ID`` / ``FINISH_STACKS_EQUALLY_MODE_ID``
+    (dll line 19660)
+    """
+
+    FINISH_FIRST_STACK = 0
+    FINISH_STACKS_EQUALLY = 1
+
+
 class SlotType(str, Enum):
     """
     Whether a slot is the one producing now or one waiting in the queue.
