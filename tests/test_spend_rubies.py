@@ -13,6 +13,7 @@ import empire_core
 from empire_core.services import BaseService
 
 RUBY_REQUESTS = {
+    "SkipDungeonCooldownRequest": "sdc, ruby full skip (SkippableCooldownDialog.skipWithRubies, bundle28197–28199)",
     "CancelGrandTournamentQuestRequest": "caaq, quest cancelCostC2 defaults199 (current bundle111092)",
     "SkipGrandTournamentCooldownRequest": "scq, getCooldownSkipCosts returns999 (current bundle34981)",
     "FoundAllianceRequest": "afo, non-premium account base C2 price (bundle 44124; dll 18805)",
