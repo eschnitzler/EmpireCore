@@ -13,6 +13,8 @@ import empire_core
 from empire_core.services import BaseService
 
 RUBY_REQUESTS = {
+    "CancelGrandTournamentQuestRequest": "caaq, quest cancelCostC2 defaults199 (current bundle111092)",
+    "SkipGrandTournamentCooldownRequest": "scq, getCooldownSkipCosts returns999 (current bundle34981)",
     "DoubleProductionSlotRequest": "bou, always rubies (getUnitDoublingCosts, bundle line 23546)",
     "SkipHealRequest": "hss, always rubies (updateSkipTooltip, bundle line 83582)",
     "HealAllRequest": "hra, its C2 price (openReviveAllDialog, bundle lines 83509-83513)",
