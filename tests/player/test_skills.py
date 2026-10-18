@@ -59,8 +59,8 @@ class TestPoints:
         skills = client.player.skills
         assert skills is not None
 
-        assert skills.spent_points(client.game_data) == 6
-        assert skills.available_points(client.game_data) == 4
+        assert skills.spent_points(game_data=client.game_data) == 6
+        assert skills.available_points(game_data=client.game_data) == 4
 
 
 class TestAddSkillPoint:
@@ -78,7 +78,7 @@ class TestAddSkillPoint:
         assert added.skill_ids == (L2,)
         skills = client.player.skills
         assert skills is not None and skills.legend_skill_ids == (L2,)
-        assert skills.available_points(client.game_data) == 4
+        assert skills.available_points(game_data=client.game_data) == 4
 
     def test_a_first_level_is_added(self):
         client = _client({"SID": [], "SP": 10, "RS": 0, "RC": 0}, {"skp": xt_packet("skp", {"IDS": [1]})})

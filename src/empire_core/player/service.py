@@ -33,13 +33,14 @@ from empire_core.player.models.info import (
     SearchPlayerResponse,
 )
 from empire_core.player.models.progress import SelectTitleRequest, SelectTitleResponse
+from empire_core.player.titles import player_title_ids
 from empire_core.protocol.base import BaseResponse
 from empire_core.services.base import BaseService
 from empire_core.utils.callbacks import Event
 
 if TYPE_CHECKING:
     from empire_core.client.client import EmpireClient
-    from empire_core.gamedata import Currency, LegendSkill, LootBox
+    from empire_core.gamedata import Currency, LegendSkill, LootBox, Title
     from empire_core.player.models.account import (
         BoostedGlobalEffectsResponse,
         DailyResetResponse,
@@ -113,6 +114,30 @@ class PlayerService(BaseService):
     def skills(self) -> SkillList | None:
         """Your legend and sceat skills as the last ``skl`` listed them; None until one arrived."""
         return self.client.state.get_skills()
+
+    @property
+    def spent_skill_points(self) -> int | None:
+        """Points spent on your held legend skills; None until a skill list arrived."""
+        skills = self.skills
+        return skills.spent_points(game_data=self._require_game_data()) if skills is not None else None
+
+    @property
+    def available_skill_points(self) -> int | None:
+        """Legend skill points left to spend; None until a skill list arrived."""
+        skills = self.skills
+        return skills.available_points(game_data=self._require_game_data()) if skills is not None else None
+
+    @property
+    def title_ids(self) -> list[Title | int]:
+        """Your held titles, in glory, Berimond and Storm Islands order.
+
+        Raises:
+            StateNotLoadedError: No login has brought your points and title ranks
+            GameDataNotLoadedError: The game data cannot be loaded
+        """
+        return player_title_ids(
+            self.glory_points, self.faction_points, self.title_ranks, game_data=self._require_game_data()
+        )
 
     @property
     def boosts(self) -> BoosterInfoResponse:
@@ -344,7 +369,7 @@ class PlayerService(BaseService):
         if not spend_rubies:
             skills = self.get_skills(timeout=timeout)
             if skills.seconds_until_reset > 0:
-                spent = skills.spent_points(self._require_game_data())
+                spent = skills.spent_points(game_data=self._require_game_data())
                 rubies = (
                     int(_RESET_BASE_RUBIES * skills.reset_count**_RESET_EXPONENT)
                     + (spent + _RESET_BASE_POINTS) * _RESET_RUBIES_PER_POINT

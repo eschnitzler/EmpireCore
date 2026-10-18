@@ -57,7 +57,7 @@ NOMAD_INVASION_EVENT_ID = 72
 DAIMYO_CASTLE_TABLE = "daimyoCastles"
 
 
-def invasion_camp_level(game_data: GameData, item: MapAreaItem, player_level: int) -> int | None:
+def invasion_camp_level(item: MapAreaItem, player_level: int, *, game_data: GameData | None = None) -> int | None:
     """
     The level an invasion event target is fought at, which its row does not carry.
 
@@ -83,6 +83,7 @@ def invasion_camp_level(game_data: GameData, item: MapAreaItem, player_level: in
         The level to size the wave at, or None when this is not one of the
         four or the tables do not describe it
     """
+    game_data = game_data if game_data is not None else GameData.require()
     if not item.is_invasion_camp:
         return None
 
@@ -126,11 +127,7 @@ def robber_baron_camp_fortification_levels(level: int) -> tuple[int, int]:
 
 
 def fortification_bonuses(
-    game_data: GameData,
-    *,
-    wall_level: int = 0,
-    gate_level: int = 0,
-    moat_level: int = 0,
+    *, wall_level: int = 0, gate_level: int = 0, moat_level: int = 0, game_data: GameData | None = None
 ) -> tuple[float, float, float]:
     """
     Wall, gate and moat protection as fractions, from building levels.
@@ -139,7 +136,7 @@ def fortification_bonuses(
     percentage; the client divides by 100 before using it as a defense.
 
     Args:
-        game_data: Loaded tables
+        game_data: Optional tables override; uses the process game data by default.
         wall_level: The defender's wall level, 0 for none
         gate_level: The defender's gate level
         moat_level: The defender's moat level
@@ -147,6 +144,7 @@ def fortification_bonuses(
     Returns:
         ``(wall, gate, moat)`` as fractions
     """
+    game_data = game_data if game_data is not None else GameData.require()
 
     def bonus(ids: tuple[int, ...], level: int, attribute: str) -> float:
         if level <= 0 or level > len(ids):
@@ -164,7 +162,7 @@ def fortification_bonuses(
 Stacks = Iterable[tuple[int | None, int]]
 
 
-def tool_defense_bonus(game_data: GameData, tool: ToolStats) -> float:
+def tool_defense_bonus(tool: ToolStats, *, game_data: GameData | None = None) -> float:
     """
     How much a defending tool raises both defender multipliers through its effects.
 
@@ -176,6 +174,7 @@ def tool_defense_bonus(game_data: GameData, tool: ToolStats) -> float:
     (bundle line 9609). Type 31 is the one effect type mapped to
     ``ToolEffectType.DEFENSE_BONUS``.
     """
+    game_data = game_data if game_data is not None else GameData.require()
     total = 0.0
     for bonus in effect_value_bonuses(tool.effects):
         effect = game_data.effects.get(bonus.effect_id)
@@ -186,7 +185,6 @@ def tool_defense_bonus(game_data: GameData, tool: ToolStats) -> float:
 
 def defender_flank_effects(
     stacks: Stacks,
-    game_data: GameData,
     *,
     flank: Flank | None = None,
     melee_bonus: float = 1.0,
@@ -194,6 +192,7 @@ def defender_flank_effects(
     wall_bonus: float = 0.0,
     gate_bonus: float = 0.0,
     moat_bonus: float = 0.0,
+    game_data: GameData | None = None,
 ) -> DefenderFlankEffects:
     """
     Aggregate a flank's defenders into strength values.
@@ -225,6 +224,7 @@ def defender_flank_effects(
     Returns:
         The flank's defender effects
     """
+    game_data = game_data if game_data is not None else GameData.require()
     melee_melee = melee_range = range_melee = range_range = 0.0
     unknown = 0
 
@@ -240,7 +240,7 @@ def defender_flank_effects(
                 continue
             melee_bonus += tool.def_melee_bonus
             range_bonus += tool.def_range_bonus
-            defense = tool_defense_bonus(game_data, tool)
+            defense = tool_defense_bonus(tool, game_data=game_data)
             melee_bonus += defense
             range_bonus += defense
             wall_bonus += tool.wall_bonus
@@ -359,7 +359,6 @@ LEGEND_MOAT_BONUS = "moatBonus"
 
 
 def spied_castle_defense(
-    game_data: GameData,
     spy_army: SpyArmy,
     *,
     wall_bonus: float = 0.0,
@@ -370,6 +369,7 @@ def spied_castle_defense(
     castellan: Commander | None = None,
     defender_legend_skill_ids: Sequence[int] | None = None,
     area_type: int | None = None,
+    game_data: GameData | None = None,
 ) -> dict[Flank, DefenderFlankEffects]:
     """
     What defends a spied castle, per flank.
@@ -413,8 +413,9 @@ def spied_castle_defense(
             looks each one up (``CastleLegendSkillData.getSkillByID``) and has
             no fallback for a missing one
     """
+    game_data = game_data if game_data is not None else GameData.require()
     resolver = EffectResolver(game_data)
-    castellan_bonuses = commander_bonuses(game_data, castellan) if castellan is not None else []
+    castellan_bonuses = commander_bonuses(castellan, game_data=game_data) if castellan is not None else []
     castellan_wall = castellan_gate = castellan_moat = 0.0
     if castellan_bonuses:
         castellan_wall, castellan_gate, castellan_moat = castellan_fortification(
@@ -441,12 +442,12 @@ def spied_castle_defense(
     for flank, stacks in per_flank.items():
         items = defender_flank_effects(
             [*stacks, *support],
-            game_data,
             wall_bonus=wall_bonus,
             gate_bonus=gate_bonus,
             moat_bonus=moat_bonus,
             melee_bonus=melee_bonus,
             range_bonus=range_bonus,
+            game_data=game_data,
         )
         melee, ranged = items.melee_bonus, items.range_bonus
         wall, gate, moat = items.wall_bonus, items.gate_bonus, items.moat_bonus
@@ -486,9 +487,7 @@ def spied_castle_defense(
 
 
 def robber_baron_camp_defense(
-    game_data: GameData,
-    victories: int,
-    kingdom_id: Kingdom = Kingdom.GREEN,
+    victories: int, kingdom_id: Kingdom = Kingdom.GREEN, *, game_data: GameData | None = None
 ) -> dict[Flank, DefenderFlankEffects] | None:
     """
     What defends a robber baron camp, per flank, without asking the server.
@@ -507,25 +506,20 @@ def robber_baron_camp_defense(
     Returns:
         Effects per flank, or None when the payload lists no such camp
     """
+    game_data = game_data if game_data is not None else GameData.require()
     row = game_data.dungeon_defense(victories, kingdom_id)
     if row is None:
         return None
     level = robber_baron_camp_level(victories, kingdom_id)
     wall_level, gate_level = robber_baron_camp_fortification_levels(level)
-    wall, gate, moat = fortification_bonuses(game_data, wall_level=wall_level, gate_level=gate_level)
+    wall, gate, moat = fortification_bonuses(wall_level=wall_level, gate_level=gate_level, game_data=game_data)
     return spied_castle_defense(
-        game_data,
-        SpyArmy.from_robber_baron_camp(row),
-        wall_bonus=wall,
-        gate_bonus=gate,
-        moat_bonus=moat,
+        SpyArmy.from_robber_baron_camp(row), wall_bonus=wall, gate_bonus=gate, moat_bonus=moat, game_data=game_data
     )
 
 
 def event_camp_defense(
-    game_data: GameData,
-    table: str,
-    victories: int,
+    table: str, victories: int, *, game_data: GameData | None = None
 ) -> dict[Flank, DefenderFlankEffects] | None:
     """
     What defends an event camp, per flank.
@@ -537,7 +531,7 @@ def event_camp_defense(
     the fortification applied to each.
 
     Args:
-        game_data: Loaded tables
+        game_data: Optional tables override; uses the process game data by default.
         table: One of ``empire_core.gamedata.CAMP_TABLES``
         victories: The camp's victory count
 
@@ -546,6 +540,7 @@ def event_camp_defense(
         not given by these tables, so the strengths reflect one of each listed
         unit; treat the wall and gate bonuses as the reliable part.
     """
+    game_data = game_data if game_data is not None else GameData.require()
     row = next(
         (camp for camp in game_data.camps.get(table, []) if camp.count_victory == victories),
         None,
@@ -559,11 +554,7 @@ def _camp_flanks(row: NpcCampDefence, game_data: GameData) -> dict[Flank, Defend
     stacks = [(wod_id, 1) for wod_id in row.defense_unit_ids]
     return {
         flank: defender_flank_effects(
-            stacks,
-            game_data,
-            flank=flank,
-            wall_bonus=row.wall_bonus / 100,
-            gate_bonus=row.gate_bonus / 100,
+            stacks, flank=flank, wall_bonus=row.wall_bonus / 100, gate_bonus=row.gate_bonus / 100, game_data=game_data
         )
         for flank in (Flank.LEFT, Flank.MIDDLE, Flank.RIGHT, Flank.YARD)
     }

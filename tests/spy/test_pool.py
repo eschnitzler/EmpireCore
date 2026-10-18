@@ -105,13 +105,13 @@ class TestBoosts:
         assert legend_spy_bonus(game_data, []) == 0
 
     def test_an_island_title_holds_every_title_below_it(self, game_data):
-        assert island_title_chain(game_data, 50) == [54, 53, 52, 51, 50]
-        assert island_title_chain(game_data, 54) == [54]
-        assert island_title_chain(game_data, -1) == []
-        assert island_title_chain(game_data, 999) == []
+        assert island_title_chain(50, game_data=game_data) == [54, 53, 52, 51, 50]
+        assert island_title_chain(54, game_data=game_data) == [54]
+        assert island_title_chain(-1, game_data=game_data) == []
+        assert island_title_chain(999, game_data=game_data) == []
 
     def test_only_the_lowest_island_title_boosts_spies(self, game_data):
-        assert title_spy_percent(game_data, island_title_chain(game_data, 50)) == 100
+        assert title_spy_percent(game_data, island_title_chain(50, game_data=game_data)) == 100
         assert title_spy_percent(game_data, [50, 51, 52, 53]) == 0
 
 

@@ -198,8 +198,8 @@ class EffectResolver:
     ``EquipmentBonusVO.capID`` and ``maxValueStrength`` (bundle line 20959).
     """
 
-    def __init__(self, game_data: GameData) -> None:
-        self.game_data = game_data
+    def __init__(self, game_data: GameData | None = None) -> None:
+        self.game_data = game_data if game_data is not None else GameData.require()
 
     def accumulate(
         self,
@@ -446,7 +446,7 @@ def _spec_bonuses(rows: Iterable[Any]) -> list[Bonus]:
     return [bonus for row in rows if row is not None for bonus in effect_value_bonuses(row.effects)]
 
 
-def construction_item_bonuses(game_data: GameData, item_ids: Iterable[int]) -> list[Bonus]:
+def construction_item_bonuses(item_ids: Iterable[int], *, game_data: GameData | None = None) -> list[Bonus]:
     """
     Bonuses from the construction items placed on a castle's buildings.
 
@@ -454,30 +454,35 @@ def construction_item_bonuses(game_data: GameData, item_ids: Iterable[int]) -> l
     combat bonuses - the flank unit limit item is where a +30% flank bonus
     comes from.
     """
+    game_data = game_data if game_data is not None else GameData.require()
     return _spec_bonuses(game_data.construction_items.get(item_id) for item_id in item_ids)
 
 
-def alliance_buff_bonuses(game_data: GameData, buff_ids: Iterable[int]) -> list[Bonus]:
+def alliance_buff_bonuses(buff_ids: Iterable[int], *, game_data: GameData | None = None) -> list[Bonus]:
     """Bonuses from the alliance's researched buffs, at their current levels."""
+    game_data = game_data if game_data is not None else GameData.require()
     return _spec_bonuses(game_data.alliance_buffs.get(buff_id) for buff_id in buff_ids)
 
 
-def global_effect_bonuses(game_data: GameData, global_effect_ids: Iterable[int]) -> list[Bonus]:
+def global_effect_bonuses(global_effect_ids: Iterable[int], *, game_data: GameData | None = None) -> list[Bonus]:
     """Bonuses from the global event effects currently running."""
+    game_data = game_data if game_data is not None else GameData.require()
     return _spec_bonuses(game_data.global_effects.get(effect_id) for effect_id in global_effect_ids)
 
 
-def sceat_skill_bonuses(game_data: GameData, skill_ids: Iterable[int]) -> list[Bonus]:
+def sceat_skill_bonuses(skill_ids: Iterable[int], *, game_data: GameData | None = None) -> list[Bonus]:
     """Bonuses from unlocked sceat skills (the Hall of Legends trees)."""
+    game_data = game_data if game_data is not None else GameData.require()
     return _spec_bonuses(game_data.sceat_skills.get(skill_id) for skill_id in skill_ids)
 
 
-def general_skill_bonuses(game_data: GameData, skill_ids: Iterable[int]) -> list[Bonus]:
+def general_skill_bonuses(skill_ids: Iterable[int], *, game_data: GameData | None = None) -> list[Bonus]:
     """Bonuses from the skills unlocked on the general leading the attack."""
+    game_data = game_data if game_data is not None else GameData.require()
     return _spec_bonuses(game_data.general_skills.get(skill_id) for skill_id in skill_ids)
 
 
-def general_passive_bonuses(game_data: GameData, skill_ids: Iterable[int]) -> list[Bonus]:
+def general_passive_bonuses(skill_ids: Iterable[int], *, game_data: GameData | None = None) -> list[Bonus]:
     """
     The general's passive effects, which join its commander's bonuses.
 
@@ -487,6 +492,7 @@ def general_passive_bonuses(game_data: GameData, skill_ids: Iterable[int]) -> li
     bundle line 113404). Skill effects parse as ``effectID&value``
     (``GeneralSkillVO.parseXML``, bundle line 113364).
     """
+    game_data = game_data if game_data is not None else GameData.require()
     bonuses: list[Bonus] = []
     for skill_id in skill_ids:
         skill = game_data.general_skills.get(skill_id)
@@ -503,7 +509,7 @@ def general_passive_bonuses(game_data: GameData, skill_ids: Iterable[int]) -> li
     return bonuses
 
 
-def legend_skill_value(game_data: GameData, skill_ids: Iterable[int], effect_type: str) -> float:
+def legend_skill_value(skill_ids: Iterable[int], effect_type: str, *, game_data: GameData | None = None) -> float:
     """
     Total value of one legend skill effect type.
 
@@ -512,13 +518,14 @@ def legend_skill_value(game_data: GameData, skill_ids: Iterable[int], effect_typ
     returned as a number rather than as bonuses.
 
     Args:
-        game_data: Loaded tables
+        game_data: Optional tables override; uses the process game data by default.
         skill_ids: The player's unlocked legend skill ids
         effect_type: The effect type name, e.g. ``gateReduction``
 
     Returns:
         The summed value, 0.0 when none match
     """
+    game_data = game_data if game_data is not None else GameData.require()
     return sum(
         skill.total_effect_value
         for skill_id in skill_ids
@@ -527,11 +534,11 @@ def legend_skill_value(game_data: GameData, skill_ids: Iterable[int], effect_typ
 
 
 def global_unit_attack_bonuses(
-    game_data: GameData,
     global_effects: Iterable[int | Sequence[int]],
     *,
     player_level: int | None = None,
     boosts: Mapping[GlobalEffect | int, float] | None = None,
+    game_data: GameData | None = None,
 ) -> dict[int, float]:
     """
     Per-unit attack bonuses from the global effects currently running.
@@ -564,7 +571,7 @@ def global_unit_attack_bonuses(
     (``EffectValueMap.strength``, bundle line 31649); live maps are uniform.
 
     Args:
-        game_data: Loaded tables
+        game_data: Optional tables override; uses the process game data by default.
         global_effects: Which global effects are active - either plain ids, or
             the ``GE`` rows of the ``Event.GLOBAL_EFFECT`` event, where a
             strength above -1 replaces the table's
@@ -576,6 +583,7 @@ def global_unit_attack_bonuses(
     Returns:
         ``{wod_id: bonus}``, empty when no listed effect is active
     """
+    game_data = game_data if game_data is not None else GameData.require()
     bonuses: dict[int, float] = {}
     for entry in global_effects:
         if isinstance(entry, int):
@@ -611,7 +619,7 @@ def _within_level_bracket(row: GlobalEffectDef, level: int) -> bool:
 
 
 def commander_bonuses(
-    game_data: GameData, commander: Commander, *, area_effects: Sequence[Bonus] | None = None
+    commander: Commander, *, area_effects: Sequence[Bonus] | None = None, game_data: GameData | None = None
 ) -> list[Bonus]:
     """
     Every bonus a commander grants, resolved into the right id space.
@@ -669,12 +677,13 @@ def commander_bonuses(
     commander keeps its own ``gli`` ``AE`` when ``aci`` sends none.
 
     Args:
-        game_data: Loaded tables, for the gems and equipment sets
+        game_data: Optional tables override; uses the process game data by default
         commander: The commander's ``gli`` entry, or a movement's ``commander``
         area_effects: The ``aci`` ``AE`` list, from
             ``GetAttackInfoResponse.attacker_bonuses()``. When it has entries
             they are used instead of the commander's own ``AE``
     """
+    game_data = game_data if game_data is not None else GameData.require()
     if commander.commander_id < 0:
         default = game_data.get_default_lord(commander.commander_id)
         if default is None:
@@ -692,7 +701,7 @@ def commander_bonuses(
         else:
             rows = [[bonus.effect_id, bonus.values] for bonus in item.bonuses]
         bonuses.extend(parse_bonus_entries(rows, via_relic=item.is_relic, via_equipment=not item.is_relic))
-        bonuses.extend(gem_bonuses(game_data, item))
+        bonuses.extend(gem_bonuses(item, game_data=game_data))
 
     alien_rows = [
         [bonus.effect_id, bonus.values] for bonus in (*commander.alien_hero_bonuses, *commander.alien_bonuses)
@@ -708,11 +717,11 @@ def commander_bonuses(
 
     bonuses.extend(effect_bonuses(commander.effects))
     bonuses.extend(area_effects if area_effects else effect_bonuses(commander.area_effects))
-    bonuses.extend(equipment_set_bonuses(game_data, commander.worn_items()))
+    bonuses.extend(equipment_set_bonuses(commander.worn_items(), game_data=game_data))
     return bonuses
 
 
-def equipment_set_bonuses(game_data: GameData, items: Iterable[Equipment]) -> list[Bonus]:
+def equipment_set_bonuses(items: Iterable[Equipment], *, game_data: GameData | None = None) -> list[Bonus]:
     """
     The bonuses of the equipment sets the worn items and their gems complete.
 
@@ -729,9 +738,10 @@ def equipment_set_bonuses(game_data: GameData, items: Iterable[Equipment]) -> li
     left out: the client counts it under set 0, which no set row uses.
 
     Args:
-        game_data: Loaded tables, for the gems and equipment sets
+        game_data: Optional tables override; uses the process game data by default
         items: The items worn, see ``Commander.worn_items``
     """
+    game_data = game_data if game_data is not None else GameData.require()
     counts: dict[int, int] = {}
     gems_counted: set[int] = set()
     for item in items:
@@ -750,7 +760,7 @@ def equipment_set_bonuses(game_data: GameData, items: Iterable[Equipment]) -> li
     ]
 
 
-def gem_bonuses(game_data: GameData, item: Equipment) -> list[Bonus]:
+def gem_bonuses(item: Equipment, *, game_data: GameData | None = None) -> list[Bonus]:
     """
     The bonuses of the gem slotted in an item.
 
@@ -764,6 +774,7 @@ def gem_bonuses(game_data: GameData, item: Equipment) -> list[Bonus]:
     the index 10 gem with the index 12 one, ``CastleGemVO.parseXML`` (bundle
     line 28287) and ``LordVO.getUniqueBoni`` (bundle line 26496).
     """
+    game_data = game_data if game_data is not None else GameData.require()
     if item.relic_info is not None:
         gem = item.relic_info.gem
         if gem is None:
@@ -782,11 +793,11 @@ def effect_bonuses(effects: Iterable[CommanderEffect]) -> list[Bonus]:
 
 
 def attack_dialog_bonuses(
-    game_data: GameData,
     commander: Commander | None,
     *,
     area_effects: Sequence[Bonus] | None = None,
     general_skill_ids: Iterable[int] | None = None,
+    game_data: GameData | None = None,
 ) -> list[Bonus]:
     """
     The one bonus list the attack dialog reads its commander's effects from.
@@ -798,7 +809,7 @@ def attack_dialog_bonuses(
     Sceat skills are not part of it.
 
     Args:
-        game_data: Loaded tables
+        game_data: Optional tables override; uses the process game data by default.
         commander: The commander leading the attack. Without one, only
             ``area_effects`` and the general's skills are counted
         area_effects: The ``aci`` ``AE`` list
@@ -807,16 +818,19 @@ def attack_dialog_bonuses(
     Returns:
         Every bonus, unmerged; :meth:`EffectResolver.accumulate` caps them
     """
+    game_data = game_data if game_data is not None else GameData.require()
     if commander is not None:
-        bonuses = commander_bonuses(game_data, commander, area_effects=area_effects)
+        bonuses = commander_bonuses(commander, area_effects=area_effects, game_data=game_data)
     else:
         bonuses = list(area_effects or [])
     if general_skill_ids:
-        bonuses.extend(general_passive_bonuses(game_data, general_skill_ids))
+        bonuses.extend(general_passive_bonuses(general_skill_ids, game_data=game_data))
     return bonuses
 
 
-def tool_effect_strength(game_data: GameData, tool: ToolStats, effect_type: CombatEffectType | int) -> float:
+def tool_effect_strength(
+    tool: ToolStats, effect_type: CombatEffectType | int, *, game_data: GameData | None = None
+) -> float:
     """
     The summed strength of a tool's own effects of one type, with no condition.
 
@@ -825,6 +839,7 @@ def tool_effect_strength(game_data: GameData, tool: ToolStats, effect_type: Comb
     space and wod id are all -1, so no effect is filtered out. The effects parse
     as ``effectID&value`` (``ToolUnitVO.parseEffects``, bundle line 6644).
     """
+    game_data = game_data if game_data is not None else GameData.require()
     total = 0.0
     for bonus in effect_value_bonuses(tool.effects):
         effect = game_data.effects.get(bonus.effect_id)
@@ -879,11 +894,11 @@ def attacker_flank_effects(
     defender_range = 0.0
     if legendary:
         skills = list(legend_skill_ids)
-        wall += legend_skill_value(game_data, skills, "wallReduction") / 100
-        gate += legend_skill_value(game_data, skills, "gateReduction") / 100
-        moat += legend_skill_value(game_data, skills, "moatReduction") / 100
-        melee += legend_skill_value(game_data, skills, "attackMeleeBonus") / 100
-        ranged += legend_skill_value(game_data, skills, "attackRangeBonus") / 100
+        wall += legend_skill_value(skills, "wallReduction", game_data=game_data) / 100
+        gate += legend_skill_value(skills, "gateReduction", game_data=game_data) / 100
+        moat += legend_skill_value(skills, "moatReduction", game_data=game_data) / 100
+        melee += legend_skill_value(skills, "attackMeleeBonus", game_data=game_data) / 100
+        ranged += legend_skill_value(skills, "attackRangeBonus", game_data=game_data) / 100
     for tool in support_tools:
         wall += tool.wall_bonus
         gate += tool.gate_bonus
@@ -893,7 +908,7 @@ def attacker_flank_effects(
         melee += tool.off_melee_bonus
         # ToolEffectType.ATTACK_BONUS is not absolute (bundle line 9629), so
         # getBonusByEffect scales it by 0.01.
-        attack = 0.01 * tool_effect_strength(game_data, tool, CombatEffectType.ATTACK_BONUS)
+        attack = 0.01 * tool_effect_strength(tool, CombatEffectType.ATTACK_BONUS, game_data=game_data)
         ranged += attack
         melee += attack
     return AttackerFlankEffects(
@@ -906,7 +921,7 @@ def attacker_flank_effects(
     )
 
 
-def support_tool_waves(game_data: GameData, support_tools: Sequence[ToolStats]) -> float:
+def support_tool_waves(support_tools: Sequence[ToolStats], *, game_data: GameData | None = None) -> float:
     """
     Extra waves the support tools grant.
 
@@ -916,7 +931,10 @@ def support_tool_waves(game_data: GameData, support_tools: Sequence[ToolStats]) 
     ``ToolEffectType.ADDITIONAL_WAVE`` is absolute (bundle line 9615), so the
     effect's strength is taken as it is; it maps to effect type 156.
     """
-    return sum(tool_effect_strength(game_data, tool, CombatEffectType.ADDITIONAL_WAVE) for tool in support_tools)
+    game_data = game_data if game_data is not None else GameData.require()
+    return sum(
+        tool_effect_strength(tool, CombatEffectType.ADDITIONAL_WAVE, game_data=game_data) for tool in support_tools
+    )
 
 
 __all__ = [

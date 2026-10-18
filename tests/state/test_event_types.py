@@ -250,7 +250,7 @@ class TestCampaign:
             "786.03", {"rewards": [{"rewardID": "3", "addC1": "100"}, {"rewardID": "4", "units": "722+5"}]}
         )
 
-        rewards = state.get_event(95).rewards(data)
+        rewards = state.get_event(95).rewards(game_data=data)
 
         assert [(c.kind, c.amount) for c in rewards] == [(CollectableKind.COINS, 100), (CollectableKind.UNITS, 5)]
 

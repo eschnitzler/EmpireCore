@@ -17,13 +17,14 @@ if TYPE_CHECKING:
     from empire_core.gamedata import Title
 
 
-def titles_in_order(game_data: GameData, system: TitleSystem) -> list[Title | int]:
+def titles_in_order(system: TitleSystem, *, game_data: GameData | None = None) -> list[Title | int]:
     """
     A title system's title ids, from its first title along each title's next one.
 
     Client: ``CastleTitleData.setupNextTitles`` (bundle line 21016) and ``orderTitlesInSystem``
     (bundle line 21058)
     """
+    game_data = game_data if game_data is not None else GameData.require()
     rows = [row for row in game_data.titles.values() if row.title_system == system]
     next_ids = {row.previous_title_id: row.title_id for row in game_data.titles.values() if row.previous_title_id != -1}
     first: Title | int | None = None
@@ -39,7 +40,7 @@ def titles_in_order(game_data: GameData, system: TitleSystem) -> list[Title | in
 
 
 def held_titles(
-    game_data: GameData, system: TitleSystem, points: float | None, top_rank: int | None
+    system: TitleSystem, points: float | None, top_rank: int | None, *, game_data: GameData | None = None
 ) -> list[Title | int]:
     """
     The glory or Berimond titles you hold, lowest first.
@@ -48,15 +49,16 @@ def held_titles(
     title while your rank is above 0 and within its top X; the first one missed ends the list.
 
     Args:
-        game_data: Loaded tables
+        game_data: Optional tables override; uses the process game data by default.
         system: :attr:`TitleSystem.GLORY` or :attr:`TitleSystem.FACTION`
         points: Your glory points (``ufa`` ``CF``) or Berimond points (``ufp`` ``CFP``); None before they arrived
         top_rank: The system's ``uar`` top rank (``CTXT``); None before it arrived
 
     Client: ``CastleTitleData.setupThisUsersTitlesinSystem`` (bundle line 21048), with ``TitleVO.isTopXTitle``
     """
+    game_data = game_data if game_data is not None else GameData.require()
     held: list[Title | int] = []
-    for title_id in titles_in_order(game_data, system):
+    for title_id in titles_in_order(system, game_data=game_data):
         row = game_data.titles[title_id]
         if row.top_x > 0:
             reached = top_rank is not None and top_rank > 0 and row.top_x >= top_rank
@@ -68,16 +70,17 @@ def held_titles(
     return held
 
 
-def island_title_chain(game_data: GameData, island_title_id: int) -> list[Title | int]:
+def island_title_chain(island_title_id: int, *, game_data: GameData | None = None) -> list[Title | int]:
     """
     The island titles you hold with one: it and every title below it, lowest first.
 
     Args:
-        game_data: Loaded tables
+        game_data: Optional tables override; uses the process game data by default.
         island_title_id: Your current Storm Islands title, -1 or an unknown id for none
 
     Client: ``CastleTitleData.getUsersTitleVectorFromSystem`` for ``ISLAND_TITLE`` (bundle line 21119)
     """
+    game_data = game_data if game_data is not None else GameData.require()
     chain: list[Title | int] = []
     title_id: Title | int | None = island_title_id
     while title_id is not None and title_id in game_data.titles and title_id not in chain:
@@ -87,28 +90,32 @@ def island_title_chain(game_data: GameData, island_title_id: int) -> list[Title 
 
 
 def player_title_ids(
-    game_data: GameData,
     glory: GloryPointsResponse | None,
     faction: FactionPointsResponse | None,
     ranks: TitleRanksResponse | None,
+    *,
+    game_data: GameData | None = None,
 ) -> list[Title | int]:
     """
     Every title you hold, as the client lists them: glory, then Berimond, then Storm Islands.
 
     Args:
-        game_data: Loaded tables
+        game_data: Optional tables override; uses the process game data by default.
         glory: ``client.state.get_glory_points()``
         faction: ``client.state.get_faction_points()``
         ranks: ``client.state.get_title_ranks()``
 
     Client: ``CastleTitleData.thisUsersTitles`` (bundle line 21073)
     """
+    game_data = game_data if game_data is not None else GameData.require()
     glory_points = glory.glory_points if glory is not None else None
     faction_points = faction.faction_points if faction is not None else None
     return [
-        *held_titles(game_data, TitleSystem.GLORY, glory_points, ranks.glory.top_rank if ranks else None),
-        *held_titles(game_data, TitleSystem.FACTION, faction_points, ranks.faction.top_rank if ranks else None),
-        *island_title_chain(game_data, ranks.island_title.held_title_id if ranks else -1),
+        *held_titles(TitleSystem.GLORY, glory_points, ranks.glory.top_rank if ranks else None, game_data=game_data),
+        *held_titles(
+            TitleSystem.FACTION, faction_points, ranks.faction.top_rank if ranks else None, game_data=game_data
+        ),
+        *island_title_chain(ranks.island_title.held_title_id if ranks else -1, game_data=game_data),
     ]
 
 

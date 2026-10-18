@@ -96,13 +96,13 @@ class TestSolverInvariants:
 
         waves = fill_waves(
             inventory,
-            game,
             level=level,
             attacker_level=attacker_level,
             attacker=AttackerFlankEffects(melee_bonus=rng.uniform(1, 3), range_bonus=rng.uniform(1, 3)),
             defense=random_defense(rng),
             area_type=rng.choice([None, 1, 2]),
             target_is_player=rng.random() < 0.5,
+            game_data=game,
         )
         return game, pool, inventory, waves, WaveCapacity.for_level(level)
 

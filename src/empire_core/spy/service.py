@@ -389,15 +389,15 @@ class SpyService(BaseService):
         game_data = self._require_game_data()
         if titles_from_state:
             title_ids = [
-                *held_titles(game_data, TitleSystem.GLORY, glory.glory_points, ranks.glory.top_rank),
+                *held_titles(TitleSystem.GLORY, glory.glory_points, ranks.glory.top_rank, game_data=game_data),
                 *held_titles(
-                    game_data,
                     TitleSystem.FACTION,
                     faction.faction_points if faction else None,
                     ranks.faction.top_rank,
+                    game_data=game_data,
                 ),
             ]
-        titles = title_ids + island_title_chain(game_data, island_title_id)
+        titles = title_ids + island_title_chain(island_title_id, game_data=game_data)
         return total_spies(
             max_spies.max_spies,
             research_bonus=research_spy_bonus(game_data, research_ids),
