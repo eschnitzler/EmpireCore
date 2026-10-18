@@ -57,6 +57,7 @@ NOT_CONSENT = {
     "horse_booster_id": "picks the horse; one priced in rubies needs spend_rubies",
     "collector_booster": "collector event booster items, not rubies",
     "yard_boost": "the courtyard capacity effect a fill sizes against, not a purchase",
+    "admit_ruby_units": "whether the hospital takes in wounded ruby units, a free setting",
 }
 
 

@@ -12,7 +12,7 @@ from empire_core.exceptions import (
     UnknownCastleError,
 )
 from empire_core.gamedata import GameData, Tool, Unit
-from empire_core.protocol.models import ProductionListId, SlotType
+from empire_core.protocol.models import ProductionListId, RecruitmentMode, SlotType
 from tests.service_helpers import conn, make_client, xt_packet
 
 OWN = [(12345, Kingdom.GREEN)]
@@ -233,3 +233,113 @@ class TestArmyService:
         with pytest.raises(CommandError):
             client.army.heal_units(12345, 620, 1)
         assert [command for command, _ in conn(client).request_payloads] == ["jaa"]
+
+
+INVENTORY = {"I": [[5, 40]], "TU": [], "SHI": [[5, 60]], "HI": [[6, 2]]}
+SOLDIER_LIST = {"LID": 0, "QS": [{"P": {"WID": 5, "TUA": 10}, "SI": {"RUT": -1}}], "PS": {}, "RM": 1, "TCT": 0}
+
+
+class TestStronghold:
+    @pytest.mark.parametrize(
+        "call,command",
+        [
+            (lambda s: s.store_in_stronghold(12345, Unit.VETERAN_SABERSLASHER, 60), "sts"),
+            (lambda s: s.take_from_stronghold(12345, Unit.VETERAN_SABERSLASHER, 60), "tas"),
+        ],
+    )
+    def test_joins_the_castle_sends_the_unit_and_reads_the_whole_reply_as_the_inventory(self, call, command):
+        client = make_client({command: xt_packet(command, INVENTORY)}, castles=OWN)
+
+        inventory = call(client.army)
+
+        assert conn(client).request_payloads == [("jaa", {"CID": 12345, "KID": 0}), (command, {"WID": 5, "A": 60})]
+        assert (inventory.units, inventory.stronghold, inventory.hospital) == ({5: 40}, {5: 60}, {6: 2})
+
+    @pytest.mark.parametrize(
+        "call,command",
+        [
+            (lambda s: s.store_in_stronghold(12345, Unit.VETERAN_SABERSLASHER, 1), "sts"),
+            (lambda s: s.take_from_stronghold(12345, Unit.VETERAN_SABERSLASHER, 1), "tas"),
+        ],
+    )
+    def test_a_refusal_raises(self, call, command):
+        client = make_client({command: xt_packet(command, error_code=21)}, castles=OWN)
+
+        with pytest.raises(CommandError):
+            call(client.army)
+
+
+class TestProductionOrder:
+    def test_move_production_slot_sends_both_positions_and_reads_the_spl_block(self):
+        client = make_client({"mup": xt_packet("mup", {"spl": SOLDIER_LIST})}, castles=OWN)
+
+        production = client.army.move_production_slot(12345, ProductionListId.SOLDIERS, 2, 0)
+
+        assert conn(client).request_payloads == [
+            ("jaa", {"CID": 12345, "KID": 0}),
+            ("mup", {"LID": 0, "OS": 2, "NS": 0}),
+        ]
+        assert [(slot.position, slot.wod_id, slot.amount) for slot in production.queue] == [(0, 5, 10)]
+        assert production.recruitment_mode is RecruitmentMode.FINISH_STACKS_EQUALLY
+
+    def test_a_refused_move_raises(self):
+        client = make_client({"mup": xt_packet("mup", error_code=21)}, castles=OWN)
+
+        with pytest.raises(CommandError):
+            client.army.move_production_slot(12345, ProductionListId.SOLDIERS, 1, 0)
+
+    @pytest.mark.parametrize("mode", list(RecruitmentMode))
+    def test_set_recruitment_mode_names_the_list_kingdom_and_castle(self, mode):
+        client = make_client(castles=[(12345, Kingdom.ICE)])
+
+        client.army.set_recruitment_mode(12345, ProductionListId.TOOLS, mode)
+
+        assert conn(client).request_payloads == [
+            ("jaa", {"CID": 12345, "KID": 2}),
+            ("srm", {"LID": 1, "SID": 2, "AID": 12345, "RM": int(mode)}),
+        ]
+
+    def test_a_refused_recruitment_mode_raises(self):
+        client = make_client({"srm": xt_packet("srm", error_code=21)}, castles=OWN)
+
+        with pytest.raises(CommandError):
+            client.army.set_recruitment_mode(12345, ProductionListId.SOLDIERS, RecruitmentMode.FINISH_STACKS_EQUALLY)
+
+    def test_the_hospital_has_no_recruitment_mode(self):
+        client = make_client(castles=OWN)
+
+        with pytest.raises(ValueError):
+            client.army.set_recruitment_mode(12345, ProductionListId.HOSPITAL, RecruitmentMode.FINISH_FIRST_STACK)
+        assert conn(client).request_payloads == []
+
+
+class TestHospitalFlags:
+    def test_get_hospital_flags_reads_the_castle_flags(self):
+        reply = {"KID": 2, "AID": 12345, "HRF": 1}
+        client = make_client({"hfl": xt_packet("hfl", reply)}, castles=[(12345, Kingdom.ICE)])
+
+        flags = client.army.get_hospital_flags(12345)
+
+        assert conn(client).request_payloads == [
+            ("jaa", {"CID": 12345, "KID": 2}),
+            ("hfl", {"KID": 2, "AID": 12345, "HRF": -1}),
+        ]
+        assert (flags.kingdom_id, flags.castle_id, flags.admits_ruby_units) == (Kingdom.ICE, 12345, True)
+
+    @pytest.mark.parametrize("admit,hrf", [(True, 1), (False, 0)])
+    def test_set_hospital_flags_sends_the_flag(self, admit, hrf):
+        client = make_client({"hfl": xt_packet("hfl", {"KID": 0, "AID": 12345, "HRF": hrf})}, castles=OWN)
+
+        flags = client.army.set_hospital_flags(12345, admit_ruby_units=admit)
+
+        assert conn(client).request_payloads == [
+            ("jaa", {"CID": 12345, "KID": 0}),
+            ("hfl", {"KID": 0, "AID": 12345, "HRF": hrf}),
+        ]
+        assert flags.admits_ruby_units is admit
+
+    def test_a_refusal_raises(self):
+        client = make_client({"hfl": xt_packet("hfl", error_code=21)}, castles=OWN)
+
+        with pytest.raises(CommandError):
+            client.army.get_hospital_flags(12345)

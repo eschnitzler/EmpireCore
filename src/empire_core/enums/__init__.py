@@ -20,7 +20,7 @@ from .alliance import (
     HelpType,
     OnlineState,
 )
-from .army import ProductionListId, SlotType
+from .army import ProductionListId, RecruitmentMode, SlotType
 from .castle import (
     BuildingState,
     ConstructionItemMode,
@@ -131,6 +131,7 @@ __all__ = [
     "SpyArmySection",
     # Army
     "ProductionListId",
+    "RecruitmentMode",
     "SlotType",
     # Castle
     "BuildingState",
