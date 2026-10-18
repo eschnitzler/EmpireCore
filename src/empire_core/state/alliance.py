@@ -71,6 +71,37 @@ class AllianceState(StateBase):
         self.own_alliance = alliance
         return True
 
+    def _patch_own_alliance(self, fields: dict[str, Any]) -> None:
+        raw = self._own_alliance_raw
+        player = self.local_player
+        if raw is None or player is None or player.AID is None or js_int(raw.get("AID")) != player.AID:
+            return
+        self._store_own_alliance({**raw, **fields})
+
+    def _handle_afa(self, data: Any) -> None:
+        """Client: ``AllianceInfoVO.parseAFA`` (bundle line 25952)."""
+        if isinstance(data, dict) and "CF" in data and "HF" in data:
+            self._patch_own_alliance({"CF": data["CF"], "HF": data["HF"]})
+
+    def _handle_abl(self, data: Any) -> None:
+        """Client: ``AllianceInfoVO.parseABL/parseBuffList`` (bundle lines 25954–25960)."""
+        buffs = data.get("ABL") if isinstance(data, dict) else data
+        if isinstance(buffs, list) and all(isinstance(row, dict) for row in buffs):
+            self._patch_own_alliance({"ABL": buffs})
+
+    def _handle_aee(self, data: Any) -> None:
+        """Client: ``AEECommand`` (121412–13), ``parseAllianceCrestForAlliance`` (11589).
+
+        The command passes its ACCA wrapper, then overwrites the fallback with
+        the top-level ACFB. Missing current crests remain unknown rather than random.
+        """
+        if not isinstance(data, dict) or not isinstance(data.get("ACCA"), dict):
+            return
+        crest = data["ACCA"].get("ACCA")
+        if crest is not None and not isinstance(crest, dict):
+            return
+        self._patch_own_alliance({"aee": {"ACCA": crest, "ACFB": data.get("ACFB")}})
+
     def _forget_own_alliance(self) -> None:
         self._own_alliance_raw = None
         self.own_alliance = None

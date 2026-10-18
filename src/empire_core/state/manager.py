@@ -143,7 +143,7 @@ _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
 # MSPCommand, CQSCommand (bundle lines 126587, 126619, 126603, 126566, 125438, 126495)
 _SUCCESS_ONLY = frozenset(
     {"sei", "see", "tei", "tee", "pep", "fjf", "bst", "acm", "aqi", "ufp", "bfs", "gtp", *_WHOLE_SECTIONS}
-    | {"ahl", "ahh", "ahd", "sne", "dms", "ams", "uac", "pre"}
+    | {"afa", "abl", "aee", "ahl", "ahh", "ahd", "sne", "dms", "ams", "uac", "pre"}
     # GBDCommand.exec (bundle line 129376) reads the login data only on ALL_OK
     | {"gbd"}
     | (set(_NESTED_SECTIONS) - {"cpm", "crm"})
@@ -313,6 +313,9 @@ class GameState(
         "bse": "_handle_bse",
         "bbs": "_handle_raid_status",
         "bst": "_handle_bst",
+        "afa": "_handle_afa",
+        "abl": "_handle_abl",
+        "aee": "_handle_aee",
         "acm": "_handle_acm",
         "aqi": "_handle_aqi",
         "ahl": "_handle_ahl",
