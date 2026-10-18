@@ -707,3 +707,35 @@ def test_remaining_construction_failures_propagate(action_client, command, failu
         else:
             client.castle.move_construction_slot(2001, 0, 1)
     assert client.castle.expired_construction_items is None
+
+
+@pytest.mark.parametrize("entry", [{"position": 0, "object_id": 55}, [55]])
+@pytest.mark.parametrize("stage", ["before", "after"])
+def test_queue_move_rejects_normalized_containers_on_wire(action_client, entry, stage):
+    from empire_core.exceptions import PacketError
+
+    good = xt_packet("scl", {"OIDL": [55, 66], "SSC": 1})
+    bad = xt_packet("scl", {"OIDL": [entry, 66], "SSC": 1})
+    conn(action_client).script["scl"] = [bad] if stage == "before" else [good, bad]
+    with pytest.raises(PacketError):
+        action_client.castle.move_construction_slot(2001, 0, 1)
+    assert ("mci" in conn(action_client).requested) == (stage == "after")
+
+
+@pytest.mark.parametrize("source,expected", [("55", 55), (True, 1), ("55.9", 55)])
+def test_queue_move_preserves_client_scalar_number_conversion(action_client, source, expected):
+    conn(action_client).script["scl"] = [
+        xt_packet("scl", {"OIDL": [source, "66"]}),
+        xt_packet("scl", {"OIDL": ["66", source]}),
+    ]
+    result = action_client.castle.move_construction_slot(2001, 0, 1)
+    assert result.building_object_ids == [66, expected]
+    assert ("mci", {"OID": expected, "NS": 1}) in conn(action_client).request_payloads
+
+
+@pytest.mark.parametrize("source", [False, "55bad"])
+def test_queue_move_client_zero_conversion_cannot_identify_a_building(action_client, source):
+    conn(action_client).script["scl"] = xt_packet("scl", {"OIDL": [source, 66]})
+    with pytest.raises(ValueError):
+        action_client.castle.move_construction_slot(2001, 0, 1)
+    assert "mci" not in conn(action_client).requested
