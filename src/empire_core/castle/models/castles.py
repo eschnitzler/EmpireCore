@@ -347,17 +347,17 @@ class CastleInfo(BasePayload):
     abandon_outpost_seconds: int = Field(
         validation_alias="AOT",
         default=0,
-        description="Seconds until the outpost is abandoned; not positive when it is not",
+        description="Seconds until the castle is abandoned; not positive when it is not",
     )
     cancel_abandon_seconds: int = Field(
         validation_alias="CAT",
         default=0,
-        description="Seconds left to cancel abandoning the outpost",
+        description="Seconds left to cancel abandoning the castle; not positive when it cannot be",
     )
     no_abandon_seconds: int = Field(
         validation_alias="TA",
         default=0,
-        description="Seconds before the outpost may be abandoned again",
+        description="Seconds until the castle has been held long enough to abandon",
     )
 
     _entry_ints = field_validator(

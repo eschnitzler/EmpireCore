@@ -1,6 +1,10 @@
 """Castles: the castle list, castle details, buildings and castle actions: protocol models."""
 
 from .actions import (
+    AbandonCastleRequest,
+    AbandonCastleResponse,
+    CancelAbandonCastleRequest,
+    CancelAbandonCastleResponse,
     JoinAreaRequest,
     RelocateCastleRequest,
     RelocateCastleResponse,
@@ -130,6 +134,10 @@ __all__ = [
     "JoinAreaRequest",
     "RenameCastleRequest",
     "RenameCastleResponse",
+    "AbandonCastleRequest",
+    "AbandonCastleResponse",
+    "CancelAbandonCastleRequest",
+    "CancelAbandonCastleResponse",
     "RelocateCastleRequest",
     "RelocateCastleResponse",
     "CastleResources",
