@@ -46,6 +46,7 @@ if TYPE_CHECKING:
         Gem,
         General,
         GeneralAbility,
+        GeneralRarity,
         GeneralSkill,
         GlobalEffect,
         Horse,
@@ -1505,9 +1506,45 @@ class GeneralDef(_Row):
     )
     raw_attack_slots: str = Field(validation_alias="attackSlots", default="")
     raw_defense_slots: str = Field(validation_alias="defenseSlots", default="")
-    rarity_id: int = Field(validation_alias="generalRarityID", default=0)
+    rarity_id: GameDataId["GeneralRarity"] = Field(
+        validation_alias="generalRarityID", default=2, description="Its rarity, which prices unlocking and stars"
+    )
     max_level: int = Field(validation_alias="maxLevel", default=0)
     max_star_level: int = Field(validation_alias="maxStarLevel", default=0)
+    unlock_currency_id: GameDataId["CurrencyId"] = Field(
+        validation_alias="unlockCurrencyID", default=0, description="The shard that unlocks it; 0 for none"
+    )
+    upgrade_currency_ids: tuple[GameDataId["CurrencyId"], ...] = Field(
+        validation_alias="upgradeCurrencyIDs", default=(), description="The shards that raise its star level"
+    )
+    is_preview: bool = Field(
+        validation_alias="isPreview", default=False, description="Shown ahead of its release; it cannot be unlocked"
+    )
+
+    @field_validator("rarity_id", "unlock_currency_id", mode="before")
+    @classmethod
+    def _parse_int(cls, value: object, info: ValidationInfo) -> int:
+        return _parse_int_or_default(value, 2 if info.field_name == "rarity_id" else 0)
+
+    @field_validator("upgrade_currency_ids", mode="before")
+    @classmethod
+    def _id_lists(cls, value: object) -> object:
+        return _id_list(value)
+
+    @field_validator("is_preview", mode="before")
+    @classmethod
+    def _preview(cls, value: object) -> bool:
+        # isImplemented is 0 == parseInt(isPreview || "0"), so a value with no leading integer is a preview too
+        return value if isinstance(value, bool) else not js_falsy(value) and js_parse_int(value) != 0
+
+    @property
+    def is_implemented(self) -> bool:
+        """
+        Whether the general is out, and so can be unlocked: ``GeneralXmlVO.isImplemented``.
+
+        Client: ``GeneralXmlVO.fillFromParamXml`` (bundle line 33102)
+        """
+        return not self.is_preview
 
     @property
     def attack_slots(self) -> tuple[int, ...]:
