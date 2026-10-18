@@ -24,6 +24,7 @@ from .items import (
     parse_area_rows,
 )
 from .owners import AllianceCrest, AllianceEmblem, OwnerCastlePosition, OwnerCrest, OwnerFaction
+from .ruins import RememberRuinRequest, RuinInfoRequest, RuinInfoResponse
 from .world import BERIMOND_SECTORS, SECTOR_SIZE, MapSize, ServerInfoResponse
 
 __all__ = [
@@ -52,6 +53,9 @@ __all__ = [
     "OwnerCrest",
     "OwnerFaction",
     "MapSize",
+    "RememberRuinRequest",
+    "RuinInfoRequest",
+    "RuinInfoResponse",
     "ServerInfoResponse",
     "SECTOR_SIZE",
     "BERIMOND_SECTORS",

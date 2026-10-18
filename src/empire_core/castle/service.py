@@ -8,6 +8,7 @@ It covers:
 - Buildings and the construction queue
 - Tax collection
 - Research and the mercenary camp's missions
+- A monument's or laboratory's upgrade progress
 
 Sending goods, support and troops from a castle is on ``client.movements``.
 
@@ -73,6 +74,13 @@ from empire_core.castle.models.details import (
     GetDetailedCastleRequest,
     GetDetailedCastleResponse,
 )
+from empire_core.castle.models.landmarks import (
+    GetLaboratoryProgressRequest,
+    GetMonumentProgressRequest,
+    LaboratoryProgressResponse,
+    LandmarkProgress,
+    MonumentProgressResponse,
+)
 from empire_core.castle.models.mercenaries import MercenaryMission, MercenaryMissionsResponse, MercenaryPackageRequest
 from empire_core.castle.models.objects import (
     BuildingConstructionItems,
@@ -112,6 +120,7 @@ from empire_core.enums import (
 )
 from empire_core.exceptions import CommandError, EmpireError, PacketError, ReplyMismatchError, UnknownCastleError
 from empire_core.gamedata import BuildingDef, Currency, HorseStats, Research
+from empire_core.map.models.items import MapAreaItem
 from empire_core.protocol.base import BaseResponse
 from empire_core.protocol.js import js_truthy
 from empire_core.services.base import BaseService
@@ -136,6 +145,12 @@ _BUILDING = (BuildingState.BUILD_STOPPED, BuildingState.BUILD_IN_PROGRESS)
 _UPGRADING = (BuildingState.UPGRADE_STOPPED, BuildingState.UPGRADE_IN_PROGRESS)
 # CastleListVO.getMainCastleByKingdomID (bundle line 13864)
 _MAIN_CASTLE_TYPES = (MapItemType.CASTLE, MapItemType.KINGDOM_CASTLE)
+_LANDMARK_PROGRESS: dict[
+    MapItemType, tuple[type[GetLaboratoryProgressRequest | GetMonumentProgressRequest], type[LandmarkProgress]]
+] = {
+    MapItemType.LABORATORY: (GetLaboratoryProgressRequest, LaboratoryProgressResponse),
+    MapItemType.MONUMENT: (GetMonumentProgressRequest, MonumentProgressResponse),
+}
 
 
 # a started mission's RD is rounded, and a collect sent while time remains is a ruby skip
@@ -465,6 +480,27 @@ class CastleService(BaseService):
         if castle is None:
             raise UnknownCastleError(castle_id)
         return castle
+
+    def get_landmark_progress(self, landmark: MapAreaItem, *, timeout: float = 5.0) -> LandmarkProgress:
+        """
+        A monument's or laboratory's upgrade points, asked for by its map row's object id.
+
+        A laboratory is asked with ``glp``, a monument with ``gmp``, as their upgrade dialogs ask.
+
+        Args:
+            landmark: The landmark's map row, e.g. from ``client.map.scan_map_area``
+
+        Raises:
+            ValueError: The row is neither a monument nor a laboratory
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+
+        Client: ``CastleUpgradeLaboratoryDialogProperties.progressCommandVO`` and
+        ``CastleUpgradeLandmarkDialogProperties.progressCommandVO`` (bundle lines 51665, 51709)
+        """
+        if landmark.location_id is None or landmark.item_type not in _LANDMARK_PROGRESS:
+            raise ValueError(f"{landmark.item_type.name} is neither a monument nor a laboratory")
+        request_type, response_type = _LANDMARK_PROGRESS[landmark.item_type]
+        return self.request(request_type(object_id=landmark.location_id), response_type, timeout=timeout)
 
     # =========================================================================
     # Castle Selection
