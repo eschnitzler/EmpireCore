@@ -143,3 +143,24 @@ only sends with `--send`:
 ```
 
 **API:** [`AttackService`](../reference/attack.md#empire_core.attack.service.AttackService)
+
+## Dungeon cooldowns
+
+Use a held minute-skip item to shorten a camp's cooldown:
+
+```python
+from empire_core.gamedata import Currency
+
+camp = client.attack.minute_skip_dungeon(700, 710, Currency.SKIP_5_MINUTES)
+print(camp.attack_cooldown_seconds)
+```
+
+`skip_dungeon_cooldown(700, 710, spend_rubies=True)` skips the whole cooldown.
+It requires explicit consent because the target and remaining time determine the ruby price.
+Both methods return the updated map row, preserve server refusals and transport errors,
+and reject replies for another position or kingdom. Missing or malformed rows raise `PacketError`.
+
+For a treasure-map node, supply both `map_id` and `node_id`; leave both at `-1`
+for ordinary camps. Replies do not identify the treasure node, so a late reply
+for the same position after a timeout cannot be distinguished from the next reply.
+Server eligibility checks remain authoritative. Neither method updates a cached map snapshot.

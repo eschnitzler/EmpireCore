@@ -36,6 +36,16 @@ def _row_or_none(value: object) -> MapAreaItem | None:
         return None
 
 
+def _matches_target(payload: object, x: int, y: int, kingdom: Kingdom) -> bool:
+    if not isinstance(payload, dict) or not isinstance(payload.get("AI"), list):
+        return True
+    try:
+        area = MapAreaItem.from_list(payload["AI"], kingdom=kingdom)
+    except ValueError:
+        return True
+    return (area.x, area.y, area.kingdom) == (x, y, kingdom)
+
+
 class MinuteSkipDungeonRequest(BaseRequest):
     """
     Shorten a dungeon's cooldown with a minute-skip item.
@@ -70,6 +80,9 @@ class MinuteSkipDungeonRequest(BaseRequest):
         description="The minute skip used, ``Currency.SKIP_1_MINUTE`` to ``SKIP_24_HOURS``; sent as its key",
     )
     kingdom_id: Kingdom = Field(validation_alias="KID", description="Kingdom id")
+
+    def accepts_reply(self, payload: object) -> bool:
+        return _matches_target(payload, self.x, self.y, self.kingdom_id)
 
     @field_serializer("kingdom_id")
     def _kingdom_id_as_string(self, value: Kingdom) -> str:
@@ -124,6 +137,9 @@ class SkipDungeonCooldownRequest(BaseRequest):
         default=-1,
         description="Treasure-map node id, -1 for an ordinary dungeon",
     )
+
+    def accepts_reply(self, payload: object) -> bool:
+        return _matches_target(payload, self.x, self.y, self.kingdom_id)
 
 
 class SkipDungeonCooldownResponse(BaseResponse):

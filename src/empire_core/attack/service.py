@@ -14,6 +14,12 @@ from typing import TYPE_CHECKING, Any
 from empire_core.army.models.units import AttackWave
 from empire_core.army.spy_army import SpyArmy
 from empire_core.attack.filling import _pool, _support_tools, _target_defense
+from empire_core.attack.models.dungeon_skips import (
+    MinuteSkipDungeonRequest,
+    MinuteSkipDungeonResponse,
+    SkipDungeonCooldownRequest,
+    SkipDungeonCooldownResponse,
+)
 from empire_core.attack.models.info import AttackInfoResponse
 from empire_core.attack.models.presets import (
     PRESET_NAME_MAX_LENGTH,
@@ -63,6 +69,7 @@ from empire_core.exceptions import (
     AttackBelowMinimumError,
     AttackInProgressError,
     CommandError,
+    PacketError,
 )
 from empire_core.gamedata import WodAmount, WodAmountMapping
 from empire_core.gamedata.ids.events import Event
@@ -73,7 +80,7 @@ from empire_core.services.base import BaseService
 if TYPE_CHECKING:
     from empire_core.attack.models.counter import AttackCounterResponse
     from empire_core.client.client import EmpireClient
-    from empire_core.gamedata import CurrencyId, GameData, GlobalEffect, Tool
+    from empire_core.gamedata import Currency, CurrencyId, GameData, GlobalEffect, Tool
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +118,75 @@ class AttackService(BaseService):
             return None
         row = self._require_game_data().dungeon_defense(item.victory_count, item.kingdom)
         return SpyArmy.from_robber_baron_camp(row) if row is not None else None
+
+    def minute_skip_dungeon(
+        self,
+        x: int,
+        y: int,
+        minute_skip: Currency | str,
+        kingdom_id: Kingdom = Kingdom.GREEN,
+        *,
+        map_id: int = -1,
+        node_id: int = -1,
+        timeout: float = 5.0,
+    ) -> MapAreaItem:
+        """Use one held minute-skip item and return the updated dungeon.
+
+        Supply both treasure-map ids for a treasure node; omit both for ordinary camps.
+        Client: SkippableCooldownMinuteSkipProperties.getMinuteSkipCommand (bundle line 72341),
+        C2SMinuteSkipDungeonVO (bundle lines 72354–72357), MSDCommand (bundle lines 125805–125807).
+        """
+        self._check_dungeon_node(map_id, node_id)
+        self._require_minute_skip(minute_skip)
+        response = self.request(
+            MinuteSkipDungeonRequest(
+                x=x, y=y, minute_skip=minute_skip, kingdom_id=kingdom_id, map_id=map_id, node_id=node_id
+            ),
+            MinuteSkipDungeonResponse,
+            timeout=timeout,
+        )
+        return self._dungeon_skip_result(response, kingdom_id)
+
+    def skip_dungeon_cooldown(
+        self,
+        x: int,
+        y: int,
+        kingdom_id: Kingdom = Kingdom.GREEN,
+        *,
+        map_id: int = -1,
+        node_id: int = -1,
+        spend_rubies: bool = False,
+        timeout: float = 5.0,
+    ) -> MapAreaItem:
+        """Pay to skip the remaining cooldown and return the updated dungeon.
+
+        Requires ruby consent; the price depends on the target and remaining time.
+        Supply both treasure-map ids for a treasure node. Replies identify position
+        and kingdom, not the treasure node; same-position late replies cannot be distinguished.
+        Client: SkippableCooldownDialog.skipWithRubies (bundle lines 28197–28199),
+        C2SSkipDungeonCooldownVO (bundle lines 46108–46110), SDCCommand (bundle lines 122356–122360).
+        """
+        self._check_dungeon_node(map_id, node_id)
+        self._require_spend_rubies(spend_rubies, "a full dungeon cooldown skip may cost rubies")
+        response = self.request(
+            SkipDungeonCooldownRequest(x=x, y=y, kingdom_id=kingdom_id, map_id=map_id, node_id=node_id),
+            SkipDungeonCooldownResponse,
+            timeout=timeout,
+        )
+        return self._dungeon_skip_result(response, kingdom_id)
+
+    @staticmethod
+    def _check_dungeon_node(map_id: int, node_id: int) -> None:
+        if (map_id, node_id) != (-1, -1) and (map_id < 0 or node_id < 0):
+            raise ValueError("map_id and node_id must both name a treasure node, or both be -1")
+
+    @staticmethod
+    def _dungeon_skip_result(
+        response: MinuteSkipDungeonResponse | SkipDungeonCooldownResponse, kingdom: Kingdom
+    ) -> MapAreaItem:
+        if response.area is None or response.area.attack_cooldown_seconds is None:
+            raise PacketError(f"The '{response.command}' reply has no readable dungeon cooldown")
+        return response.area.model_copy(deep=True, update={"kingdom": Kingdom(kingdom)})
 
     def send_attack(
         self,
