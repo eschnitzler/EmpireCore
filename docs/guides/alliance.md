@@ -6,6 +6,24 @@ description: Alliance chat, help requests, members, applications, ranks and the 
 
 `client.alliance` covers your own alliance and looks up others.
 
+## Founding
+
+```python
+created = client.alliance.found("New Guild", "Our description", "en")
+print(created.alliance_id)
+```
+
+The normal client flow costs 100 wood, 50 stone, 50 base coins and 375 base
+rubies; cost modifiers can adjust the coin and ruby prices. An active premium
+account waives the ruby cost. Without `spend_rubies=True`, the premium exemption
+must last beyond the request timeout. The call keeps missing-resource ruby
+payment disabled. `open_join=True` is the client's default; pass `False` to
+require invitations or accepted applications.
+
+A valid success installs the created alliance and your membership together.
+Refusals, transport failures, malformed replies and replies from a superseded
+membership keep the newer local state.
+
 ## Settings and gifts
 
 Settings return the alliance details echoed by the server:

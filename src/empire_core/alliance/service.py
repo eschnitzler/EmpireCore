@@ -76,6 +76,7 @@ from empire_core.alliance.models.forum import (
     SetForumVisibilityResponse,
     forum_text,
 )
+from empire_core.alliance.models.founding import ALLIANCE_FOUND_RUBIES, FoundAllianceRequest, FoundAllianceResponse
 from empire_core.alliance.models.gifts import AllianceGift, CollectAllianceGiftRequest, CollectAllianceGiftResponse
 from empire_core.alliance.models.help import (
     AllianceHelpListResponse,
@@ -545,6 +546,45 @@ class AllianceService(BaseService):
             raise
         return _echoed(response.alliance, "arm")
 
+    def found(
+        self,
+        name: str,
+        description: str,
+        language: str,
+        *,
+        open_join: bool = True,
+        spend_rubies: bool = False,
+        timeout: float = 5.0,
+    ) -> AllianceInfo:
+        """Found an alliance and return its created details.
+
+        Base costs are 50 coins, 100 wood, 50 stone and 375 rubies, before cost
+        modifiers. An active premium account waives the ruby cost. Without ruby
+        consent its remaining time must cover the request timeout. Missing resources
+        are never bought with rubies. Server refusals preserve local membership.
+
+        Client: CastleNewAllianceDialog.showLoaded/onCreateNewAlliance (bundle
+        44123–44125, 44138–44141), C2SFoundAllianceVO (44153–44156),
+        AFOCommand (121465–121466), AllianceConst (dll line 18805).
+        """
+        alliance_name(name)
+        request = FoundAllianceRequest(name=name, description=description, language=language, open_join=open_join)
+        request.validate_description()
+        with self._membership_change(timeout=timeout) as revision:
+            if self.local_alliance_id is not None:
+                raise ValueError("you already belong to an alliance")
+            if not spend_rubies:
+                premium_seconds = self.client.state.get_boosts().premium_remaining_seconds()
+                self._require_spend_rubies(
+                    spend_rubies,
+                    f"founding an alliance may spend rubies (base price {ALLIANCE_FOUND_RUBIES})"
+                    if not 0 <= timeout < premium_seconds
+                    else None,
+                )
+            response, payload = self._request_membership(request, FoundAllianceResponse, timeout=timeout)
+            self.client.state.apply_membership_response(payload, membership_revision=revision)
+            return response.alliance
+
     def apply(self, alliance_id: int, text: str, *, timeout: float = 5.0) -> None:
         """Send an application to an alliance, waiting for acceptance by the server."""
         self.execute(ApplyToAllianceRequest(alliance_id=alliance_id, text=text), timeout=timeout)
@@ -876,6 +916,7 @@ class AllianceService(BaseService):
         with (
             self.client.connection.command_lock("joa", timeout=timeout),
             self.client.connection.command_lock("aai", timeout=timeout),
+            self.client.connection.command_lock("afo", timeout=timeout),
         ):
             yield self.client.state.membership_revision
 
