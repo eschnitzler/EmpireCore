@@ -275,12 +275,6 @@ class EmpireClient:
         if not handlers:
             return
 
-        if not isinstance(payload, dict):
-            # Response models are all keyed objects, so an array payload has
-            # no model to parse into - GameState is its only consumer.
-            logger.debug(f"No response model for array payload of '{cmd}'; state updated only")
-            return
-
         try:
             response = parse_response(cmd, payload)
         except ValidationError:
@@ -736,7 +730,7 @@ class EmpireClient:
             # Reported under the command sent, which is what the caller asked for.
             raise CommandError(command, response_packet.error_code, response_packet.payload)
 
-        if isinstance(response_packet.payload, dict):
+        if isinstance(response_packet.payload, (dict, list)):
             try:
                 return parse_response(response_command, response_packet.payload)
             except ValidationError as e:

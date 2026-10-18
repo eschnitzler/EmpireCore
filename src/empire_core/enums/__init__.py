@@ -44,6 +44,7 @@ from .combat import (
 )
 from .commanders import EquipmentSlot, EquipmentType, Rareness, WearerType
 from .errors import GGEError
+from .events import PerformanceStatistic
 from .gamedata import (
     BuildingGroundType,
     BuildingGroup,
@@ -102,6 +103,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "ConstructionItemMode",
+    "PerformanceStatistic",
     # Map / kingdom
     "Kingdom",
     "MapItemType",

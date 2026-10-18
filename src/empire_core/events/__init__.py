@@ -3,6 +3,18 @@
 from typing import TYPE_CHECKING
 
 from empire_core.enums import RankingType
+from empire_core.enums.events import PerformanceStatistic
+from empire_core.events.board_models import (
+    GetBattlegroundRankRequest,
+    GetBattlegroundRankResponse,
+    GetBattlegroundTimersRequest,
+    GetBattlegroundTimersResponse,
+    GetPlayerPerformanceRequest,
+    GetPlayerPerformanceResponse,
+    GetTemporaryServerRanksRequest,
+    GetTemporaryServerRanksResponse,
+    PlayerPerformanceStatistic,
+)
 from empire_core.utils.lazy import lazy_exports
 
 from .models import (
@@ -61,6 +73,16 @@ if TYPE_CHECKING:
     from empire_core.gamedata import Event, GlobalEffect, QuestId, RaidBoss
 
 __all__ = [
+    "PerformanceStatistic",
+    "GetBattlegroundRankRequest",
+    "GetBattlegroundRankResponse",
+    "GetBattlegroundTimersRequest",
+    "GetBattlegroundTimersResponse",
+    "PlayerPerformanceStatistic",
+    "GetPlayerPerformanceRequest",
+    "GetPlayerPerformanceResponse",
+    "GetTemporaryServerRanksRequest",
+    "GetTemporaryServerRanksResponse",
     "EVENT_CLASSES",
     "EVENT_SCOREBOARDS",
     "POINT_EVENTS",
