@@ -441,10 +441,10 @@ class EventsService(BaseService):
         return self.request(GetTemporaryServerRanksRequest(), GetTemporaryServerRanksResponse, timeout=timeout)
 
     def get_berimond_targets(self, *, timeout: float = 5.0) -> tuple[BerimondTarget, ...]:
-        """Request the special camps currently eligible for attack in Battle for Berimond.
+        """Request special camp candidate identifiers in Battle for Berimond.
 
         Requires the running event. Ids refer to special camps, not map area ids;
-        request map and attack details separately for a target's coordinates.
+        request map and attack details separately for a target's coordinates and eligibility.
         Client: ``FactionCapitalMapobjectVO.parseAreaInfo`` / ``FactionTowerMapobjectVO.parseAreaInfo``
         (bundle 22772-22773, 22818-22819), ``AFDCommand`` (127742-127743).
         """

@@ -79,9 +79,11 @@ a fresh snapshot. Refusals raise `CommandError`; timeouts and malformed replies 
 
 ## Battle for Berimond reads
 
-`get_berimond_targets()` requests the special camps currently eligible for attack and
+`get_berimond_targets()` requests the event’s special camp candidate identifiers and
 returns a tuple of `BerimondTarget` records in server order. Each `special_camp_id` is
 an opaque event camp identifier; unknown identifiers and duplicates are preserved.
+Membership in this list does not establish attack eligibility: faction, spectator,
+protection and destroyed-target restrictions still apply.
 These identifiers are not map area ids or coordinates. Obtain map positions separately;
 `client.attack.get_attack_info()` already supports Berimond village, tower and capital
 attack pre-calculations through its `area_type` argument.
