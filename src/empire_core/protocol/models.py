@@ -319,6 +319,13 @@ from empire_core.castle.models.construction_items import (
     RemoveConstructionItemResponse,
 )
 from empire_core.castle.models.kingdoms import KingdomInfoResponse
+from empire_core.castle.models.landmarks import (
+    GetLaboratoryProgressRequest,
+    GetMonumentProgressRequest,
+    LaboratoryProgressResponse,
+    LandmarkProgress,
+    MonumentProgressResponse,
+)
 from empire_core.castle.models.mercenaries import MercenaryMissionsResponse, MercenaryPackageRequest
 from empire_core.castle.models.research import (
     ResearchInfoResponse,
@@ -459,6 +466,7 @@ from empire_core.map.models.owners import (
     OwnerCrest,
     OwnerFaction,
 )
+from empire_core.map.models.ruins import RememberRuinRequest, RuinInfoRequest, RuinInfoResponse
 from empire_core.map.models.world import MapSize, ServerInfoResponse
 from empire_core.messages.models import (
     MAX_MAILBOX_ARCHIVE_SIZE,
@@ -496,6 +504,7 @@ from empire_core.messages.models import (
     ReadMessageResponse,
     SendMessageRequest,
     SendMessageResponse,
+    ServerMessage,
     SpyLogHeader,
     SpyReportArea,
     SpyReportResponse,
@@ -577,6 +586,13 @@ from empire_core.protocol.base import (
     Position,
     get_response_model,
     parse_response,
+)
+from empire_core.quests.models import (
+    FinishQuestConditionRequest,
+    QuestDonateCurrencyRequest,
+    QuestDonateCurrencyResponse,
+    QuestDonateResourcesRequest,
+    QuestDonateResourcesResponse,
 )
 from empire_core.ranking.event_models import (
     ColossusHighscoreRow,
@@ -837,6 +853,19 @@ __all__ = [
     "GetMapAreaRequest",
     "GetMapAreaResponse",
     "MapSize",
+    "FinishQuestConditionRequest",
+    "QuestDonateCurrencyRequest",
+    "QuestDonateCurrencyResponse",
+    "QuestDonateResourcesRequest",
+    "QuestDonateResourcesResponse",
+    "GetLaboratoryProgressRequest",
+    "GetMonumentProgressRequest",
+    "LaboratoryProgressResponse",
+    "LandmarkProgress",
+    "MonumentProgressResponse",
+    "RememberRuinRequest",
+    "RuinInfoRequest",
+    "RuinInfoResponse",
     "ServerInfoResponse",
     "MapObject",
     "KingdomProtection",
@@ -943,6 +972,7 @@ __all__ = [
     "SkipDungeonCooldownResponse",
     # Messages
     "MessageInfo",
+    "ServerMessage",
     "SystemNotificationEvent",
     "BattleLogDetailResponse",
     "BattleLogMiddleResponse",
