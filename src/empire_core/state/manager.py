@@ -361,6 +361,9 @@ class GameState(
         handler_name = self._DISPATCH.get(cmd_id)
         ok = error_code == 0
         with self._lock:
+            self._packet_sequence += 1
+            if ok and cmd_id in {"rpc", "cri"}:
+                self._construction_item_reply_order[cmd_id] = (payload, self._packet_sequence)
             if not ok and cmd_id in _SUCCESS_ONLY:
                 pass
             elif cmd_id in _SECTION_PUSHES:

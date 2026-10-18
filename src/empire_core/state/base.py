@@ -15,8 +15,10 @@ from empire_core.alliance.models.help import AllianceHelpRequest
 from empire_core.alliance.models.info import AllianceInfo
 from empire_core.attack.models.counter import AttackCounterResponse
 from empire_core.castle.models.collect import MineStatus, ResourceCart
+from empire_core.castle.models.construction_items import ConstructionItemInventory
 from empire_core.castle.models.kingdoms import KingdomInfoResponse
 from empire_core.castle.models.mercenaries import MercenaryMissionsResponse
+from empire_core.castle.models.objects import BuildingConstructionItems
 from empire_core.castle.models.permanent import PermanentCastle
 from empire_core.castle.models.research import ResearchInfoResponse
 from empire_core.castle.models.tax import TaxInfo
@@ -89,6 +91,8 @@ class StateBase:
 
     def __init__(self):
         self._lock = threading.RLock()
+        # Distinguish leaving and rejoining the same castle while an action waits for CI.
+        self.area_revision = 0
         self._set_empty_session()
 
         # Wakes the thread that advances the movements as one falls due; started with the first
@@ -145,6 +149,11 @@ class StateBase:
         self.server_info: ServerInfoResponse | None = None
 
         # The last joined area, and the mines and resource carts last sent for it; swapped, never edited
+        self.area_revision += 1
+        self.placed_construction_items: tuple[BuildingConstructionItems, ...] | None = None
+        self._packet_sequence = 0
+        self._placed_construction_item_sequence = 0
+        self._construction_item_reply_order: dict[str, tuple[object, int]] = {}
         self.joined_area: JoinedArea | None = None
         self.mines: dict[int, MineStatus] = {}
         self.resource_carts: list[ResourceCart] = []
@@ -190,6 +199,7 @@ class StateBase:
         self.kingdoms: KingdomInfoResponse | None = None
         self.mercenary_missions: MercenaryMissionsResponse | None = None
         self.tax: TaxInfo | None = None
+        self.construction_items: ConstructionItemInventory | None = None
         self.construction_item_expiry: ConstructionItemExpiryResponse | None = None
         self.resource_pool: ResourcePoolResponse | None = None
 
