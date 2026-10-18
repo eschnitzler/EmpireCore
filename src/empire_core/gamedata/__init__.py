@@ -64,6 +64,7 @@ if TYPE_CHECKING:
         is_current,
     )
 
+from .assets import AssetIndex, tool_asset_path, unit_asset_path
 from .cdn import fetch_items_data, get_items_version
 from .collectables import Collectable, CollectableObject, CollectableRows, CurrencyAmounts, CurrencyIdRows
 from .data import CAMP_TABLES, RAW_TABLES, GameData, default_cache_dir
@@ -151,6 +152,9 @@ from .tables import (
 from .troops import count_troops, get_troop_ids, troop_data_available
 
 __all__ = [
+    "AssetIndex",
+    "tool_asset_path",
+    "unit_asset_path",
     "BuildingGroundType",
     "CastleEffect",
     "BuildingGroup",
