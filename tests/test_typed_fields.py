@@ -64,6 +64,7 @@ ALLOWED: dict[str, str] = {
     "gamedata.tables.BuildingDef.construction_item_group_ids": "construction item groups have no name",
     "gamedata.tables.BuildingDef.low_level_build_durations": "durations in seconds, not ids",
     "gamedata.tables.BuildingDef.low_level_main_castle_cost_rubies": "ruby amounts, not ids",
+    "combat.solver.FillOptions.waves": "wave indexes, positions in send order; not ids",
     "quests.models.DailyQuest.progress": "counters, one per condition of the quest",
     "quests.models.Quest.progress": "counters, one per condition of the quest",
     "alliance.models.chronicle.AllianceChronicleEntry.action_values": (

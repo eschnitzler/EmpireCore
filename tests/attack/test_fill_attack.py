@@ -82,6 +82,17 @@ class TestFillAttack(FillClient):
         assert result.waves
         assert result.yard == (EMPTY_SLOT,) * 8
 
+    def test_no_waves_selected_fills_only_the_courtyard(self):
+        client = self.build([[601, 100_000]])
+
+        with pytest.raises(AttackBelowMinimumError) as caught:
+            client.attack.fill_attack(12345, target_level=13, options=FillOptions(waves=frozenset()))
+
+        attack = caught.value.attack
+        assert attack.waves
+        assert attack.wave_unit_count() == 0
+        assert [pair for pair in attack.yard if pair[0] != -1]
+
     def test_a_scanned_target_reads_like_its_coordinates_and_row(self):
         row = [1, 700, 710, 900, 4242, 1, 1, 1, 0, 0, "castle"]
         reply = xt_packet(
