@@ -102,6 +102,7 @@ from .tables import (
 )
 
 if TYPE_CHECKING:
+    from .assets import AssetIndex
     from .ids import (
         Achievement,
         AllianceCrestColor,
@@ -744,6 +745,18 @@ class GameData(EmpireModel):
             for collectable in reward.collectables
         ]
         return Collectable.merged(found) if combine else tuple(found)
+
+    def unit_asset_path(self, wod_id: int, *, index: AssetIndex | None = None) -> str:
+        """Resolve a unit's versioned client bundle path using this game data."""
+        from .assets import unit_asset_path
+
+        return unit_asset_path(wod_id, game_data=self, index=index)
+
+    def tool_asset_path(self, wod_id: int, *, index: AssetIndex | None = None) -> str:
+        """Resolve a tool's bundle path, including the client's unknown-tool fallback."""
+        from .assets import tool_asset_path
+
+        return tool_asset_path(wod_id, game_data=self, index=index)
 
     def get_unit(self, wod_id: int) -> UnitStats | None:
         return self.units.get(wod_id)
