@@ -12,6 +12,7 @@ from empire_core.player.models.progress import (
     GloryPointsResponse,
     MightPointsResponse,
     RelocationInfoResponse,
+    SelectTitleResponse,
     TitleRanksResponse,
 )
 from empire_core.protocol.js import js_truthy
@@ -169,6 +170,26 @@ class ProgressState(StateBase):
         """Your Berimond points, from the last ``ufp`` push; None until one arrived (the login data has none)."""
         with self._lock:
             return self.faction_points
+
+    def select_title_systems(self, selected: SelectTitleResponse) -> None:
+        """Apply an ``ste`` reply to the title systems of the kept ``uar``: each one the reply names.
+
+        ``client.player.select_titles`` calls it. Nothing is applied before a ``uar`` arrived.
+
+        Client: ``CastleTitleData.parseSTE`` (bundle line 21041)
+        """
+        with self._lock:
+            if self.title_ranks is None:
+                return
+            changed = {
+                field: system
+                for field, system in (
+                    ("prefix_system", selected.prefix_system),
+                    ("suffix_system", selected.suffix_system),
+                )
+                if system is not None
+            }
+            self.title_ranks = self.title_ranks.model_copy(update=changed)
 
     def get_title_ranks(self) -> TitleRanksResponse:
         """Your top-X ranks, Storm Islands title and displayed title systems, from the last ``uar``.

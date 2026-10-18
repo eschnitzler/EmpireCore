@@ -17,7 +17,7 @@ from empire_core.commanders.models.skills import (
     ResetSkillsRequest,
     SkillList,
 )
-from empire_core.enums import MysteryBoxKey
+from empire_core.enums import MysteryBoxKey, TitleSystem
 from empire_core.exceptions import CommandError, EmpireTimeoutError, PacketError
 from empire_core.player.models.economy import LootBoxKeys, OpenLootBoxRequest, OpenLootBoxResponse
 from empire_core.player.models.info import (
@@ -26,6 +26,7 @@ from empire_core.player.models.info import (
     SearchPlayerRequest,
     SearchPlayerResponse,
 )
+from empire_core.player.models.progress import SelectTitleRequest, SelectTitleResponse
 from empire_core.protocol.base import BaseResponse
 from empire_core.services.base import BaseService
 from empire_core.utils.callbacks import Event
@@ -388,6 +389,37 @@ class PlayerService(BaseService):
                 LootBoxKeys(loot_box_type_id=box.loot_box_type_id, keys=response.key_progress)
             )
         return response
+
+    def select_titles(
+        self, prefix: TitleSystem, suffix: TitleSystem | None = None, *, timeout: float = 5.0
+    ) -> SelectTitleResponse:
+        """
+        Choose the title systems shown before and after your name.
+
+        The dialog offers a system once you hold one of its titles (``held_titles``). The reply's
+        systems replace those of :attr:`title_ranks`.
+
+        Client: ``CastleTitleSelectDialog.confirmSelection`` (bundle line 45050),
+        ``CastleTitleData.parseSTE`` (bundle line 21041)
+
+        Args:
+            prefix: The system shown before your name
+            suffix: The system shown after it; None for none
+            timeout: Timeout in seconds
+
+        Returns:
+            The systems the server set
+
+        Raises:
+            CommandError: The server refused: ``TITLE_NOT_AVAILABLE``, ``TITLE_SYSTEM_NOT_AVAILABLE`` or
+                ``TITLE_ON_COOLDOWN``
+            EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+        """
+        selected = self.request(
+            SelectTitleRequest(prefix=prefix, suffix=suffix or ""), SelectTitleResponse, timeout=timeout
+        )
+        self.client.state.select_title_systems(selected)
+        return selected
 
     on_skill_list = Event[SkillList]()
     """
