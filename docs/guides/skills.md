@@ -37,6 +37,30 @@ if toril is not None:
 
 See [Lookups by name](game-data.md#lookups-by-name) for the rest.
 
+## Unlocking generals and their stars
+
+A general is unlocked with its own shards, and gains a star at every tenth level with its own or the
+universal shards. Both check the shards you hold first and raise `ValueError` when the client would not
+offer the action:
+
+```python
+from empire_core.gamedata import Currency, General
+
+client.commanders.unlock_general(General.TORIL)
+toril = next(g for g in client.commanders.get_generals() if g.general_id == General.TORIL)
+client.commanders.upgrade_general_stars(toril, Currency.UNIVERSAL_GENERAL_SHARD)
+```
+
+The generals hub's characters spin a tombola for shards, for an offering or for free:
+
+```python
+from empire_core.gamedata import GeneralsHubCharacter
+
+for character in client.commanders.get_generals_hub():
+    print(character.character_id, character.free_spins, character.cooldown_ends_at)
+spin = client.commanders.spin_generals_hub(GeneralsHubCharacter.FAT_KING, Currency.OFFERING_TO_LUDWIG, free=True)
+```
+
 ## Player skills
 
 ```python

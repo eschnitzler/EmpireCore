@@ -13,6 +13,17 @@ from .equipment import (
     RelicGem,
     RelicInfo,
 )
+from .generals import (
+    ClearGeneralFlagsRequest,
+    GeneralsHubCharacterStatus,
+    GeneralsHubReward,
+    GetGeneralsHubRequest,
+    GetGeneralsHubResponse,
+    SpinGeneralsHubRequest,
+    SpinGeneralsHubResponse,
+    UnlockGeneralRequest,
+    UpgradeGeneralStarsRequest,
+)
 from .inventory import (
     GemInventoryResponse,
     GemStack,
@@ -88,6 +99,15 @@ __all__ = [
     "AssignGeneralResponse",
     "SetGeneralAbilitiesRequest",
     "UnlockGeneralSkillRequest",
+    "ClearGeneralFlagsRequest",
+    "GeneralsHubCharacterStatus",
+    "GeneralsHubReward",
+    "GetGeneralsHubRequest",
+    "GetGeneralsHubResponse",
+    "SpinGeneralsHubRequest",
+    "SpinGeneralsHubResponse",
+    "UnlockGeneralRequest",
+    "UpgradeGeneralStarsRequest",
     "ResetGeneralSkillsRequest",
     "AddGeneralXpRequest",
     "GetSkillsRequest",

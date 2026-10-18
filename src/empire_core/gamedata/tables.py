@@ -42,10 +42,13 @@ if TYPE_CHECKING:
         AllianceCrestLayout,
         Building,
         ConstructionItem,
+        CurrencyId,
         DailyQuestId,
         DifficultyType,
         EquipmentGroup,
         Event,
+        GeneralRarity,
+        GeneralsHubCharacter,
         LootBox,
         LootBoxType,
         QuestId,
@@ -666,6 +669,117 @@ class LootBoxTypeDef(_Row):
         return _parse_int_or_default(value, 0)
 
     @field_validator("theme", mode="before")
+    @classmethod
+    def _text_column(cls, value: object) -> str:
+        return _text(value)
+
+
+class GeneralRarityDef(_Row):
+    """
+    A general rarity: the shards that unlock a general of it and raise its stars, and the xp of each level.
+
+    Client: ``GeneralRarityXmlVO.fillFromParamXml`` (bundle line 113254), keyed by ``generalRarityID`` in
+    ``GeneralsData`` (bundle line 113035)
+    """
+
+    rarity_id: GameDataId["GeneralRarity"] = Field(validation_alias="generalRarityID", description="The rarity")
+    name: str = Field(default="", description="Internal name, e.g. legendary")
+    max_star_level: int = Field(validation_alias="maxStarLevel", default=0, description="The highest star level")
+    unlock_cost: int = Field(validation_alias="unlockCosts", default=0, description="Shards that unlock a general")
+    upgrade_costs: tuple[int, ...] = Field(
+        validation_alias="upgradeCosts", default=(), description="Shards that raise a general from each star level"
+    )
+    xp_requirements: tuple[int, ...] = Field(
+        validation_alias="xpRequirements", default=(), description="The total xp each level starts at"
+    )
+    universal_shards_per_hundred: int = Field(
+        validation_alias="universalShardsPerHundred", default=0, description="Universal shards per hundred shards"
+    )
+
+    @field_validator("rarity_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator("max_star_level", "unlock_cost", "universal_shards_per_hundred", mode="before")
+    @classmethod
+    def _int_column(cls, value: object) -> int:
+        return _parse_int_or_default(value, 0)
+
+    @field_validator("upgrade_costs", "xp_requirements", mode="before")
+    @classmethod
+    def _int_lists(cls, value: object) -> list[int]:
+        return _int_list(value)
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def _text_column(cls, value: object) -> str:
+        return _text(value)
+
+    def star_upgrade_cost(self, star_level: int) -> int:
+        """
+        Shards that raise a general from ``star_level``; 0 past the last, where the client offers none.
+
+        Client: ``GeneralRarityXmlVO.getRequiredShards`` (bundle line 113278)
+        """
+        return self.upgrade_costs[star_level] if 0 <= star_level < len(self.upgrade_costs) else 0
+
+    def level_for_xp(self, xp: int) -> int:
+        """
+        The level a general of this rarity has at ``xp``; past the last requirement, the number of requirements.
+
+        Client: ``GeneralRarityXmlVO.getLevelForXP`` (bundle line 113274)
+        """
+        level = 0
+        while level < len(self.xp_requirements) - 1:
+            if self.xp_requirements[level] <= xp < self.xp_requirements[level + 1]:
+                return level + 1
+            level += 1
+        return level + 1
+
+
+class GeneralsHubCharacterDef(_Row):
+    """
+    A character of the generals hub's inn, who spins a tombola for an offering.
+
+    Client: ``GeneralsHubQuestVO.fillFromParamXml`` (bundle line 47005), keyed by ``characterID`` in
+    ``GeneralsData`` (bundle line 113011)
+    """
+
+    character_id: GameDataId["GeneralsHubCharacter"] = Field(
+        validation_alias="characterID", description="The character"
+    )
+    name: str = Field(default="", description="Internal name, e.g. fatKing")
+    cooldown_seconds: int = Field(
+        validation_alias="coolDownInSeconds", default=0, description="Seconds from the last free spin to the next"
+    )
+    max_free_openings: int = Field(
+        validation_alias="maxFreeOpenings", default=0, description="Free spins that can wait at once"
+    )
+    offering_currency_ids: tuple[GameDataId["CurrencyId"], ...] = Field(
+        validation_alias="tombolas", default=(), description="The offerings its tombolas take, one per tombola"
+    )
+
+    @field_validator("character_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator("cooldown_seconds", "max_free_openings", mode="before")
+    @classmethod
+    def _int_column(cls, value: object) -> int:
+        return _parse_int_or_default(value, 0)
+
+    @field_validator("offering_currency_ids", mode="before")
+    @classmethod
+    def _offerings(cls, value: object) -> object:
+        # Each "#" part is offering+tombolaID (getTombolaOfferingCurrencyID, bundle line 47015)
+        if not isinstance(value, str):
+            return value if isinstance(value, list | tuple) else ()
+        tombolas = (part.split("+") for part in value.split("#"))
+        return [offering for parts in tombolas if (offering := js_parse_int(parts[0])) is not None]
+
+    @field_validator("name", mode="before")
     @classmethod
     def _text_column(cls, value: object) -> str:
         return _text(value)
@@ -1424,6 +1538,8 @@ __all__ = [
     "EventDef",
     "LootBoxDef",
     "LootBoxTypeDef",
+    "GeneralRarityDef",
+    "GeneralsHubCharacterDef",
     "QuestCondition",
     "QuestDef",
     "ResearchDef",

@@ -57,8 +57,10 @@ if TYPE_CHECKING:
     from .events import Event
     from .gems import Gem
     from .general_abilities import GeneralAbility
+    from .general_rarities import GeneralRarity
     from .general_skills import GeneralSkill
     from .generals import General
+    from .generals_hub_characters import GeneralsHubCharacter
     from .global_effects import GlobalEffect
     from .horses import Horse
     from .legend_skills import LegendSkill
@@ -94,7 +96,9 @@ _MODULES = {
     "Gem": "gems",
     "General": "generals",
     "GeneralAbility": "general_abilities",
+    "GeneralRarity": "general_rarities",
     "GeneralSkill": "general_skills",
+    "GeneralsHubCharacter": "generals_hub_characters",
     "GlobalEffect": "global_effects",
     "Horse": "horses",
     "LegendSkill": "legend_skills",
@@ -147,7 +151,9 @@ __all__ = [
     "Gem",
     "General",
     "GeneralAbility",
+    "GeneralRarity",
     "GeneralSkill",
+    "GeneralsHubCharacter",
     "GlobalEffect",
     "Horse",
     "ITEMS_VERSION",

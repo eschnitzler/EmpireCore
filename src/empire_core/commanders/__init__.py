@@ -19,6 +19,7 @@ from .models import (
     AssignGeneralRequest,
     AssignGeneralResponse,
     Castellan,
+    ClearGeneralFlagsRequest,
     Commander,
     CommanderEffect,
     CommanderEffects,
@@ -28,10 +29,14 @@ from .models import (
     EquipmentBonus,
     GemInventoryResponse,
     GemStack,
+    GeneralsHubCharacterStatus,
+    GeneralsHubReward,
     GetCommandersRequest,
     GetCommandersResponse,
     GetEquipmentInventoryRequest,
     GetEquipmentInventoryResponse,
+    GetGeneralsHubRequest,
+    GetGeneralsHubResponse,
     GetGeneralsRequest,
     GetGeneralsResponse,
     GetSkillsRequest,
@@ -51,12 +56,26 @@ from .models import (
     SelectedAbility,
     SetGeneralAbilitiesRequest,
     SkillList,
+    SpinGeneralsHubRequest,
+    SpinGeneralsHubResponse,
+    UnlockGeneralRequest,
     UnlockGeneralSkillRequest,
+    UpgradeGeneralStarsRequest,
 )
 from .service import CommandersService, EquipmentService
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import Gem, GeneralAbility, GeneralSkill, LegendSkill, SceatSkill
+    from empire_core.gamedata import (
+        Currency,
+        CurrencyId,
+        Gem,
+        General,
+        GeneralAbility,
+        GeneralsHubCharacter,
+        GeneralSkill,
+        LegendSkill,
+        SceatSkill,
+    )
 
 __all__ = [
     "NO_GEM_ID",
@@ -91,6 +110,15 @@ __all__ = [
     "AssignGeneralResponse",
     "SetGeneralAbilitiesRequest",
     "UnlockGeneralSkillRequest",
+    "ClearGeneralFlagsRequest",
+    "GeneralsHubCharacterStatus",
+    "GeneralsHubReward",
+    "GetGeneralsHubRequest",
+    "GetGeneralsHubResponse",
+    "SpinGeneralsHubRequest",
+    "SpinGeneralsHubResponse",
+    "UnlockGeneralRequest",
+    "UpgradeGeneralStarsRequest",
     "ResetGeneralSkillsRequest",
     "AddGeneralXpRequest",
     "GetSkillsRequest",
@@ -111,8 +139,12 @@ __all__ = [
     "GemInventoryResponse",
     "GemStack",
     "InventorySpace",
+    "Currency",
+    "CurrencyId",
     "Gem",
+    "General",
     "GeneralAbility",
+    "GeneralsHubCharacter",
     "GeneralSkill",
     "LegendSkill",
     "SceatSkill",
@@ -121,5 +153,17 @@ __all__ = [
 
 if not TYPE_CHECKING:
     __getattr__ = lazy_exports(
-        __name__, "empire_core.gamedata.ids", ("Gem", "GeneralAbility", "GeneralSkill", "LegendSkill", "SceatSkill")
+        __name__,
+        "empire_core.gamedata.ids",
+        (
+            "Currency",
+            "CurrencyId",
+            "Gem",
+            "General",
+            "GeneralAbility",
+            "GeneralsHubCharacter",
+            "GeneralSkill",
+            "LegendSkill",
+            "SceatSkill",
+        ),
     )

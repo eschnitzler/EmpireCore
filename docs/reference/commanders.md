@@ -10,6 +10,10 @@ Commanders, castellans, equipment and generals behind `client.commanders` and `c
 
 ::: empire_core.commanders.models.equipment
 
+## `commanders.models.generals`
+
+::: empire_core.commanders.models.generals
+
 ## `commanders.models.inventory`
 
 ::: empire_core.commanders.models.inventory
