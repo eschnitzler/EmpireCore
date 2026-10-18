@@ -42,3 +42,8 @@ Alliance info, members, chat and help behind `client.alliance`.
 ## Forum
 
 ::: empire_core.alliance.models.forum
+
+
+## Membership
+
+::: empire_core.alliance.models.membership

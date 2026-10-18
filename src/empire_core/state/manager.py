@@ -402,8 +402,9 @@ class GameState(
         """
         self._parse_player_sections(data)
         self._parse_special_currencies(data)
+        previous_alliance_id = self.local_player.AID if self.local_player is not None else None
         self._parse_alliance_info(data)
-        self._apply_gal_reset(data)
+        self._apply_gal_reset(data, previous_alliance_id=previous_alliance_id)
         skipped = {
             section
             for section, applied in (

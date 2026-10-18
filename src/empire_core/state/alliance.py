@@ -12,6 +12,7 @@ from empire_core.alliance.models.help import (
 )
 from empire_core.alliance.models.info import AllianceInfo, alliance_of_ain
 from empire_core.enums import OnlineState
+from empire_core.exceptions import ReplyMismatchError
 from empire_core.protocol.base import read_or_none
 from empire_core.protocol.js import js_int, js_truthy
 from empire_core.state.base import StateBase, read_section
@@ -74,16 +75,45 @@ class AllianceState(StateBase):
         self._own_alliance_raw = None
         self.own_alliance = None
         self.alliance_chat = ()
+        self.alliance_help = ()
 
-    def _apply_gal_reset(self, data: dict[str, Any]) -> None:
-        """Forget your alliance's details and chat when a ``gal`` says you are in none.
+    def _apply_gal_reset(self, data: dict[str, Any], *, previous_alliance_id: int | None) -> None:
+        """Forget details, chat and help when a ``gal`` changes your alliance identity.
 
         Client: ``CastleUserData.parse_GAL`` (bundle line 9869): ``_allianceID<0`` runs
         ``chatData.resetHistory`` and ``allianceData.resetMyAlliance``
         """
+        if "gal" in data:
+            self.membership_revision += 1
         gal = data.get("gal")
-        if isinstance(gal, dict) and js_int(gal.get("AID")) < 0:
-            self._forget_own_alliance()
+        if isinstance(gal, dict):
+            player = self.local_player
+            aid = js_int(gal.get("AID"))
+            if aid < 0 or (aid > 0 and player is not None and player.AID != previous_alliance_id):
+                self._forget_own_alliance()
+
+    def apply_membership_response(self, data: dict[str, Any], *, membership_revision: int) -> None:
+        """Apply only an accepted service reply, while its membership context is still current.
+
+        Client: ``JOACommand`` / ``AAICommand`` (bundle lines 121934 / 121203)
+        apply gal before A. The service scopes these replies so rejected or late
+        replies cannot replace a newer authoritative GAL or a new session.
+        """
+        sections = {}
+        gal = data.get("gal")
+        alliance = data.get("A")
+        if isinstance(gal, dict):
+            sections["gal"] = gal
+        if isinstance(alliance, dict) and alliance.get("AID") is not None:
+            sections["ain"] = {"A": alliance}
+        if not sections:
+            return
+        with self._lock:
+            if self.membership_revision != membership_revision:
+                expected = js_int(gal.get("AID")) if isinstance(gal, dict) else -1
+                current = self.local_player.AID if self.local_player is not None else None
+                raise ReplyMismatchError(expected, current if current is not None else -1)
+            self._handle_gbd(sections)
 
     def _handle_aqi(self, data: Any) -> None:
         """Handle the reply to leaving your alliance: the chat and details are forgotten, its ``gal`` applied.
@@ -91,6 +121,7 @@ class AllianceState(StateBase):
         Client: ``AQICommand.executeCommand`` (bundle line 121557): ``resetHistory``, ``parse_GAL(i.gal)``,
         ``resetMyAlliance``
         """
+        self.membership_revision += 1
         self.alliance_chat = ()
         self.alliance_help = ()
         if isinstance(data, dict) and "gal" in data:
