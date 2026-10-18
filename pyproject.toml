@@ -58,7 +58,7 @@ line-length = 120
 target-version = "py310"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B"] # Pycodestyle, Pyflakes, Isort, Bugbear
+select = ["E", "F", "I", "B", "BLE"] # Pycodestyle, Pyflakes, Isort, Bugbear, blind except
 # Nothing is ignored globally. Every entry that used to live here (E701, F841,
 # B007, E402) suppressed zero violations, and the two that did suppress
 # something have been fixed instead: B904 (client.py login() now chains with
@@ -70,6 +70,8 @@ select = ["E", "F", "I", "B"] # Pycodestyle, Pyflakes, Isort, Bugbear
 # `ruff format` cannot split. Wrap it and delete this entry - it is the only
 # reason E501 is not simply on everywhere.
 "src/empire_core/movements/tracked.py" = ["E501"]
+# Test threads collect any error for the main thread to assert on
+"tests/**" = ["BLE001"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

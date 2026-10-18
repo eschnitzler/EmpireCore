@@ -430,6 +430,13 @@ class TestPushRobustness:
         alliance = state.get_local_player().alliance
         assert alliance is not None and alliance.id == 5
 
+    def test_an_invalid_alliance_is_logged_and_the_old_one_kept(self, state, caplog):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gal": {"AID": 5, "N": "Clan"}})
+        state.update_from_packet("gal", {"AID": 6, "R": "not a rank"})
+        alliance = state.get_local_player().alliance
+        assert alliance is not None and alliance.id == 5
+        assert "Could not parse alliance" in caplog.text
+
     def test_leave_alliance_push_still_clears_it(self, state):
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gal": {"AID": 5, "N": "Clan"}})
         state.update_from_packet("gal", {"AID": -1})

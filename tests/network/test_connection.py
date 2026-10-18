@@ -1174,6 +1174,28 @@ class TestThreadSafety:
 class TestSessionLiveness:
     """A session can go stale server-side while the socket stays open."""
 
+    def test_an_unexpected_keepalive_error_keeps_the_liveness_check_running(self, live_conn, monkeypatch, caplog):
+        from empire_core.network import connection as connection_module
+
+        monkeypatch.setattr(connection_module, "KEEPALIVE_INTERVAL", 0)
+        sends: list[str] = []
+        checks: list[bool] = []
+
+        def send(data: str) -> None:
+            sends.append(data)
+            if len(sends) == 1:
+                raise RuntimeError("a bug in send")
+            live_conn._running = False
+
+        monkeypatch.setattr(live_conn, "send", send)
+        monkeypatch.setattr(live_conn, "_check_session_liveness", lambda: checks.append(True))
+
+        live_conn._keepalive_loop(1)
+
+        assert len(sends) == 2
+        assert checks == [True]
+        assert "a bug in send" in caplog.text
+
     def test_silent_session_is_closed(self, live_conn):
         ws = RecordingSocket()
         live_conn.ws = ws

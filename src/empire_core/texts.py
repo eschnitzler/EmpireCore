@@ -114,7 +114,7 @@ def get_texts(lang: str = "en", force_refresh: bool = False) -> Mapping[str, str
         cached = _texts.get(lang)
         try:
             texts = _normalised(fetch_texts(lang))
-        except Exception as e:
+        except (requests.RequestException, KeyError, TypeError, AttributeError) as e:
             _failed_at[lang] = time.time()
             logger.warning(f"Failed to fetch the '{lang}' texts, texts fall back to their keys: {e}")
             return cached if cached is not None else {}

@@ -5,6 +5,8 @@ import math
 import time
 from typing import Any
 
+from pydantic import ValidationError
+
 from empire_core.gamedata import Currency
 from empire_core.gamedata.lenient import known
 from empire_core.protocol.js import js_int, js_truthy
@@ -226,7 +228,7 @@ class PlayerState(StateBase):
         if aid > 0:
             try:
                 alliance = Alliance(**gal)
-            except Exception as e:
+            except ValidationError as e:
                 logger.warning(f"Could not parse alliance: {e}")
                 return
             logger.debug(f"Alliance: {alliance.name}")
