@@ -401,7 +401,9 @@ class AllianceInfo(BasePayload):
         default=False,
         description="The alliance is looking for players",
     )
-    is_accepting_members: bool = Field(validation_alias="IA", default=False, description="Players may apply to join")
+    is_accepting_members: bool = Field(
+        validation_alias="IA", default=False, description="Players may join without an invitation"
+    )
     application_count: ParseInt = Field(validation_alias="AA", default=12, description="Pending applications")
     auto_war: bool = Field(validation_alias="AW", default=False, description="Auto war is on")
     aqua_points: int | float = Field(validation_alias="AP", default=0, description="Aqua points")

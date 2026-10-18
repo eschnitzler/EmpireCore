@@ -128,12 +128,46 @@ from .models.forum import (
     SetForumVisibilityRequest,
     SetForumVisibilityResponse,
 )
+from .models.membership import (
+    AcceptAllianceInvitationRequest,
+    AcceptAllianceInvitationResponse,
+    AllianceMembership,
+    AllianceRecruit,
+    ApplyToAllianceRequest,
+    ApplyToAllianceResponse,
+    FindAllianceRecruitsRequest,
+    FindAllianceRecruitsResponse,
+    GetAllianceInvitationRequest,
+    GetAllianceInvitationResponse,
+    JoinOpenAllianceRequest,
+    JoinOpenAllianceResponse,
+    SetLookingForAllianceRequest,
+    SetLookingForAllianceResponse,
+    SetLookingForMembersRequest,
+    SetLookingForMembersResponse,
+)
 from .service import AllianceHelpUpdate, AllianceService
 
 if TYPE_CHECKING:
     from empire_core.gamedata import AllianceCrestColor, AllianceCrestLayout
 
 __all__ = [
+    "GetAllianceInvitationRequest",
+    "GetAllianceInvitationResponse",
+    "AcceptAllianceInvitationRequest",
+    "AcceptAllianceInvitationResponse",
+    "AllianceRecruit",
+    "FindAllianceRecruitsRequest",
+    "FindAllianceRecruitsResponse",
+    "SetLookingForMembersRequest",
+    "SetLookingForMembersResponse",
+    "SetLookingForAllianceRequest",
+    "SetLookingForAllianceResponse",
+    "AllianceMembership",
+    "ApplyToAllianceRequest",
+    "ApplyToAllianceResponse",
+    "JoinOpenAllianceRequest",
+    "JoinOpenAllianceResponse",
     "CreateForumTopicRequest",
     "CreateForumTopicResponse",
     "ReplyToForumTopicRequest",

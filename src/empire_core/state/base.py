@@ -93,6 +93,7 @@ class StateBase:
         self._lock = threading.RLock()
         # Distinguish leaving and rejoining the same castle while an action waits for CI.
         self.area_revision = 0
+        self.membership_revision = 0
         self._set_empty_session()
 
         # Wakes the thread that advances the movements as one falls due; started with the first
@@ -119,6 +120,7 @@ class StateBase:
 
     def _set_empty_session(self) -> None:
         """Start the session data over: nothing received yet."""
+        self.membership_revision += 1
         self.local_player: Player | None = None
 
         # player id -> Player. Despite the type, this only ever holds the
