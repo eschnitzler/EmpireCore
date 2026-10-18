@@ -55,3 +55,7 @@ Alliance info, members, chat and help behind `client.alliance`.
 ## Gifts
 
 ::: empire_core.alliance.models.gifts
+
+## Founding
+
+::: empire_core.alliance.models.founding
