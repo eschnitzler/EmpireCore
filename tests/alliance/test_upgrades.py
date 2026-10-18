@@ -2,7 +2,7 @@
 
 import pytest
 
-from empire_core.enums import AllianceBuffType
+from empire_core.enums import AllianceBuffType, CollectableKind
 from empire_core.exceptions import CommandError, EmpireTimeoutError, PacketError, ReplyMismatchError
 from empire_core.gamedata import GameData
 from tests.alliance.test_pushes import alliance_state
@@ -277,3 +277,124 @@ def test_named_currency_treasury_cost_is_resolved_from_game_data():
     )
     client.alliance.upgrade(6)
     assert conn(client).request_payloads[-1] == ("aug", {"BT": 6, "L": 1})
+
+
+@pytest.mark.parametrize("command", ["abl", "ain"])
+@pytest.mark.parametrize("consent", [False, True])
+def test_newer_buff_state_invalidates_free_to_paid_preflight(command, consent):
+    client = upgrade_client(ruby_cost=50, level=2)
+
+    def incoming(packet):
+        client.state.update_from_packet(packet.command_id, packet.payload, packet.error_code)
+        if packet.command_id == "ain":
+            buffs = {"ABL": [{"BT": 6, "L": 1, "CD": -1}]}
+            payload = {"A": {"AID": 301, **buffs}} if command == "ain" else buffs
+            client.state.update_from_packet(command, payload)
+
+    conn(client).on_packet = incoming
+    with pytest.raises(ValueError, match="changed"):
+        client.alliance.upgrade(6, spend_rubies=consent)
+    assert "aug" not in conn(client).requested
+
+
+@pytest.mark.parametrize("command", ["abl", "ain"])
+def test_newer_active_customizable_level_invalidates_preflight(command):
+    client = upgrade_client(series=12, duration=60)
+
+    def incoming(packet):
+        client.state.update_from_packet(packet.command_id, packet.payload, packet.error_code)
+        if packet.command_id == "ain":
+            buffs = {"ABL": [{"BT": 12, "L": 2, "CD": 60}]}
+            client.state.update_from_packet(command, {"A": {"AID": 301, **buffs}} if command == "ain" else buffs)
+
+    conn(client).on_packet = incoming
+    with pytest.raises(ValueError, match="changed"):
+        client.alliance.upgrade(12, level=1, spend_rubies=True)
+    assert "aug" not in conn(client).requested
+
+
+@pytest.mark.parametrize(
+    "costs",
+    [
+        {"costC2": 50, "costs": []},
+        {"costc2": "unknown"},
+        {"costWood": "unknown"},
+        {"costFutureCoin": "unknown"},
+    ],
+)
+@pytest.mark.parametrize("consent", [False, True])
+def test_raw_cost_columns_cannot_be_bypassed_or_malformed(costs, consent):
+    client = upgrade_client()
+    client.game_data = GameData.parse(
+        "synthetic",
+        {
+            "currencies": [{"currencyID": "100100", "Name": "FutureCoin", "JSONKey": "FC"}],
+            "alliancebuffs": [
+                {"allianceBuffID": 100, "allianceBuffSeriesID": 6, "level": 0, "maxLevel": 1},
+                {"allianceBuffID": 101, "allianceBuffSeriesID": 6, "level": 1, "maxLevel": 1, **costs},
+            ],
+        },
+    )
+    with pytest.raises(ValueError):
+        client.alliance.upgrade(6, spend_rubies=consent)
+    assert "aug" not in conn(client).requested
+
+
+@pytest.mark.parametrize("amount", [float("nan"), float("inf"), -1, "unknown"])
+def test_invalid_normalized_costs_never_authorize_send(amount):
+    client = upgrade_client()
+    client.game_data = GameData.parse(
+        "synthetic",
+        {
+            "alliancebuffs": [
+                {"allianceBuffID": 100, "allianceBuffSeriesID": 6, "level": 0, "maxLevel": 1},
+                {
+                    "allianceBuffID": 101,
+                    "allianceBuffSeriesID": 6,
+                    "level": 1,
+                    "maxLevel": 1,
+                    "costs": [{"kind": CollectableKind.RUBIES, "key": "C2", "amount": amount}],
+                },
+            ]
+        },
+    )
+    with pytest.raises(ValueError):
+        client.alliance.upgrade(6, spend_rubies=True)
+    assert "aug" not in conn(client).requested
+
+
+def test_plain_normalized_costs_remain_supported_and_require_consent():
+    client = upgrade_client()
+    client.game_data = GameData.parse(
+        "synthetic",
+        {
+            "alliancebuffs": [
+                {"allianceBuffID": 100, "allianceBuffSeriesID": 6, "level": 0, "maxLevel": 1},
+                {
+                    "allianceBuffID": 101,
+                    "allianceBuffSeriesID": 6,
+                    "level": 1,
+                    "maxLevel": 1,
+                    "costs": [{"kind": CollectableKind.RUBIES, "key": "c2", "amount": 50}],
+                },
+            ]
+        },
+    )
+    with pytest.raises(ValueError, match="spend_rubies"):
+        client.alliance.upgrade(6)
+    client.alliance.upgrade(6, spend_rubies=True)
+    assert conn(client).request_payloads[-1] == ("aug", {"BT": 6, "L": 1})
+
+
+def test_push_received_during_cost_authorization_is_checked_before_send(monkeypatch):
+    client = upgrade_client(ruby_cost=50, level=2)
+    authorize = client.alliance._require_spend_rubies
+
+    def received_push(spend_rubies, cost):
+        authorize(spend_rubies, cost)
+        client.state.update_from_packet("abl", {"ABL": [{"BT": 6, "L": 1, "CD": -1}]})
+
+    monkeypatch.setattr(client.alliance, "_require_spend_rubies", received_push)
+    with pytest.raises(ValueError, match="changed"):
+        client.alliance.upgrade(6, spend_rubies=True)
+    assert "aug" not in conn(client).requested
