@@ -60,3 +60,16 @@ def test_failed_malformed_or_unscoped_push_keeps_state():
     state.update_from_packet("gal", {"AID": 401})
     state.update_from_packet("afa", {"CF": 9, "HF": 9})
     assert state.get_own_alliance() is None
+
+
+def test_pushes_keep_member_protection_timestamps():
+    state = alliance_state()
+    state.update_from_packet("ain", {"A": {"AID": 301, "M": [{"OID": 8, "RNP": 60}]}})
+    previous = state.get_own_alliance()
+    assert previous is not None
+    before = previous.members[0].received_at
+    state.update_from_packet("afa", {"CF": 2, "HF": 3})
+    state.update_from_packet("abl", {"ABL": []})
+    state.update_from_packet("aee", {"ACCA": {"ACCA": {"ACLI": 1, "ACCS": [1]}}})
+    current = state.get_own_alliance()
+    assert current is not None and current.members[0].received_at == before

@@ -63,10 +63,17 @@ class AllianceState(StateBase):
                         raw[key] = previous[key]
         return self._store_own_alliance(raw)
 
-    def _store_own_alliance(self, raw: dict[str, Any]) -> bool:
+    def _store_own_alliance(self, raw: dict[str, Any], *, changed_keys: set[str] | None = None) -> bool:
         alliance = read_or_none(AllianceInfo.model_validate, raw, warn=logger, what="your alliance's details")
         if alliance is None:
             return False
+        if changed_keys is not None and self.own_alliance is not None:
+            updates = {
+                name: getattr(alliance, name)
+                for name, field in AllianceInfo.model_fields.items()
+                if field.validation_alias in changed_keys
+            }
+            alliance = self.own_alliance.model_copy(deep=True, update=updates)
         self._own_alliance_raw = raw
         self.own_alliance = alliance
         return True
@@ -76,21 +83,21 @@ class AllianceState(StateBase):
         player = self.local_player
         if raw is None or player is None or player.AID is None or js_int(raw.get("AID")) != player.AID:
             return
-        self._store_own_alliance({**raw, **fields})
+        self._store_own_alliance({**raw, **fields}, changed_keys=set(fields))
 
     def _handle_afa(self, data: Any) -> None:
-        """Client: ``AllianceInfoVO.parseAFA`` (bundle line 25952)."""
+        """Client: ``AllianceInfoVO.parseAFA`` (bundle line 25959)."""
         if isinstance(data, dict) and "CF" in data and "HF" in data:
             self._patch_own_alliance({"CF": data["CF"], "HF": data["HF"]})
 
     def _handle_abl(self, data: Any) -> None:
-        """Client: ``AllianceInfoVO.parseABL/parseBuffList`` (bundle lines 25954–25960)."""
+        """Client: ``AllianceInfoVO.parseABL/parseBuffList`` (bundle lines 25961–25967)."""
         buffs = data.get("ABL") if isinstance(data, dict) else data
         if isinstance(buffs, list) and all(isinstance(row, dict) for row in buffs):
             self._patch_own_alliance({"ABL": buffs})
 
     def _handle_aee(self, data: Any) -> None:
-        """Client: ``AEECommand`` (121412–13), ``parseAllianceCrestForAlliance`` (11589).
+        """Client: ``AEECommand`` (121435–36), ``parseAllianceCrestForAlliance`` (11595).
 
         The command passes its ACCA wrapper, then overwrites the fallback with
         the top-level ACFB. Missing current crests remain unknown rather than random.
