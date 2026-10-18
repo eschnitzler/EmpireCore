@@ -37,6 +37,9 @@ if TYPE_CHECKING:
 _CONTAINERS = (list, tuple, set, frozenset)
 
 ALLOWED: dict[str, str] = {
+    "events.status_models.AllianceQuestProgress.counters": (
+        "condition counters, not ids; CastleQuestVO.fillFromParams (bundle 52463)"
+    ),
     "alliance.models.bookmarks.AddBookmarkRequest.attacker_ids": "player ids",
     "alliance.models.bookmarks.BookmarkAttackOrder.assigned_attacker_ids": "player ids",
     "alliance.models.bookmarks.DeleteAllianceBookmarkRequest.entries": "request wire shape: [bookmark_id, notify] rows",
@@ -60,10 +63,13 @@ ALLOWED: dict[str, str] = {
     "gamedata.data.GameData.vip_levels": "keyed by VIP level number, 1 and up; not ids",
     "gamedata.collectables.Collectable.value": "opaque: the entry as sent, for OTHER and the kinds not read here",
     "gamedata.models.ToolStats.slot_types": "attack-screen slot types: the client names none of them",
+    "gamedata.tables.GeneralRarityDef.upgrade_costs": "shard costs, one per star level; not ids",
+    "gamedata.tables.GeneralRarityDef.xp_requirements": "xp totals, one per level; not ids",
     "gamedata.tables.BuildingDef.available_in_map_ids": "map ids: no items table names maps",
     "gamedata.tables.BuildingDef.construction_item_group_ids": "construction item groups have no name",
     "gamedata.tables.BuildingDef.low_level_build_durations": "durations in seconds, not ids",
     "gamedata.tables.BuildingDef.low_level_main_castle_cost_rubies": "ruby amounts, not ids",
+    "combat.solver.FillOptions.waves": "wave indexes, positions in send order; not ids",
     "quests.models.DailyQuest.progress": "counters, one per condition of the quest",
     "quests.models.Quest.progress": "counters, one per condition of the quest",
     "alliance.models.chronicle.AllianceChronicleEntry.action_values": (
@@ -82,6 +88,7 @@ ALLOWED: dict[str, str] = {
     "messages.models.mailbox.DeleteMessagesRequest.message_ids": "message ids",
     "messages.models.mailbox.DeleteMessagesResponse.message_ids": "message ids",
     "messages.models.mailbox.ForwardSpyLogRequest.player_ids": "player ids",
+    "player.models.economy.OpenLootBoxResponse.raw_rewards": "LTR as sent: rows or reward ids, not yet seen live",
     "player.models.progress.TopTitleRanking.thresholds": "points, one per top-X title of the system; not ids",
 }
 
@@ -94,7 +101,6 @@ GAME_DATA_SCALAR_IDS: dict[str, str] = {
     "gamedata.models.ConstructionItemDef.rareness_id": "not established that it shares the equipment Rareness ids",
     "gamedata.models.ConstructionItemDef.slot_type_id": "construction item slot types: the client names none",
     "gamedata.models.DefaultLordDef.lord_id": "default commanders have no name to make an enum of",
-    "gamedata.models.DungeonDefence.lord_id": "a default commander id, which has no enum",
     "gamedata.models.EffectCapDef.cap_id": "effect caps have no name to make an enum of",
     "gamedata.models.EffectDef.cap_id": "effect caps have no name to make an enum of",
     "gamedata.models.EquipmentEffectDef.equipment_effect_id": "equipment effects have no name to make an enum of",
@@ -107,7 +113,6 @@ GAME_DATA_SCALAR_IDS: dict[str, str] = {
     "gamedata.models.GeneralAbilityDef.ability_defense_effect_id": "a generalAbilityEffects row, which has no enum",
     "gamedata.models.GeneralAbilityDef.ability_group_id": "ability groups have no table",
     "gamedata.models.GeneralAbilityDef.ability_trigger_id": "ability triggers: the client names none",
-    "gamedata.models.GeneralDef.rarity_id": "general rarities have no name to make an enum of",
     "gamedata.models.GeneralSkillDef.skill_group_id": "skill groups have no table",
     "gamedata.models.LeagueBracketDef.league_type_id": "a league is a level band per event, not one row",
     "gamedata.models.LegendSkillDef.skill_group_id": "skill groups have no table",

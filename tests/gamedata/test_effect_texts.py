@@ -93,14 +93,14 @@ def value(effect_id: int, *values: tuple[int | float | None, ...]) -> EffectValu
 
 class TestConstructionItems:
     def test_a_plain_value_is_rounded_to_two_digits(self, game_data: GameData) -> None:
-        assert describe_effect(value(2, (12.345,)), game_data) == "+12.35% defence"
-        assert describe_effect(value(2, (-250000,)), game_data) == "+250k% defence"
+        assert describe_effect(value(2, (12.345,)), game_data=game_data) == "+12.35% defence"
+        assert describe_effect(value(2, (-250000,)), game_data=game_data) == "+250k% defence"
 
     def test_a_unit_keyed_value_is_the_first_units(self, game_data: GameData) -> None:
-        assert describe_effect(value(1, (686, 12.345), (687, 50)), game_data) == "-12.3% recruitment costs"
+        assert describe_effect(value(1, (686, 12.345), (687, 50)), game_data=game_data) == "-12.3% recruitment costs"
 
     def test_a_crafting_queue_boost_names_its_queue(self, game_data: GameData) -> None:
-        assert describe_effect(value(3, (2, 25)), game_data) == "Queue 2 is 25% faster"
+        assert describe_effect(value(3, (2, 25)), game_data=game_data) == "Queue 2 is 25% faster"
 
     def test_a_row_reads_its_fixed_bonuses_then_its_effects(self, game_data: GameData) -> None:
         item = ConstructionItemDef.model_validate(
@@ -116,16 +116,16 @@ class TestConstructionItems:
             (CastleEffect.DECO_POINTS, 1200),
             (CastleEffect.RECRUIT_COST_REDUCTION, 5),
         ]
-        assert describe_construction_item(item, game_data) == (
+        assert describe_construction_item(item, game_data=game_data) == (
             "+1,200 public order\n-5% recruitment costs\n+10% defence\n-5% recruitment costs"
         )
 
     def test_a_row_with_only_fixed_bonuses_or_none(self, game_data: GameData) -> None:
         fixed_only = ConstructionItemDef.model_validate({"constructionItemID": "2", "decoPoints": "20"})
-        assert describe_construction_item(fixed_only, game_data) == "+20 public order"
+        assert describe_construction_item(fixed_only, game_data=game_data) == "+20 public order"
         empty = ConstructionItemDef.model_validate({"constructionItemID": "3", "decoPoints": ""})
         assert empty.castle_effects == ()
-        assert describe_construction_item(empty, game_data) == "No effect"
+        assert describe_construction_item(empty, game_data=game_data) == "No effect"
 
     def test_the_items_keep_the_bonus_columns(self) -> None:
         data = GameData.parse(
@@ -135,64 +135,73 @@ class TestConstructionItems:
         assert item.is_premium and [(b.effect, b.value) for b in item.castle_effects] == [(CastleEffect.STACK_SIZE, 2)]
 
     def test_effects_read_as_a_list(self, game_data: GameData) -> None:
-        assert describe_effects([value(2, (10,)), value(999, (1,))], game_data) == ["+10% defence"]
+        assert describe_effects([value(2, (10,)), value(999, (1,))], game_data=game_data) == ["+10% defence"]
 
     def test_an_effect_the_game_data_lacks(self, game_data: GameData) -> None:
-        assert describe_effect(value(999, (1,)), game_data) is None
+        assert describe_effect(value(999, (1,)), game_data=game_data) is None
 
 
 class TestOtherTemplates:
     def test_buildings(self, game_data: GameData) -> None:
-        assert describe_effect(value(2, (5,)), game_data, EffectTemplate.BUILDING) == "Defence +5%"
+        assert describe_effect(value(2, (5,)), EffectTemplate.BUILDING, game_data=game_data) == "Defence +5%"
 
     def test_a_building_effect_names_its_cap(self, game_data: GameData) -> None:
-        assert describe_effect(value(12, (5,)), game_data, EffectTemplate.BUILDING) == "Defence +5% (max. 50%)"
-        assert describe_effect(value(11, (30,)), game_data, EffectTemplate.BUILDING) == (
+        assert (
+            describe_effect(value(12, (5,)), EffectTemplate.BUILDING, game_data=game_data) == "Defence +5% (max. 50%)"
+        )
+        assert describe_effect(value(11, (30,)), EffectTemplate.BUILDING, game_data=game_data) == (
             "+30 units on the wall (max. 1,500)"
         )
-        assert describe_effect(value(13, (5,)), game_data, EffectTemplate.BUILDING) == "Defence +5%"
-        assert describe_effect(value(12, (5,)), game_data) == "+5% defence"
+        assert describe_effect(value(13, (5,)), EffectTemplate.BUILDING, game_data=game_data) == "Defence +5%"
+        assert describe_effect(value(12, (5,)), game_data=game_data) == "+5% defence"
 
     def test_a_buildings_effects_then_its_area_effects(self, game_data: GameData) -> None:
         building = BuildingDef.model_validate(
             {"wodID": "1", "name": "Deco", "effects": "2&5", "areaSpecificEffects": "12&7"}
         )
-        assert describe_building(building, game_data) == ["Defence +5%", "Defence +7% (max. 50%)"]
+        assert describe_building(building, game_data=game_data) == ["Defence +5%", "Defence +7% (max. 50%)"]
 
     def test_equipment_names_its_raid_bosses(self, game_data: GameData) -> None:
-        assert describe_effect(value(10, (5,)), game_data, EffectTemplate.EQUIPMENT) == "+5% defencethe dragon"
-        assert describe_effect(value(2, (5,)), game_data, EffectTemplate.EQUIPMENT) == "+5% defence{1}"
+        assert (
+            describe_effect(value(10, (5,)), EffectTemplate.EQUIPMENT, game_data=game_data) == "+5% defencethe dragon"
+        )
+        assert describe_effect(value(2, (5,)), EffectTemplate.EQUIPMENT, game_data=game_data) == "+5% defence{1}"
 
     def test_an_equipment_effect_resolves_to_its_effect(self, game_data: GameData) -> None:
         bonus = EquipmentEffectValue(equipment_effect_id=900, values=((686, 30), (687, 40)))
-        assert describe_effect(bonus, game_data) == "+30% attack"
+        assert describe_effect(bonus, game_data=game_data) == "+30% attack"
 
     def test_a_gem_that_may_not_trigger_reads_its_chance_first(self, game_data: GameData) -> None:
         gem = GemDef.model_validate({"gemID": "5", "gemLevelID": "3", "effects": "2&10", "triggerChance": "25"})
-        described = describe_effect(gem.effects[0], game_data, EffectTemplate.EQUIPMENT, trigger_chance=25)
+        described = describe_effect(gem.effects[0], EffectTemplate.EQUIPMENT, trigger_chance=25, game_data=game_data)
         assert described == "25% chance: +10% defence"
 
 
 class TestValueKinds:
     def test_support_units_name_their_package_or_unit(self, game_data: GameData) -> None:
         def described(*values: tuple[int, ...]) -> str | None:
-            return describe_effect(value(5, *values), game_data, EffectTemplate.EQUIPMENT)
+            return describe_effect(value(5, *values), EffectTemplate.EQUIPMENT, game_data=game_data)
 
         assert described((686, 30), (687, 20)) == "50 Kingsguard join the defence"
         assert described((211, 10)) == "10 Level 6 Mead ranger join the defence"
         assert described((212, 10)) == "10 Mead ranger join the defence"
 
     def test_reserve_units_read_one_line_per_unit(self, game_data: GameData) -> None:
-        described = describe_effect(value(6, (211, 3), (212, 4)), game_data, EffectTemplate.EQUIPMENT)
+        described = describe_effect(value(6, (211, 3), (212, 4)), EffectTemplate.EQUIPMENT, game_data=game_data)
         assert described == "3 Mead ranger spawn\n4 Mead ranger spawn"
-        assert describe_effect(value(6, (211, 3)), game_data, EffectTemplate.EQUIPMENT) == "3 Mead ranger spawn"
+        assert (
+            describe_effect(value(6, (211, 3)), EffectTemplate.EQUIPMENT, game_data=game_data) == "3 Mead ranger spawn"
+        )
 
     def test_a_currency_boost_names_its_currency(self, game_data: GameData) -> None:
-        described = describe_effect(value(7, (40, 12.36)), game_data, EffectTemplate.EQUIPMENT)
+        described = describe_effect(value(7, (40, 12.36)), EffectTemplate.EQUIPMENT, game_data=game_data)
         assert described == "+12.4% Khan tablets looted"
 
     def test_an_id_list_fills_in_the_ids(self, game_data: GameData) -> None:
-        assert describe_effect(value(8, (211,), (212,)), game_data, EffectTemplate.EQUIPMENT) == "Unlocks 211 and 212"
+        assert (
+            describe_effect(value(8, (211,), (212,)), EffectTemplate.EQUIPMENT, game_data=game_data)
+            == "Unlocks 211 and 212"
+        )
 
     def test_a_commander_ability_value_with_factors(self, game_data: GameData) -> None:
-        assert describe_effect(value(9, (25,)), game_data, EffectTemplate.EQUIPMENT) == "25% and 2.5%"
+        assert describe_effect(value(9, (25,)), EffectTemplate.EQUIPMENT, game_data=game_data) == "25% and 2.5%"

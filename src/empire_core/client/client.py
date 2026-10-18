@@ -15,7 +15,7 @@ from pathlib import Path
 from types import TracebackType
 from typing import Any, TypeVar, cast, overload
 
-from pydantic import ValidationError
+from pydantic import SecretStr, ValidationError
 from typing_extensions import Unpack
 
 from empire_core.alliance.service import AllianceService
@@ -103,9 +103,10 @@ class EmpireClient:
         A :class:`~empire_core.exceptions.LoginCooldownError` counts as a
         failed attempt too, and is retried no sooner than the seconds the
         refusal named (see :meth:`remaining_login_cooldown`): after
-        the longer of that cooldown and the delay. A refusal that waiting does
-        not cure (a ban, the wrong server, the client version, credentials, or
-        any other refusal) ends the attempts, logged as an error and reported
+        the longer of that cooldown and the delay. A ban the server named an
+        end for is waited out the same way. A refusal that waiting does
+        not cure (a ban without an end, a deleted account, the wrong server,
+        the client version, credentials, or any other refusal) ends the attempts, logged as an error and reported
         to :meth:`on_session_lost`; the client then stays logged out. A
         re-login sends no reCAPTCHA token.
     """
@@ -130,7 +131,7 @@ class EmpireClient:
     def __init__(
         self,
         username: str | None = None,
-        password: str | None = None,
+        password: str | SecretStr | None = None,
         config: EmpireConfig | None = None,
         login_token: str | None = None,
         keep_session: bool = False,
@@ -181,6 +182,15 @@ class EmpireClient:
         connection's listeners: :meth:`on_disconnect` callbacks are those listeners.
         """
         return Registry(unique=True, missing_ok=True)
+
+    @property
+    def password(self) -> SecretStr | None:
+        """The password :meth:`login` logs in with, masked when printed; a plain string assigned here is wrapped."""
+        return self._password
+
+    @password.setter
+    def password(self, password: str | SecretStr | None) -> None:
+        self._password = SecretStr(password) if isinstance(password, str) else password
 
     def _attach_services(self) -> None:
         """Build one of each service; they register their packet handlers on the way."""
@@ -263,12 +273,6 @@ class EmpireClient:
         with self._handlers_lock:
             handlers = list(self._handlers.get(cmd, ()))
         if not handlers:
-            return
-
-        if not isinstance(payload, dict):
-            # Response models are all keyed objects, so an array payload has
-            # no model to parse into - GameState is its only consumer.
-            logger.debug(f"No response model for array payload of '{cmd}'; state updated only")
             return
 
         try:
@@ -463,8 +467,8 @@ class EmpireClient:
                 again for each attempt.
             retry: Retry a failed login, as :attr:`keep_session` retries a
                 re-login: after a timeout, a network error, a login
-                cooldown or, with ``config.client_version`` None, a version
-                refusal, wait and log in again, until a login holds. Each
+                cooldown, a ban the server named an end for or, with
+                ``config.client_version`` None, a version refusal, wait and log in again, until a login holds. Each
                 failed attempt fires :meth:`on_session_retry`. Any other
                 failure raises at once. A :meth:`close`, or a newer
                 :meth:`login`, from another thread ends the attempts, also
@@ -500,7 +504,7 @@ class EmpireClient:
         """Seconds until the login cooldown the server last named is over; 0 when there is none.
 
         Only what the server last said: the ``CD`` of the last refused login of
-        this client, less the time since, cleared by a login that holds. The
+        this client, or the ``RS`` of a ban that ends, less the time since, cleared by a login that holds. The
         server may start a cooldown this client has not been told about yet.
 
         Client: ``LLICommand.executeCommand`` (bundle line 120673) shows the
@@ -726,7 +730,7 @@ class EmpireClient:
             # Reported under the command sent, which is what the caller asked for.
             raise CommandError(command, response_packet.error_code, response_packet.payload)
 
-        if isinstance(response_packet.payload, dict):
+        if isinstance(response_packet.payload, (dict, list)):
             try:
                 return parse_response(response_command, response_packet.payload)
             except ValidationError as e:

@@ -4,11 +4,14 @@ The running events, as the state keeps them, and their scoreboards.
 
 from __future__ import annotations
 
+import time
 from typing import TYPE_CHECKING
+
+from pydantic import ValidationError
 
 from empire_core.enums import RankingType
 from empire_core.events.titles import get_event_titles
-from empire_core.exceptions import EventHasNoPointsError, EventNotRunningError
+from empire_core.exceptions import CommandError, EventHasNoPointsError, EventNotRunningError, PacketError
 from empire_core.gamedata.ids.events import Event
 from empire_core.ranking.models import (
     GetHighscoreRequest,
@@ -25,6 +28,16 @@ from empire_core.services.base import BaseService
 if TYPE_CHECKING:
     pass
 
+from .board_models import (
+    GetBattlegroundRankRequest,
+    GetBattlegroundRankResponse,
+    GetBattlegroundTimersRequest,
+    GetBattlegroundTimersResponse,
+    GetPlayerPerformanceRequest,
+    GetPlayerPerformanceResponse,
+    GetTemporaryServerRanksRequest,
+    GetTemporaryServerRanksResponse,
+)
 from .models import (
     EVENT_SCOREBOARDS,
     POINT_EVENTS,
@@ -38,6 +51,16 @@ from .models import (
     ScoredEvent,
     SpecialEvent,
     SpecialEventInfoRequest,
+)
+from .status_models import (
+    GetMobilizationContributionsRequest,
+    GetMobilizationContributionsResponse,
+    GetMobilizationStatusRequest,
+    GetRaidBossStatusRequest,
+    GetRaidBossStatusResponse,
+    MobilizationContribution,
+    MobilizationQuestStatus,
+    RaidBossStatus,
 )
 
 # The part of an event's sei entry holding a board's league; other boards use the entry's own LID
@@ -339,3 +362,107 @@ class EventsService(BaseService):
             )
             for eid, event in events.items()
         ]
+
+    def get_battleground_rank(self, alliance_id: int, *, timeout: float = 5.0) -> GetBattlegroundRankResponse:
+        """Request your alliance's current battleground rank (abgph).
+
+        Requires a running battleground event. Supply your alliance on the event server.
+        Client: ``CastleAllianceBattleGroundEventDialogScoring.show`` (bundle 71907).
+        """
+        self._require_running(Event.ALLIANCE_BATTLE_GROUND)
+        return self.request(
+            GetBattlegroundRankRequest(alliance_id=alliance_id), GetBattlegroundRankResponse, timeout=timeout
+        )
+
+    def get_battleground_timers(self, *, timeout: float = 5.0) -> GetBattlegroundTimersResponse:
+        """Request seconds until the next battleground tower relink and revival.
+
+        The event must run; the server refuses unavailable server context. Timers are a reply snapshot.
+        Client: ``C2SAllianceBattleGroundGetTimersVO`` (bundle 54330), ``parseTRT`` (144811).
+        """
+        self._require_running(Event.ALLIANCE_BATTLE_GROUND)
+        return self.request(GetBattlegroundTimersRequest(), GetBattlegroundTimersResponse, timeout=timeout)
+
+    def get_player_performance(
+        self, event: Event | int, player_id: int, *, timeout: float = 5.0
+    ) -> GetPlayerPerformanceResponse:
+        """Request a player's event points and performance counters (gpe).
+
+        Requires the event to run. Replies contain no player/event identity; requests for gpe are
+        serialized, but a late reply after a timeout cannot be distinguished from the next request.
+        Client: ``C2SGetPlayerPerformanceVO`` (bundle 34268-34272), ``GPECommand`` (127239-127248).
+        """
+        self._require_running(event)
+        return self.request(
+            GetPlayerPerformanceRequest(event_id=int(event), player_id=player_id),
+            GetPlayerPerformanceResponse,
+            timeout=timeout,
+        )
+
+    def get_temporary_server_ranks(self, *, timeout: float = 5.0) -> GetTemporaryServerRanksResponse:
+        """Request your current temporary-server daily and overall points/ranks.
+
+        Requires a running temporary-server event; unavailable server context raises CommandError.
+        Board pages use ranking.get_highscore; tsh has no pagination or previous-run selector.
+        Client: ``TempServerEventVO.parseOwnRanks`` (bundle 118163).
+        """
+        self._require_running(Event.TEMP_SERVER)
+        return self.request(GetTemporaryServerRanksRequest(), GetTemporaryServerRanksResponse, timeout=timeout)
+
+    def _require_running(self, event: Event | int) -> SpecialEvent:
+        found = self.client.state.get_event(event)
+        if found is None:
+            raise EventNotRunningError(int(event))
+        return found
+
+    def get_mobilization_status(self, *, timeout: float = 5.0) -> MobilizationQuestStatus:
+        """Request alliance mobilisation quest slots and participating member count.
+
+        Requires the running mobilisation event. Successful replies also update its quest_status.
+        Client: ``AllianceMobilizationEventEventVO.requestAllianceQuestStatus`` (bundle 5117).
+        """
+        self._require_running(Event.ALLIANCE_MOBILIZATION_EVENT)
+        return self.request(
+            GetMobilizationStatusRequest(event_id=int(Event.ALLIANCE_MOBILIZATION_EVENT)),
+            MobilizationQuestStatus,
+            timeout=timeout,
+        )
+
+    def get_mobilization_contributions(self, *, timeout: float = 5.0) -> tuple[MobilizationContribution, ...]:
+        """Request player contributions for the current alliance mobilisation.
+
+        The response carries no event identity; a late reply after timeout cannot be identified.
+        Client: ``AllianceMobilizationEventDialogContributions.show`` (bundle 47205), AQPCCommand (127404).
+        """
+        self._require_running(Event.ALLIANCE_MOBILIZATION_EVENT)
+        return self.request(
+            GetMobilizationContributionsRequest(event_id=int(Event.ALLIANCE_MOBILIZATION_EVENT)),
+            GetMobilizationContributionsResponse,
+            timeout=timeout,
+        ).contributions
+
+    def get_raid_boss_status(self, *, timeout: float = 5.0) -> RaidBossStatus:
+        """Request current alliance raid boss, health, cards and walls.
+
+        Requires the raid event. Successful replies and bbs broadcasts update RaidBossEvent.boss_status.
+        An inactive status clears the active boss fields; missing identity/stage/walls preserve prior values
+        exactly where the client does. Replies carry no event or alliance identity, so a late reply after
+        timeout cannot be correlated. Refusals/transport failures raise without changing the event.
+        Client: ``C2SGetAllianceRaidBossStatus`` (bundle 47183-47187), raid parser (76190-76205).
+        """
+        self._require_running(Event.ALLIANCE_RAIDBOSS_EVENT)
+        deadline = time.monotonic() + timeout
+        with self.client.connection.command_lock("bse", timeout=timeout):
+            packet = self.client.request_packet(
+                GetRaidBossStatusRequest(), "bse", timeout=max(0.0, deadline - time.monotonic())
+            )
+            if packet.error_code != 0:
+                raise CommandError("bse", packet.error_code, packet.payload)
+            try:
+                GetRaidBossStatusResponse.model_validate(packet.payload)
+            except ValidationError as error:
+                raise PacketError(f"Could not parse 'bse' response: {error}") from error
+            status = self.client.state._raid_status_reply(packet.payload)
+            if status is None:
+                raise PacketError("The 'bse' reply has no matching applied raid status")
+            return status

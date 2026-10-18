@@ -12,7 +12,7 @@ import xml.etree.ElementTree as ET
 from typing import Any, ClassVar
 
 import requests
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field, SecretStr, model_validator
 
 from empire_core.exceptions import LoginError, NetworkError
 from empire_core.protocol.base import EmpireModel
@@ -411,9 +411,7 @@ class EmpireConfig(EmpireModel):
 
     # User (Optional defaults)
     username: str | None = None
-    # repr=False: keeps the secret out of repr()/str(), which reach logs and the
-    # traceback locals captured by error reporters.
-    password: str | None = Field(default=None, repr=False)
+    password: SecretStr | None = Field(default=None, description="The password; prints masked")
 
     @model_validator(mode="after")
     def relogin_delays_in_order(self) -> "EmpireConfig":

@@ -141,3 +141,20 @@ The server pushes how many rewards wait in the reward hub (`pre`).
 push, and `on_pending_rewards` calls you with each push. The hub lists and
 hands out the rewards over a web service of its own, which the library does
 not reach.
+
+## Mystery boxes
+
+```python
+from empire_core.enums import MysteryBoxKey
+
+boxes = client.player.loot_boxes
+opened = client.player.open_loot_box(boxes.loot_boxes[0].loot_box_id)
+print(opened.rewards, opened.keys_won, opened.key_progress)
+```
+
+`open_loot_box` opens one box with the common key, which never runs out. Pass
+a rarer `MysteryBoxKey` you hold to open it with that one, or `open_all=True`
+to open every box of the kind, which only the common key does; anything else
+raises `ValueError` without a request. The box type's key progress in
+`client.player.loot_boxes` follows the reply; the box count follows the
+server's next `gls`.

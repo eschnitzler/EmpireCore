@@ -1775,9 +1775,9 @@ class TestSentMovements:
         [mov] = state.get_outgoing_movements()
         game_data = GameData.parse("test", {})
         assert mov.commander == Commander.model_validate(entry)
-        bonuses = commander_bonuses(game_data, mov.commander)
+        bonuses = commander_bonuses(mov.commander, game_data=game_data)
         assert [bonus.effect_id for bonus in bonuses] == [242, 110, 426]
-        assert bonuses == commander_bonuses(game_data, Commander.model_validate(entry))
+        assert bonuses == commander_bonuses(Commander.model_validate(entry), game_data=game_data)
 
     def test_a_movement_without_a_commander_has_none(self, state):
         login(state, self.ME)

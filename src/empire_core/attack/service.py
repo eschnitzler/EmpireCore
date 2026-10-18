@@ -39,7 +39,6 @@ from empire_core.combat import (
     WaveCapacity,
     attack_dialog_bonuses,
     attacker_flank_effects,
-    camp_level,
     fill_yard_wave,
     global_unit_attack_bonuses,
     is_npc_player,
@@ -47,8 +46,9 @@ from empire_core.combat import (
     legend_skill_value,
     min_attack_soldiers,
     minimum_owner_level,
-    npc_camp_defense,
     owner_id_from_row,
+    robber_baron_camp_defense,
+    robber_baron_camp_level,
     support_tool_waves,
     wave_level,
     wave_limit_violations,
@@ -93,6 +93,24 @@ class AttackService(BaseService):
     def counter(self) -> AttackCounterResponse | None:
         """Your attack counter, from the last ``gai``; None until one arrived."""
         return self.client.state.get_attack_counter()
+
+    def robber_baron_camp_army(self, item: MapAreaItem) -> SpyArmy | None:
+        """
+        A robber baron camp's defenders, from the game data rather than a spy report.
+
+        Each flank holds the camp row's units, then its tools. None for any
+        other target, and for a robber baron camp the items payload lists no
+        row for. A treasure map dungeon is not covered: its victory count is its map
+        node's, which no map row carries (``TreasureDungeonMapObjectVO.victoryCount``,
+        bundle line 22004); look it up with ``GameData.dungeon_defense``.
+
+        Raises:
+            GameDataNotLoadedError: The game data cannot be loaded
+        """
+        if item.item_type != MapItemType.DUNGEON or item.victory_count is None:
+            return None
+        row = self._require_game_data().dungeon_defense(item.victory_count, item.kingdom)
+        return SpyArmy.from_robber_baron_camp(row) if row is not None else None
 
     def send_attack(
         self,
@@ -386,8 +404,8 @@ class AttackService(BaseService):
         castle_id: int,
         *,
         level: int | None = None,
-        camp_victories: int | None = None,
-        camp_kingdom_id: Kingdom = Kingdom.GREEN,
+        robber_baron_camp_victories: int | None = None,
+        robber_baron_camp_kingdom: Kingdom = Kingdom.GREEN,
         space_id: int | None = None,
         area_type: MapItemType | int | None = None,
         landmark_min_level: int = 0,
@@ -435,9 +453,9 @@ class AttackService(BaseService):
             castle_id: Castle whose troops to draw from, one of yours: a ``Castle.id``
                 from ``client.state.get_castles()``
             level: The *target owner's* level, which is what sizes a wave
-            camp_victories: An NPC camp's victory count, to derive its defense
+            robber_baron_camp_victories: A robber baron camp's victory count, to derive its defense
                 from the game data - see ``MapAreaItem.victory_count``
-            camp_kingdom_id: Kingdom the camp sits in
+            robber_baron_camp_kingdom: Kingdom the robber baron camp sits in
             space_id: Kingdom the target sits in, which some tools are limited
                 to; the camp's kingdom when not given
             landmark_min_level: A capital's or metropolis's own defense level,
@@ -449,11 +467,11 @@ class AttackService(BaseService):
                 The waves deduct what they take, so a caller filling more than
                 one thing from one pool passes the same object each time
             area_type: The target's area type, which scopes the general's
-                effects; NPC camps are area type 2
+                effects; robber baron camps are area type 2
             player_target: True when attacking a player, False for an NPC.
                 Decides which PvP- or PvE-only effects count; when not given it
                 follows ``owner_id`` (``getFilterStrategyAttackOrDefence``)
-            defense: Explicit per-flank defense, overriding ``camp_victories``
+            defense: Explicit per-flank defense, overriding ``robber_baron_camp_victories``
             attacker: Attacker multipliers; built from ``commander``, the
                 legend skills and ``support_tools`` when omitted
             commander: The commander leading the attack, whose equipment and
@@ -526,8 +544,10 @@ class AttackService(BaseService):
         if owner_id is None and area_type is not None:
             owner_id = ALIEN_INVASION_AREA_TYPES.get(area_type)
 
-        if defense is None and camp_victories is not None:
-            defense = npc_camp_defense(game_data, camp_victories, camp_kingdom_id)
+        if defense is None and robber_baron_camp_victories is not None:
+            defense = robber_baron_camp_defense(
+                robber_baron_camp_victories, robber_baron_camp_kingdom, game_data=game_data
+            )
 
         resolver = EffectResolver(game_data)
         tools = _support_tools(game_data, support_tools)
@@ -548,7 +568,7 @@ class AttackService(BaseService):
             has_other_player_info=area_type in OTHER_PLAYER_INFO_AREA_TYPES,
         )
         merged = attack_dialog_bonuses(
-            game_data, commander, area_effects=area_bonuses, general_skill_ids=general_skill_ids
+            commander, area_effects=area_bonuses, general_skill_ids=general_skill_ids, game_data=game_data
         )
         if attacker is None:
             attacker = attacker_flank_effects(
@@ -566,15 +586,17 @@ class AttackService(BaseService):
         if legend_skill_ids:
             if legendary.unit_amount:
                 flank_bonus_percent += int(
-                    legend_skill_value(game_data, legend_skill_ids, "additionalUnitAmountOnFlank")
+                    legend_skill_value(legend_skill_ids, "additionalUnitAmountOnFlank", game_data=game_data)
                 )
                 front_bonus_percent += int(
-                    legend_skill_value(game_data, legend_skill_ids, "additionalUnitAmountOnFront")
+                    legend_skill_value(legend_skill_ids, "additionalUnitAmountOnFront", game_data=game_data)
                 )
             if legendary.extra_wave:
-                wave_bonus += int(legend_skill_value(game_data, legend_skill_ids, "additionalWave"))
+                wave_bonus += int(legend_skill_value(legend_skill_ids, "additionalWave", game_data=game_data))
             if legendary.flank_tools:
-                tool_bonus += legend_skill_value(game_data, legend_skill_ids, "additionalAttackToolAmountFlank")
+                tool_bonus += legend_skill_value(
+                    legend_skill_ids, "additionalAttackToolAmountFlank", game_data=game_data
+                )
         # initWaves: int() of effect 156 over the merged list plus the support
         # tools' ADDITIONAL_WAVE. Its add-while-below, then remove-while-above
         # loops settle on the floor of that total.
@@ -582,7 +604,7 @@ class AttackService(BaseService):
             resolver.accumulate(
                 merged, CombatEffectType.ADDITIONAL_WAVE, area_type=area_type, player_target=player_target
             )
-        ) + support_tool_waves(game_data, tools)
+        ) + support_tool_waves(tools, game_data=game_data)
         wave_bonus += math.floor(extra_waves)
 
         unit_attack_bonuses = self._unit_attack_bonuses(game_data, self._global_effects(global_effects), attacker_level)
@@ -592,7 +614,7 @@ class AttackService(BaseService):
 
         return solve_waves(
             inventory,
-            game_data,
+            game_data=game_data,
             level=level,
             attacker_level=attacker_level,
             conquer=conquer,
@@ -605,7 +627,7 @@ class AttackService(BaseService):
             options=options,
             unit_attack_bonuses=unit_attack_bonuses,
             area_type=area_type,
-            space_id=camp_kingdom_id if space_id is None else space_id,
+            space_id=robber_baron_camp_kingdom if space_id is None else space_id,
             target_is_player=target_is_player,
             active_raid_boss_id=active_raid_boss_id,
         )
@@ -646,7 +668,9 @@ class AttackService(BaseService):
             if boosted is not None and isinstance(booster, GlobalEffectBuffEvent)
             else {}
         )
-        return global_unit_attack_bonuses(game_data, running, player_level=player_level, boosts=boosts) or None
+        return (
+            global_unit_attack_bonuses(running, player_level=player_level, boosts=boosts, game_data=game_data) or None
+        )
 
     def read_inventory(self, castle_id: int, *, timeout: float = 5.0) -> Inventory:
         """
@@ -686,8 +710,8 @@ class AttackService(BaseService):
         target_is_player: bool = False,
         target_owner_id: int | None = None,
         target_owner_legend_level: int | None = None,
-        camp_victories: int | None = None,
-        camp_kingdom_id: Kingdom = Kingdom.GREEN,
+        robber_baron_camp_victories: int | None = None,
+        robber_baron_camp_kingdom: Kingdom = Kingdom.GREEN,
         target_row: list[Any] | None = None,
         area_type: MapItemType | int | None = None,
         landmark_min_level: int = 0,
@@ -725,7 +749,7 @@ class AttackService(BaseService):
 
         Every one of those can be passed instead, which skips the request that
         would have found it. Pass no coordinates and nothing is read: then
-        ``target_level`` or ``camp_victories`` is required, as before.
+        ``target_level`` or ``robber_baron_camp_victories`` is required, as before.
 
         A scan of the target's tile, made when its area type is not known,
         leaves the session on the map, as the client is when it attacks from
@@ -753,15 +777,15 @@ class AttackService(BaseService):
             source_y: Attacking castle's y
             target_level: The target owner's level, which sizes each flank.
                 Read from the map when coordinates are given, or derived from
-                ``camp_victories`` for a camp
+                ``robber_baron_camp_victories`` for a robber baron camp
             target_is_player: True for a player's castle or outpost
             target_owner_id: The target owner's player id, which decides the
                 legend skills; taken from ``target_row`` when not given
             target_owner_legend_level: The target owner's legend level. Read
                 from the owner records of a one-tile scan when coordinates are
                 given, 0 otherwise
-            camp_victories: An NPC camp's victory count
-            camp_kingdom_id: Kingdom the camp sits in
+            robber_baron_camp_victories: A robber baron camp's victory count
+            robber_baron_camp_kingdom: Kingdom the robber baron camp sits in
             target_row: The target's raw map row, for a castle's structures.
                 Its first field is the area type, so passing the row is enough
             landmark_min_level: A capital's or metropolis's own defense level
@@ -772,7 +796,9 @@ class AttackService(BaseService):
                 level rather than its current owner's
             spy_army: A spied castle's defenders per flank, from
                 ``get_attack_info(...).spy_army``. Without it a castle target
-                is modeled as fortification alone, with no defending army
+                is modeled as fortification alone, with no defending army, and
+                a robber baron camp as its row in the items payload
+                (:meth:`robber_baron_camp_army`)
             defending_castellan: The castellan holding the target, from
                 ``get_attack_info(...).defending_castellan()``. Its equipment
                 raises the fortification and multiplies the defenders,
@@ -841,8 +867,8 @@ class AttackService(BaseService):
             level=target_level,
             owner_legend_level=target_owner_legend_level,
             is_player=target_is_player,
-            camp_victories=camp_victories,
-            camp_kingdom_id=Kingdom(camp_kingdom_id),
+            robber_baron_camp_victories=robber_baron_camp_victories,
+            robber_baron_camp_kingdom=Kingdom(robber_baron_camp_kingdom),
             spy_army=spy_army,
             castellan=defending_castellan,
             defender_legend_skill_ids=defender_legend_skill_ids,
@@ -853,11 +879,11 @@ class AttackService(BaseService):
             _read_target(self, read, castle_id=castle_id, timeout=timeout)
 
         if read.level is None:
-            if read.camp_victories is None:
+            if read.robber_baron_camp_victories is None:
                 if target_x is None or target_y is None:
                     raise ValueError(
                         "Pass target or target_x and target_y to read the target, or target_level, "
-                        "or camp_victories to derive the level from"
+                        "or robber_baron_camp_victories to derive the level from"
                     )
                 item = _row_item(read.row)
                 if item is None:
@@ -871,7 +897,7 @@ class AttackService(BaseService):
                     f"Nothing at {read.x}:{read.y} says what level to fill for: {reason}. "
                     "Pass target_level to fill it anyway"
                 )
-            read.level = camp_level(read.camp_victories, read.camp_kingdom_id)
+            read.level = robber_baron_camp_level(read.robber_baron_camp_victories, read.robber_baron_camp_kingdom)
         if read.area_type is None:
             row_item = _row_item(read.row)
             read.area_type = row_item.item_type if row_item is not None else None
@@ -906,7 +932,7 @@ class AttackService(BaseService):
             castle_id,
             level=read.level,
             landmark_min_level=landmark_min_level,
-            camp_kingdom_id=read.camp_kingdom_id,
+            robber_baron_camp_kingdom=read.robber_baron_camp_kingdom,
             space_id=read.kingdom_id,
             conquer=conquer,
             tool_bonus=tool_bonus,
@@ -939,13 +965,13 @@ class AttackService(BaseService):
         )
         yard = fill_yard_wave(
             pool,
-            game_data,
             yard_capacity(attacker_level, yard_level, bonus=yard_bonus, boost=yard_boost) if options.fill_yard else 0,
             defender=(defense or {}).get(Flank.YARD),
             options=options,
             # The courtyard runs the same pick as a flank, so a buffed unit is
             # worth as much here as it is out front.
             unit_attack_bonuses=self._unit_attack_bonuses(game_data, global_effects, attacker_level),
+            game_data=game_data,
         )
         # Client: CastleFightScreenVO.targetOwnerLevel (bundle line 30562)
         owner_level = (

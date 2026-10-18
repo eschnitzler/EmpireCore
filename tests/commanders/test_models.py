@@ -126,7 +126,7 @@ class TestCommanderEffects:
             }
         )
 
-        assert commander_bonuses(GameData(version="test"), commander) == [
+        assert commander_bonuses(commander, game_data=GameData(version="test")) == [
             Bonus(effect_id=53, value=25.0, via_equipment=True, raw_values=(25.0,)),
             Bonus(effect_id=4, value=116.2, via_relic=True, raw_values=(116.2,)),
         ]
@@ -254,7 +254,7 @@ class TestAlienEquipmentBonuses:
             },
         )
         commander = Commander.model_validate({"ID": 1, "EQ": [], "AIE": [[[37, [5]]], [[37, [10]]]]})
-        bonuses = commander_bonuses(game_data, commander)
+        bonuses = commander_bonuses(commander, game_data=game_data)
         assert sorted(bonus.via_equipment for bonus in bonuses) == [True, True]
         assert [bonus.effect_id for bonus in bonuses] == [37, 37]
 
@@ -262,7 +262,7 @@ class TestAlienEquipmentBonuses:
         game_data = GameData.parse("test", {})
         item = [1, 1, 1, 1, 0, [[37, [5]]], 0, -1, 0, -1, -1, 0]
         commander = Commander.model_validate({"ID": 1, "EQ": [item], "AIE": [[37, [10]]]})
-        assert len(commander_bonuses(game_data, commander)) == 1
+        assert len(commander_bonuses(commander, game_data=game_data)) == 1
 
 
 def test_a_null_set_id_or_odd_rarity_keeps_the_item():
@@ -281,16 +281,16 @@ def test_alien_equipment_gems_count_while_it_stands_in_for_eq():
     )
     alien = Commander.model_validate({"ID": 1, "EQ": [], "AIE": [], "GEM": [333, "333", 999]})
     # getGemVO looks the id up as sent in an int-keyed table, so "333" and 999 find nothing
-    assert [(b.effect_id, b.value) for b in commander_bonuses(game_data, alien)] == [(504, 20.0)]
+    assert [(b.effect_id, b.value) for b in commander_bonuses(alien, game_data=game_data)] == [(504, 20.0)]
     worn = Commander.model_validate({"ID": 1, "EQ": [[1, 1, 1, 1, 0, [], 0, -1, 0, -1, -1, 0]], "GEM": [333]})
-    assert commander_bonuses(game_data, worn) == []
+    assert commander_bonuses(worn, game_data=game_data) == []
 
 
 def test_equipment_bonuses_come_before_the_commanders_own():
     game_data = GameData.parse("test", {})
     item = [1, 1, 1, 1, 0, [[37, [5]]], 0, -1, 0, -1, -1, 0]
     commander = Commander.model_validate({"ID": 1, "EQ": [item], "E": [[2111, [150]]]})
-    assert [b.effect_id for b in commander_bonuses(game_data, commander)] == [37, 2111]
+    assert [b.effect_id for b in commander_bonuses(commander, game_data=game_data)] == [37, 2111]
 
 
 def test_items_count_in_slot_order_and_one_per_slot():
@@ -302,7 +302,7 @@ def test_items_count_in_slot_order_and_one_per_slot():
     # Armor (1), then two helmets (3), then a slot the client has no place for (9)
     commander = Commander.model_validate({"ID": 1, "EQ": [item(1, 11), item(3, 31), item(3, 32), item(9, 91)]})
     # parseLord's slots run helmet, armor, weapon, ...; the second helmet replaces the first
-    assert [b.effect_id for b in commander_bonuses(game_data, commander)] == [32, 11]
+    assert [b.effect_id for b in commander_bonuses(commander, game_data=game_data)] == [32, 11]
 
 
 def test_unreadable_eq_rows_still_keep_aie_out():
@@ -348,12 +348,13 @@ class TestDriftedEquipmentEntries:
     def test_unparseable_entries_are_skipped_and_logged(self, caplog):
         with caplog.at_level(logging.WARNING, logger="empire_core.commanders.models.roster"):
             response = GetCommandersResponse.model_validate(
-                {"C": [{"ID": 91, "EQ": [{"nested": 1}, 5, [880, "not-a-slot"], [880, 2, 2]]}]}
+                {"C": [{"ID": 91, "EQ": [{"slot": "not-a-slot"}, 5, [880, "not-a-slot"], [880, 2, 2]]}]}
             )
         items = response.commanders[0].equipment
 
         assert [(i.equipment_id, i.slot) for i in items] == [(880, 2)]
         assert "3/4" in caplog.text
+        assert "(slot: Input should be a valid integer" in caplog.text
 
     def test_a_flank_entry_that_is_not_a_pair_counts_as_no_units(self):
         # A padded or truncated slot must not raise out of the wave check.

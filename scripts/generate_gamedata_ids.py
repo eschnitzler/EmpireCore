@@ -429,6 +429,21 @@ def gem_rows(data: GameData, texts: Texts | None) -> list[Row]:
     return rows
 
 
+def gem_color_rows(data: GameData, texts: Texts | None) -> list[Row]:
+    """
+    ``gemColor_<gemColorID>_tt`` up to its "gem effects": ``Light blue gem effects:`` -> ``LIGHT_BLUE``.
+
+    Client: ``AutoSellDialogGemsItem.updateWithNewData`` (bundle line 73853), the auto-sell dialog's tooltip
+    """
+    rows = []
+    for row in data.gem_colors.values():
+        color_id = int(row.color_id)
+        text = texts.get(f"gemColor_{color_id}_tt") if texts is not None else None
+        name = re.split(r"\s+gem\b", text, maxsplit=1)[0] if text else None
+        rows.append(Row(name or f"GEM_COLOR_{color_id}", color_id, id_text(color_id)))
+    return rows
+
+
 def sceat_skill_rows(data: GameData, texts: Texts | None) -> list[Row]:
     """
     ``dialog_legendTemple_sceat_<skillGroupID>_name`` and level.
@@ -622,6 +637,30 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
             ],
             (Attr("rarity_id", "int", "The ``generalRarityID`` column."),),
             display=GENERAL_NAME,
+        ),
+        Table(
+            "general_rarities",
+            "GeneralRarity",
+            "R",
+            "General rarity ids from the ``generalRarities`` table, named from ``name``; the client's colours call "
+            "the third epic (``GeneralVO.GENERAL_COLOR_EPIC``, bundle line 26790).",
+            "``GeneralRarityXmlVO.fillFromParamXml`` (bundle line 113254)",
+            [
+                Row(to_snake(r.name) or f"R{r.rarity_id}", int(r.rarity_id), id_text(r.rarity_id))
+                for r in data.general_rarities.values()
+            ],
+        ),
+        Table(
+            "generals_hub_characters",
+            "GeneralsHubCharacter",
+            "C",
+            "Generals hub character ids from the ``characters`` table, named from ``name``; the client's constants "
+            "are ``ID_FAT_KING``, ``ID_KNIGHT`` and ``ID_PRINCESS`` (``GeneralsHubQuestVO``, bundle line 47051).",
+            "``GeneralsHubQuestVO.fillFromParamXml`` (bundle line 47005)",
+            [
+                Row(to_snake(c.name) or f"C{c.character_id}", int(c.character_id), id_text(c.character_id))
+                for c in data.generals_hub_characters.values()
+            ],
         ),
         Table(
             "general_abilities",
@@ -847,6 +886,14 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
                 TEXT_ID,
             ),
             display=GEM_NAME,
+        ),
+        Table(
+            "gem_colors",
+            "GemColor",
+            "C",
+            "Gem colour ids from the ``gemColors`` table, named from the game's English tooltip for the colour.",
+            "``GemColorVO.parseXml`` (bundle line 144489)",
+            gem_color_rows(data, texts),
         ),
         Table(
             "sceat_skills",
@@ -1135,8 +1182,12 @@ def render_init(version: str, table_list: list[Table]) -> str:
         "}",
         "",
         "",
-        "def is_current(game_data: GameData) -> bool:",
+        "def is_current(game_data: GameData | None = None) -> bool:",
         '    """Whether ``game_data`` is the items version these enums were generated from."""',
+        "    if game_data is None:",
+        "        from empire_core.gamedata.data import GameData",
+        "",
+        "        game_data = GameData.require()",
         "    return game_data.version == ITEMS_VERSION",
         "",
         "",

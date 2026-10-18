@@ -5,14 +5,16 @@ as ``client.events.get_scores`` returns it.
 
 from __future__ import annotations
 
+import logging
 import math
 import time
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Annotated, Any, ClassVar, NoReturn, TypeVar
 
-from pydantic import AfterValidator, ConfigDict, Field, SerializeAsAny
+from pydantic import AfterValidator, ConfigDict, Field, SerializeAsAny, ValidationError
 
 from empire_core.enums import RankingType
+from empire_core.events.status_models import MobilizationQuestStatus, RaidBossStatus
 from empire_core.exceptions import ReplyMismatchError
 from empire_core.gamedata import EnumOrInt, RewardId
 from empire_core.gamedata.ids.events import Event
@@ -750,6 +752,8 @@ class RaidBossEvent(SpecialEvent):
 
     _reads_kl = False
 
+    boss_status: RaidBossStatus | None = Field(default=None, description="Latest alliance raid boss status")
+
     score: EventPart = Field(default_factory=EventPart, description="Your score; its points are the entry's SP.OP")
     league_id: int = Field(default=0, description="Your alliance's league, from the entry's A")
     alliance_points: int = Field(default=0, description="Your alliance's points, from the entry's A and the pep pushes")
@@ -774,6 +778,12 @@ class RaidBossEvent(SpecialEvent):
         values["raid_boss_ids"] = [js_int(boss) for boss in ids] if isinstance(ids, list) else []
         if entry.get("BLPP") is not None:
             values["boss_level_points"] = js_int(entry["BLPP"])
+        if js_truthy(entry.get("BSE")):
+            try:
+                status = RaidBossStatus.model_validate(entry["BSE"])
+                values["boss_status"] = status.with_previous(values.get("boss_status"))
+            except ValidationError:
+                logging.getLogger(__name__).warning("Unreadable embedded raid status; kept previous boss status")
         own = {**entry, "OP": _dict(entry.get("SP")).get("OP")}
         values["score"] = EventPart.parse(own, values.get("score"))
         if js_truthy(alliance := entry.get("A")):
@@ -1056,6 +1066,10 @@ class AllianceMobilizationEvent(ScoredEvent):
     """
 
     _rebuilt_parts = ("SP", "A")
+
+    quest_status: MobilizationQuestStatus | None = Field(
+        default=None, description="Latest requested alliance quest status"
+    )
 
     subdivision_id: int = Field(default=0, description="Your alliance's subdivision, from the entry's A")
     division_round_id: int = Field(default=0, validation_alias="DRI", description="The division round")
@@ -1430,12 +1444,15 @@ class CampaignEvent(SpecialEvent):
             quests=quests,
         )
 
-    def rewards(self, data: GameData) -> tuple[Collectable, ...]:
+    def rewards(self, *, game_data: GameData | None = None) -> tuple[Collectable, ...]:
         """
         What the campaign's rewards give, in order, as the client lists them.
 
         Client: ``getListByIdArray(e.RIDS)`` (``TimeLimitedCampaignEventEventVO.parseParamObject``, bundle line 118536)
         """
+        from empire_core.gamedata.data import GameData
+
+        data = game_data if game_data is not None else GameData.require()
         return data.reward_list(self.reward_ids)
 
     def with_campaign(self, data: dict[str, Any], now: float) -> CampaignEvent:

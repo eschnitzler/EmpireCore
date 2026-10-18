@@ -3,6 +3,9 @@
 Commands:
 - gei: Get Equipment Inventory - the items no commander or castellan wears
 - eeq: Equip Equipment - put an item on a commander or castellan, or take it off
+- seq: sell an item
+- sge: sell a gem or relic gem
+- bge: set a gem in a worn item
 """
 
 from __future__ import annotations
@@ -11,7 +14,14 @@ import logging
 from functools import partial
 from typing import TYPE_CHECKING, Annotated, Any
 
-from pydantic import BeforeValidator, Field, ValidatorFunctionWrapHandler, field_validator, model_validator
+from pydantic import (
+    BeforeValidator,
+    Field,
+    ValidatorFunctionWrapHandler,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
 
 from empire_core.enums import EquipmentSlot, EquipmentType, Rareness, WearerType
 from empire_core.gamedata import EnumOrInt
@@ -131,8 +141,8 @@ class RelicInfo(BasePayload):
     @field_validator("gem", mode="wrap")
     @classmethod
     def _gem_or_none(cls, value: Any, handler: ValidatorFunctionWrapHandler) -> RelicGem | None:
-        # The client builds a gem only from a non-empty row
-        if not isinstance(value, list) or not value:
+        # The client builds a gem only from a non-empty row; a dict is a dumped gem
+        if not isinstance(value, (list, dict)) or not value:
             return None
         return read_or_none(handler, value)
 
@@ -196,14 +206,17 @@ class Equipment(BasePayload):
     @field_validator("relic_info", mode="wrap")
     @classmethod
     def _relic_info_or_none(cls, value: Any, handler: ValidatorFunctionWrapHandler) -> RelicInfo | None:
-        if not isinstance(value, list):
+        if not isinstance(value, (list, dict)):
             return None
         return read_or_none(handler, value)
 
     @field_validator("gem_id", mode="before")
     @classmethod
     def _gem(cls, value: Any) -> Any:
-        # Client: int(e[10]), a gem unless NO_GEM_ID (BasicEquipmentVO.parseEquipFromArray, bundle lines 7116-7117)
+        # Client: int(e[10]), a gem unless NO_GEM_ID (BasicEquipmentVO.parseEquipFromArray, bundle lines 7116-7117).
+        # None is a dump's no gem, not the client's int(null) gem 0.
+        if value is None:
+            return None
         gem_id = js_int(value)
         return None if gem_id == NO_GEM_ID else gem_id
 
@@ -312,8 +325,7 @@ class GetEquipmentInventoryResponse(BaseResponse):
         return readable_list(
             Equipment,
             value,
-            accept=lambda entry: isinstance(entry, (list, tuple)),
-            parse=lambda entry: Equipment.from_list(list(entry)),
+            accept=lambda entry: isinstance(entry, (list, tuple, dict)),
             warn=logger,
             what="gei entries",
         )
@@ -353,4 +365,88 @@ class EquipEquipmentRequest(BaseRequest):
     @field_validator("equip", mode="before")
     @classmethod
     def _as_flag(cls, value: Any) -> int:
+        return 1 if value else 0
+
+
+class SellEquipmentRequest(BaseRequest):
+    """
+    Sell an item for coins.
+
+    Command: seq
+    Payload: {"EID": equipment_id, "LID": commander_id, "EX": 0, "LFID": lost_and_found_id}
+
+    ``LID`` is -1 but for a relic sold straight off the commander who wears it, ``LFID`` -1 but for an
+    item in the lost and found; ``EX`` is 0, the client never sets it. The reply's ``gli``, ``gcu`` and
+    ``esl`` update the commanders, coins and inventory space in ``client.state``.
+
+    Client: ``C2SSellEquipmentVO`` (bundle line 143923), ``CastleEquipmentData.sell`` (bundle line 143798);
+    ``RelicUpgradeDialogStatus.confirmSellCallback`` (bundle line 36757) passes the commander,
+    ``LostAndFoundListItem`` (bundle line 107164) the lost and found id; ``SEQCommand`` (bundle line 124024)
+    """
+
+    command = "seq"
+
+    equipment_id: int = Field(validation_alias="EID", description="The item, an Equipment.equipment_id")
+    commander_id: int = Field(
+        validation_alias="LID", default=-1, description="The commander wearing a relic sold off it; -1 for none"
+    )
+    extract: int = Field(validation_alias="EX", default=0, description="Always 0")
+    lost_and_found_id: int = Field(
+        validation_alias="LFID", default=-1, description="The lost and found entry sold; -1 for none"
+    )
+
+
+class SellGemRequest(BaseRequest):
+    """
+    Sell a gem or relic gem for coins.
+
+    Command: sge
+    Payload: {"GID": gem_id, "RGEM": 1 or 0, "LFID": lost_and_found_id}
+
+    The server replies with no body.
+
+    Client: ``C2SSellGemVO`` (bundle line 144479), ``CastleGemData.sell`` (bundle line 144376), which sends
+    ``RGEM`` 1 for a ``RelicGemVO``; ``SGECommand`` (bundle line 124034)
+    """
+
+    command = "sge"
+
+    gem_id: int = Field(validation_alias="GID", description="The gem, or the relic gem's gem_id")
+    relic_gem: bool = Field(validation_alias="RGEM", default=False, description="A relic gem; sent as 1 or 0")
+    lost_and_found_id: int = Field(
+        validation_alias="LFID", default=-1, description="The lost and found entry sold; -1 for none"
+    )
+
+    @field_serializer("relic_gem")
+    def _flag(self, value: bool) -> int:
+        return 1 if value else 0
+
+
+class BindGemRequest(BaseRequest):
+    """
+    Set a gem or relic gem in an item a commander or castellan wears.
+
+    Command: bge
+    Payload: {"GID": gem_id, "EID": equipment_id, "LID": commander_id, "M": 0, "RGEM": 1 or 0}
+
+    ``M`` 1 takes the gem already set back into the inventory, for rubies or relic fragments
+    (``CastleReplaceSocketDialog.getRemovalCosts``, bundle line 42226), and is not sent here. The server
+    replies with no body.
+
+    Client: ``C2SBindGem`` (bundle line 144452), ``CastleGemData.bindGem`` (bundle line 144353);
+    ``BGECommand`` (bundle line 123713)
+    """
+
+    command = "bge"
+
+    gem_id: int = Field(validation_alias="GID", description="The gem, or the relic gem's gem_id")
+    equipment_id: int = Field(validation_alias="EID", description="The worn item, an Equipment.equipment_id")
+    commander_id: int = Field(validation_alias="LID", description="The commander or castellan wearing it")
+    keep_old_gem: int = Field(
+        validation_alias="M", default=0, description="Always 0: the gem already set is not taken back"
+    )
+    relic_gem: bool = Field(validation_alias="RGEM", default=False, description="A relic gem; sent as 1 or 0")
+
+    @field_serializer("relic_gem")
+    def _flag(self, value: bool) -> int:
         return 1 if value else 0

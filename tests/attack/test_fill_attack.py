@@ -82,6 +82,17 @@ class TestFillAttack(FillClient):
         assert result.waves
         assert result.yard == (EMPTY_SLOT,) * 8
 
+    def test_no_waves_selected_fills_only_the_courtyard(self):
+        client = self.build([[601, 100_000]])
+
+        with pytest.raises(AttackBelowMinimumError) as caught:
+            client.attack.fill_attack(12345, target_level=13, options=FillOptions(waves=frozenset()))
+
+        attack = caught.value.attack
+        assert attack.waves
+        assert attack.wave_unit_count() == 0
+        assert [pair for pair in attack.yard if pair[0] != -1]
+
     def test_a_scanned_target_reads_like_its_coordinates_and_row(self):
         row = [1, 700, 710, 900, 4242, 1, 1, 1, 0, 0, "castle"]
         reply = xt_packet(
@@ -359,7 +370,7 @@ class TestFillAttack(FillClient):
         with pytest.raises(ValueError):
             client.attack.fill_attack(12345, target_x=700, target_y=710, kingdom_id=11)
         with pytest.raises(ValueError):
-            client.attack.fill_attack(12345, camp_victories=299, camp_kingdom_id=11)
+            client.attack.fill_attack(12345, robber_baron_camp_victories=299, robber_baron_camp_kingdom=11)
 
         assert len(conn(client).request_payloads) == sent_before
 
@@ -1070,7 +1081,7 @@ class TestFillAttack(FillClient):
 
 class TestFillAttackLevelDerivation:
     def test_a_camp_level_follows_from_its_victories(self):
-        from empire_core.combat import camp_level
+        from empire_core.combat import robber_baron_camp_level
         from empire_core.gamedata import GameData
 
         client = make_client({"gui": xt_packet("gui", {"I": [[601, 10_000]]})}, castles=OWN)
@@ -1085,11 +1096,13 @@ class TestFillAttackLevelDerivation:
         client.state.local_player = stub_player(level=70)
 
         # 299 victories in the green kingdom is a level 45 camp.
-        assert camp_level(299, Kingdom.GREEN) == 45
+        assert robber_baron_camp_level(299, Kingdom.GREEN) == 45
         # DungeonConst.getKingdomOffset (dll line 19137) takes the kingdom id.
-        assert camp_level(299, Kingdom.SANDS) == 45 - 1 + 35
-        assert camp_level(299, Kingdom.STORM) == 45 - 1
-        result = client.attack.fill_attack(12345, camp_victories=299, camp_kingdom_id=Kingdom.GREEN)
+        assert robber_baron_camp_level(299, Kingdom.SANDS) == 45 - 1 + 35
+        assert robber_baron_camp_level(299, Kingdom.STORM) == 45 - 1
+        result = client.attack.fill_attack(
+            12345, robber_baron_camp_victories=299, robber_baron_camp_kingdom=Kingdom.GREEN
+        )
 
         # Level 45 gives 47 units per flank before bonuses.
         assert placed(result.waves[0].model_dump(by_alias=True)["L"]["U"]) == [[601, 47]]

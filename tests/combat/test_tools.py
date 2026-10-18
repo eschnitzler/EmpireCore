@@ -51,7 +51,7 @@ class TestToolFill:
     def test_a_tool_that_fits_is_placed(self):
         inv = Inventory({301: 100})
 
-        placed = fill_flank_with_tools(40, 2, 2, inv, data(), [strategy_for(301)]).placed
+        placed = fill_flank_with_tools(40, 2, 2, inv, [strategy_for(301)], game_data=data()).placed
 
         assert placed == [(301, 40)]
         assert inv.available(301) == 60
@@ -61,7 +61,7 @@ class TestToolFill:
         # next one supplies a ladder.
         inv = Inventory({646: 10, 301: 10})
 
-        placed = fill_flank_with_tools(40, 2, 2, inv, data(), [strategy_for(301), strategy_for(646)]).placed
+        placed = fill_flank_with_tools(40, 2, 2, inv, [strategy_for(301), strategy_for(646)], game_data=data()).placed
 
         assert placed == [(301, 10)]
         assert inv.available(646) == 10
@@ -69,26 +69,26 @@ class TestToolFill:
     def test_an_empty_pool_stops_filling(self):
         inv = Inventory({301: 100})
 
-        assert fill_flank_with_tools(40, 2, 2, inv, data(), []).placed == []
+        assert fill_flank_with_tools(40, 2, 2, inv, [], game_data=data()).placed == []
         assert inv.available(301) == 100
 
     def test_the_same_tool_merges_rather_than_taking_two_slots(self):
         inv = Inventory({301: 100})
 
-        placed = fill_flank_with_tools(40, 2, 2, inv, data(), [strategy_for(301, 301)]).placed
+        placed = fill_flank_with_tools(40, 2, 2, inv, [strategy_for(301, 301)], game_data=data()).placed
 
         assert placed == [(301, 40)]
 
     def test_capacity_bounds_the_total(self):
         inv = Inventory({301: 5, 302: 100})
 
-        placed = fill_flank_with_tools(40, 3, 1, inv, data(), [strategy_for(302), strategy_for(301)]).placed
+        placed = fill_flank_with_tools(40, 3, 1, inv, [strategy_for(302), strategy_for(301)], game_data=data()).placed
 
         assert sum(count for _wod, count in placed) <= 40
 
     def test_no_slots_places_nothing(self):
         inv = Inventory({301: 10})
-        assert fill_flank_with_tools(40, 0, 2, inv, data(), [strategy_for(301)]).placed == []
+        assert fill_flank_with_tools(40, 0, 2, inv, [strategy_for(301)], game_data=data()).placed == []
         assert inv.available(301) == 10
 
 
@@ -307,9 +307,9 @@ class TestReduceDefenceBonusStrategy:
             2,
             1,
             inv,
-            game,
             default_tool_strategies(),
             defender=defender(wall_bonus=0.30, gate_bonus=0.30),
+            game_data=game,
         ).placed
         assert placed[0][0] == 301
 
@@ -344,13 +344,7 @@ class TestToolFeedback:
         # 0.30 of gate protection and three slots: the first slot cancels it,
         # so the rest stay empty rather than wasting rams.
         placed = fill_flank_with_tools(
-            40,
-            3,
-            1,
-            inv,
-            game,
-            default_tool_strategies(),
-            defender=DefenderFlankEffects(gate_bonus=0.30),
+            40, 3, 1, inv, default_tool_strategies(), defender=DefenderFlankEffects(gate_bonus=0.30), game_data=game
         ).placed
 
         assert placed == [(611, 3)]
@@ -384,10 +378,10 @@ class TestFortificationAlreadyBeaten:
             2,
             1,
             inv,
-            game,
             default_tool_strategies(),
             attacker=AttackerFlankEffects(wall_reduction=2.0, gate_reduction=2.0, moat_reduction=2.0),
             defender=DefenderFlankEffects(wall_bonus=0.70, gate_bonus=0.70, melee_units_melee_strength=100),
+            game_data=game,
         ).placed
 
         # 611 only carries a gate bonus, and gate is already beaten, so nothing
@@ -424,7 +418,7 @@ class TestConditionedEffectBonus:
         tool = game.get_tool(811)
 
         assert tool.def_range_bonus == 0.0
-        assert conditioned_effect_bonus(game, tool, CombatEffectType.RANGE_DEFENSE_MALUS) == 2.5
+        assert conditioned_effect_bonus(tool, CombatEffectType.RANGE_DEFENSE_MALUS, game_data=game) == 2.5
 
     def test_placing_it_dents_the_defense_for_the_next_pick(self):
         game = self.data()
@@ -432,7 +426,7 @@ class TestConditionedEffectBonus:
         strategies = [by_name("range")]
         defense = DefenderFlankEffects(range_bonus=5.0, range_units_range_strength=100)
 
-        placed = fill_flank_with_tools(40, 2, 2, inv, game, strategies, defender=defense).placed
+        placed = fill_flank_with_tools(40, 2, 2, inv, strategies, defender=defense, game_data=game).placed
 
         # 5.0 of range bonus at 2.5 a tool: two tools, and no third slot filled.
         assert placed == [(811, 2)]
@@ -455,7 +449,7 @@ class TestConditionedEffectBonus:
 
     def test_effects_of_another_type_do_not_count(self):
         game = self.data()
-        assert conditioned_effect_bonus(game, game.get_tool(811), CombatEffectType.MELEE_DEFENSE_MALUS) == 0.0
+        assert conditioned_effect_bonus(game.get_tool(811), CombatEffectType.MELEE_DEFENSE_MALUS, game_data=game) == 0.0
 
 
 class TestCanUseToolOnTarget:
@@ -511,7 +505,7 @@ class TestCanUseToolOnTarget:
         return tool
 
     def usable(self, wod_id: int, target: TargetContext) -> bool:
-        return can_use_tool_on_target(self.tool(wod_id), target, self.game())
+        return can_use_tool_on_target(self.tool(wod_id), target, game_data=self.game())
 
     def test_a_tool_that_says_nothing_goes_anywhere(self):
         plain = self.tool(403)
@@ -575,7 +569,7 @@ class TestCanUseToolOnTarget:
             (406, None, False),
         ]
         for wod_id, boss, expected in cases:
-            assert is_tool_usable_against_active_raid_boss(self.tool(wod_id), game, boss) is expected, wod_id
+            assert is_tool_usable_against_active_raid_boss(self.tool(wod_id), boss, game_data=game) is expected, wod_id
 
     def test_the_fill_leaves_out_a_tool_for_an_inactive_boss(self):
         game = self.game()
@@ -585,7 +579,7 @@ class TestCanUseToolOnTarget:
             target = TargetContext(area_type=43, space_id=0, is_player=False, active_raid_boss_id=boss)
             inv = Inventory({807: 100})
             return fill_flank_with_tools(
-                40, 2, 2, inv, game, [by_name("melee")], defender=defense, target=target
+                40, 2, 2, inv, [by_name("melee")], defender=defense, target=target, game_data=game
             ).placed
 
         assert fill(None) == []
@@ -686,10 +680,10 @@ class TestPerWaveBudget:
         defense = DefenderFlankEffects(wall_bonus=5.0)
 
         left = fill_flank_with_tools(
-            40, 2, 2, Inventory({267: 100}), game, [by_name("wall")], defender=defense, used_per_type=used
+            40, 2, 2, Inventory({267: 100}), [by_name("wall")], defender=defense, used_per_type=used, game_data=game
         ).placed
         right = fill_flank_with_tools(
-            40, 2, 2, Inventory({268: 100}), game, [by_name("wall")], defender=defense, used_per_type=used
+            40, 2, 2, Inventory({268: 100}), [by_name("wall")], defender=defense, used_per_type=used, game_data=game
         ).placed
 
         assert left == [(267, 3)]
@@ -731,7 +725,7 @@ class TestSoldiersSeeThePlacedTools:
         )
         strategies = [by_name("range")]
 
-        result = fill_flank_with_tools(40, 2, 2, Inventory({310: 100}), game, strategies, defender=defense)
+        result = fill_flank_with_tools(40, 2, 2, Inventory({310: 100}), strategies, defender=defense, game_data=game)
 
         assert result.placed
         # The reduction the placed tools represent comes back for the soldiers.
@@ -752,7 +746,7 @@ class TestSoldiersSeeThePlacedTools:
         }
         inventory = Inventory({310: 100, 601: 10_000, 602: 10_000})
 
-        wave = fill_wave(inventory, game, capacity, defense=defense)
+        wave = fill_wave(inventory, capacity, defense=defense, game_data=game)
 
         # With the ranged defenders' own ranged strength cancelled by the tool,
         # the melee attack is the one that lands.

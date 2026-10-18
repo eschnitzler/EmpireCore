@@ -10,6 +10,7 @@ a guess.
 from __future__ import annotations
 
 import math
+import sys
 from collections.abc import Mapping
 from contextvars import ContextVar
 from typing import TYPE_CHECKING, ClassVar
@@ -29,7 +30,7 @@ from empire_core.enums import (
     WearerType,
 )
 from empire_core.protocol.base import EmpireModel
-from empire_core.protocol.js import js_falsy, js_number, js_number_or_none, js_parse_int, js_truthy
+from empire_core.protocol.js import js_falsy, js_number, js_number_or_none, js_parse_float, js_parse_int, js_truthy
 
 from .lenient import GameDataId, GameDataKey
 
@@ -45,6 +46,7 @@ if TYPE_CHECKING:
         Gem,
         General,
         GeneralAbility,
+        GeneralRarity,
         GeneralSkill,
         GlobalEffect,
         Horse,
@@ -58,6 +60,13 @@ if TYPE_CHECKING:
 # BasicUnitVO.FIGHTTYPE_OFF / FIGHTTYPE_DEF (bundle line 19345)
 FIGHT_TYPE_OFFENSIVE = 0
 FIGHT_TYPE_DEFENSIVE = 1
+
+_TOOL_UNIT_NAMES = frozenset({"Workshop", "Dworkshop", "Elitetool", "Eventtool", "SceatTools"})
+"""
+The ``name`` of the ``units`` rows the client builds as a ``ToolUnitVO``: ``CastleWodData.getClassName``
+(bundle line 2057) names a row's class ``name + group + "VO"``, every ``units`` row's group is ``Unit``,
+and these five classes extend ``ToolUnitVO`` (bundle lines 118846-118953).
+"""
 
 # effecttypes sortCategory 7 is economy; combat filter strategies exclude it.
 ECONOMY_SORT_CATEGORY = 7
@@ -133,7 +142,8 @@ class _UnitRow(_Row):
     """
     What ``AVisualVO.parseXmlNode`` and ``BasicUnitVO.parseXmlNode`` read for every unit and tool.
 
-    Client: ``AVisualVO.parseXmlNode`` (bundle line 17800), ``BasicUnitVO.parseXmlNode`` (bundle line 19211);
+    Client: ``AVisualVO.parseXmlNode`` (bundle line 17800), ``BasicUnitVO.parseXmlNode`` (bundle line 19211)
+    reads ``sortOrder`` as ``void 0 !== t.sortOrder ? parseFloat(t.sortOrder) : Number.MAX_VALUE``;
     ``BasicUnitVO.basicCostC2`` (bundle line 19248) takes the temporary server's ruby cost there
     """
 
@@ -142,6 +152,11 @@ class _UnitRow(_Row):
         validation_alias="name",
         default="",
         description="The row's name, e.g. Barracks or Eventtool",
+    )
+    group: str = Field(
+        validation_alias="group",
+        default="",
+        description="The row's group, Unit on every live row; part of its asset_name",
     )
     level: int = Field(default=-1, description="Upgrade level; -1 when the row has none")
     speed: int = Field(default=0, description="Base travel speed, before research bonuses")
@@ -155,6 +170,11 @@ class _UnitRow(_Row):
         validation_alias="tempServerCostC2",
         default=0,
         description="Rubies one costs to produce on a temporary server; the client takes cost_rubies when absent",
+    )
+    sort_order: float = Field(
+        validation_alias="sortOrder",
+        default=sys.float_info.max,
+        description="Where it sorts in unit lists; the largest float when absent, NaN when no number",
     )
 
     @field_validator("wod_id", mode="before")
@@ -172,7 +192,25 @@ class _UnitRow(_Row):
     def _parse_int(cls, value: object, info: ValidationInfo) -> object:
         return _parse_int_or_default(value, cls.model_fields[str(info.field_name)].default)
 
-    @field_validator("source", mode="before")
+    @field_validator("sort_order", mode="before")
+    @classmethod
+    def _sort_order(cls, value: object) -> float:
+        return js_parse_float(value)
+
+    @property
+    def sorts_as_tool(self) -> bool:
+        """
+        Whether the client sorts it after the soldiers, as a ``ToolUnitVO``.
+
+        Not quite :meth:`GameData.is_tool <empire_core.gamedata.data.GameData.is_tool>`, which goes by
+        ``slotTypes``: an ``Unknown`` row with slots (666 in v787.03) is a tool there, but the client
+        builds it as an ``UnknownUnitVO`` and sorts it among the soldiers.
+
+        Client: ``ClientConstSort.sortByUnitSortOrder`` (bundle line 3108) asks ``instanceOfClass(e, "ToolUnitVO")``
+        """
+        return self.source in _TOOL_UNIT_NAMES
+
+    @field_validator("source", "group", mode="before")
     @classmethod
     def _string_attribute(cls, value: object) -> object:
         # getStringAttribute: a missing or empty value reads as ""
@@ -261,6 +299,19 @@ class UnitStats(_UnitRow):
         return cls._type_attribute(value)
 
     @property
+    def asset_name(self) -> str:
+        """
+        The class name the client draws it by, e.g. ``Barracks_Unit_Speerman``.
+
+        ``<name>_<group>``, then ``_<type>`` when the type is not empty:
+        ``AVisualVO.getVisualClassName`` (bundle line 17795), which
+        ``WodPicHelper.addUnitPic`` (bundle line 2248) loads. The full asset
+        path comes from the client's versioned item map (ItemVersions, in
+        ggs.dll), which the library does not load.
+        """
+        return f"{self.source}_{self.group}" + (f"_{self.unit_type}" if self.unit_type else "")
+
+    @property
     def name_text_id(self) -> str:
         """The text id of its name, ``<type>_name`` in lower case: ``BasicUnitVO.getNameString`` (bundle line 19219)."""
         return f"{self.unit_type.lower()}_name"
@@ -317,7 +368,7 @@ class ToolStats(_UnitRow):
 
     ``GameData.parse`` takes the ``units`` rows with ``slotTypes`` as tools;
     the client's ``ToolUnitVO`` rows are those named Workshop, Dworkshop,
-    Elitetool and Eventtool. ``effects`` name plain effect ids; resolve them through
+    Elitetool, Eventtool and SceatTools. ``effects`` name plain effect ids; resolve them through
     :attr:`~empire_core.gamedata.data.GameData.effects`.
 
     The ``raw_*_bonus`` columns are percentages. The client scales them by
@@ -422,6 +473,22 @@ class ToolStats(_UnitRow):
     @classmethod
     def _type(cls, value: object) -> object:
         return cls._type_attribute(value)
+
+    @property
+    def asset_name(self) -> str:
+        """
+        The class name the client draws it by, e.g. ``Workshop_Unit_Ram``.
+
+        ``<name>_<group>``, then ``_<type>`` when the type is not empty:
+        ``AVisualVO.getVisualClassName`` (bundle line 17795), which
+        ``WodPicHelper.addUnitPic`` (bundle line 2248) loads.
+        ``ToolUnitVO.getVisualClassName`` (bundle line 6539) draws
+        ``Unknown_Unit_Tools`` instead when that name has no versioned asset;
+        that check, and the full asset path, need the client's versioned item
+        map (ItemVersions, in ggs.dll), which the library does not load, so
+        this is the name before the fallback.
+        """
+        return f"{self.source}_{self.group}" + (f"_{self.tool_type}" if self.tool_type else "")
 
     @property
     def name_text_id(self) -> str:
@@ -1101,7 +1168,11 @@ class EquipmentSetDef(EquipmentEffectSpecRow):
 
 
 class LegendSkillDef(_Row):
-    """One level of a legend skill, e.g. ``gateReduction``."""
+    """
+    One level of a legend skill, e.g. ``gateReduction``.
+
+    Client: ``CastleLegendSkillVO.parseXML`` (bundle line 48652); ``isMaxLevel`` (bundle line 48717)
+    """
 
     skill_id: GameDataId["LegendSkill"] = Field(validation_alias="skillID", description="The legend skill")
     level: int = 0
@@ -1111,6 +1182,36 @@ class LegendSkillDef(_Row):
     effect_type: str = Field(validation_alias="effectType", default="")
     total_effect_value: float = Field(validation_alias="totalEffectValue", default=0)
     total_cost_skill_points: int = Field(validation_alias="totalCostSkillPoints", default=0)
+    cost_skill_points: int = Field(
+        validation_alias="costSkillPoints", default=0, description="Skill points this level costs over the one before"
+    )
+    required_skill_id: GameDataId["LegendSkill"] | None = Field(
+        validation_alias="requiredSkillID", default=None, description="The skill this level needs; None for none"
+    )
+    previous_skill_id: GameDataId["LegendSkill"] | None = Field(
+        validation_alias="previousSkillID",
+        default=None,
+        description="The level this one replaces when bought; the required skill when the row names none",
+    )
+    following_skill_id: GameDataId["LegendSkill"] | None = Field(
+        validation_alias="followingSkillID", default=None, description="The next level; None at the last"
+    )
+
+    @field_validator("required_skill_id", "previous_skill_id", "following_skill_id", mode="before")
+    @classmethod
+    def _zero_is_none(cls, value: object) -> object:
+        return None if js_parse_int(value) == 0 else value
+
+    @model_validator(mode="after")
+    def _previous_defaults_to_required(self) -> LegendSkillDef:
+        if "previous_skill_id" not in self.model_fields_set:
+            self.previous_skill_id = self.required_skill_id
+        return self
+
+    @property
+    def is_max_level(self) -> bool:
+        """Whether no level follows this one."""
+        return self.following_skill_id is None
 
 
 class AttackSlotDef(_Row):
@@ -1405,9 +1506,45 @@ class GeneralDef(_Row):
     )
     raw_attack_slots: str = Field(validation_alias="attackSlots", default="")
     raw_defense_slots: str = Field(validation_alias="defenseSlots", default="")
-    rarity_id: int = Field(validation_alias="generalRarityID", default=0)
+    rarity_id: GameDataId["GeneralRarity"] = Field(
+        validation_alias="generalRarityID", default=2, description="Its rarity, which prices unlocking and stars"
+    )
     max_level: int = Field(validation_alias="maxLevel", default=0)
     max_star_level: int = Field(validation_alias="maxStarLevel", default=0)
+    unlock_currency_id: GameDataId["CurrencyId"] = Field(
+        validation_alias="unlockCurrencyID", default=0, description="The shard that unlocks it; 0 for none"
+    )
+    upgrade_currency_ids: tuple[GameDataId["CurrencyId"], ...] = Field(
+        validation_alias="upgradeCurrencyIDs", default=(), description="The shards that raise its star level"
+    )
+    is_preview: bool = Field(
+        validation_alias="isPreview", default=False, description="Shown ahead of its release; it cannot be unlocked"
+    )
+
+    @field_validator("rarity_id", "unlock_currency_id", mode="before")
+    @classmethod
+    def _parse_int(cls, value: object, info: ValidationInfo) -> int:
+        return _parse_int_or_default(value, 2 if info.field_name == "rarity_id" else 0)
+
+    @field_validator("upgrade_currency_ids", mode="before")
+    @classmethod
+    def _id_lists(cls, value: object) -> object:
+        return _id_list(value)
+
+    @field_validator("is_preview", mode="before")
+    @classmethod
+    def _preview(cls, value: object) -> bool:
+        # isImplemented is 0 == parseInt(isPreview || "0"), so a value with no leading integer is a preview too
+        return value if isinstance(value, bool) else not js_falsy(value) and js_parse_int(value) != 0
+
+    @property
+    def is_implemented(self) -> bool:
+        """
+        Whether the general is out, and so can be unlocked: ``GeneralXmlVO.isImplemented``.
+
+        Client: ``GeneralXmlVO.fillFromParamXml`` (bundle line 33102)
+        """
+        return not self.is_preview
 
     @property
     def attack_slots(self) -> tuple[int, ...]:
@@ -1420,15 +1557,25 @@ class GeneralDef(_Row):
 
 class DungeonDefence(_Row):
     """
-    What defends an NPC camp at a given victory count.
+    What defends a robber baron camp, or a treasure map dungeon, at a given victory count.
 
-    The per-flank fields use the ``wodID+count#wodID+count`` encoding; read them
-    through the parsed properties.
+    The client reads only ``kID``, ``countVictories`` and ``skipCosts`` of a row
+    (``CastleDungeonData.generateData``, bundle line 111754); it never reads the
+    defenders or the commander. ``SpyArmy.from_robber_baron_camp`` lays the defenders out as
+    a spy report would.
     """
 
     count_victories: int = Field(validation_alias="countVictories", default=0)
-    kingdom_id: GameDataId[Kingdom] = Field(validation_alias="kID", default=0, description="The kingdom")
-    lord_id: int = Field(validation_alias="lordID", default=0)
+    kingdom_id: GameDataId[Kingdom] = Field(
+        validation_alias="kID",
+        default=0,
+        description="The kingdom; a treasure map's camp has its map's kID",
+    )
+    commander: DefaultLordDef | None = Field(
+        validation_alias="lordID",
+        default=None,
+        description="The default commander holding the camp, from the lords table",
+    )
     skip_costs: int = Field(validation_alias="skipCosts", default=0)
     raw_units_left: str = Field(validation_alias="unitsL", default="")
     raw_units_middle: str = Field(validation_alias="unitsM", default="")
@@ -1438,46 +1585,13 @@ class DungeonDefence(_Row):
     raw_tools_middle: str = Field(validation_alias="toolM", default="")
     raw_tools_right: str = Field(validation_alias="toolR", default="")
 
-    @property
-    def units_left(self) -> list[tuple[int, int]]:
-        return parse_stacks(self.raw_units_left)
-
-    @property
-    def units_middle(self) -> list[tuple[int, int]]:
-        return parse_stacks(self.raw_units_middle)
-
-    @property
-    def units_right(self) -> list[tuple[int, int]]:
-        return parse_stacks(self.raw_units_right)
-
-    @property
-    def units_keep(self) -> list[tuple[int, int]]:
-        return parse_stacks(self.raw_units_keep)
-
-    @property
-    def tools_left(self) -> list[tuple[int, int]]:
-        return parse_stacks(self.raw_tools_left)
-
-    @property
-    def tools_middle(self) -> list[tuple[int, int]]:
-        return parse_stacks(self.raw_tools_middle)
-
-    @property
-    def tools_right(self) -> list[tuple[int, int]]:
-        return parse_stacks(self.raw_tools_right)
-
-    def total_units(self) -> int:
-        """Defending units across every flank and the keep."""
-        return sum(
-            count
-            for stacks in (
-                self.units_left,
-                self.units_middle,
-                self.units_right,
-                self.units_keep,
-            )
-            for _wod_id, count in stacks
-        )
+    @field_validator("commander", mode="before")
+    @classmethod
+    def _commander(cls, value: object, info: ValidationInfo) -> object:
+        if value is None or isinstance(value, DefaultLordDef | Mapping):
+            return value
+        lords = (info.context or {}).get("default_lords", {})
+        return lords.get(js_parse_int(value))
 
 
 class NpcCampDefence(_Row):

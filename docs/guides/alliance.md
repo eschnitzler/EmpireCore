@@ -187,3 +187,85 @@ Adding or deleting an alliance bookmark outside an alliance raises
 ```
 
 **API:** [`AllianceService`](../reference/alliance.md#empire_core.alliance.service.AllianceService)
+
+
+## Forum
+
+`get_forum_topics()` returns a typed overview, including the total topic count
+(which includes hidden topics) and visible topics sorted by last post, newest
+first. `get_topic(topic_id)` opens a topic and returns its posts; opening a topic
+can mark it read on the server. Request the current count with
+`get_unread_topic_count()`.
+
+```python
+from empire_core.alliance import ForumRankGroup
+
+for topic in client.alliance.get_forum_topics().topics:
+    detail = client.alliance.get_topic(topic.topic_id)
+    for post in detail.posts:
+        print(post.author, post.text)
+
+client.alliance.create_topic("Plans", "Meet tomorrow", [ForumRankGroup.LEADER, ForumRankGroup.GENERAL])
+client.alliance.reply(topic_id, "Ready for tomorrow")
+client.alliance.set_topic_visibility(topic_id, [ForumRankGroup.LEADER])
+client.alliance.delete_reply(topic_id, reply_id)
+client.alliance.delete_topic(topic_id)
+```
+
+Visibility uses `ForumRankGroup`, which has five groups; member ranks use
+`AllianceRank`, which has ten ranks. Unknown groups and ranks in replies remain
+integers. Titles and posts are trimmed, validated after the client's first text
+encoding pass, then encoded again for sending. Titles allow 2–38 UTF-16 code units;
+posts allow 2–2000. Server refusals raise `CommandError`; transport failures
+propagate. Write methods return `None` after acceptance, except visibility changes,
+which return the echoed topic when provided. All requests accept keyword-only
+`timeout`.
+
+
+## Applications, invitations and recruitment
+
+```python
+client.alliance.apply(alliance_id, "I would like to join")
+joined = client.alliance.join_open(alliance_id)
+
+# Invitation APIs use a message id from the mailbox, not a player id.
+inviting_alliance = client.alliance.get_invitation(message_id)
+joined = client.alliance.accept_invitation(message_id)
+client.alliance.accept_invitation(message_id, accept=False)
+
+recruits = client.alliance.find_recruits()
+for recruit in recruits.recruits:
+    owner = recruits.owner_of(recruit)
+    if owner is not None:
+        print(owner.name, recruit.distance)
+
+client.alliance.set_looking_for_members(True, open_join=True)
+client.alliance.set_looking_for_alliance(True)
+```
+
+`join_open` returns the joined alliance. Invitation acceptance returns the echoed
+alliance, and declining normally returns `None`. Server refusals raise
+`CommandError`; timeouts and disconnections propagate. All sending methods accept
+keyword-only `timeout`. Existing `invite`, `get_applications`,
+`answer_application` and `leave` keep their interfaces.
+
+A successful join applies membership before alliance details. Changing alliance
+identity clears details, chat and help from the former alliance. Late `ain`
+updates for another alliance do not replace your own alliance. Recruitment flags
+are independent: looking for members (`IS`) and allowing open joining (`IA`).
+The flag replies carry no updated values; refresh alliance information to read
+those flags. Player looking-for-alliance status also appears in owner records and
+`AllianceMembership.looking_for_alliance` in membership protocol replies. Recruit
+search returns typed rows sorted by distance with optional owner records; malformed
+rows are skipped with a warning.
+
+
+Membership cache changes are scoped to `join_open` and `accept_invitation`.
+Unsolicited `gal` pushes remain authoritative. Raw, rejected and delayed `joa` or
+`aai` replies do not update cached membership on their own. If a membership push
+or session reset arrives while a service call waits, applying its reply raises
+`ReplyMismatchError` and preserves the newer context. The server action may
+already have succeeded; read the current membership before another action.
+Invitation replies do not echo their message id, so validation checks that their
+membership and alliance details name the same alliance; it cannot identify an
+invitation by message id from the reply.

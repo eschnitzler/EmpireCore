@@ -245,6 +245,10 @@ class GGECommand:
     MCU = "mcu"  # Cancel production
     GUI = "gui"  # Get units inventory
     DUP = "dup"  # Delete units
+    STS = "sts"  # Store soldiers in the stronghold
+    TAS = "tas"  # Take soldiers from the stronghold
+    MUP = "mup"  # Move a production slot
+    SRM = "srm"  # Set a list's recruitment mode
 
     # Hospital
     HRU = "hru"  # Heal units
@@ -307,7 +311,7 @@ class GGECommand:
     # Settings
     MVF = "mvf"  # Movement filter settings
     OPT = "opt"  # Misc options
-    HFL = "hfl"  # Hospital filter settings
+    HFL = "hfl"  # Hospital flags
 
     # Misc
     TXI = "txi"  # Tax info
@@ -481,7 +485,7 @@ def get_response_model(command: str) -> type[BaseResponse] | None:
     return _response_registry.get(command)
 
 
-def parse_response(command: str, payload: dict[str, Any]) -> BaseResponse | None:
+def parse_response(command: str, payload: dict[str, Any] | list[Any]) -> BaseResponse | None:
     """
     Parse a response payload into the appropriate model.
 
@@ -523,9 +527,9 @@ def int_entries(value: Any, *, warn: logging.Logger, what: str) -> list[int]:
     The int entries of an id array the client looks up as sent in a table keyed by int ids, else no entries.
 
     Any other entry finds no row there, and the client then throws on the missing row; skipping it is a
-    deliberate leniency, counted in one warning that shows the first.
+    deliberate leniency, counted in one warning that shows the first. A tuple from a dump reads as an array.
     """
-    if not isinstance(value, list):
+    if not isinstance(value, (list, tuple)):
         return []
     ids = [entry for entry in value if isinstance(entry, int) and not isinstance(entry, bool)]
     if len(ids) < len(value):
@@ -554,13 +558,15 @@ def readable_list(
     would throw on a bad entry instead, skipping it is a deliberate leniency: it
     costs only that entry. One ``accept`` rejects or that fails validation is unreadable:
     it is skipped too, and with ``warn`` those are counted in one warning that
-    shows the first. Anything but an array reads as no entries.
+    shows the first and, when it failed validation, the field that failed. Anything
+    but an array (or a dump's tuple) reads as no entries.
     """
-    if not isinstance(value, list):
+    if not isinstance(value, (list, tuple)):
         return []
     read = parse or model.model_validate
     rows: list[_M] = []
     failed: list[Any] = []
+    reason = ""
     for entry in value:
         if isinstance(entry, model):
             rows.append(entry)
@@ -573,10 +579,13 @@ def readable_list(
         else:
             try:
                 rows.append(read(entry))
-            except ValidationError:
+            except ValidationError as error:
+                if not failed:
+                    first = error.errors()[0]
+                    reason = f" ({'.'.join(map(str, first['loc']))}: {first['msg']})"
                 failed.append(entry)
     if warn is not None and failed:
-        warn.warning(f"Skipped {len(failed)}/{len(value)} unreadable {what}, first: {failed[0]!r:.200}")
+        warn.warning(f"Skipped {len(failed)}/{len(value)} unreadable {what}, first: {failed[0]!r:.200}{reason}")
     return rows
 
 

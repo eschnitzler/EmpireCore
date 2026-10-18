@@ -13,7 +13,9 @@ from empire_core.combat import (
     DefenderFlankEffects,
     Inventory,
     fortification_bonuses,
-    npc_camp_defense,
+    robber_baron_camp_defense,
+    robber_baron_camp_fortification_levels,
+    robber_baron_camp_level,
     spied_castle_defense,
 )
 from empire_core.enums import Flank
@@ -60,32 +62,40 @@ def _target_defense(game_data: GameData, target: "_Target") -> dict[Flank, Defen
     """
     What defends the target, per flank.
 
-    A camp's defenders and walls come from the items payload. A castle's
-    fortification comes from the structure levels in its map row, and its
-    defenders from the spy block when one is available - each flank's own
-    stacks, so a defending tool raises only the flank it stands on.
+    A robber baron camp's walls follow from its level, and its defenders from
+    the items payload unless a spy report names them. A castle's fortification
+    comes from the structure levels in its map row, and its defenders from the
+    spy block when one is available - each flank's own stacks, so a defending
+    tool raises only the flank it stands on.
     """
-    if target.camp_victories is not None:
-        return npc_camp_defense(game_data, target.camp_victories, target.camp_kingdom_id)
-    item = _row_item(target.row)
-    if item is None:
-        return None
-    if _has_row_protection(item):
-        # FightScreenHelper.getDefenceBonuses (bundle line 19148) divides the target's
-        # baseWallBonus (and gate, moat) by 100; the camps whose row carries them return it as sent.
-        wall = (item.base_wall_bonus or 0.0) / 100
-        gate = (item.base_gate_bonus or 0.0) / 100
-        moat = (item.base_moat_bonus or 0.0) / 100
-    else:
-        wall, gate, moat = fortification_bonuses(
-            game_data,
-            wall_level=item.wall_level or 0,
-            gate_level=item.gate_level or 0,
-            moat_level=item.moat_level or 0,
+    if target.robber_baron_camp_victories is not None:
+        if target.spy_army is None:
+            return robber_baron_camp_defense(
+                target.robber_baron_camp_victories, target.robber_baron_camp_kingdom, game_data=game_data
+            )
+        wall_level, gate_level = robber_baron_camp_fortification_levels(
+            robber_baron_camp_level(target.robber_baron_camp_victories, target.robber_baron_camp_kingdom)
         )
+        wall, gate, moat = fortification_bonuses(wall_level=wall_level, gate_level=gate_level, game_data=game_data)
+    else:
+        item = _row_item(target.row)
+        if item is None:
+            return None
+        if _has_row_protection(item):
+            # FightScreenHelper.getDefenceBonuses (bundle line 19148) divides the target's
+            # baseWallBonus (and gate, moat) by 100; the camps whose row carries them return it as sent.
+            wall = (item.base_wall_bonus or 0.0) / 100
+            gate = (item.base_gate_bonus or 0.0) / 100
+            moat = (item.base_moat_bonus or 0.0) / 100
+        else:
+            wall, gate, moat = fortification_bonuses(
+                wall_level=item.wall_level or 0,
+                gate_level=item.gate_level or 0,
+                moat_level=item.moat_level or 0,
+                game_data=game_data,
+            )
     if target.spy_army is not None:
         return spied_castle_defense(
-            game_data,
             target.spy_army,
             wall_bonus=wall,
             gate_bonus=gate,
@@ -93,6 +103,7 @@ def _target_defense(game_data: GameData, target: "_Target") -> dict[Flank, Defen
             castellan=target.castellan,
             defender_legend_skill_ids=target.defender_legend_skill_ids,
             area_type=target.area_type,
+            game_data=game_data,
         )
     # Without a spy report the defending army is unknown, so only the
     # target's fortification is modeled. Only the middle flank meets the

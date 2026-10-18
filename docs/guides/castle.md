@@ -29,8 +29,94 @@ kingdom from the castle list the server sent at login
 raises `UnknownCastleError`.
 
 That covers `select`, `join`, `get_resources`, `get_details`, `rename`,
+`abandon_castle`, `cancel_abandon`,
 `send_resources`, `transfer_units_to_kingdom`, `transfer_goods_to_kingdom`, the `client.army` methods and
 `client.alliance.donate`.
+
+### Abandoning a castle
+
+```python
+reply = client.castle.abandon_castle(castle_id=12345)  # free; ValueError for a kingdom's main castle
+print(reply.abandon_seconds, reply.cancel_seconds)     # until it goes (a day), left to cancel (3 hours)
+client.castle.cancel_abandon(castle_id=12345)           # keeps it while cancel time is left
+```
+
+The castle list's `CastleInfo.abandon_outpost_seconds`, `cancel_abandon_seconds`
+and `no_abandon_seconds` show a running abandon and how long until a castle has
+been held long enough to abandon. Opening the gate and peace mode cost rubies
+and are not in the library.
+
+## Construction items
+
+Request the items in storage with `get_construction_items()`. The result contains
+one `ConstructionItemStack` per inventory row, with `construction_item_id` and
+`amount`. Unknown item ids remain integers. An empty inventory has `items == ()`.
+`client.castle.construction_items` reads the last inventory received and is `None`
+before the first reply.
+
+```python
+inventory = client.castle.get_construction_items()
+for stack in inventory.items:
+    print(stack.construction_item_id, stack.amount)
+```
+
+Equip and remove take your castle id, a building's `BuildingRow.object_id`, the
+construction item id, and a slot index within the item's slot type. They join the
+castle themselves and use its kingdom from your castle list. The examples below
+use synthetic ids:
+
+```python
+from empire_core.castle import ConstructionItemMode
+
+placement = client.castle.equip_construction_item(
+    12345, 77, 99999999, 0, mode=ConstructionItemMode.ADD
+)
+removed = client.castle.remove_construction_item(12345, 77, 99999999, 0)
+```
+
+`ADD` fills an empty slot. `REPLACE` returns the old item to storage and pays its
+coin removal cost. `OVERWRITE` discards the old item. Removal also pays the item's
+coin removal cost. The server checks slot compatibility, inventory capacity and
+available coins; a refusal raises `CommandError`. These modes have no ruby payment
+option.
+
+Both actions return the server's complete placement: `result.items` contains
+`BuildingConstructionItems`, each with an `object_id` and `PlacedConstructionItem`
+entries. These retain temporary items' `remaining_seconds` and unknown item ids.
+`client.castle.placed_construction_items` gives a snapshot of the joined castle's
+placement, updated by joins, successful service actions and expiry pushes. A map
+read clears this snapshot. A reply arriving after the session changes castle or
+leaves and rejoins the same castle raises `ReplyMismatchError` and cannot replace
+another area's placement. Bare `client.request()` calls for equip/remove do not
+update this cache because their replies carry no castle identity. Placement updates
+follow receive order: an expiry push received after an action reply wins, even
+when the requesting thread resumes later.
+
+Disassembly consumes items in storage, or a lost and found entry when its id is
+supplied:
+
+```python
+result = client.castle.disassemble_construction_item(12345, 99999999, amount=2)
+print(result.amount, result.rewards)
+```
+
+`DisassembleConstructionItemResponse` exposes the server's `amount`, typed
+`reward_ids` and the collectables resolved from those rewards using game data.
+Unknown reward ids are retained. Permanent items' material yield is calculated
+from static item definitions by the game client and is not included in this
+server reply; `rewards` describes the drawn rewards only. Game data is loaded
+before sending disassembly so a loading error cannot occur after items are
+consumed.
+
+Each successful action refreshes the inventory with `gii`. If that refresh fails,
+the accepted action's result is returned, a warning is logged, and
+`construction_items` stays `None` until a successful refresh. Retry
+`get_construction_items()` to restore the snapshot. Refusals and transport failures
+of the action itself propagate as typed errors. An accepted action whose body
+cannot be parsed raises `PacketError` and invalidates the inventory too. An unreadable
+equip/remove placement becomes unknown unless a newer expiry or join snapshot
+already replaced it. Request
+`get_construction_items()` explicitly to recover its snapshot.
 
 ## The joined castle
 

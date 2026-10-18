@@ -44,8 +44,11 @@ for item in scan.items:
 From the coordinates it reads the target's area type and structures, the
 defenders each flank holds and the castellan holding it, the area effects that
 widen your flanks, your general's skills, and your own legend and Hall of
-Legends skills. A camp's level comes from the victory count in its map row; a
-player's from the owner records beside it.
+Legends skills. A robber baron camp's level comes from the victory count in its map row; a
+player's from the owner records beside it. A robber baron camp's defenders
+and tools come from its row in the game data
+([`robber_baron_camp_army`](../reference/attack.md#empire_core.attack.service.AttackService.robber_baron_camp_army)),
+unless you pass your own `spy_army`.
 
 Every one of those can be passed instead, and passing one skips the request
 that would have found it. The keyword arguments of
@@ -117,7 +120,8 @@ defense the units are then chosen against.
 ## Choosing what to fill
 
 `options=FillOptions(...)` narrows the fill. The flank, unit and tool filters match
-the game's auto-fill settings; the last three are the library's own.
+the game's auto-fill settings, and `waves` and `fill_yard` its per-wave checkboxes;
+`use_tools` is the library's own.
 
 | Option | Default | Effect |
 | --- | --- | --- |
@@ -127,13 +131,13 @@ the game's auto-fill settings; the last three are the library's own.
 | `allow_basic_tools`, `allow_premium_tools`, `allow_elite_tools`, `allow_event_tools`, `allow_combo_tools` | `True` | Allow tools of that category; a tool without one is always allowed |
 | `use_tools` | `True` | `False` fills soldiers only |
 | `fill_yard` | `True` | `False` leaves the courtyard wave empty |
-| `max_waves` | `None` | Fill at most this many waves |
+| `waves` | `None` | The 0-based wave indexes to fill; the others stay empty in their place. `None` fills every wave |
 
 ```python
 from empire_core.combat import FillOptions
 
-# One wave, left flank only, no tools, no courtyard.
-options = FillOptions(fill_middle=False, fill_right=False, use_tools=False, fill_yard=False, max_waves=1)
+# The first wave only, left flank only, no tools, no courtyard.
+options = FillOptions(fill_middle=False, fill_right=False, use_tools=False, fill_yard=False, waves=frozenset({0}))
 attack = client.attack.fill_attack(castle.castle_id, target=item, commander=commander, options=options)
 ```
 

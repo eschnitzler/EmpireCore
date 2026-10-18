@@ -55,10 +55,13 @@ if TYPE_CHECKING:
     from .effects import Effect
     from .equipment_groups import EquipmentGroup
     from .events import Event
+    from .gem_colors import GemColor
     from .gems import Gem
     from .general_abilities import GeneralAbility
+    from .general_rarities import GeneralRarity
     from .general_skills import GeneralSkill
     from .generals import General
+    from .generals_hub_characters import GeneralsHubCharacter
     from .global_effects import GlobalEffect
     from .horses import Horse
     from .legend_skills import LegendSkill
@@ -92,9 +95,12 @@ _MODULES = {
     "EquipmentGroup": "equipment_groups",
     "Event": "events",
     "Gem": "gems",
+    "GemColor": "gem_colors",
     "General": "generals",
     "GeneralAbility": "general_abilities",
+    "GeneralRarity": "general_rarities",
     "GeneralSkill": "general_skills",
+    "GeneralsHubCharacter": "generals_hub_characters",
     "GlobalEffect": "global_effects",
     "Horse": "horses",
     "LegendSkill": "legend_skills",
@@ -111,8 +117,12 @@ _MODULES = {
 }
 
 
-def is_current(game_data: GameData) -> bool:
+def is_current(game_data: GameData | None = None) -> bool:
     """Whether ``game_data`` is the items version these enums were generated from."""
+    if game_data is None:
+        from empire_core.gamedata.data import GameData
+
+        game_data = GameData.require()
     return game_data.version == ITEMS_VERSION
 
 
@@ -145,9 +155,12 @@ __all__ = [
     "EquipmentGroup",
     "Event",
     "Gem",
+    "GemColor",
     "General",
     "GeneralAbility",
+    "GeneralRarity",
     "GeneralSkill",
+    "GeneralsHubCharacter",
     "GlobalEffect",
     "Horse",
     "ITEMS_VERSION",

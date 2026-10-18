@@ -262,7 +262,7 @@ class ChronicleDaimyoContract:
     def from_values(cls, values: list[Any]) -> ChronicleDaimyoContract:
         return cls(js_parse_int(_at(values, 0)))
 
-    def series_position(self, game_data: GameData) -> tuple[DaimyoContractDef, int, int]:
+    def series_position(self, *, game_data: GameData | None = None) -> tuple[DaimyoContractDef, int, int]:
         """
         The contract, its level within its rank (from 1) and how many levels the rank has.
 
@@ -275,6 +275,7 @@ class ChronicleDaimyoContract:
         Client: ``SamuraiDaimyoDataXml.getContractSeriesIndex`` and ``getNumberOfContractsForSeries``
         (bundle lines 13915-13925), with ``CONTRACT_TYPE_CASTLE`` (bundle lines 66354-66357)
         """
+        game_data = game_data if game_data is not None else GameData.require()
         contracts = game_data.daimyo_castle_contracts
         if self.contract_id is None or self.contract_id not in contracts:
             raise KeyError(f"no daimyo castle contract {self.contract_id}")
@@ -451,7 +452,7 @@ class AllianceChronicleEntry(BasePayload):
             return None
         return _name(self.action_values, 2 if self.action == Action.TOURNAMENT_REWARD else 1)
 
-    def describe(self, game_data: GameData | None = None, *, lang: str = "en", skin: str = "") -> str:
+    def describe(self, *, lang: str = "en", skin: str = "", game_data: GameData | None = None) -> str:
         """
         The entry's line in the chronicle, as the alliance overview writes it.
 
@@ -496,7 +497,7 @@ class AllianceChronicleEntry(BasePayload):
             return text(key, PlainText(_name(values, 0) or ""), lang=lang, grouping=False)
         if action in ChronicleDaimyoContract.ACTIONS:
             contract, level, levels = ChronicleDaimyoContract.from_values(values).series_position(
-                game_data if game_data is not None else GameData.require()
+                game_data=game_data if game_data is not None else GameData.require()
             )
             return text(key, contract.rank, level, levels, lang=lang)
         return text(key, *values, lang=lang)

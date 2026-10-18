@@ -26,6 +26,9 @@ stronghold or in the hospital are reported separately by
 `hospital`, each the same `{Unit or Tool: amount}` mapping. `dismiss_units` dismisses units of the castle
 or of its stronghold.
 
+`store_in_stronghold(castle_id, unit, amount)` hides soldiers in the stronghold and
+`take_from_stronghold` brings them back; both return the castle's inventories after the move.
+
 ## Recruitment
 
 ```python
@@ -41,6 +44,10 @@ client.army.cancel_production(
     12345, ProductionListId.SOLDIERS, SlotType.QUEUE, position=0
 )
 ```
+
+`move_production_slot(castle_id, list_id, old_position, new_position)` reorders the queue by
+`ProductionSlot.position`, and `set_recruitment_mode` picks whether a list finishes its first
+stack first or all stacks equally (`RecruitmentMode`).
 
 `double_production_slot` doubles a slot's units, for rubies. A unit with a ruby
 price, and paying missing resources with rubies, need `spend_rubies=True`; see
@@ -60,6 +67,8 @@ client.army.cancel_heal(12345, position=hospital.hospital_slots[0].position)
 `heal_all` and `skip_heal` finish healing for rubies, and `heal_units` heals a
 unit that costs rubies to heal, only with `spend_rubies=True`; `dismiss_wounded` and
 `dismiss_wounded_units` give wounded units up instead of healing them.
+`get_hospital_flags` and `set_hospital_flags(castle_id, admit_ruby_units=...)` read and set
+whether the hospital admits wounded ruby units.
 
 !!! tip "Unit ids"
 
