@@ -278,3 +278,25 @@ def test_emblem_keeps_original_membership_at_final_send_check(monkeypatch):
     with pytest.raises(ReplyMismatchError):
         client.alliance.set_emblem(900001, [900003, 900004])
     assert conn(client).requested == []
+
+
+@pytest.mark.parametrize("changed_section", ["M", "AMI"])
+def test_partial_member_updates_keep_activity_links(changed_section):
+    state = alliance_state()
+    state.update_from_packet("ain", {"A": {"AID": 301, "M": [{"OID": 8, "RNP": 60}], "AMI": [[8, 0, 0, 0, 4]]}})
+    before = state.get_own_alliance()
+    assert before is not None
+    fields = {"M": [{"OID": 8, "RNP": 60}]} if changed_section == "M" else {"AMI": [[8, 0, 0, 0, 0]]}
+    client = make_client({"acd": xt_packet("acd", {"ain": {"A": {"AID": 301, **fields}}})}, state=state)
+    client.alliance.set_description("Description")
+    current = state.get_own_alliance()
+    assert current is not None
+    if changed_section == "AMI":
+        assert current.members[0].received_at == before.members[0].received_at
+        assert current.members[0].activity_tier == 0 and current.online_count == 1
+    else:
+        received_at = current.members[0].received_at
+        state.update_from_packet("acm", {"CM": {"PID": 8, "PN": "Member", "T": "hello"}})
+        current = state.get_own_alliance()
+        assert current is not None and current.members[0].received_at == received_at
+        assert current.members[0].activity_tier == 0 and current.online_count == 1
