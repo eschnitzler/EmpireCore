@@ -1,4 +1,4 @@
-"""Read-only alliance mobilisation and raid status protocols."""
+"""Grand Tournament quest actions and alliance event status protocols."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class AllianceQuestProgress(BasePayload):
+class GrandTournamentQuestProgress(BasePayload):
     """Progress of the quest occupying a slot; its quest definition is in game data.
 
     Client: ``AllianceQuestSlotVO.fillFromParams`` (bundle 34950-34951) delegates the first QL
@@ -53,7 +53,7 @@ class AllianceQuestProgress(BasePayload):
         return result
 
 
-class AllianceQuestSlot(BasePayload):
+class GrandTournamentQuestSlot(BasePayload):
     """Client: ``AllianceQuestSlotVO.fillFromParams`` (bundle lines 34949-34951).
 
     Keys: ``CommKeys`` (dll.pretty lines 80007,79871,80180,79617).
@@ -65,7 +65,7 @@ class AllianceQuestSlot(BasePayload):
     player_id: ClientInt = Field(validation_alias="PID", description="Assigned player id; nonpositive when unassigned")
     player_name: str = Field(default="", validation_alias="PN", description="Assigned player's name")
     remaining_seconds: ClientInt = Field(validation_alias="RS", description="Quest or cooldown seconds at receipt")
-    progress: AllianceQuestProgress | None = Field(
+    progress: GrandTournamentQuestProgress | None = Field(
         default=None, validation_alias="QL", description="Assigned quest progress"
     )
 
@@ -77,18 +77,18 @@ class AllianceQuestSlot(BasePayload):
     @field_validator("progress", mode="before")
     @classmethod
     def _progress(cls, value: Any) -> Any:
-        if isinstance(value, AllianceQuestProgress) or value is None:
+        if isinstance(value, GrandTournamentQuestProgress) or value is None:
             return value
         if not isinstance(value, list):
             raise ValueError("Expected quest progress list")
         return value[0] if value else None
 
 
-class GetMobilizationStatusRequest(BaseRequest):
+class GetGrandTournamentStatusRequest(BaseRequest):
     """Client: ``C2SAllianceQuestStatusVO`` (bundle lines 75687-75691)."""
 
     command: ClassVar[str] = "aqs"
-    event_id: int = Field(validation_alias="EID", description="Alliance mobilisation event")
+    event_id: int = Field(validation_alias="EID", description="Grand Tournament event")
 
     def accepts_reply(self, payload: Any) -> bool:
         """AQSCommand looks up EID as a numeric Map key (bundle 127419-127420)."""
@@ -97,28 +97,30 @@ class GetMobilizationStatusRequest(BaseRequest):
         )
 
 
-class MobilizationQuestStatus(BaseResponse):
+class GrandTournamentQuestStatus(BaseResponse):
     """Client: ``AQSCommand`` (bundle 127419-127420), ``parseQuestSlots`` (5104-5110)."""
 
     command: ClassVar[str] = "aqs"
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True, populate_by_name=True, extra="ignore")
-    event_id: ClientInt = Field(validation_alias="EID", description="Alliance mobilisation event")
-    participants: ClientInt = Field(validation_alias="APC", description="Participating alliance members")
-    slots: tuple[AllianceQuestSlot, ...] = Field(validation_alias="AQS", description="Alliance quest slots")
+    event_id: ClientInt = Field(validation_alias="EID", description="Grand Tournament event")
+    participants: ClientInt | None = Field(
+        default=None, validation_alias="APC", description="Participating alliance members"
+    )
+    slots: tuple[GrandTournamentQuestSlot, ...] = Field(validation_alias="AQS", description="Alliance quest slots")
 
     @field_validator("slots", mode="before")
     @classmethod
-    def _slots(cls, value: Any) -> tuple[AllianceQuestSlot, ...]:
+    def _slots(cls, value: Any) -> tuple[GrandTournamentQuestSlot, ...]:
         if not isinstance(value, list):
             raise ValueError("Expected alliance quest slot list")
         entries = [
             {**entry, "slot_id": index} if isinstance(entry, dict) else {"slot_id": index}
             for index, entry in enumerate(value)
         ]
-        return tuple(readable_list(AllianceQuestSlot, entries, warn=logger, what="alliance quest slots"))
+        return tuple(readable_list(GrandTournamentQuestSlot, entries, warn=logger, what="alliance quest slots"))
 
 
-class MobilizationContribution(BasePayload):
+class GrandTournamentContribution(BasePayload):
     """Client: ``AllianceMobilizationEventDialogContributionItem.update`` (bundle 76178)."""
 
     rank: ClientInt = Field(validation_alias="R", description="Contribution rank")
@@ -126,28 +128,30 @@ class MobilizationContribution(BasePayload):
     points: ClientInt = Field(validation_alias="OP", description="Contributed event points")
 
 
-class GetMobilizationContributionsRequest(BaseRequest):
+class GetGrandTournamentContributionsRequest(BaseRequest):
     """Client: ``C2SAllianceDivisionPlayerContributionVO`` (bundle 75678-75682)."""
 
     command: ClassVar[str] = "aqpc"
-    event_id: int = Field(validation_alias="EID", description="Alliance mobilisation event")
+    event_id: int = Field(validation_alias="EID", description="Grand Tournament event")
 
 
-class GetMobilizationContributionsResponse(BaseResponse):
+class GetGrandTournamentContributionsResponse(BaseResponse):
     """Client: ``AQPCCommand`` (bundle 127404-127405)."""
 
     command: ClassVar[str] = "aqpc"
-    contributions: tuple[MobilizationContribution, ...] = Field(
+    contributions: tuple[GrandTournamentContribution, ...] = Field(
         validation_alias="AQPC", description="Player contributions in server order"
     )
 
     @field_validator("contributions", mode="before")
     @classmethod
-    def _contributions(cls, value: Any) -> tuple[MobilizationContribution, ...]:
+    def _contributions(cls, value: Any) -> tuple[GrandTournamentContribution, ...]:
         if not isinstance(value, (list, tuple)):
-            raise ValueError("Expected mobilisation contributions list")
+            raise ValueError("Expected Grand Tournament contributions list")
         entries = [{} if entry is None else entry for entry in value]
-        return tuple(readable_list(MobilizationContribution, entries, warn=logger, what="mobilisation contributions"))
+        return tuple(
+            readable_list(GrandTournamentContribution, entries, warn=logger, what="Grand Tournament contributions")
+        )
 
 
 class RaidBossWall(BasePayload):
@@ -281,3 +285,88 @@ class RaidBossStatusBroadcast(GetRaidBossStatusResponse):
     """Client: ``BBSCommand`` (bundle 127522-127523), parsed like bse."""
 
     command: ClassVar[str] = "bbs"
+
+
+class GrandTournamentQuestUpdate(BasePayload):
+    """Slot update without participant count, as action replies supply it.
+
+    Client: ``CAAQCommand``, ``CAQCommand``, ``RAQCommand``, ``SAQCommand``, ``SCQCommand``
+    (bundle 127430-127503) read only nested aqs.EID and aqs.AQS.
+    """
+
+    event_id: ClientInt = Field(validation_alias="EID", description="Grand Tournament event")
+    slots: tuple[GrandTournamentQuestSlot, ...] = Field(validation_alias="AQS", description="Updated quest slots")
+
+    @field_validator("slots", mode="before")
+    @classmethod
+    def _slots(cls, value: Any) -> tuple[GrandTournamentQuestSlot, ...]:
+        return GrandTournamentQuestStatus._slots(value)
+
+
+class CompleteGrandTournamentQuestRequest(GetGrandTournamentStatusRequest):
+    """Client: ``C2SCompleteAllianceQuestVO`` (bundle 75705-75708)."""
+
+    command: ClassVar[str] = "caq"
+
+    def accepts_reply(self, payload: Any) -> bool:
+        if not isinstance(payload, dict) or "aqs" not in payload:
+            return True
+        status = payload["aqs"]
+        return not isinstance(status, dict) or "EID" not in status or super().accepts_reply(status)
+
+
+class StartGrandTournamentQuestRequest(CompleteGrandTournamentQuestRequest):
+    """Client: ``C2SStartAllianceQuestVO`` (bundle 75732-75735)."""
+
+    command: ClassVar[str] = "saq"
+    slot_id: int = Field(ge=0, validation_alias="S", description="Zero-based quest slot")
+    alliance_quest_id: int = Field(gt=0, validation_alias="QID", description="Quest definition occupying the slot")
+
+
+class CancelGrandTournamentQuestRequest(CompleteGrandTournamentQuestRequest):
+    """Client: ``C2SCancelActiveAllianceQuestVO`` (bundle 75696-75699)."""
+
+    command: ClassVar[str] = "caaq"
+
+
+class RerollGrandTournamentQuestRequest(StartGrandTournamentQuestRequest):
+    """Client: ``C2SRerollAllianceQuestVO`` (bundle 75714-75717)."""
+
+    command: ClassVar[str] = "raq"
+
+
+class SkipGrandTournamentCooldownRequest(StartGrandTournamentQuestRequest):
+    """Client: ``C2SSkipCooldownAllianceQuestVO`` (bundle 75723-75726)."""
+
+    command: ClassVar[str] = "scq"
+
+
+class CompleteGrandTournamentQuestResponse(BaseResponse):
+    """Client: ``CAQCommand.executeCommand`` (bundle 127450-127454)."""
+
+    command: ClassVar[str] = "caq"
+    status: GrandTournamentQuestUpdate = Field(validation_alias="aqs", description="Updated Grand Tournament quests")
+
+
+class StartGrandTournamentQuestResponse(CompleteGrandTournamentQuestResponse):
+    """Client: ``SAQCommand.executeCommand`` (bundle 127480-127484)."""
+
+    command: ClassVar[str] = "saq"
+
+
+class CancelGrandTournamentQuestResponse(CompleteGrandTournamentQuestResponse):
+    """Client: ``CAAQCommand.executeCommand`` (bundle 127435-127439)."""
+
+    command: ClassVar[str] = "caaq"
+
+
+class RerollGrandTournamentQuestResponse(CompleteGrandTournamentQuestResponse):
+    """Client: ``RAQCommand.executeCommand`` (bundle 127465-127469)."""
+
+    command: ClassVar[str] = "raq"
+
+
+class SkipGrandTournamentCooldownResponse(CompleteGrandTournamentQuestResponse):
+    """Client: ``SCQCommand.executeCommand`` (bundle 127495-127499)."""
+
+    command: ClassVar[str] = "scq"

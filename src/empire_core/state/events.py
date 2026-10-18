@@ -11,7 +11,6 @@ from typing_extensions import overload
 from empire_core.events.models import (
     AlienInvasionEvent,
     AllianceBonusEvent,
-    AllianceMobilizationEvent,
     AllianceTournamentEvent,
     ArtifactEvent,
     BeggingKnightsEvent,
@@ -27,6 +26,7 @@ from empire_core.events.models import (
     GiftEvent,
     GlobalEffectBuffEvent,
     GlobalEffectEvent,
+    GrandTournamentEvent,
     KingdomsLeagueEvent,
     LongTermPointEvent,
     LuckyWheelEvent,
@@ -41,7 +41,7 @@ from empire_core.events.models import (
     TournamentEvent,
     event_class,
 )
-from empire_core.events.status_models import MobilizationQuestStatus, RaidBossStatus
+from empire_core.events.status_models import GrandTournamentQuestStatus, GrandTournamentQuestUpdate, RaidBossStatus
 from empire_core.gamedata.ids.events import Event
 from empire_core.protocol.js import js_int, js_truthy
 from empire_core.state.base import StateBase
@@ -55,6 +55,26 @@ EventsCallback = Callable[[dict[int, SpecialEvent]], Any]
 
 
 class EventState(StateBase):
+    _grand_tournament_action_context: tuple[float, int | None, int] | None = None
+
+    def _quest_action_context(self) -> tuple[float, int | None, int] | None:
+        with self._lock:
+            event = self.events.get(Event.GRAND_TOURNAMENT)
+            return (
+                (event.end_time, self.local_player.AID if self.local_player else None, self.membership_revision)
+                if event
+                else None
+            )
+
+    def _begin_quest_action(self) -> tuple[float, int | None, int] | None:
+        with self._lock:
+            self._grand_tournament_action_context = self._quest_action_context()
+            return self._grand_tournament_action_context
+
+    def _end_quest_action(self) -> None:
+        with self._lock:
+            self._grand_tournament_action_context = None
+
     on_event_added = callbacks.Event[SpecialEvent]()
     """Register a callback for an event that starts: a ``sei`` or ``tei`` entry for an event not running.
 
@@ -178,7 +198,7 @@ class EventState(StateBase):
 
         Each event reads them as its client class does: a score event its first of each, an
         invasion one per part in order, Berimond and the lucky wheels the first rank and points,
-        the raid boss and the alliance mobilisation the first for you and the second for your
+        the raid boss and the alliance Grand Tournament the first for you and the second for your
         alliance, the alliance tournament the first for your alliance, and ``BLPP`` the raid boss's
         level points. The library reads every value through ``int()``, where the client keeps them
         as sent.
@@ -212,18 +232,45 @@ class EventState(StateBase):
         self._fire(self.on_events_updated, dict(self.events))
 
     def _handle_aqs(self, data: Any) -> None:
-        """AQSCommand applies slots only to the named mobilisation event (bundle 127419-127420)."""
+        """AQSCommand applies slots only to the named Grand Tournament event (bundle 127419-127420)."""
         self._expire_events()
         event = self._sent_event(data.get("EID") if isinstance(data, dict) else None)
-        if not isinstance(event, AllianceMobilizationEvent):
+        if not isinstance(event, GrandTournamentEvent):
             return
         try:
-            status = MobilizationQuestStatus.model_validate(data)
+            status = GrandTournamentQuestStatus.model_validate(data)
         except ValidationError:
             logger.warning("Unreadable alliance quest status; kept previous event status")
             return
         updated = event.model_copy(update={"quest_status": status})
         self.events = {**self.events, event.event_id: updated}
+        self._events_updated_at = time.time()
+        self._fire(self.on_events_updated, dict(self.events))
+
+    def _handle_grand_tournament_action(self, data: Any) -> None:
+        """Apply nested action slots in receive order (bundle 127430-127503)."""
+        if not isinstance(data, dict):
+            return
+        try:
+            update = GrandTournamentQuestUpdate.model_validate(data.get("aqs"))
+        except ValidationError:
+            logger.warning("Unreadable Grand Tournament quest action; kept previous status")
+            return
+        self._expire_events()
+        nested = data.get("aqs")
+        event = self._sent_event(nested.get("EID") if isinstance(nested, dict) else None)
+        if not isinstance(event, GrandTournamentEvent):
+            return
+        context = self._grand_tournament_action_context
+        if context is None or context != self._quest_action_context():
+            return
+        previous = event.quest_status
+        status = GrandTournamentQuestStatus.model_construct(
+            event_id=update.event_id,
+            participants=previous.participants if previous is not None else None,
+            slots=update.slots,
+        )
+        self.events = {**self.events, event.event_id: event.model_copy(update={"quest_status": status})}
         self._events_updated_at = time.time()
         self._fire(self.on_events_updated, dict(self.events))
 
@@ -354,7 +401,7 @@ class EventState(StateBase):
     @overload
     def get_event(self, event: Literal[Event.ALLI_TOURNAMENT]) -> AllianceTournamentEvent | None: ...
     @overload
-    def get_event(self, event: Literal[Event.ALLIANCE_MOBILIZATION_EVENT]) -> AllianceMobilizationEvent | None: ...
+    def get_event(self, event: Literal[Event.GRAND_TOURNAMENT]) -> GrandTournamentEvent | None: ...
     @overload
     def get_event(self, event: Literal[Event.LUCKY_WHEEL, Event.SALE_DAYS_LUCKY_WHEEL]) -> LuckyWheelEvent | None: ...
     @overload
