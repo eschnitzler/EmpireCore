@@ -447,6 +447,28 @@ class SystemNotificationEvent(BaseResponse):
         return readable_list(MessageInfo, value)
 
 
+class ServerMessage(BaseResponse):
+    """
+    A server message, pushed by the server; the client shows it in a dialog titled "SERVER MESSAGE".
+
+    Command: smg
+
+    Client: ``SMGCommand.executeCommand`` (bundle line 120952)
+    """
+
+    command = "smg"
+
+    text: str = Field(validation_alias="MSG", default="", description="The message")
+    big: bool = Field(
+        validation_alias="BIG", default=False, description="Whether the client shows it in its large dialog"
+    )
+
+    @field_validator("big", mode="before")
+    @classmethod
+    def _big(cls, value: Any) -> bool:
+        return js_loose_equals(value, 1)
+
+
 # =============================================================================
 # BSD - Spy Log Detail
 # =============================================================================
@@ -1066,5 +1088,6 @@ __all__ = [
     "EventAnnouncementHeader",
     "SpyReportArea",
     "SpyReportResponse",
+    "ServerMessage",
     "SystemNotificationEvent",
 ]
