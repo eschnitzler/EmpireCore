@@ -249,7 +249,18 @@ class AllianceService(BaseService):
         alliance_id = self._require_local_alliance_id()
         revision = self.client.state.membership_revision
         with self.client.connection.command_lock("aug", timeout=timeout):
-            details = self.get_alliance_info(alliance_id, timeout=timeout)
+            preflight_sequence = self.client.state.alliance_upgrade_sequence()
+            with (
+                self.client.connection.command_lock("ain", timeout=timeout),
+                self.client.state.alliance_info_read(alliance_id),
+            ):
+                preflight, preflight_payload = self._request_membership(
+                    GetAllianceInfoRequest(alliance_id=alliance_id), GetAllianceInfoResponse, timeout=timeout
+                )
+            details = _echoed(preflight.alliance, "ain")
+            preflight_sequence = self.client.state.require_alliance_upgrade_preflight(
+                preflight_sequence, membership_revision=revision, alliance_id=alliance_id, payload=preflight_payload
+            )
             current = next((row for row in details.buildings if row.building_type == building_type), None)
             if details.alliance_id != alliance_id:
                 raise PacketError("alliance preflight names a different alliance")
@@ -282,11 +293,13 @@ class AllianceService(BaseService):
                 cost_row = next_row
             if any(cost.kind == CollectableKind.OTHER or cost.amount < 0 for cost in cost_row.costs):
                 raise ValueError("unknown alliance upgrade cost")
-            rubies = sum(cost.amount for cost in cost_row.costs if cost.key == "C2")
+            rubies = sum(cost.amount for cost in cost_row.costs if cost.kind == CollectableKind.RUBIES)
             self._require_spend_rubies(
                 spend_rubies, f"alliance treasury upgrade costs {rubies} rubies" if rubies else None
             )
-            self.client.state.apply_alliance_settings({}, membership_revision=revision, alliance_id=alliance_id)
+            self.client.state.require_alliance_upgrade_preflight(
+                preflight_sequence, membership_revision=revision, alliance_id=alliance_id
+            )
             with self._own_alliance():
                 response, payload = self._request_membership(
                     AllianceUpgradeRequest(building_type=building_type, level=level),

@@ -177,6 +177,33 @@ class AllianceState(StateBase):
             with self._lock:
                 self._alliance_info_read_revision = None
 
+    def alliance_upgrade_sequence(self) -> int:
+        """Receive sequence before an upgrade's fresh alliance-info read."""
+        with self._lock:
+            return self._packet_sequence
+
+    def require_alliance_upgrade_preflight(
+        self,
+        sequence: int,
+        *,
+        membership_revision: int,
+        alliance_id: int,
+        payload: dict[str, Any] | None = None,
+    ) -> int:
+        """Reject costs superseded by received buff data, in the same membership.
+
+        Client: AllianceInfoVO.getUpgradeCosts (bundle 26031) reads the current
+        buff level; a previously received level cannot authorize its next price.
+        """
+        with self._lock:
+            self._require_membership_revision(membership_revision, alliance_id)
+            receipt = self._alliance_reply_order.get("ain")
+            if payload is not None and receipt is not None and receipt[0] is payload:
+                sequence = receipt[1]
+            if self._alliance_field_order.get("ABL", 0) > sequence:
+                raise ValueError("alliance buffs changed during the upgrade preflight; request the upgrade again")
+            return sequence
+
     def apply_alliance_settings(
         self,
         data: dict[str, Any],
