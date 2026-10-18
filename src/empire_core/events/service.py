@@ -25,6 +25,16 @@ from empire_core.services.base import BaseService
 if TYPE_CHECKING:
     pass
 
+from .board_models import (
+    GetBattlegroundRankRequest,
+    GetBattlegroundRankResponse,
+    GetBattlegroundTimersRequest,
+    GetBattlegroundTimersResponse,
+    GetPlayerPerformanceRequest,
+    GetPlayerPerformanceResponse,
+    GetTemporaryServerRanksRequest,
+    GetTemporaryServerRanksResponse,
+)
 from .models import (
     EVENT_SCOREBOARDS,
     POINT_EVENTS,
@@ -339,3 +349,55 @@ class EventsService(BaseService):
             )
             for eid, event in events.items()
         ]
+
+    def get_battleground_rank(self, alliance_id: int, *, timeout: float = 5.0) -> GetBattlegroundRankResponse:
+        """Request your alliance's current battleground rank (abgph).
+
+        Requires a running battleground event. Supply your alliance on the event server.
+        Client: ``CastleAllianceBattleGroundEventDialogScoring.show`` (bundle 71907).
+        """
+        self._require_running(Event.ALLIANCE_BATTLE_GROUND)
+        return self.request(
+            GetBattlegroundRankRequest(alliance_id=alliance_id), GetBattlegroundRankResponse, timeout=timeout
+        )
+
+    def get_battleground_timers(self, *, timeout: float = 5.0) -> GetBattlegroundTimersResponse:
+        """Request seconds until the next battleground tower relink and revival.
+
+        The event must run; the server refuses unavailable server context. Timers are a reply snapshot.
+        Client: ``C2SAllianceBattleGroundGetTimersVO`` (bundle 54330), ``parseTRT`` (144811).
+        """
+        self._require_running(Event.ALLIANCE_BATTLE_GROUND)
+        return self.request(GetBattlegroundTimersRequest(), GetBattlegroundTimersResponse, timeout=timeout)
+
+    def get_player_performance(
+        self, event: Event | int, player_id: int, *, timeout: float = 5.0
+    ) -> GetPlayerPerformanceResponse:
+        """Request a player's event points and performance counters (gpe).
+
+        Requires the event to run. Replies contain no player/event identity; requests for gpe are
+        serialized, but a late reply after a timeout cannot be distinguished from the next request.
+        Client: ``C2SGetPlayerPerformanceVO`` (bundle 34268-34272), ``GPECommand`` (127239-127248).
+        """
+        self._require_running(event)
+        return self.request(
+            GetPlayerPerformanceRequest(event_id=int(event), player_id=player_id),
+            GetPlayerPerformanceResponse,
+            timeout=timeout,
+        )
+
+    def get_temporary_server_ranks(self, *, timeout: float = 5.0) -> GetTemporaryServerRanksResponse:
+        """Request your current temporary-server daily and overall points/ranks.
+
+        Requires a running temporary-server event; unavailable server context raises CommandError.
+        Board pages use ranking.get_highscore; tsh has no pagination or previous-run selector.
+        Client: ``TempServerEventVO.parseOwnRanks`` (bundle 118163).
+        """
+        self._require_running(Event.TEMP_SERVER)
+        return self.request(GetTemporaryServerRanksRequest(), GetTemporaryServerRanksResponse, timeout=timeout)
+
+    def _require_running(self, event: Event | int) -> SpecialEvent:
+        found = self.client.state.get_event(event)
+        if found is None:
+            raise EventNotRunningError(int(event))
+        return found

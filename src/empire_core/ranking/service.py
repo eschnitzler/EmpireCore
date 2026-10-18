@@ -7,6 +7,15 @@ import logging
 from empire_core.enums import RankingType
 from empire_core.services.base import BaseService
 
+from .event_models import (
+    GetColossusHighscoreRequest,
+    GetColossusHighscoreResponse,
+    GetSeasonInfoRequest,
+    GetSeasonInfoResponse,
+    GetSeasonRanksRequest,
+    GetSeasonRanksResponse,
+    SeasonHighscoreRank,
+)
 from .models import (
     GetHighscoreRequest,
     GetHighscoreResponse,
@@ -225,3 +234,29 @@ class RankingService(BaseService):
             list_type=list_type, search_value=search_value, sub_division_id=sub_division_id, event_id=event_id
         )
         return self.request(request, SearchRankingListResponse, timeout=timeout).results
+
+    def get_colossus_highscore(self, search_value: str = "-1", *, timeout: float = 5.0) -> GetColossusHighscoreResponse:
+        """Get colossus donors around a name or rank; -1 selects your own page.
+
+        Points remain donation units: the client multiplies them by .01, or .01093 for coin colossus.
+        This command names no event; the server selects the running colossus. Refusals raise CommandError.
+        Client: ``C2SColossusGetHighscoreVO`` (bundle 59205), ``parse_CHE`` (139783-139790).
+        """
+        return self.request(
+            GetColossusHighscoreRequest(search_value=search_value), GetColossusHighscoreResponse, timeout=timeout
+        )
+
+    def get_season_info(self, *, timeout: float = 5.0) -> GetSeasonInfoResponse:
+        """Request the current season's division, medals and passes.
+
+        Client: ``SeasonLeagueServer.requestKLI`` and ``parseKLI`` (bundle 142652-142671).
+        """
+        return self.request(GetSeasonInfoRequest(), GetSeasonInfoResponse, timeout=timeout)
+
+    def get_season_ranks(self, *, timeout: float = 5.0) -> tuple[SeasonHighscoreRank, ...]:
+        """Request your current season and season-event ranks.
+
+        Season board pages use get_highscore with KINGDOMS_LEAGUE_SEASON or KINGDOMS_LEAGUE_SEASON_EVENT.
+        Client: ``SeasonLeagueServer.requestKLH`` and ``parseKLH`` (bundle 142672-142682).
+        """
+        return self.request(GetSeasonRanksRequest(), GetSeasonRanksResponse, timeout=timeout).ranks

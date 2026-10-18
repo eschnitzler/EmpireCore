@@ -485,7 +485,7 @@ def get_response_model(command: str) -> type[BaseResponse] | None:
     return _response_registry.get(command)
 
 
-def parse_response(command: str, payload: dict[str, Any]) -> BaseResponse | None:
+def parse_response(command: str, payload: dict[str, Any] | list[Any]) -> BaseResponse | None:
     """
     Parse a response payload into the appropriate model.
 
