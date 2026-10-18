@@ -5,12 +5,32 @@ from __future__ import annotations
 import pytest
 
 from empire_core.exceptions import CommandError, MessageUnavailableError
+from empire_core.messages import ServerMessage
 from empire_core.messages.models import DeleteMessagesResponse
+from empire_core.protocol.base import parse_response
 from empire_core.state.manager import GameState
 from tests.messages.battle_log_payloads import BLD, BLM, BLS, LOG_ID, MAILBOX_ROW, MESSAGE_ID
 from tests.service_helpers import conn, make_client, request_payload, xt_packet
 
 ROW = [501, 1, "Hello", "Sender", 4242, 30, 0, 0, 0]
+
+
+class TestServerMessage:
+    def test_the_push_parses(self):
+        message = parse_response("smg", {"MSG": "Maintenance soon", "BIG": 1})
+
+        assert isinstance(message, ServerMessage)
+        assert (message.text, message.big) == ("Maintenance soon", True)
+
+    @pytest.mark.parametrize(("big", "expected"), [(1, True), ("1", True), (0, False)])
+    def test_a_push_reaches_the_callbacks(self, big, expected):
+        client = make_client()
+        seen: list = []
+        client.messages.on_server_message(seen.append)
+
+        client._on_packet(xt_packet("smg", {"MSG": "Maintenance soon", "BIG": big}))
+
+        assert [(m.text, m.big) for m in seen] == [("Maintenance soon", expected)]
 
 
 class TestMailbox:
