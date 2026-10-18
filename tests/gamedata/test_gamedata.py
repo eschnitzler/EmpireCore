@@ -1405,6 +1405,33 @@ class TestUnitSortOrder:
         assert tool_of(again, 637).sort_order == 155.1
 
 
+class TestAssetNames:
+    # Live rows 602 and 611, cut to the columns the asset name reads
+    SPEARMAN = {"wodID": "602", "name": "Barracks", "group": "Unit", "type": "Speerman"}
+    RAM = {"wodID": "611", "name": "Workshop", "group": "Unit", "type": "Ram", "slotTypes": "1,9"}
+
+    def test_a_unit_is_drawn_by_name_group_and_type(self):
+        assert UnitStats.model_validate(self.SPEARMAN).asset_name == "Barracks_Unit_Speerman"
+
+    def test_a_tool_is_drawn_by_name_group_and_type(self):
+        assert ToolStats.model_validate(self.RAM).asset_name == "Workshop_Unit_Ram"
+
+    def test_a_dash_type_adds_no_suffix(self):
+        unit = UnitStats.model_validate({"wodID": "1", "name": "Keep", "group": "Unit", "type": "-"})
+        assert unit.asset_name == "Keep_Unit"
+
+    def test_the_group_survives_the_cache(self, tmp_path):
+        data = GameData.parse("9.9", {"units": [self.SPEARMAN, self.RAM]})
+        cache = tmp_path / "items.json"
+        data._write_cache(cache)
+
+        again = GameData._read_cache(cache, "9.9")
+
+        assert again is not None
+        assert unit_of(again, 602).group == "Unit"
+        assert tool_of(again, 611).asset_name == "Workshop_Unit_Ram"
+
+
 class TestLeagueTypes:
     # Rows of v786.03's leaguetypes table, as the payload has them
     ROWS = [
