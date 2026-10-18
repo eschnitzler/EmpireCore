@@ -235,13 +235,15 @@ class AccountPool:
             matching username/tag).
 
         Raises:
-            LoginError: Every candidate was tried and every one failed. The last
-                failure is attached as ``__cause__``, so credential problems,
-                cooldowns and outright bugs stay distinguishable instead of
-                collapsing into a None that means 'nothing configured'.
+            LoginError: Every candidate was tried and every one failed with an
+                ``EmpireError``. The last failure is attached as ``__cause__``,
+                so credential problems and cooldowns stay distinguishable
+                instead of collapsing into a None that means 'nothing configured'.
+
+        Any other error is a bug and propagates at once, the account freed.
         """
         tried: set[str] = set()
-        last_error: Exception | None = None
+        last_error: EmpireError | None = None
 
         # Try each candidate until one succeeds
         while (account := self._reserve(username, tag, tried)) is not None:
@@ -270,7 +272,7 @@ class AccountPool:
             except LoginCooldownError as e:
                 logger.warning(f"AccountPool: {account.username} on cooldown ({e.cooldown}s), trying next...")
                 last_error = e
-            except Exception as e:
+            except EmpireError as e:
                 logger.error(f"AccountPool: Failed to lease {account.username}: {e}")
                 last_error = e
             finally:
@@ -358,8 +360,8 @@ class AccountPool:
             return
         try:
             client.close()
-        except Exception as e:
-            logger.error(f"AccountPool: Error closing {client.username}: {e}")
+        except Exception:
+            logger.exception(f"AccountPool: Error closing {client.username}")
 
     def release(self, client: EmpireClient, logout: bool | None = None) -> None:
         """

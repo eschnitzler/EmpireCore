@@ -519,7 +519,7 @@ class MovementState(StateBase):
                     mov.__pydantic_fields_set__.update(names)
 
             return mov
-        except Exception:
+        except Exception:  # noqa: BLE001 - one bad movement must not drop the packet; logged with its traceback
             self._log_movement_parse_failure(mid)
             return None
 

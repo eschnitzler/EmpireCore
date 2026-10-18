@@ -18,7 +18,7 @@ import empire_core.accounts as accounts_module
 from empire_core import EmpireClient
 from empire_core.accounts import Account, AccountRegistry, account_registry
 from empire_core.config import LOGIN_DEFAULTS, EmpireConfig, NetworkInstance, default_config, generate_aid, resolve_aid
-from empire_core.exceptions import LoginCooldownError, LoginError
+from empire_core.exceptions import LoginCooldownError, LoginError, NetworkError
 from empire_core.pool import AccountPool, PoolExhaustedError
 
 
@@ -613,19 +613,38 @@ class TestAccountPool:
 
         assert [a.username for a in pool.all_accounts] == ["chosen"]
 
-    def test_get_client_failure_raises_and_does_not_crash(self, fake_accounts, monkeypatch):
-        # account.get_client() raising must not blow up with UnboundLocalError,
-        # and must not be reported as 'no accounts available' either.
-        def broken_get_client(self: Account):
-            raise RuntimeError("cannot build client")
+    def test_an_empire_error_moves_on_to_the_next_account(self, fake_accounts, monkeypatch):
+        class OfflineClient(FakeClient):
+            def login(self) -> None:
+                raise NetworkError("server unreachable")
 
-        monkeypatch.setattr(Account, "get_client", broken_get_client)
+        monkeypatch.setattr(
+            Account,
+            "get_client",
+            lambda self: OfflineClient(self.username) if self.username == "alpha" else FakeClient(self.username),
+        )
         pool = AccountPool(fake_accounts[2])
-        with pytest.raises(LoginError) as exc_info:
+        client = pool.lease()
+        assert client is not None and client.username == "beta"
+        assert pool.busy_count == 1
+
+    def test_an_error_that_is_not_an_empire_error_propagates(self, fake_accounts, monkeypatch):
+        clients: list[FakeClient] = []
+
+        class BuggyClient(FakeClient):
+            def login(self) -> None:
+                raise RuntimeError("a bug in the login")
+
+        def make(account: Account) -> FakeClient:
+            clients.append(BuggyClient(account.username))
+            return clients[-1]
+
+        monkeypatch.setattr(Account, "get_client", make)
+        pool = AccountPool(fake_accounts[2])
+        with pytest.raises(RuntimeError):
             pool.lease()
-        # The underlying bug must stay reachable for debugging.
-        assert isinstance(exc_info.value.__cause__, RuntimeError)
-        assert not isinstance(exc_info.value.__cause__, AttributeError)
+        assert [c.username for c in clients] == ["alpha"]
+        assert clients[0].closed
         assert pool.busy_count == 0
 
     def test_no_candidates_still_returns_none(self, fake_accounts):
@@ -1019,7 +1038,7 @@ class TestKeepAlive:
             pass
         made[0].connection = BrokenConnection()  # type: ignore[assignment]
 
-        with pytest.raises(LoginError):
+        with pytest.raises(OSError):
             pool.lease()
         assert made[0].closed
         assert pool.get_client("alpha") is None
