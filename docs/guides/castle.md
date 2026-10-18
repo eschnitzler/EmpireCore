@@ -298,3 +298,28 @@ Storm castle 1030 to 1032, and outposts none. Without game data,
 (`Horse.HORSE_STABLE3` is 1007).
 
 **API:** [`CastleService`](../reference/castle.md#empire_core.castle.service.CastleService)
+
+
+`client.castle.construction_item_space` reports free storage capacity from `csp`
+updates and inventory reads, including negative capacity when storage is overfull.
+It is `None` before either arrives.
+
+`get_expired_construction_items()` requests expired items grouped by castle;
+`expired_construction_items` reads that snapshot. Each area exposes its castle,
+kingdom and items, including each expired item's building and object ids.
+`mark_expired_construction_items_seen(castle_id)` marks the list as viewed, as
+closing the client's expired-item list does. It returns the server's acknowledgement.
+
+`boost_construction_item(castle_id, object_id, construction_item_id, slot,
+consumable=CurrencyId(2000))` consumes a selected inventory booster on a temporary
+equipped item. Select 2000 for rare, 2001 for epic or 2002 for legendary. It requires
+stock in inventory, remaining item lifetime and a higher target rarity, and returns
+the complete updated placement. Game-data checks use the client's game data.
+The booster command has no ruby purchase branch. Refusals and transport failures
+propagate; an unreadable accepted placement becomes unknown until the next join.
+
+`move_construction_slot(castle_id, old_position, new_position)` reorders buildings
+in the construction queue. Both positions must contain buildings. The method joins
+the castle and reads the queue before and after the move, returning the final
+`ConstructionList`. A failed final read propagates after the move was accepted.
+The client's wire name for this queue command is `mci` (move construction item).

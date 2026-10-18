@@ -8,14 +8,14 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
-from empire_core.castle.models.objects import BuildingConstructionItems
-from empire_core.enums import ConstructionItemMode, Kingdom
+from empire_core.castle.models.objects import BuildingConstructionItems, PlacedConstructionItem
+from empire_core.enums import ConstructionItemMode, CurrencyId, Kingdom
 from empire_core.gamedata import Collectable, EnumOrInt, RewardId
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, read_or_none, readable_list
-from empire_core.protocol.js import js_number_or_none
+from empire_core.protocol.js import js_number_or_none, js_parse_int
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import ConstructionItem
+    from empire_core.gamedata import Building, ConstructionItem
 
 logger = logging.getLogger(__name__)
 
@@ -190,3 +190,159 @@ class DisassembleConstructionItemResponse(BaseResponse):
     amount: int | None = Field(validation_alias="AMT", default=None, description="How many items were disassembled")
     reward_ids: tuple[RewardId, ...] = Field(validation_alias="RIDS", default=(), description="The rewards drawn")
     rewards: tuple[Collectable, ...] = Field(default=(), description="Collectables resolved from the rewards drawn")
+
+
+class ConstructionItemSpace(BaseResponse):
+    """Free construction inventory capacity, which may be negative.
+
+    Client: ``CSPCommand.exec`` / ``ConstructionItemData.parse_CSP``
+    (bundle 123841-123843 / 22960).
+    """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    command = "csp"
+    space_left: int = Field(validation_alias="C", description="How many more construction items fit in storage")
+
+    @field_validator("space_left", mode="before")
+    @classmethod
+    def _space(cls, value: Any) -> int:
+        number = js_parse_int(value)
+        if number is None:
+            raise ValueError("Construction item capacity must be readable as an integer")
+        return number
+
+
+class ExpiredConstructionItem(BasePayload):
+    """A construction item that expired on a building.
+
+    Client: ``ConstructionItemExpiredVO.parseParams`` (bundle 77661).
+    """
+
+    construction_item_id: EnumOrInt["ConstructionItem"] = Field(validation_alias="CID", description="The expired item")
+    building_id: EnumOrInt["Building"] = Field(validation_alias="B", description="The building's game-data id")
+    object_id: int = Field(validation_alias="OID", description="The building's object id")
+
+
+class ExpiredConstructionItemArea(BasePayload):
+    """The expired construction items in one castle.
+
+    Client: ``ConstructionItemExpiredAreaVO.parseParams`` (bundle 47886-47890).
+    """
+
+    castle_id: int = Field(validation_alias="AID", description="The castle's id")
+    kingdom_id: Kingdom = Field(validation_alias="KID", description="The castle's kingdom")
+    items: tuple[ExpiredConstructionItem, ...] = Field(validation_alias="CIL", description="The expired items")
+
+
+class GetExpiredConstructionItemsRequest(BaseRequest):
+    """Request expired items across your castles.
+
+    Client: ``C2SGetAllExpiredConstructionItemsVO`` (bundle 79379-79381).
+    """
+
+    command = "aec"
+
+
+class ExpiredConstructionItemsResponse(BaseResponse):
+    """The complete list of castles with expired construction items.
+
+    Client: ``AECCommand.executeCommand`` / ``ConstructionItemData.parse_AEC``
+    (bundle 123264-123266 / 22985-22989). The wire body is a list.
+    """
+
+    command = "aec"
+    areas: tuple[ExpiredConstructionItemArea, ...] = Field(description="Castles with expired items")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _areas(cls, value: Any) -> Any:
+        if isinstance(value, list):
+            return {"areas": value}
+        return value
+
+
+class MarkExpiredConstructionItemsSeenRequest(BaseRequest):
+    """Mark the expired item list for a castle as viewed.
+
+    Client: ``C2SMarkExpiredConstructionItemVO`` / assign sublayer hide / switchCastle
+    (bundle 79370-79372 / 77574 / 77583).
+    """
+
+    command = "mec"
+    castle_id: int = Field(validation_alias="AID", description="The castle whose expired items were viewed")
+
+
+class MarkExpiredConstructionItemsSeenResponse(BaseResponse):
+    """Acknowledgement that expired items were marked as viewed.
+
+    Client: ``MECCommand.executeCommand`` (bundle 123308), which reads no fields.
+    """
+
+    command = "mec"
+
+
+class MoveConstructionSlotRequest(BaseRequest):
+    """Move an occupied building queue slot, within the joined castle.
+
+    Client: ``C2SMoveConstructionItemVO`` / ``CastleBuildingListComponent.requestMoveFromServer``
+    (bundle 108290-108292 / 108280-108281).
+    """
+
+    command = "mci"
+    object_id: int = Field(validation_alias="OID", gt=0, description="The queued building's object id")
+    new_position: int = Field(validation_alias="NS", ge=0, description="The occupied destination queue position")
+
+
+class MoveConstructionSlotResponse(BaseResponse):
+    """Queue move acknowledgement; the queue itself is delivered by scl.
+
+    Client: ``MCICommand.executeCommand`` (bundle 123383).
+    """
+
+    command = "mci"
+
+    @model_validator(mode="before")
+    @classmethod
+    def _body(cls, value: Any) -> Any:
+        if not isinstance(value, dict) or "raw" in value:
+            raise ValueError("The construction queue acknowledgement must contain valid JSON")
+        return value
+
+
+class BoostConstructionItemRequest(BaseRequest):
+    """Consume one explicitly selected inventory booster on a temporary construction item.
+
+    Client: ``C2SUseBoosterConsumableOnConstructionItemVO`` (bundle 79457-79459).
+    """
+
+    command = "ubc"
+    object_id: int = Field(validation_alias="OID", gt=0, description="The building's object id")
+    consumable_id: CurrencyId = Field(validation_alias="SUC", description="The inventory booster to consume")
+    slot: int = Field(validation_alias="SID", ge=0, description="Slot index within the item's slot type")
+    kingdom_id: Kingdom = Field(validation_alias="KID", description="The castle's kingdom")
+    castle_id: int = Field(validation_alias="AID", description="The castle's id")
+    construction_item_id: EnumOrInt["ConstructionItem"] = Field(validation_alias="CID", description="The equipped item")
+
+
+class BoostConstructionItemResponse(ConstructionItemPlacement, BaseResponse):
+    """The complete placement after consuming the booster.
+
+    Client: ``UBCCommand.executeCommand`` (bundle 123350-123352).
+    """
+
+    command = "ubc"
+
+    @model_validator(mode="before")
+    @classmethod
+    def _placement(cls, value: Any) -> Any:
+        if isinstance(value, dict) and isinstance(value.get("CI"), list):
+            for building in value["CI"]:
+                BuildingConstructionItems.model_validate(building)
+                if not isinstance(building, dict) or (js_number_or_none(building.get("OID")) or 0) <= 0:
+                    raise ValueError("A booster reply needs valid building object ids")
+                if not isinstance(building, dict) or not isinstance(building.get("CIL"), list):
+                    raise ValueError("A booster reply needs complete placed item records")
+                for item in building["CIL"]:
+                    PlacedConstructionItem.model_validate(item)
+        return value

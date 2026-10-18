@@ -9,7 +9,6 @@ from empire_core.enums import CollectableKind
 from empire_core.events import (
     EVENT_CLASSES,
     AllianceBonusEvent,
-    AllianceMobilizationEvent,
     AllianceTournamentEvent,
     ArtifactEvent,
     CampaignEvent,
@@ -19,6 +18,7 @@ from empire_core.events import (
     FameBoosterEvent,
     FortuneTellerEvent,
     GiftEvent,
+    GrandTournamentEvent,
     LuckyWheelEvent,
     PointEvent,
     SeasonEvent,
@@ -54,7 +54,7 @@ def settle(state) -> None:
     ("event", "model"),
     [
         (Event.ALLI_TOURNAMENT, AllianceTournamentEvent),
-        (Event.ALLIANCE_MOBILIZATION_EVENT, AllianceMobilizationEvent),
+        (Event.GRAND_TOURNAMENT, GrandTournamentEvent),
         (Event.LUCKY_WHEEL, LuckyWheelEvent),
         (Event.SALE_DAYS_LUCKY_WHEEL, LuckyWheelEvent),
         (Event.ARTIFACT_67, ArtifactEvent),
@@ -111,7 +111,7 @@ class TestScoreEvents:
 
         assert state.get_event(entry["EID"]) is None and added == []
 
-    def test_alliance_mobilisation_rebuilds_both_scores_in_the_alliance_league(self, state, clock):
+    def test_grand_tournament_rebuilds_both_scores_in_the_alliance_league(self, state, clock):
         entry = {
             "EID": 129,
             "RS": 60,
@@ -123,7 +123,7 @@ class TestScoreEvents:
         sei(state, entry)
 
         event = state.get_event(129)
-        assert isinstance(event, AllianceMobilizationEvent)
+        assert isinstance(event, GrandTournamentEvent)
         assert (event.league_id, event.subdivision_id, event.division_round_id) == (2, 6, 9)
         assert event.parts["SP"] == EventPart(own_points=12, own_rank=3, league_id=2, reward_set_id=4)
         assert event.parts["A"] == EventPart(own_points=300, league_id=2, reward_set_id=4, sub_type=1)
@@ -134,7 +134,7 @@ class TestScoreEvents:
         assert (event.parts["SP"].own_rank, event.parts["SP"].own_points) == (1, 20)
         assert (event.parts["A"].own_rank, event.parts["A"].own_points) == (8, 310)
 
-    def test_alliance_mobilisation_without_a_league_has_no_alliance_score(self, state, clock):
+    def test_grand_tournament_without_a_league_has_no_alliance_score(self, state, clock):
         sei(state, {"EID": 129, "RS": 60, "SP": {}, "A": {"LID": 0}})
 
         assert "A" not in state.get_event(129).parts
