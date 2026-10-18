@@ -77,6 +77,7 @@ class AllianceState(StateBase):
                 if field.validation_alias in changed_keys
             }
             alliance = self.own_alliance.model_copy(deep=True, update=updates)
+            alliance.model_post_init(None)
         keys = changed_keys if changed_keys is not None else set(raw) | set(self._own_alliance_raw or {})
         for key in keys:
             self._alliance_field_order[key] = self._packet_sequence
