@@ -183,6 +183,14 @@ class MapObject(BasePayload):
     faction: OwnerFaction | None = Field(validation_alias="FN", default=None, description="Faction event standing")
     via_refer_a_friend: bool = Field(validation_alias="IRF", default=False, description="Joined through refer-a-friend")
 
+    @property
+    def is_legend(self) -> bool:
+        """Whether the player is a legend: a legendary level above zero.
+
+        Client: ``WorldMapOwnerInfoVO.isLegend`` (bundle line 10892)
+        """
+        return self.legendary_level > 0
+
     @field_validator("owner_id", "alliance_id", mode="before")
     @classmethod
     def _parse_int_or_none(cls, value: Any) -> Any:

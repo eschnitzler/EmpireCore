@@ -66,6 +66,18 @@ need `spend_rubies=True`; see [Spending rubies](index.md#spending-rubies).
 (the spy screen), `csm` (sending), `sne` (the report's mail) or `bsd` (reading
 it).
 
+When nothing was sent (`NO_SPIES_AVAILABLE`, `RISK_OVER_BUDGET`, or a cancel
+after the screen was read), `result.screen` holds the last `ssi` reply read.
+To ask whether all your spies, out ones included, could reach the ceiling:
+
+```python
+from empire_core.spy import plan_mission
+
+owner = result.screen.target_owner(700, 710)
+pool = client.spy.total_spies(legend_target=owner is not None and owner.is_legend)
+plan = plan_mission(result.screen.guard_count, pool, max_risk=20)
+```
+
 ### Send now, read the report later
 
 `execute_instant_spy` is `send_instant_spy` followed by `await_report`. Call
