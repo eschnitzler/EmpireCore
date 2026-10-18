@@ -19,6 +19,7 @@ import hashlib
 import json
 import logging
 import os
+import sys
 import threading
 import time
 from collections.abc import Callable, Iterable, Mapping
@@ -128,6 +129,7 @@ if TYPE_CHECKING:
         Tool,
         Unit,
     )
+    from .stacks import WodAmount
 
 logger = logging.getLogger(__name__)
 
@@ -412,6 +414,7 @@ R = TypeVar("R", bound=EmpireModel)
 
 
 _warned_versions: set[str] = set()
+_warned_unsorted: set[object] = set()
 
 _load_lock = threading.Lock()
 _loaded: GameData | None = None
@@ -727,6 +730,30 @@ class GameData(EmpireModel):
 
     def is_tool(self, wod_id: int) -> bool:
         return wod_id in self.tools
+
+    def unit_sort_key(self, stack: WodAmount) -> tuple[bool, float]:
+        """
+        A sort key putting units and tools in the client's order: ``sorted(army.courtyard(), key=data.unit_sort_key)``.
+
+        Soldiers come first by ``sort_order`` from the highest, then tools from the lowest
+        (:attr:`~empire_core.gamedata.models.UnitStats.sorts_as_tool` decides which is which). Stacks
+        that tie keep their order, as Python's and the client's sorts are both stable.
+
+        An id with no unit or tool row sorts as a soldier without a ``sort_order``, logged once per
+        id; the client fails there instead (``UnitInventoryList.addUnit`` throws, bundle line 21826).
+
+        Client: ``ClientConstSort.sortByUnitSortOrder`` (bundle line 3108), with ``_unitSortOrderNormal``
+        and ``_unitSortOrderInvert`` (bundle lines 3162-3163)
+        """
+        row = None if stack.item is None else self.units.get(stack.item) or self.tools.get(stack.item)
+        if row is None:
+            if stack.item not in _warned_unsorted:
+                _warned_unsorted.add(stack.item)
+                logger.warning(
+                    "No unit or tool %s in the game data; it sorts as a soldier without a sortOrder", stack.item
+                )
+            return False, -sys.float_info.max
+        return (True, row.sort_order) if row.sorts_as_tool else (False, -row.sort_order)
 
     def units_by_role(self, role: UnitRole) -> list[UnitStats]:
         """Every unit of one role (``SoldierUnitVO.role``, bundle line 12590)."""

@@ -20,6 +20,7 @@ from empire_core.protocol.js import (
     js_loose_equals,
     js_number,
     js_number_or_none,
+    js_parse_float,
     js_parse_int,
     js_parse_int_or_zero,
     js_truthy,
@@ -198,6 +199,31 @@ def test_js_number(value, expected):
 )
 def test_js_number_or_none(value, expected):
     assert js_number_or_none(value) == expected
+
+
+# node: [..].map(parseFloat)
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("6.9.1", 6.9),
+        (" 1.5e3x", 1500.0),
+        ("Infinity", math.inf),
+        ("-Infinity", -math.inf),
+        ("+.5", 0.5),
+        ("1e", 1.0),
+        ("0x10", 0.0),
+        ("1.", 1.0),
+        (7, 7.0),
+        (1.25, 1.25),
+    ],
+)
+def test_js_parse_float(value, expected):
+    assert js_parse_float(value) == expected
+
+
+@pytest.mark.parametrize("value", ["abc", "", ".", None])
+def test_js_parse_float_nan(value):
+    assert math.isnan(js_parse_float(value))
 
 
 def test_huge_int_compares_without_overflow():

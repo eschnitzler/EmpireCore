@@ -77,6 +77,19 @@ class SpyArmy(EmpireModel):
         """Every position in wire order, for display."""
         return [(section, self.section(section)) for section in SpyArmySection]
 
+    def courtyard(self) -> tuple[WodAmount, ...]:
+        """
+        The courtyard as the spy dialog lists it: the keep's stacks, then the support's.
+
+        An id in both is listed twice, not added up. The dialog shows them sorted, which takes the
+        game data: ``sorted(army.courtyard(), key=game_data.unit_sort_key)``.
+
+        Client: ``CastleSpyinfoDetailsDialog.showLoaded`` (bundle line 60627) ``addAll``s ``itemsKeep``
+        then ``itemsSupport`` into one ``UnitInventoryList``; ``setCompactArmyItem`` (bundle line 60675)
+        sorts it with ``ClientConstSort.sortByUnitSortOrder``
+        """
+        return self.keep + self.support
+
     def total(self) -> int:
         """Every defender in the castle, wherever they stand."""
         return sum(stack.amount for _, stacks in self.sections() for stack in stacks)
