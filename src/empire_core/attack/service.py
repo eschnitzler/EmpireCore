@@ -19,6 +19,7 @@ from empire_core.attack.models.dungeon_skips import (
     MinuteSkipDungeonResponse,
     SkipDungeonCooldownRequest,
     SkipDungeonCooldownResponse,
+    _row_coordinates,
     _row_kingdom,
 )
 from empire_core.attack.models.info import AttackInfoResponse
@@ -187,6 +188,9 @@ class AttackService(BaseService):
     ) -> MapAreaItem:
         if response.area is None or response.area.attack_cooldown_seconds is None:
             raise PacketError(f"The '{response.command}' reply has no readable dungeon cooldown")
+        coordinates = _row_coordinates(response.area)
+        if coordinates is None:
+            raise PacketError(f"The '{response.command}' dungeon row has no readable coordinates")
         realm = _row_kingdom(response.area, kingdom)
         if realm is None:
             raise PacketError(f"The '{response.command}' dungeon row has no readable kingdom")

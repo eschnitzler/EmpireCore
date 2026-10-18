@@ -38,6 +38,23 @@ def _row_or_none(value: object) -> MapAreaItem | None:
         return None
 
 
+def _wire_integer(value: object) -> int | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)) or not str(value).strip():
+        return None
+    numeric = js_number_or_none(value)
+    if numeric is None or not math.isfinite(numeric) or numeric != math.trunc(numeric):
+        return None
+    return int(numeric)
+
+
+def _row_coordinates(area: MapAreaItem) -> tuple[int, int] | None:
+    # Client: DungeonMapobjectVO.parseAreaInfo (22064) reads coordinates from e[1] and e[2].
+    if len(area.raw_data) < 3:
+        return None
+    x, y = (_wire_integer(area.raw_data[index]) for index in (1, 2))
+    return None if x is None or y is None else (x, y)
+
+
 def _row_kingdom(area: MapAreaItem, fallback: Kingdom) -> int | None:
     # Client: DungeonMapobjectVO.parseAreaInfo (22064); the other map-row parsers name their kingdom too.
     index = {
@@ -50,13 +67,7 @@ def _row_kingdom(area: MapAreaItem, fallback: Kingdom) -> int | None:
         return int(fallback)
     if len(area.raw_data) <= index:
         return None
-    value = area.raw_data[index]
-    if isinstance(value, bool) or not isinstance(value, (int, float, str)) or not str(value).strip():
-        return None
-    numeric = js_number_or_none(value)
-    if numeric is None or not math.isfinite(numeric) or numeric != math.trunc(numeric):
-        return None
-    return int(numeric)
+    return _wire_integer(area.raw_data[index])
 
 
 def _matches_target(payload: object, x: int, y: int, kingdom: Kingdom) -> bool:
@@ -66,8 +77,9 @@ def _matches_target(payload: object, x: int, y: int, kingdom: Kingdom) -> bool:
         area = MapAreaItem.from_list(payload["AI"], kingdom=kingdom)
     except ValueError:
         return True
+    coordinates = _row_coordinates(area)
     realm = _row_kingdom(area, kingdom)
-    return (area.x, area.y) == (x, y) and (realm is None or realm == kingdom)
+    return coordinates is None or (coordinates == (x, y) and (realm is None or realm == kingdom))
 
 
 class MinuteSkipDungeonRequest(BaseRequest):
