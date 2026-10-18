@@ -187,3 +187,36 @@ Adding or deleting an alliance bookmark outside an alliance raises
 ```
 
 **API:** [`AllianceService`](../reference/alliance.md#empire_core.alliance.service.AllianceService)
+
+
+## Forum
+
+`get_forum_topics()` returns a typed overview, including the total topic count
+(which includes hidden topics) and visible topics sorted by last post, newest
+first. `get_topic(topic_id)` opens a topic and returns its posts; opening a topic
+can mark it read on the server. Request the current count with
+`get_unread_topic_count()`.
+
+```python
+from empire_core.alliance import ForumRankGroup
+
+for topic in client.alliance.get_forum_topics().topics:
+    detail = client.alliance.get_topic(topic.topic_id)
+    for post in detail.posts:
+        print(post.author, post.text)
+
+client.alliance.create_topic("Plans", "Meet tomorrow", [ForumRankGroup.LEADER, ForumRankGroup.GENERAL])
+client.alliance.reply(topic_id, "Ready for tomorrow")
+client.alliance.set_topic_visibility(topic_id, [ForumRankGroup.LEADER])
+client.alliance.delete_reply(topic_id, reply_id)
+client.alliance.delete_topic(topic_id)
+```
+
+Visibility uses `ForumRankGroup`, which has five groups; member ranks use
+`AllianceRank`, which has ten ranks. Unknown groups and ranks in replies remain
+integers. Titles and posts are trimmed, validated after the client's first text
+encoding pass, then encoded again for sending. Titles allow 2–38 UTF-16 code units;
+posts allow 2–2000. Server refusals raise `CommandError`; transport failures
+propagate. Write methods return `None` after acceptance, except visibility changes,
+which return the echoed topic when provided. All requests accept keyword-only
+`timeout`.
