@@ -2,6 +2,167 @@
 
 <!-- version list -->
 
+## v0.56.0 (2026-10-18)
+
+### Bug Fixes
+
+- Catch the errors each handler expects, and lint for broad ones
+  ([#492](https://github.com/eschnitzler/EmpireCore/pull/492),
+  [`b2179e1`](https://github.com/eschnitzler/EmpireCore/commit/b2179e1d7981c38219ef975152e72debb9128f26))
+
+- **accounts**: Passwords are secrets that never print
+  ([#487](https://github.com/eschnitzler/EmpireCore/pull/487),
+  [`13319a8`](https://github.com/eschnitzler/EmpireCore/commit/13319a827fc09fe42597edf56b0e84528af4c715))
+
+- **commanders**: A dumped commander reads back with its equipment
+  ([#472](https://github.com/eschnitzler/EmpireCore/pull/472),
+  [`5a6f391`](https://github.com/eschnitzler/EmpireCore/commit/5a6f391f4a9181c3f72e20d97ec579d3678be8f5))
+
+- **movements**: MovementOwner names the legendary level as the other owner models do
+  ([#469](https://github.com/eschnitzler/EmpireCore/pull/469),
+  [`b390d1e`](https://github.com/eschnitzler/EmpireCore/commit/b390d1e5306049f014a7e82af612de16ca9331dc))
+
+- **player**: A loot box opens with the common key's real id, and the boxes can be read on request
+  ([#506](https://github.com/eschnitzler/EmpireCore/pull/506),
+  [`2be89b6`](https://github.com/eschnitzler/EmpireCore/commit/2be89b629447bd3fc95ed27fd1848ff41156080a))
+
+- **session**: A timed ban is waited out like a login cooldown
+  ([#468](https://github.com/eschnitzler/EmpireCore/pull/468),
+  [`996e373`](https://github.com/eschnitzler/EmpireCore/commit/996e373b368fdf30d175845ac16488ff188bf156))
+
+### Features
+
+- Ruin info, landmark progress, quest donations and server messages
+  ([#493](https://github.com/eschnitzler/EmpireCore/pull/493),
+  [`e9e6596`](https://github.com/eschnitzler/EmpireCore/commit/e9e6596e785fd4cb2d43849fe26c5012be752aeb))
+
+- The ignore list and title selection ([#490](https://github.com/eschnitzler/EmpireCore/pull/490),
+  [`3995ad6`](https://github.com/eschnitzler/EmpireCore/commit/3995ad6648700b75b32bf29fccbd79b181f2d89f))
+
+- **alliance**: Add forum reads and posting controls
+  ([#495](https://github.com/eschnitzler/EmpireCore/pull/495),
+  [`6b98a79`](https://github.com/eschnitzler/EmpireCore/commit/6b98a7943ecdf97538a9f7a302d33d76cdcc386b))
+
+- **alliance**: Add membership and recruitment workflows
+  ([#496](https://github.com/eschnitzler/EmpireCore/pull/496),
+  [`81a7263`](https://github.com/eschnitzler/EmpireCore/commit/81a7263f2a6832dd2026ad0cc1eb6a2dc9d0ff8b))
+
+- **army**: A spy report's courtyard in the client's unit order
+  ([#470](https://github.com/eschnitzler/EmpireCore/pull/470),
+  [`580b3e6`](https://github.com/eschnitzler/EmpireCore/commit/580b3e6bb5da1692a5fd7e8492c0a47017069908))
+
+- **army**: The stronghold, production queue order, recruitment mode and hospital flag
+  ([#499](https://github.com/eschnitzler/EmpireCore/pull/499),
+  [`cbd32c1`](https://github.com/eschnitzler/EmpireCore/commit/cbd32c105443ae706174e911cebd7b69156d7c07))
+
+- **attack**: A robber baron camp's army from the game data, tools included
+  ([#473](https://github.com/eschnitzler/EmpireCore/pull/473),
+  [`a17e6a6`](https://github.com/eschnitzler/EmpireCore/commit/a17e6a6058b9ed0f05b642b84869e9967f8381cb))
+
+- **castle**: Abandon a castle and cancel it
+  ([#486](https://github.com/eschnitzler/EmpireCore/pull/486),
+  [`f6f88f7`](https://github.com/eschnitzler/EmpireCore/commit/f6f88f74bea316021c07229ab42836603d87a822))
+
+- **castle**: Add construction item inventory and actions
+  ([#494](https://github.com/eschnitzler/EmpireCore/pull/494),
+  [`9e0e468`](https://github.com/eschnitzler/EmpireCore/commit/9e0e468977c15f2f252c5543d27f03aea7954b44))
+
+- **combat**: Fill the waves the client's per-wave checkboxes select
+  ([#484](https://github.com/eschnitzler/EmpireCore/pull/484),
+  [`a70bd4e`](https://github.com/eschnitzler/EmpireCore/commit/a70bd4ee2ef0479f33c93e26dd49fadfc3e21011))
+
+- **commanders**: Sell equipment and gems, bind gems, auto-sell rules
+  ([#503](https://github.com/eschnitzler/EmpireCore/pull/503),
+  [`195f4cc`](https://github.com/eschnitzler/EmpireCore/commit/195f4cc157e63ef8238eee333f8c8887c688250d))
+
+- **commanders**: Unlock and star-upgrade generals, and spin the generals hub
+  ([#502](https://github.com/eschnitzler/EmpireCore/pull/502),
+  [`8995c9b`](https://github.com/eschnitzler/EmpireCore/commit/8995c9b675d0abd7841ba2237a664a1a56988c71))
+
+- **events**: Add event boards and performance reads
+  ([#497](https://github.com/eschnitzler/EmpireCore/pull/497),
+  [`244dce3`](https://github.com/eschnitzler/EmpireCore/commit/244dce349a18535059a41bc27d8c1f6e7ea2c90a))
+
+- **events**: Read mobilisation and raid boss status
+  ([#498](https://github.com/eschnitzler/EmpireCore/pull/498),
+  [`84930b2`](https://github.com/eschnitzler/EmpireCore/commit/84930b2c2cdba05443728514886d11ee35584516))
+
+- **gamedata**: The asset name the client draws a unit or tool by
+  ([#485](https://github.com/eschnitzler/EmpireCore/pull/485),
+  [`01914d8`](https://github.com/eschnitzler/EmpireCore/commit/01914d805b83158366f133ddd80c3534fdd7cabb))
+
+- **player**: Open loot boxes ([#489](https://github.com/eschnitzler/EmpireCore/pull/489),
+  [`50dc953`](https://github.com/eschnitzler/EmpireCore/commit/50dc9532c08ac52058b83573a7327445185d84e2))
+
+- **player**: Spend and reset legend skill points
+  ([#488](https://github.com/eschnitzler/EmpireCore/pull/488),
+  [`b0caee8`](https://github.com/eschnitzler/EmpireCore/commit/b0caee83eaf11cc853f671edcc93407936e0fe9f))
+
+- **spy**: A refused spy result carries the screen it read; owners say whether they are legends
+  ([#469](https://github.com/eschnitzler/EmpireCore/pull/469),
+  [`b390d1e`](https://github.com/eschnitzler/EmpireCore/commit/b390d1e5306049f014a7e82af612de16ca9331dc))
+
+### Refactoring
+
+- **api**: Resolve game data automatically
+  ([#505](https://github.com/eschnitzler/EmpireCore/pull/505),
+  [`492ef22`](https://github.com/eschnitzler/EmpireCore/commit/492ef22eb148ad58f36bddb6b60856648e98ae71))
+
+- **attack**: Robber baron camp names say robber baron camp
+  ([#473](https://github.com/eschnitzler/EmpireCore/pull/473),
+  [`a17e6a6`](https://github.com/eschnitzler/EmpireCore/commit/a17e6a6058b9ed0f05b642b84869e9967f8381cb))
+
+- **attack**: The fill's camp parameters say robber baron camp
+  ([#491](https://github.com/eschnitzler/EmpireCore/pull/491),
+  [`9488404`](https://github.com/eschnitzler/EmpireCore/commit/948840472f74c690d679a60eb0464444ef6e3c88))
+
+### Testing
+
+- **gamedata**: The campaign rewards test looks the event up by its typed id
+  ([#506](https://github.com/eschnitzler/EmpireCore/pull/506),
+  [`2be89b6`](https://github.com/eschnitzler/EmpireCore/commit/2be89b629447bd3fc95ed27fd1848ff41156080a))
+
+- **gamedata**: Use the typed campaign event lookup
+  ([#505](https://github.com/eschnitzler/EmpireCore/pull/505),
+  [`492ef22`](https://github.com/eschnitzler/EmpireCore/commit/492ef22eb148ad58f36bddb6b60856648e98ae71))
+
+### Breaking Changes
+
+- **accounts**: Account.password and client.password are SecretStr, and EmpireConfig.password is
+  SecretStr | None: read the value with get_secret_value(). Typed code builds an Account or
+  EmpireConfig with password=SecretStr(...). accounts.json.template is now
+  examples/accounts.json.template.
+
+- **api**: Calculation and formatting helpers take optional game_data keyword overrides instead of
+  positional dataset arguments. Reward readers accept game_data= rather than data.
+
+- **army**: ProductionList.recruitment_mode is a RecruitmentMode instead of a plain int.
+
+- **attack**: DungeonDefence.units_left, units_middle, units_right, units_keep, tools_left,
+  tools_middle, tools_right and total_units() are gone; use SpyArmy.from_camp(row) and its total().
+  DungeonDefence.lord_id is now commander, a DefaultLordDef. dungeon_defense reads the highest row
+  for a victory count past it instead of None.
+
+- **attack**: Fill_waves and fill_attack take robber_baron_camp_victories instead of camp_victories,
+  and robber_baron_camp_kingdom instead of camp_kingdom_id.
+
+- **attack**: SpyArmy.from_camp is now from_robber_baron_camp, AttackService.camp_army is
+  robber_baron_camp_army, npc_camp_defense is robber_baron_camp_defense, camp_level is
+  robber_baron_camp_level and camp_fortification_levels is robber_baron_camp_fortification_levels.
+
+- **castle**: BuildingConstructionItems requires an explicit CIL/items collection instead of
+  treating a missing container as an empty placement.
+
+- **combat**: FillOptions.max_waves is gone; pass waves, a frozenset of 0-based wave indexes
+  (max_waves=1 becomes waves=frozenset({0})).
+
+- **movements**: MovementOwner.legend_level is renamed legendary_level.
+
+- **session**: Login(retry=True) and the keep_session re-login no longer raise AccountBannedError or
+  report it to on_session_lost for a ban the server named an end for; they wait until it ends, which
+  can be an hour.
+
+
 ## v0.55.0 (2026-10-15)
 
 ### Bug Fixes
