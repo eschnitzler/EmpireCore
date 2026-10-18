@@ -323,3 +323,25 @@ already have succeeded; read the current membership before another action.
 Invitation replies do not echo their message id, so validation checks that their
 membership and alliance details name the same alliance; it cannot identify an
 invitation by message id from the reply.
+
+## Upgrades and temporary boosts
+
+`client.alliance.upgrade(AllianceBuffType.FORGE_UPGRADE)` upgrades the alliance
+smithy. The same method purchases permanent buffs and activates or prolongs
+supported temporary boosts. Pass `level=2` for a customizable temporary boost;
+permanent and standard boosts send the client's default level, `1`.
+
+The method first requests fresh alliance details and resolves the cost from
+`client.game_data` (or the loaded game data). Permanent upgrades cost the next
+level's price; customizable boosts cost the selected level's price. An active
+customizable boost can only be prolonged at its current level. Unknown costs,
+levels and unmet prerequisites are rejected before sending the purchase.
+
+Costs come from the **alliance treasury**, including its rubies. A purchase that
+costs treasury rubies requires `spend_rubies=True`; personal rubies are not spent
+by this command. The server enforces rank permissions and sufficient funds,
+raising `CommandError` on refusal. Transport failures retain their exception type.
+
+The returned `AllianceUpgradeResponse` contains the authoritative `storage` and
+`buildings` lists. These update the alliance cache while preserving newer pushes
+and rejecting replies from a previous membership.
