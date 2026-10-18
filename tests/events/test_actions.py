@@ -127,3 +127,42 @@ def test_action_with_string_event_id_does_not_update_numeric_event():
     finally:
         client.state._end_quest_action()
     assert client.events.running[129].quest_status is None
+
+
+def test_ordinary_event_refresh_keeps_pending_quest_action_context(monkeypatch):
+    client = status_client({"caq": xt_packet("caq", {"aqs": {"EID": 129, "AQS": []}})})
+    connection = conn(client)
+    resolve = connection._resolve
+
+    def refresh_event(command):
+        client._on_packet(xt_packet("sei", {"E": [{"EID": 129, "RS": 590, "A": {}, "SP": {}}]}))
+        return resolve(command)
+
+    monkeypatch.setattr(connection, "_resolve", refresh_event)
+    result = client.events.complete_grand_tournament_quest()
+    assert result.status.slots == ()
+    assert client.events.running[129].quest_status.slots == ()
+
+
+def test_ranking_uses_grand_tournament_name():
+    from empire_core.enums import RankingType
+
+    assert RankingType.GRAND_TOURNAMENT == 84
+    assert "ALLIANCE_MOBILISATION_EVENT" not in RankingType.__members__
+
+
+def test_readded_event_with_identical_end_time_has_new_action_context(monkeypatch):
+    monkeypatch.setattr("empire_core.state.events._clock", lambda: 1000.0)
+    client = status_client({"caq": xt_packet("caq", {"aqs": {"EID": 129, "AQS": []}})})
+    connection = conn(client)
+    resolve = connection._resolve
+
+    def replace_event(command):
+        client._on_packet(xt_packet("see", {"EID": 129}))
+        client._on_packet(xt_packet("sei", {"E": [{"EID": 129, "RS": 600, "A": {}, "SP": {}}]}))
+        return resolve(command)
+
+    monkeypatch.setattr(connection, "_resolve", replace_event)
+    with pytest.raises(ReplyMismatchError):
+        client.events.complete_grand_tournament_quest()
+    assert client.events.running[129].quest_status is None

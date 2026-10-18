@@ -59,7 +59,8 @@ or alliance context change cannot update a replacement context. A changed contex
 `ReplyMismatchError`, including leaving and rejoining the same alliance. All methods require a running
 Grand Tournament and accept keyword-only `timeout`.
 
-BREAKING CHANGE: event 129 is now `Event.GRAND_TOURNAMENT`, with `GrandTournamentEvent`,
+BREAKING CHANGE: event 129 is now `Event.GRAND_TOURNAMENT`, with ranking list
+`RankingType.GRAND_TOURNAMENT` (84), `GrandTournamentEvent`,
 `GrandTournamentQuestStatus`, `GrandTournamentQuestSlot`, `GrandTournamentQuestProgress`,
 `GrandTournamentContribution`, `get_grand_tournament_status()` and
 `get_grand_tournament_contributions()`. The previous backend-derived public names are removed.

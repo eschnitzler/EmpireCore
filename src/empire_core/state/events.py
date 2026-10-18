@@ -55,18 +55,23 @@ EventsCallback = Callable[[dict[int, SpecialEvent]], Any]
 
 
 class EventState(StateBase):
-    _grand_tournament_action_context: tuple[float, int | None, int] | None = None
+    _grand_tournament_generation = 0
+    _grand_tournament_action_context: tuple[int, int | None, int] | None = None
 
-    def _quest_action_context(self) -> tuple[float, int | None, int] | None:
+    def _quest_action_context(self) -> tuple[int, int | None, int] | None:
         with self._lock:
             event = self.events.get(Event.GRAND_TOURNAMENT)
             return (
-                (event.end_time, self.local_player.AID if self.local_player else None, self.membership_revision)
+                (
+                    self._grand_tournament_generation,
+                    self.local_player.AID if self.local_player else None,
+                    self.membership_revision,
+                )
                 if event
                 else None
             )
 
-    def _begin_quest_action(self) -> tuple[float, int | None, int] | None:
+    def _begin_quest_action(self) -> tuple[int, int | None, int] | None:
         with self._lock:
             self._grand_tournament_action_context = self._quest_action_context()
             return self._grand_tournament_action_context
@@ -162,6 +167,8 @@ class EventState(StateBase):
             previous = events.get(eid)
             events[eid] = model.from_entry(eid, entry, previous, now, events)
             if previous is None:
+                if eid == Event.GRAND_TOURNAMENT:
+                    self._grand_tournament_generation += 1
                 added.append(events[eid])
         self.events = events
         self._events_updated_at = time.time()
