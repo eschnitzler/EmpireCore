@@ -96,3 +96,20 @@ def test_keep_session_is_off_unless_asked(monkeypatch):
         with pytest.raises(Stop):
             run(argv)
     assert built == [False, True]
+
+
+def test_an_unknown_log_level_stops_before_anything_starts(monkeypatch):
+    monkeypatch.setattr(app, "EmpireClient", lambda **kwargs: pytest.fail("built a client"))
+    with pytest.raises(SystemExit) as stopped:
+        run(["--no-login", "--log-level", "loud"])
+    assert stopped.value.code == 2
+
+
+def test_ctrl_c_at_the_login_prompt_quits_quietly(monkeypatch):
+    def interrupted(username):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(app, "credentials", interrupted)
+    monkeypatch.setattr(app, "zone_config", lambda zone: EmpireConfig())
+    monkeypatch.setattr(app, "EmpireClient", lambda **kwargs: pytest.fail("built a client"))
+    assert run([]) == 130

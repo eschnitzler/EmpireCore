@@ -949,7 +949,13 @@ def run(argv: list[str]) -> int:
     parser.add_argument("--list-zones", action="store_true", help="list the worlds and exit")
     parser.add_argument("--no-login", action="store_true", help="start without connecting")
     parser.add_argument("--keep-session", action="store_true", help="log in again by itself after a drop")
-    parser.add_argument("--log-level", default="WARNING", help="library log level shown in the output pane")
+    parser.add_argument(
+        "--log-level",
+        default="WARNING",
+        type=str.upper,
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        help="library log level shown in the output pane",
+    )
     parser.add_argument("--theme", choices=sorted(THEMES), help="dark or light; the last one, else dark")
     args = parser.parse_args(argv)
     path = settings_path()
@@ -966,7 +972,11 @@ def run(argv: list[str]) -> int:
         print(f"empire-console: {e}", file=sys.stderr)
         return 2
 
-    username, password = (args.username, None) if args.no_login else credentials(args.username)
+    try:
+        username, password = (args.username, None) if args.no_login else credentials(args.username)
+    except (KeyboardInterrupt, EOFError):
+        print(file=sys.stderr)
+        return 130
     client = EmpireClient(username=username, password=password, config=config, keep_session=args.keep_session)
     console = Console(client, settings=settings)
 
