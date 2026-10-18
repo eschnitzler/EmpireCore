@@ -1,9 +1,12 @@
 """Your own alliance's details (ain), the alliance chat history (acl, acm) and the help list (ahl, ahh, ahd)."""
 
 import logging
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Any
 
 from empire_core.alliance.models.chat import AllianceChatLogResponse, ChatMessageData
+from empire_core.alliance.models.gifts import AllianceGift, AllianceGiftReceived
 from empire_core.alliance.models.help import (
     AllianceHelpListResponse,
     AllianceHelpRequest,
@@ -27,7 +30,7 @@ _FORGE_KEYS = ("MF", "IF", "SRFU", "HRFU")
 
 
 class AllianceState(StateBase):
-    def _parse_own_alliance(self, data: dict[str, Any]) -> bool:
+    def _parse_own_alliance(self, data: dict[str, Any], *, changed_keys: set[str] | None = None) -> bool:
         """Apply an ``ain`` section when it is about your own alliance; whether it was applied.
 
         Other alliances' details (``client.alliance.get_alliance_info(other_id)``) are not kept.
@@ -61,21 +64,66 @@ class AllianceState(StateBase):
                     raw.pop(key, None)
                     if key in previous:
                         raw[key] = previous[key]
-        return self._store_own_alliance(raw)
+        return self._store_own_alliance(raw, changed_keys=changed_keys)
 
-    def _store_own_alliance(self, raw: dict[str, Any]) -> bool:
+    def _store_own_alliance(self, raw: dict[str, Any], *, changed_keys: set[str] | None = None) -> bool:
         alliance = read_or_none(AllianceInfo.model_validate, raw, warn=logger, what="your alliance's details")
         if alliance is None:
             return False
+        if changed_keys is not None and self.own_alliance is not None:
+            updates = {
+                name: getattr(alliance, name)
+                for name, field in AllianceInfo.model_fields.items()
+                if field.validation_alias in changed_keys
+            }
+            alliance = self.own_alliance.model_copy(deep=True, update=updates)
+            alliance.model_post_init(None)
+        keys = changed_keys if changed_keys is not None else set(raw) | set(self._own_alliance_raw or {})
+        for key in keys:
+            self._alliance_field_order[key] = self._packet_sequence
         self._own_alliance_raw = raw
         self.own_alliance = alliance
         return True
 
+    def _patch_own_alliance(self, fields: dict[str, Any]) -> None:
+        raw = self._own_alliance_raw
+        player = self.local_player
+        if raw is None or player is None or player.AID is None or js_int(raw.get("AID")) != player.AID:
+            return
+        self._store_own_alliance({**raw, **fields}, changed_keys=set(fields))
+
+    def _handle_afa(self, data: Any) -> None:
+        """Client: ``AllianceInfoVO.parseAFA`` (bundle line 25959)."""
+        if isinstance(data, dict) and "CF" in data and "HF" in data:
+            self._patch_own_alliance({"CF": data["CF"], "HF": data["HF"]})
+
+    def _handle_abl(self, data: Any) -> None:
+        """Client: ``AllianceInfoVO.parseABL/parseBuffList`` (bundle lines 25961–25967)."""
+        buffs = data.get("ABL") if isinstance(data, dict) else data
+        if isinstance(buffs, list) and all(isinstance(row, dict) for row in buffs):
+            self._patch_own_alliance({"ABL": buffs})
+
+    def _handle_aee(self, data: Any) -> None:
+        """Client: ``AEECommand`` (121435–36), ``parseAllianceCrestForAlliance`` (11595).
+
+        The command passes its ACCA wrapper, then overwrites the fallback with
+        the top-level ACFB. Missing current crests remain unknown rather than random.
+        """
+        if not isinstance(data, dict) or not isinstance(data.get("ACCA"), dict):
+            return
+        crest = data["ACCA"].get("ACCA")
+        if crest is not None and not isinstance(crest, dict):
+            return
+        self._patch_own_alliance({"aee": {"ACCA": crest, "ACFB": data.get("ACFB")}})
+
     def _forget_own_alliance(self) -> None:
         self._own_alliance_raw = None
+        self._alliance_field_order = {}
+        self._alliance_reply_order = {}
         self.own_alliance = None
         self.alliance_chat = ()
         self.alliance_help = ()
+        self.alliance_gifts = ()
 
     def _apply_gal_reset(self, data: dict[str, Any], *, previous_alliance_id: int | None) -> None:
         """Forget details, chat and help when a ``gal`` changes your alliance identity.
@@ -114,6 +162,79 @@ class AllianceState(StateBase):
                 current = self.local_player.AID if self.local_player is not None else None
                 raise ReplyMismatchError(expected, current if current is not None else -1)
             self._handle_gbd(sections)
+
+    @contextmanager
+    def alliance_info_read(self, alliance_id: int) -> Iterator[None]:
+        """Scope an own-alliance read to its membership while the command lock is held."""
+        with self._lock:
+            revision = self.membership_revision
+            self._alliance_info_read_revision = revision
+        try:
+            yield
+            with self._lock:
+                self._require_membership_revision(revision, alliance_id)
+        finally:
+            with self._lock:
+                self._alliance_info_read_revision = None
+
+    def apply_alliance_settings(
+        self,
+        data: dict[str, Any],
+        *,
+        membership_revision: int,
+        alliance_id: int,
+        command: str | None = None,
+        payload: dict[str, Any] | None = None,
+    ) -> None:
+        """Apply validated settings only in the membership that sent the request."""
+        with self._lock:
+            self._require_membership_revision(membership_revision, alliance_id)
+            if command is None:
+                return
+            receipt = self._alliance_reply_order.get(command)
+            if receipt is not None and receipt[0] is payload:
+                sequence = receipt[1]
+            else:
+                sequence = self._packet_sequence
+            block = alliance_of_ain(data)
+            if block is None:
+                return
+            previous = self._own_alliance_raw or {}
+            raw = {**previous, **block}
+            changed_keys = set(block)
+            for key, order in self._alliance_field_order.items():
+                if order > sequence:
+                    changed_keys.discard(key)
+                    raw.pop(key, None)
+                    if key in previous:
+                        raw[key] = previous[key]
+            self._parse_own_alliance({"ain": {"A": raw}}, changed_keys=changed_keys)
+
+    def _require_membership_revision(self, revision: int, alliance_id: int) -> None:
+        current = self.local_player.AID if self.local_player is not None else None
+        if self.membership_revision != revision or current != alliance_id:
+            raise ReplyMismatchError(alliance_id, current if current is not None else -1)
+
+    def _handle_agr(self, data: Any) -> None:
+        """Client: CastleAllianceGiftData.parse_AGR (bundle lines 131949–131951)."""
+        if self.own_alliance is None:
+            return
+        received = read_section(AllianceGiftReceived, data, "an alliance gift")
+        if received is not None:
+            self.alliance_gifts = tuple(
+                sorted((*self.alliance_gifts, received.gift), key=lambda gift: gift.remaining_seconds())
+            )
+
+    def get_alliance_gifts(self) -> list[AllianceGift]:
+        """Unexpired gifts, in expiry order. Client: executeUpdate (bundle 131953–131959)."""
+        with self._lock:
+            return [gift.model_copy(deep=True) for gift in self.alliance_gifts if gift.remaining_seconds() > 0]
+
+    def apply_alliance_gift_collection(self, gift_id: int, *, membership_revision: int, alliance_id: int) -> None:
+        """Remove a collected gift only in the membership that sent the request."""
+        with self._lock:
+            self._require_membership_revision(membership_revision, alliance_id)
+            self.alliance_gifts = tuple(gift for gift in self.alliance_gifts if gift.gift_id != gift_id)
 
     def _handle_aqi(self, data: Any) -> None:
         """Handle the reply to leaving your alliance: the chat and details are forgotten, its ``gal`` applied.

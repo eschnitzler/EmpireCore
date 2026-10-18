@@ -316,13 +316,13 @@ class GetRankingListRequest(BaseRequest):
     Payload: {"LT": list_type, "LID": league_type_id, "M": max_results, "R": rank}
 
     The client pages only event leaderboards this way (score, long-term
-    point, alliance mobilisation/raid and donation events), and always with
+    point, alliance Grand Tournament/raid and donation events), and always with
     a league: ``LeaderBoardDataProvider`` sends the league it was built with
     on every page. The score and long-term point dialogs build it with the
     event's league, the ``LID`` of the event's sei entry, and page through
     leagues 1 to the event's league count (``GlobalLeaderBoardLeagueComponent``,
     bundle line 100470; ``AScoreEventVO.parseBasicsFromParamObject``, bundle
-    line 14967); the alliance mobilisation dialog passes the event's league
+    line 14967); the alliance Grand Tournament dialog passes the event's league
     (bundle line 47284); only the donation ranking passes none, so -1 (bundle
     line 115740). A live server answered NO_EVENT (145) for every list with
     no event running, the regular highscore lists included; read those with
@@ -336,7 +336,7 @@ class GetRankingListRequest(BaseRequest):
     bundle line 100442), ``AllianceMobilizationEventDialogLeaderboard.show``
     (bundle line 47278) and ``DonationEventDialogRanking`` (bundle line 115737)
 
-    The alliance mobilisation and raid leaderboards also send ``SDI`` and
+    The alliance Grand Tournament and raid leaderboards also send ``SDI`` and
     ``EID``: ``LeaderBoardDataProvider.sendCommand`` (bundle line 75949) copies
     the ``{SDI, EID}`` (subdivision tab) or ``{EID}`` (division tab) that
     ``AllianceMobilizationEventDialogRanking.switchTab`` (bundle line 75910) and
@@ -361,7 +361,7 @@ class GetRankingListRequest(BaseRequest):
     event_id: int | None = Field(
         validation_alias="EID",
         default=None,
-        description="The alliance mobilisation or raid event",
+        description="The alliance Grand Tournament or raid event",
     )
 
     def accepts_reply(self, payload: Any) -> bool:
@@ -421,7 +421,7 @@ class GetRankingWindowRequest(BaseRequest):
     event_id: int | None = Field(
         validation_alias="EID",
         default=None,
-        description="The alliance mobilisation or raid event",
+        description="The alliance Grand Tournament or raid event",
     )
 
     @field_serializer("score_id")
@@ -467,7 +467,7 @@ class SearchRankingListRequest(BaseRequest):
     event_id: int | None = Field(
         validation_alias="EID",
         default=None,
-        description="The alliance mobilisation or raid event",
+        description="The alliance Grand Tournament or raid event",
     )
 
     @field_serializer("search_value")

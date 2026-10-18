@@ -65,7 +65,7 @@ class TestRankingService:
         client = make_client({"llsp": xt_packet("llsp", {"L": [], "T": 0})})
 
         client.ranking.get_ranking_list(
-            list_type=RankingType.ALLIANCE_MOBILISATION_EVENT, rank=1, max_results=10, league_type_id=4, event_id=94
+            list_type=RankingType.GRAND_TOURNAMENT, rank=1, max_results=10, league_type_id=4, event_id=94
         )
 
         assert conn(client).request_payloads == [("llsp", {"LT": 84, "LID": 4, "M": 10, "R": 1, "EID": 94})]

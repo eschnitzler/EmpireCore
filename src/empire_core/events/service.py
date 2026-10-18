@@ -5,14 +5,22 @@ The running events, as the state keeps them, and their scoreboards.
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar
 
 from pydantic import ValidationError
 
 from empire_core.enums import RankingType
+from empire_core.enums.events import RaidBossCardStatus
 from empire_core.events.titles import get_event_titles
-from empire_core.exceptions import CommandError, EventHasNoPointsError, EventNotRunningError, PacketError
+from empire_core.exceptions import (
+    CommandError,
+    EventHasNoPointsError,
+    EventNotRunningError,
+    PacketError,
+    ReplyMismatchError,
+)
 from empire_core.gamedata.ids.events import Event
+from empire_core.protocol.base import BaseRequest, BaseResponse
 from empire_core.ranking.models import (
     GetHighscoreRequest,
     GetHighscoreResponse,
@@ -26,7 +34,7 @@ from empire_core.ranking.models import (
 from empire_core.services.base import BaseService
 
 if TYPE_CHECKING:
-    pass
+    from empire_core.gamedata import RaidBoss
 
 from .board_models import (
     GetBattlegroundRankRequest,
@@ -53,15 +61,31 @@ from .models import (
     SpecialEventInfoRequest,
 )
 from .status_models import (
-    GetMobilizationContributionsRequest,
-    GetMobilizationContributionsResponse,
-    GetMobilizationStatusRequest,
+    AbortRaidRequest,
+    AbortRaidResponse,
+    CancelGrandTournamentQuestRequest,
+    CancelGrandTournamentQuestResponse,
+    CompleteGrandTournamentQuestRequest,
+    CompleteGrandTournamentQuestResponse,
+    GetGrandTournamentContributionsRequest,
+    GetGrandTournamentContributionsResponse,
+    GetGrandTournamentStatusRequest,
     GetRaidBossStatusRequest,
     GetRaidBossStatusResponse,
-    MobilizationContribution,
-    MobilizationQuestStatus,
+    GrandTournamentContribution,
+    GrandTournamentQuestStatus,
     RaidBossStatus,
+    RerollGrandTournamentQuestRequest,
+    RerollGrandTournamentQuestResponse,
+    SelectRaidBossRequest,
+    SelectRaidBossResponse,
+    SkipGrandTournamentCooldownRequest,
+    SkipGrandTournamentCooldownResponse,
+    StartGrandTournamentQuestRequest,
+    StartGrandTournamentQuestResponse,
 )
+
+QuestActionResponse = TypeVar("QuestActionResponse", bound=BaseResponse)
 
 # The part of an event's sei entry holding a board's league; other boards use the entry's own LID
 _LEAGUE_PART = {
@@ -415,29 +439,29 @@ class EventsService(BaseService):
             raise EventNotRunningError(int(event))
         return found
 
-    def get_mobilization_status(self, *, timeout: float = 5.0) -> MobilizationQuestStatus:
-        """Request alliance mobilisation quest slots and participating member count.
+    def get_grand_tournament_status(self, *, timeout: float = 5.0) -> GrandTournamentQuestStatus:
+        """Request alliance Grand Tournament quest slots and participating member count.
 
-        Requires the running mobilisation event. Successful replies also update its quest_status.
+        Requires the running Grand Tournament event. Successful replies also update its quest_status.
         Client: ``AllianceMobilizationEventEventVO.requestAllianceQuestStatus`` (bundle 5117).
         """
-        self._require_running(Event.ALLIANCE_MOBILIZATION_EVENT)
+        self._require_running(Event.GRAND_TOURNAMENT)
         return self.request(
-            GetMobilizationStatusRequest(event_id=int(Event.ALLIANCE_MOBILIZATION_EVENT)),
-            MobilizationQuestStatus,
+            GetGrandTournamentStatusRequest(event_id=int(Event.GRAND_TOURNAMENT)),
+            GrandTournamentQuestStatus,
             timeout=timeout,
         )
 
-    def get_mobilization_contributions(self, *, timeout: float = 5.0) -> tuple[MobilizationContribution, ...]:
-        """Request player contributions for the current alliance mobilisation.
+    def get_grand_tournament_contributions(self, *, timeout: float = 5.0) -> tuple[GrandTournamentContribution, ...]:
+        """Request player contributions for the current alliance Grand Tournament.
 
         The response carries no event identity; a late reply after timeout cannot be identified.
         Client: ``AllianceMobilizationEventDialogContributions.show`` (bundle 47205), AQPCCommand (127404).
         """
-        self._require_running(Event.ALLIANCE_MOBILIZATION_EVENT)
+        self._require_running(Event.GRAND_TOURNAMENT)
         return self.request(
-            GetMobilizationContributionsRequest(event_id=int(Event.ALLIANCE_MOBILIZATION_EVENT)),
-            GetMobilizationContributionsResponse,
+            GetGrandTournamentContributionsRequest(event_id=int(Event.GRAND_TOURNAMENT)),
+            GetGrandTournamentContributionsResponse,
             timeout=timeout,
         ).contributions
 
@@ -466,3 +490,141 @@ class EventsService(BaseService):
             if status is None:
                 raise PacketError("The 'bse' reply has no matching applied raid status")
             return status
+
+    def start_grand_tournament_quest(
+        self, slot_id: int, alliance_quest_id: int, *, timeout: float = 5.0
+    ) -> StartGrandTournamentQuestResponse:
+        """Accept a quest, consuming an event ticket. The server checks ticket balance and assignments.
+
+        Client: C2S quest action and dialog (bundle 75732-75735, 75830-75833).
+        Returns the exact nested slot update; participant counts remain unchanged.
+        """
+        self._require_running(Event.GRAND_TOURNAMENT)
+        return self._request_grand_tournament_action(
+            StartGrandTournamentQuestRequest(
+                event_id=int(Event.GRAND_TOURNAMENT), slot_id=slot_id, alliance_quest_id=alliance_quest_id
+            ),
+            StartGrandTournamentQuestResponse,
+            timeout=timeout,
+        )
+
+    def complete_grand_tournament_quest(self, *, timeout: float = 5.0) -> CompleteGrandTournamentQuestResponse:
+        """Collect the completed active quest. The server checks completion.
+
+        Client: C2S quest action and dialog (bundle 75705-75708, 75779).
+        Returns the exact nested slot update; participant counts remain unchanged.
+        """
+        self._require_running(Event.GRAND_TOURNAMENT)
+        return self._request_grand_tournament_action(
+            CompleteGrandTournamentQuestRequest(event_id=int(Event.GRAND_TOURNAMENT)),
+            CompleteGrandTournamentQuestResponse,
+            timeout=timeout,
+        )
+
+    def cancel_grand_tournament_quest(
+        self, *, spend_rubies: bool = False, timeout: float = 5.0
+    ) -> CancelGrandTournamentQuestResponse:
+        """Cancel the active quest; its configured cancelCostC2 defaults to 199 rubies.
+
+        Client: C2S quest action and dialog (bundle 75696-75699, 75826-75827, 111069).
+        Returns the exact nested slot update; participant counts remain unchanged.
+        """
+        self._require_running(Event.GRAND_TOURNAMENT)
+        self._require_spend_rubies(
+            spend_rubies, "Cancel the active quest; its configured cancelCostC2 defaults to 199 rubies."
+        )
+        return self._request_grand_tournament_action(
+            CancelGrandTournamentQuestRequest(event_id=int(Event.GRAND_TOURNAMENT)),
+            CancelGrandTournamentQuestResponse,
+            timeout=timeout,
+        )
+
+    def reroll_grand_tournament_quest(
+        self, slot_id: int, alliance_quest_id: int, *, timeout: float = 5.0
+    ) -> RerollGrandTournamentQuestResponse:
+        """Reroll an unassigned quest; the client shows no currency charge.
+
+        Client: C2S quest action and dialog (bundle 75714-75717, 75855).
+        Returns the exact nested slot update; participant counts remain unchanged.
+        """
+        self._require_running(Event.GRAND_TOURNAMENT)
+        return self._request_grand_tournament_action(
+            RerollGrandTournamentQuestRequest(
+                event_id=int(Event.GRAND_TOURNAMENT), slot_id=slot_id, alliance_quest_id=alliance_quest_id
+            ),
+            RerollGrandTournamentQuestResponse,
+            timeout=timeout,
+        )
+
+    def skip_grand_tournament_cooldown(
+        self, slot_id: int, alliance_quest_id: int, *, spend_rubies: bool = False, timeout: float = 5.0
+    ) -> SkipGrandTournamentCooldownResponse:
+        """Skip a quest slot cooldown for 999 rubies.
+
+        Client: C2S quest action and dialog (bundle 75723-75726, 34974).
+        Returns the exact nested slot update; participant counts remain unchanged.
+        """
+        self._require_running(Event.GRAND_TOURNAMENT)
+        self._require_spend_rubies(spend_rubies, "Skip a quest slot cooldown for 999 rubies.")
+        return self._request_grand_tournament_action(
+            SkipGrandTournamentCooldownRequest(
+                event_id=int(Event.GRAND_TOURNAMENT), slot_id=slot_id, alliance_quest_id=alliance_quest_id
+            ),
+            SkipGrandTournamentCooldownResponse,
+            timeout=timeout,
+        )
+
+    def _request_grand_tournament_action(
+        self, request: BaseRequest, response_type: type[QuestActionResponse], *, timeout: float
+    ) -> QuestActionResponse:
+        deadline = time.monotonic() + timeout
+        with self.client.connection.command_lock("aqs", timeout=timeout):
+            context = self.client.state._begin_quest_action()
+            try:
+                result = self.request(request, response_type, timeout=max(0.0, deadline - time.monotonic()))
+                current = self.client.state._quest_action_context()
+                if context != current:
+                    expected = context[1] if context is not None else None
+                    received = current[1] if current is not None else None
+                    raise ReplyMismatchError(
+                        expected if expected is not None else -1, received if received is not None else -1
+                    )
+                return result
+            finally:
+                self.client.state._end_quest_action()
+
+    def select_raid_boss(self, boss_id: RaidBoss | int, *, timeout: float = 5.0) -> SelectRaidBossResponse:
+        """Select an available raid boss and return the server acknowledgement.
+
+        The server checks leader/co-leader permission. Known cards must be available;
+        a newer boss id is supported. No ruby payment is shown by the client.
+        Status is updated by bbs broadcasts; call get_raid_boss_status for a fresh snapshot.
+        Client: ``AllianceRaidBossCardItem.onClick`` (current bundle 75377),
+        ``canManageAllianceRaid`` (current DLL 18796), ``SRBCommand`` (bundle 127571-127580).
+        """
+        event = self._require_running(Event.ALLIANCE_RAIDBOSS_EVENT)
+        request = SelectRaidBossRequest(boss_id=boss_id)
+        if isinstance(event, RaidBossEvent) and event.boss_status is not None:
+            card = next((card for card in event.boss_status.cards if card.boss_id == boss_id), None)
+            if card is not None and card.status != RaidBossCardStatus.AVAILABLE:
+                raise ValueError("the raid boss card is not available")
+        return self.request(request, SelectRaidBossResponse, timeout=timeout)
+
+    def abort_raid(self, *, timeout: float = 5.0) -> AbortRaidResponse:
+        """Abort the active raid boss and return the server acknowledgement.
+
+        Requires leader/co-leader permission; the server checks it. A known inactive raid
+        or last playable boss cannot be aborted. No ruby payment is shown by the client.
+        This acknowledgement does not clear the boss; bbs supplies the resulting status.
+        Client: ``AllianceRaidBossCardItem.handleAbort``, ``updateAbortButton`` (current bundle
+        75351-75365), ``isLastPlayableBoss`` (76260-76263), ``ARBCommand`` (127528-127537).
+        """
+        event = self._require_running(Event.ALLIANCE_RAIDBOSS_EVENT)
+        if isinstance(event, RaidBossEvent) and event.boss_status is not None:
+            status = event.boss_status
+            if not status.active:
+                raise ValueError("there is no active raid to abort")
+            locked = {RaidBossCardStatus.LOCKED_FINAL_DEFEATED, RaidBossCardStatus.LOCKED_ABORTED}
+            if sum(card.status not in locked for card in status.cards) <= 1:
+                raise ValueError("the last playable raid boss cannot be aborted")
+        return self.request(AbortRaidRequest(), AbortRaidResponse, timeout=timeout)

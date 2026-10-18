@@ -7,10 +7,11 @@ from empire_core.texts import has_text, text
 
 class Event(IntEnum):
     """
-    Event ids from the ``events`` table, named from ``eventType``.
+    Event ids from the ``events`` table, named from ``eventType`` and player-facing titles.
 
     Client: ``CastleSpecialEventData.storeXmlEvents`` (bundle line 139777) keys rows by ``eventID``,
-    ``ASpecialEventVO.parseBasicsFromXmlNode`` (bundle line 2959) reads ``eventType``
+    ``ASpecialEventVO.parseBasicsFromXmlNode`` (bundle line 2959) reads ``eventType``; event 129 uses
+    ``event_title_129`` (Grand Tournament), getter bundle line 5090
     """
 
     @property
@@ -139,7 +140,7 @@ class Event(IntEnum):
     GACHA_DECO2X2 = 126
     CHRISTMAS_GACHA = 127
     EASTER_GACHA = 128
-    ALLIANCE_MOBILIZATION_EVENT = 129
+    GRAND_TOURNAMENT = 129
     SUMMER_GACHA = 130
     ANNIVERSARY_GACHA = 131
     HALLOWEEN_GACHA = 132

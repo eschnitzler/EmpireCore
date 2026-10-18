@@ -44,7 +44,7 @@ Each event is a model of its kind, with the fields its game dialog reads, and
 | `KingdomsLeagueEvent` | `SEASON_LEAGUE` | `remaining_days`, `original_days`, `has_alliance_ranking` |
 | `GlobalEffectEvent`, `GlobalEffectBuffEvent` | `GLOBAL_EFFECT`, `GLOBAL_EFFECT_BUFF` | the effects and their ends, the boosts |
 | `AllianceTournamentEvent` | `ALLI_TOURNAMENT` | your alliance's score in `parts["A"]` |
-| `AllianceMobilizationEvent` | `ALLIANCE_MOBILIZATION_EVENT` | your and your alliance's scores in `parts` (`SP` and `A`), `subdivision_id`, `division_round_id` |
+| `GrandTournamentEvent` | `GRAND_TOURNAMENT` | your and your alliance's scores in `parts` (`SP` and `A`), `subdivision_id`, `division_round_id` |
 | `LuckyWheelEvent` | `LUCKY_WHEEL`, `SALE_DAYS_LUCKY_WHEEL` | the point event score, `has_free_spin`, `pro_mode`, `win_class`, the jackpot sets |
 | `SeasonEvent` | `THORNKING`, `SEAQUEEN`, `UNDERWORLD` | `unlocked`, `finished`, `map_id`, `reward_id` |
 | `ArtifactEvent` | the artifact events | `parts_found`, `artifact_league_id`, `skin_id` |
@@ -120,7 +120,7 @@ model has a rank and points:
 | Nobility Contest, Marauders' contest, Grand Nobility Prize | `POINT_EVENT`, `BEGGING_KNIGHTS`, `LONG_TERM_POINT_EVENT` |
 | the alliance tournament | `ALLI_TOURNAMENT` |
 | the alien, red alien, nomad, samurai and Berimond invasions | `ALLIANCE_ALIEN_INVASION`, `RED_ALLIANCE_ALIEN_INVASION`, `ALLIANCE_NOMAD_INVASION`, `SAMURAI_INVASION`, `FACTION_INVASION` |
-| the alliance mobilisation and raid boss | `ALLIANCE_MOBILIZATION_EVENT`, `ALLIANCE_RAIDBOSS_EVENT` |
+| the alliance Grand Tournament and raid boss | `GRAND_TOURNAMENT`, `ALLIANCE_RAIDBOSS_EVENT` |
 | the lucky wheels | `LUCKY_WHEEL`, `SALE_DAYS_LUCKY_WHEEL` |
 | the gacha events | `GACHA_DECO2X2`, `CHRISTMAS_GACHA`, `EASTER_GACHA`, `SUMMER_GACHA`, `ANNIVERSARY_GACHA`, `HALLOWEEN_GACHA`, `BLACK_FRIDAY_GACHA`, `CARNIVAL_GACHA` |
 
@@ -145,13 +145,13 @@ per score the event keeps (-1 is unranked):
 | the score events (nobility contest, marauders, long-term points, gacha) | yours |
 | Berimond, the lucky wheel | yours, in the first value only |
 | the alliance tournament | your alliance's, in the first value only |
-| the alien, red alien, nomad and samurai invasions, the alliance mobilisation | yours, your alliance's |
+| the alien, red alien, nomad and samurai invasions, the alliance Grand Tournament | yours, your alliance's |
 | the Berimond invasion | the blue players', the red players', your alliance's |
 | the alliance raid boss | yours, your alliance's, and `boss_level_points` |
 
 The state applies the reply before the call returns, read the event's way:
 `own_rank` and `own_points` on a score event, Berimond or a lucky wheel, one per
-part in `parts` on an invasion, the alliance mobilisation or the alliance
+part in `parts` on an invasion, the alliance Grand Tournament or the alliance
 tournament, `score` and `alliance_points` on the raid boss.
 
 ## Which events have a board
@@ -194,7 +194,7 @@ for event in client.events.running_score_events:
 The nomad and samurai invasions have only an alliance board in the game. Events
 the game shows no board for are not listed: the lucky wheel and the gacha
 events show only your own rank (`get_own_points` reads it), and the colossus uses a command of its own. The
-kingdoms league, the alliance mobilisation and raid boss events, the
+kingdoms league, the alliance Grand Tournament and raid boss events, the
 tournaments and the temporary-server and battle-ground boards are not covered
 yet; the `client.ranking` calls reach their lists directly.
 

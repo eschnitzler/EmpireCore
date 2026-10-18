@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Annotated, Any, ClassVar, NoReturn, TypeVar
 from pydantic import AfterValidator, ConfigDict, Field, SerializeAsAny, ValidationError
 
 from empire_core.enums import RankingType
-from empire_core.events.status_models import MobilizationQuestStatus, RaidBossStatus
+from empire_core.events.status_models import GrandTournamentQuestStatus, RaidBossStatus
 from empire_core.exceptions import ReplyMismatchError
 from empire_core.gamedata import EnumOrInt, RewardId
 from empire_core.gamedata.ids.events import Event
@@ -1052,9 +1052,9 @@ class AllianceTournamentEvent(ScoredEvent):
         return self.model_copy(update={"parts": ReadOnlyDict({**self.parts, "A": alliance})})
 
 
-class AllianceMobilizationEvent(ScoredEvent):
+class GrandTournamentEvent(ScoredEvent):
     """
-    The alliance mobilisation: ``parts["SP"]`` is your score and ``parts["A"]`` your alliance's,
+    The Grand Tournament: ``parts["SP"]`` is your score and ``parts["A"]`` your alliance's,
     both rebuilt from every entry in the league of ``A.LID`` with the entry's ``RSID``.
 
     The client keeps an alliance score per league of the event's league types, and none for a
@@ -1067,7 +1067,7 @@ class AllianceMobilizationEvent(ScoredEvent):
 
     _rebuilt_parts = ("SP", "A")
 
-    quest_status: MobilizationQuestStatus | None = Field(
+    quest_status: GrandTournamentQuestStatus | None = Field(
         default=None, description="Latest requested alliance quest status"
     )
 
@@ -1520,7 +1520,7 @@ EVENT_CLASSES: dict[Event, type[SpecialEvent]] = {
     Event.GLOBAL_EFFECT: GlobalEffectEvent,
     Event.GLOBAL_EFFECT_BUFF: GlobalEffectBuffEvent,
     Event.ALLI_TOURNAMENT: AllianceTournamentEvent,
-    Event.ALLIANCE_MOBILIZATION_EVENT: AllianceMobilizationEvent,
+    Event.GRAND_TOURNAMENT: GrandTournamentEvent,
     Event.LUCKY_WHEEL: LuckyWheelEvent,
     Event.SALE_DAYS_LUCKY_WHEEL: LuckyWheelEvent,
     **dict.fromkeys(
@@ -1563,7 +1563,7 @@ POINT_EVENTS: frozenset[Event] = frozenset(
         Event.GACHA_DECO2X2,
         Event.CHRISTMAS_GACHA,
         Event.EASTER_GACHA,
-        Event.ALLIANCE_MOBILIZATION_EVENT,
+        Event.GRAND_TOURNAMENT,
         Event.SUMMER_GACHA,
         Event.ANNIVERSARY_GACHA,
         Event.HALLOWEEN_GACHA,
@@ -1578,7 +1578,7 @@ Client: ``CastleSpecialEventFactory.createByEventType`` (bundle line 61602) buil
 its ``eventType`` + ``EventVO``; these are the classes with a ``setRankAndPoints``, which
 ``PEPCommand.exec`` (bundle line 128213) calls: ``AScoreEventVO`` (bundle line 15044) and its
 subclasses (the nobility contest, marauders, long-term points, alliance tournament (bundle line
-114412), the invasions (bundle lines 55701, 58926, 114310, 116056), the alliance mobilisation
+114412), the invasions (bundle lines 55701, 58926, 114310, 116056), the alliance Grand Tournament
 (bundle line 5101) and the gacha events, ``AGachaEventVO``, bundle line 15372), ``FactionEventVO``
 (bundle line 7461), ``AllianceRaidbossEventEventVO`` (bundle line 9117) and ``LuckyWheelEventVO``
 (bundle line 59687) with ``SaleDaysLuckyWheelEventVO`` (bundle line 117863). Every other event
@@ -1642,7 +1642,7 @@ class GetEventPointsResponse(BaseResponse):
     - the alliance tournament: your alliance's, the first only (``AlliTournamentEventVO``, bundle line 114412)
     - Berimond and the lucky wheel: your own, the first only (``FactionEventVO``, bundle line 7461, into your
       league; ``LuckyWheelEventVO``, bundle line 59687)
-    - the alien, red alien, nomad and samurai invasions and the alliance mobilisation: yours, then your
+    - the alien, red alien, nomad and samurai invasions and the alliance Grand Tournament: yours, then your
       alliance's; ``PT`` may be sent, these events do not read it (bundle lines 58926, 114310, 55701, 5101)
     - the Berimond invasion: blue players, red players, then your alliance, ``PT`` per part (bundle line 116056)
     - the alliance raid boss: yours, then your alliance's (bundle line 9117), and ``BLPP``
