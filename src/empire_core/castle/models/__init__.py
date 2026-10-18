@@ -65,6 +65,13 @@ from .kingdoms import (
     KingdomTransfer,
     KingdomUnlock,
 )
+from .landmarks import (
+    GetLaboratoryProgressRequest,
+    GetMonumentProgressRequest,
+    LaboratoryProgressResponse,
+    LandmarkProgress,
+    MonumentProgressResponse,
+)
 from .mercenaries import MercenaryMission, MercenaryMissionsResponse, MercenaryPackageRequest
 from .objects import (
     FREE_SLOT,
@@ -220,6 +227,11 @@ __all__ = [
     "TaxInfo",
     "TaxInfoResponse",
     "WishingWellResponse",
+    "GetLaboratoryProgressRequest",
+    "GetMonumentProgressRequest",
+    "LaboratoryProgressResponse",
+    "LandmarkProgress",
+    "MonumentProgressResponse",
     "KingdomInfoResponse",
     "KingdomTransfer",
     "KingdomUnlock",
