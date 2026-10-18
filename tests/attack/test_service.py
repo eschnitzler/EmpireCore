@@ -127,7 +127,7 @@ class TestCampArmy:
         client = self.client()
         camp = MapAreaItem.from_list([2, 700, 710, 0, -6, 0, 0])
 
-        army = client.attack.camp_army(camp)
+        army = client.attack.robber_baron_camp_army(camp)
 
         assert army is not None
         assert army.middle == (WodAmount(601, 10), WodAmount(211, 5), WodAmount(646, 2))
@@ -139,9 +139,12 @@ class TestCampArmy:
 
         client = self.client()
 
-        assert client.attack.camp_army(MapAreaItem.from_list([1, 700, 710, 900, 4242, 1, 1, 1, 0, 0, "x"])) is None
-        assert client.attack.camp_army(MapAreaItem.from_list([2, 700, 710, 0, -6, 0, 2])) is None
-        assert client.attack.camp_army(MapAreaItem.from_list([7, -1, -1, 1, 0, 0, 0])) is None
+        assert (
+            client.attack.robber_baron_camp_army(MapAreaItem.from_list([1, 700, 710, 900, 4242, 1, 1, 1, 0, 0, "x"]))
+            is None
+        )
+        assert client.attack.robber_baron_camp_army(MapAreaItem.from_list([2, 700, 710, 0, -6, 0, 2])) is None
+        assert client.attack.robber_baron_camp_army(MapAreaItem.from_list([7, -1, -1, 1, 0, 0, 0])) is None
 
 
 class TestAttackService:

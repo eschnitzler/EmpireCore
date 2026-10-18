@@ -8,7 +8,7 @@ from empire_core.combat import (
     Flank,
     defender_flank_effects,
     event_camp_defense,
-    npc_camp_defense,
+    robber_baron_camp_defense,
 )
 from empire_core.enums import Kingdom
 from empire_core.gamedata import GameData, UnitStats
@@ -174,7 +174,7 @@ class TestEventCampDefence:
 
 class TestNpcCampDefence:
     def test_camp_defense_is_read_per_flank(self):
-        effects = npc_camp_defense(data(), victories=-6, kingdom_id=Kingdom.GREEN)
+        effects = robber_baron_camp_defense(data(), victories=-6, kingdom_id=Kingdom.GREEN)
 
         assert effects is not None
         middle = effects[Flank.MIDDLE]
@@ -186,10 +186,10 @@ class TestNpcCampDefence:
         assert effects[Flank.YARD].is_empty()
 
     def test_unknown_camp_returns_none(self):
-        assert npc_camp_defense(data(), victories=-6, kingdom_id=Kingdom.ICE) is None
-        assert npc_camp_defense(data(), victories=-7) is None
+        assert robber_baron_camp_defense(data(), victories=-6, kingdom_id=Kingdom.ICE) is None
+        assert robber_baron_camp_defense(data(), victories=-7) is None
         # Past the highest row, the client reads the highest
-        assert npc_camp_defense(data(), victories=99) is not None
+        assert robber_baron_camp_defense(data(), victories=99) is not None
 
     def test_defending_tools_raise_the_flank_they_stand_on(self):
         # toolM is "646+2", a moat tool
@@ -197,7 +197,7 @@ class TestNpcCampDefence:
         stakes = game.get_tool(646)
         assert stakes is not None and stakes.moat_bonus > 0
 
-        effects = flanks_of(npc_camp_defense(game, victories=-6))
+        effects = flanks_of(robber_baron_camp_defense(game, victories=-6))
 
         assert effects[Flank.MIDDLE].moat_bonus == pytest.approx(stakes.moat_bonus)
         assert effects[Flank.LEFT].moat_bonus == 0.0
@@ -217,7 +217,7 @@ class TestNpcCampDefence:
             ],
         )
 
-        effects = flanks_of(npc_camp_defense(GameData.parse("test", payload), victories=-6))
+        effects = flanks_of(robber_baron_camp_defense(GameData.parse("test", payload), victories=-6))
 
         # Nothing shows the server defends the camp with the row's commander
         assert (effects[Flank.LEFT].melee_bonus, effects[Flank.LEFT].range_bonus) == (1.0, 1.0)

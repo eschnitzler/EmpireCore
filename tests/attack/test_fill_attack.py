@@ -1070,7 +1070,7 @@ class TestFillAttack(FillClient):
 
 class TestFillAttackLevelDerivation:
     def test_a_camp_level_follows_from_its_victories(self):
-        from empire_core.combat import camp_level
+        from empire_core.combat import robber_baron_camp_level
         from empire_core.gamedata import GameData
 
         client = make_client({"gui": xt_packet("gui", {"I": [[601, 10_000]]})}, castles=OWN)
@@ -1085,10 +1085,10 @@ class TestFillAttackLevelDerivation:
         client.state.local_player = stub_player(level=70)
 
         # 299 victories in the green kingdom is a level 45 camp.
-        assert camp_level(299, Kingdom.GREEN) == 45
+        assert robber_baron_camp_level(299, Kingdom.GREEN) == 45
         # DungeonConst.getKingdomOffset (dll line 19137) takes the kingdom id.
-        assert camp_level(299, Kingdom.SANDS) == 45 - 1 + 35
-        assert camp_level(299, Kingdom.STORM) == 45 - 1
+        assert robber_baron_camp_level(299, Kingdom.SANDS) == 45 - 1 + 35
+        assert robber_baron_camp_level(299, Kingdom.STORM) == 45 - 1
         result = client.attack.fill_attack(12345, camp_victories=299, camp_kingdom_id=Kingdom.GREEN)
 
         # Level 45 gives 47 units per flank before bonuses.

@@ -12,10 +12,10 @@ from empire_core.attack.targeting import _row_item, _Target
 from empire_core.combat import (
     DefenderFlankEffects,
     Inventory,
-    camp_fortification_levels,
-    camp_level,
     fortification_bonuses,
-    npc_camp_defense,
+    robber_baron_camp_defense,
+    robber_baron_camp_fortification_levels,
+    robber_baron_camp_level,
     spied_castle_defense,
 )
 from empire_core.enums import Flank
@@ -70,8 +70,10 @@ def _target_defense(game_data: GameData, target: "_Target") -> dict[Flank, Defen
     """
     if target.camp_victories is not None:
         if target.spy_army is None:
-            return npc_camp_defense(game_data, target.camp_victories, target.camp_kingdom_id)
-        wall_level, gate_level = camp_fortification_levels(camp_level(target.camp_victories, target.camp_kingdom_id))
+            return robber_baron_camp_defense(game_data, target.camp_victories, target.camp_kingdom_id)
+        wall_level, gate_level = robber_baron_camp_fortification_levels(
+            robber_baron_camp_level(target.camp_victories, target.camp_kingdom_id)
+        )
         wall, gate, moat = fortification_bonuses(game_data, wall_level=wall_level, gate_level=gate_level)
     else:
         item = _row_item(target.row)

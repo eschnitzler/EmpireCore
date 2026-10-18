@@ -853,19 +853,19 @@ class GameData(EmpireModel):
 
     def dungeon_defense(self, victories: int, kingdom_id: Kingdom | int = Kingdom.GREEN) -> DungeonDefence | None:
         """
-        The camp defense for a victory count in a kingdom.
+        The robber baron camp's defense for a victory count in a kingdom.
 
         A count past the kingdom's highest row reads that row; one below its
         lowest, or a kingdom with no rows, finds None, where the client gets
-        ``undefined``. A treasure map's camp is looked up by its node's own
+        ``undefined``. A treasure map dungeon is looked up by its node's own
         ``countVictories`` and its map's ``kID``, as
         ``TreasureDungeonMapObjectVO.skipCooldownCostC2`` does (bundle line 22007).
 
         Client: ``CastleDungeonData.getDungeon`` (bundle lines 111765-111766)
 
         Args:
-            victories: The camp's victory count, from ``MapAreaItem.victory_count``
-            kingdom_id: The camp's kingdom, or a treasure map's ``kID``
+            victories: The robber baron camp's victory count, from ``MapAreaItem.victory_count``
+            kingdom_id: The robber baron camp's kingdom, or a treasure map's ``kID``
         """
         rows = [row for row in self.dungeons if row.kingdom_id == kingdom_id]
         if not rows:

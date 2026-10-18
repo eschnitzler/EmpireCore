@@ -35,9 +35,9 @@ CAMP_LEVEL_POWER = 0.555
 CAMP_KINGDOM_OFFSETS: dict[Kingdom, int] = {Kingdom.GREEN: 1, Kingdom.ICE: 20, Kingdom.SANDS: 35, Kingdom.FIRE: 45}
 
 
-def camp_level(victories: int, kingdom_id: Kingdom = Kingdom.GREEN) -> int:
+def robber_baron_camp_level(victories: int, kingdom_id: Kingdom = Kingdom.GREEN) -> int:
     """
-    A camp's level, from its victory count (``DungeonConst.getLevel``).
+    A robber baron camp's level, from its victory count (``DungeonConst.getLevel``).
 
     Args:
         victories: The camp's victory count, from ``MapAreaItem.victory_count``
@@ -114,12 +114,12 @@ def invasion_camp_level(game_data: GameData, item: MapAreaItem, player_level: in
     return None if base is None else base + field
 
 
-def camp_fortification_levels(level: int) -> tuple[int, int]:
+def robber_baron_camp_fortification_levels(level: int) -> tuple[int, int]:
     """
-    A camp's wall and gate levels (``DungeonConst.getWallUpgradeByLevel``).
+    A robber baron camp's wall and gate levels (``DungeonConst.getWallUpgradeByLevel``).
 
     Returns:
-        ``(wall_level, gate_level)``; camps have no moat.
+        ``(wall_level, gate_level)``; robber baron camps have no moat.
     """
     upgrade = 1 if level < 11 else (2 if level < 24 else 3)
     return upgrade, upgrade
@@ -485,7 +485,7 @@ def spied_castle_defense(
     return result
 
 
-def npc_camp_defense(
+def robber_baron_camp_defense(
     game_data: GameData,
     victories: int,
     kingdom_id: Kingdom = Kingdom.GREEN,
@@ -494,7 +494,7 @@ def npc_camp_defense(
     What defends a robber baron camp, per flank, without asking the server.
 
     The camp's row (:meth:`GameData.dungeon_defense`) gives its defenders and
-    tools as a spy report would (:meth:`SpyArmy.from_camp`), and they go
+    tools as a spy report would (:meth:`SpyArmy.from_robber_baron_camp`), and they go
     through :func:`spied_castle_defense` with the wall and gate its level
     implies. The row's commander is not applied: nothing shows the server
     defends the camp with it.
@@ -510,12 +510,12 @@ def npc_camp_defense(
     row = game_data.dungeon_defense(victories, kingdom_id)
     if row is None:
         return None
-    level = camp_level(victories, kingdom_id)
-    wall_level, gate_level = camp_fortification_levels(level)
+    level = robber_baron_camp_level(victories, kingdom_id)
+    wall_level, gate_level = robber_baron_camp_fortification_levels(level)
     wall, gate, moat = fortification_bonuses(game_data, wall_level=wall_level, gate_level=gate_level)
     return spied_castle_defense(
         game_data,
-        SpyArmy.from_camp(row),
+        SpyArmy.from_robber_baron_camp(row),
         wall_bonus=wall,
         gate_bonus=gate,
         moat_bonus=moat,
@@ -570,15 +570,15 @@ def _camp_flanks(row: NpcCampDefence, game_data: GameData) -> dict[Flank, Defend
 
 
 __all__ = [
-    "camp_fortification_levels",
-    "camp_level",
+    "robber_baron_camp_fortification_levels",
+    "robber_baron_camp_level",
     "invasion_camp_level",
     "defender_flank_effects",
     "event_camp_defense",
     "fortification_bonuses",
     "castellan_defense_multiplier",
     "castellan_fortification",
-    "npc_camp_defense",
+    "robber_baron_camp_defense",
     "spied_castle_defense",
     "tool_defense_bonus",
 ]

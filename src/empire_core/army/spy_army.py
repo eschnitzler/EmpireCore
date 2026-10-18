@@ -69,9 +69,9 @@ class SpyArmy(EmpireModel):
         return {section.value: data[index] for index, section in enumerate(SpyArmySection) if index < len(data)}
 
     @classmethod
-    def from_camp(cls, row: DungeonDefence) -> SpyArmy:
+    def from_robber_baron_camp(cls, row: DungeonDefence) -> SpyArmy:
         """
-        A camp's defenders from its row in the items payload, each flank's units then its tools.
+        A robber baron camp's defenders from its row in the items payload, each flank's units then its tools.
 
         A tool stack the row lists twice stays two stacks, as a spy report keeps them.
         """

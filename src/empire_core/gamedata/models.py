@@ -1452,11 +1452,11 @@ class GeneralDef(_Row):
 
 class DungeonDefence(_Row):
     """
-    What defends a robber baron camp, or a treasure map's camp, at a given victory count.
+    What defends a robber baron camp, or a treasure map dungeon, at a given victory count.
 
     The client reads only ``kID``, ``countVictories`` and ``skipCosts`` of a row
     (``CastleDungeonData.generateData``, bundle line 111754); it never reads the
-    defenders or the commander. ``SpyArmy.from_camp`` lays the defenders out as
+    defenders or the commander. ``SpyArmy.from_robber_baron_camp`` lays the defenders out as
     a spy report would.
     """
 

@@ -39,7 +39,6 @@ from empire_core.combat import (
     WaveCapacity,
     attack_dialog_bonuses,
     attacker_flank_effects,
-    camp_level,
     fill_yard_wave,
     global_unit_attack_bonuses,
     is_npc_player,
@@ -47,8 +46,9 @@ from empire_core.combat import (
     legend_skill_value,
     min_attack_soldiers,
     minimum_owner_level,
-    npc_camp_defense,
     owner_id_from_row,
+    robber_baron_camp_defense,
+    robber_baron_camp_level,
     support_tool_waves,
     wave_level,
     wave_limit_violations,
@@ -94,13 +94,13 @@ class AttackService(BaseService):
         """Your attack counter, from the last ``gai``; None until one arrived."""
         return self.client.state.get_attack_counter()
 
-    def camp_army(self, item: MapAreaItem) -> SpyArmy | None:
+    def robber_baron_camp_army(self, item: MapAreaItem) -> SpyArmy | None:
         """
         A robber baron camp's defenders, from the game data rather than a spy report.
 
         Each flank holds the camp row's units, then its tools. None for any
-        other target, and for a camp the items payload lists no row for. A
-        treasure map's camp is not covered: its victory count is its map
+        other target, and for a robber baron camp the items payload lists no
+        row for. A treasure map dungeon is not covered: its victory count is its map
         node's, which no map row carries (``TreasureDungeonMapObjectVO.victoryCount``,
         bundle line 22004); look it up with ``GameData.dungeon_defense``.
 
@@ -110,7 +110,7 @@ class AttackService(BaseService):
         if item.item_type != MapItemType.DUNGEON or item.victory_count is None:
             return None
         row = self._require_game_data().dungeon_defense(item.victory_count, item.kingdom)
-        return SpyArmy.from_camp(row) if row is not None else None
+        return SpyArmy.from_robber_baron_camp(row) if row is not None else None
 
     def send_attack(
         self,
@@ -545,7 +545,7 @@ class AttackService(BaseService):
             owner_id = ALIEN_INVASION_AREA_TYPES.get(area_type)
 
         if defense is None and camp_victories is not None:
-            defense = npc_camp_defense(game_data, camp_victories, camp_kingdom_id)
+            defense = robber_baron_camp_defense(game_data, camp_victories, camp_kingdom_id)
 
         resolver = EffectResolver(game_data)
         tools = _support_tools(game_data, support_tools)
@@ -792,7 +792,7 @@ class AttackService(BaseService):
                 ``get_attack_info(...).spy_army``. Without it a castle target
                 is modeled as fortification alone, with no defending army, and
                 a robber baron camp as its row in the items payload
-                (:meth:`camp_army`)
+                (:meth:`robber_baron_camp_army`)
             defending_castellan: The castellan holding the target, from
                 ``get_attack_info(...).defending_castellan()``. Its equipment
                 raises the fortification and multiplies the defenders,
@@ -891,7 +891,7 @@ class AttackService(BaseService):
                     f"Nothing at {read.x}:{read.y} says what level to fill for: {reason}. "
                     "Pass target_level to fill it anyway"
                 )
-            read.level = camp_level(read.camp_victories, read.camp_kingdom_id)
+            read.level = robber_baron_camp_level(read.camp_victories, read.camp_kingdom_id)
         if read.area_type is None:
             row_item = _row_item(read.row)
             read.area_type = row_item.item_type if row_item is not None else None

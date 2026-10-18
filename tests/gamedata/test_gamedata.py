@@ -813,9 +813,9 @@ class TestCombatTables:
         row = data.dungeon_defense(-6, kingdom_id=Kingdom.GREEN)
 
         assert row is not None
-        assert SpyArmy.from_camp(row).middle == (WodAmount(604, 3), WodAmount(606, 3), WodAmount(652, 45))
-        assert SpyArmy.from_camp(row).left == ()
-        assert SpyArmy.from_camp(row).total() == 51
+        assert SpyArmy.from_robber_baron_camp(row).middle == (WodAmount(604, 3), WodAmount(606, 3), WodAmount(652, 45))
+        assert SpyArmy.from_robber_baron_camp(row).left == ()
+        assert SpyArmy.from_robber_baron_camp(row).total() == 51
         assert data.dungeon_defense(-6, kingdom_id=Kingdom.ICE) is None
 
 
@@ -870,7 +870,7 @@ class TestDungeonDefence:
         row = self.data().dungeon_defense(-3)
 
         assert row is not None
-        army = SpyArmy.from_camp(row)
+        army = SpyArmy.from_robber_baron_camp(row)
         assert army.left == (
             WodAmount(601, 2),
             WodAmount(602, 2),
@@ -891,8 +891,8 @@ class TestDungeonDefence:
         row = self.data().dungeon_defense(154, Kingdom.ICE)
 
         assert row is not None
-        assert SpyArmy.from_camp(row).keep == (WodAmount(652, 379),)
-        assert SpyArmy.from_camp(row).middle == (*[WodAmount(647, 2)] * 3, *[WodAmount(644, 2)] * 2)
+        assert SpyArmy.from_robber_baron_camp(row).keep == (WodAmount(652, 379),)
+        assert SpyArmy.from_robber_baron_camp(row).middle == (*[WodAmount(647, 2)] * 3, *[WodAmount(644, 2)] * 2)
 
     def test_the_commander_is_the_lords_row(self):
         row = self.data().dungeon_defense(-3)
@@ -922,7 +922,7 @@ class TestDungeonDefence:
         row = self.data().dungeon_defense(-20, -1)
 
         assert row is not None
-        assert SpyArmy.from_camp(row).middle == (WodAmount(662, 1), WodAmount(663, 1))
+        assert SpyArmy.from_robber_baron_camp(row).middle == (WodAmount(662, 1), WodAmount(663, 1))
         assert self.data().dungeon_defense(-21, -1) is None
 
     def test_camp_tables_share_one_shape(self):
