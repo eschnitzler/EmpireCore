@@ -398,3 +398,41 @@ def test_push_received_during_cost_authorization_is_checked_before_send(monkeypa
     with pytest.raises(ValueError, match="changed"):
         client.alliance.upgrade(6, spend_rubies=True)
     assert "aug" not in conn(client).requested
+
+
+@pytest.mark.parametrize("column", ["costC2", "costc2", "costFutureCoin"])
+@pytest.mark.parametrize("value", [[], [50], True, False])
+@pytest.mark.parametrize("consent", [False, True])
+def test_composite_or_boolean_raw_costs_never_authorize_send(column, value, consent):
+    client = upgrade_client()
+    client.game_data = GameData.parse(
+        "synthetic",
+        {
+            "currencies": [{"currencyID": "100100", "Name": "FutureCoin", "JSONKey": "FC"}],
+            "alliancebuffs": [
+                {"allianceBuffID": 100, "allianceBuffSeriesID": 6, "level": 0, "maxLevel": 1},
+                {"allianceBuffID": 101, "allianceBuffSeriesID": 6, "level": 1, "maxLevel": 1, column: value},
+            ],
+        },
+    )
+    with pytest.raises(ValueError):
+        client.alliance.upgrade(6, spend_rubies=consent)
+    assert "aug" not in conn(client).requested
+
+
+@pytest.mark.parametrize("value", ["50", 50, 50.0])
+def test_scalar_raw_ruby_costs_remain_supported(value):
+    client = upgrade_client()
+    client.game_data = GameData.parse(
+        "synthetic",
+        {
+            "alliancebuffs": [
+                {"allianceBuffID": 100, "allianceBuffSeriesID": 6, "level": 0, "maxLevel": 1},
+                {"allianceBuffID": 101, "allianceBuffSeriesID": 6, "level": 1, "maxLevel": 1, "costC2": value},
+            ]
+        },
+    )
+    with pytest.raises(ValueError, match="spend_rubies"):
+        client.alliance.upgrade(6)
+    client.alliance.upgrade(6, spend_rubies=True)
+    assert conn(client).request_payloads[-1] == ("aug", {"BT": 6, "L": 1})
