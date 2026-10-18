@@ -8,7 +8,7 @@ from empire_core.state.models import Alliance, Castle, JoinedArea, Player, Resou
 from empire_core.utils.lazy import lazy_exports
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import Currency, Event, Horse, Tool, Unit
+    from empire_core.gamedata import Currency, Event, Horse, LegendSkill, Tool, Unit
 
 __all__ = [
     "GameState",
@@ -25,10 +25,13 @@ __all__ = [
     "Currency",
     "Event",
     "Horse",
+    "LegendSkill",
     "Tool",
     "Unit",
 ]
 
 
 if not TYPE_CHECKING:
-    __getattr__ = lazy_exports(__name__, "empire_core.gamedata.ids", ("Currency", "Event", "Horse", "Tool", "Unit"))
+    __getattr__ = lazy_exports(
+        __name__, "empire_core.gamedata.ids", ("Currency", "Event", "Horse", "LegendSkill", "Tool", "Unit")
+    )

@@ -61,4 +61,23 @@ client.player.on_skill_list(lambda s: print("skills now", s.sceat_skill_ids))
 
 Remove it with `client.player.on_skill_list.remove(callback)`.
 
+### Spending and resetting legend skill points
+
+```python
+from empire_core.gamedata import GameData, LegendSkill
+
+client.player.add_legend_skill_point(LegendSkill.GATE_REDUCTION_T0_G1_L1)
+print(client.player.skills.available_points(GameData.require()))
+
+client.player.reset_skills()
+```
+
+`add_legend_skill_point` buys one level, the next of a skill you hold or the first
+of one you don't, and swaps it into `client.player.skills`. A refusal (tier
+locked, a missing skill, too few points) raises `CommandError`.
+
+`reset_skills` is free once its 15-day cooldown has run out. Inside it the
+reset costs rubies, so it raises `ValueError` with the price unless you pass
+`spend_rubies=True`. Sceat skills, which cost tokens or rubies, are not bought here.
+
 **API:** [`CommandersService`](../reference/commanders.md#empire_core.commanders.service.CommandersService), [`PlayerService`](../reference/player.md#empire_core.player.service.PlayerService)

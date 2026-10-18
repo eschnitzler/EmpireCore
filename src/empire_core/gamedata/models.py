@@ -1167,7 +1167,11 @@ class EquipmentSetDef(EquipmentEffectSpecRow):
 
 
 class LegendSkillDef(_Row):
-    """One level of a legend skill, e.g. ``gateReduction``."""
+    """
+    One level of a legend skill, e.g. ``gateReduction``.
+
+    Client: ``CastleLegendSkillVO.parseXML`` (bundle line 48652); ``isMaxLevel`` (bundle line 48717)
+    """
 
     skill_id: GameDataId["LegendSkill"] = Field(validation_alias="skillID", description="The legend skill")
     level: int = 0
@@ -1177,6 +1181,36 @@ class LegendSkillDef(_Row):
     effect_type: str = Field(validation_alias="effectType", default="")
     total_effect_value: float = Field(validation_alias="totalEffectValue", default=0)
     total_cost_skill_points: int = Field(validation_alias="totalCostSkillPoints", default=0)
+    cost_skill_points: int = Field(
+        validation_alias="costSkillPoints", default=0, description="Skill points this level costs over the one before"
+    )
+    required_skill_id: GameDataId["LegendSkill"] | None = Field(
+        validation_alias="requiredSkillID", default=None, description="The skill this level needs; None for none"
+    )
+    previous_skill_id: GameDataId["LegendSkill"] | None = Field(
+        validation_alias="previousSkillID",
+        default=None,
+        description="The level this one replaces when bought; the required skill when the row names none",
+    )
+    following_skill_id: GameDataId["LegendSkill"] | None = Field(
+        validation_alias="followingSkillID", default=None, description="The next level; None at the last"
+    )
+
+    @field_validator("required_skill_id", "previous_skill_id", "following_skill_id", mode="before")
+    @classmethod
+    def _zero_is_none(cls, value: object) -> object:
+        return None if js_parse_int(value) == 0 else value
+
+    @model_validator(mode="after")
+    def _previous_defaults_to_required(self) -> LegendSkillDef:
+        if "previous_skill_id" not in self.model_fields_set:
+            self.previous_skill_id = self.required_skill_id
+        return self
+
+    @property
+    def is_max_level(self) -> bool:
+        """Whether no level follows this one."""
+        return self.following_skill_id is None
 
 
 class AttackSlotDef(_Row):
