@@ -110,3 +110,36 @@ def test_transport_error_identity_is_preserved(command, error):
         else:
             client.attack.skip_dungeon_cooldown(100, 200, spend_rubies=True)
     assert caught.value is error
+
+
+@pytest.mark.parametrize("command", ["msd", "sdc"])
+@pytest.mark.parametrize(
+    "row", [[2, 100, 200, -1, 3, 0], [2, 100, 200, -1, 3, 0, None], [2, 100, 200, -1, 3, 0, "broken"]]
+)
+def test_missing_or_unreadable_wire_kingdom_cannot_be_fabricated(command, row):
+    client = make_client({command: xt_packet(command, {"AI": row})})
+    with pytest.raises(PacketError):
+        if command == "msd":
+            client.attack.minute_skip_dungeon(100, 200, "MS1", Kingdom.ICE)
+        else:
+            client.attack.skip_dungeon_cooldown(100, 200, Kingdom.ICE, spend_rubies=True)
+
+
+@pytest.mark.parametrize("command", ["msd", "sdc"])
+def test_numeric_string_kingdom_is_compared_before_accepting(command):
+    client = make_client({command: xt_packet(command, {"AI": [2, 100, 200, -1, 3, 0, "1"]})})
+    with pytest.raises(EmpireTimeoutError):
+        if command == "msd":
+            client.attack.minute_skip_dungeon(100, 200, "MS1", Kingdom.ICE)
+        else:
+            client.attack.skip_dungeon_cooldown(100, 200, Kingdom.ICE, spend_rubies=True)
+
+
+@pytest.mark.parametrize("command", ["msd", "sdc"])
+def test_matching_numeric_string_kingdom_returns_canonical_kingdom(command):
+    client = make_client({command: xt_packet(command, {"AI": [2, 100, 200, -1, 3, 0, "2"]})})
+    if command == "msd":
+        result = client.attack.minute_skip_dungeon(100, 200, "MS1", Kingdom.ICE)
+    else:
+        result = client.attack.skip_dungeon_cooldown(100, 200, Kingdom.ICE, spend_rubies=True)
+    assert result.kingdom is Kingdom.ICE

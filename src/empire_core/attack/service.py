@@ -19,6 +19,7 @@ from empire_core.attack.models.dungeon_skips import (
     MinuteSkipDungeonResponse,
     SkipDungeonCooldownRequest,
     SkipDungeonCooldownResponse,
+    _row_kingdom,
 )
 from empire_core.attack.models.info import AttackInfoResponse
 from empire_core.attack.models.presets import (
@@ -186,7 +187,10 @@ class AttackService(BaseService):
     ) -> MapAreaItem:
         if response.area is None or response.area.attack_cooldown_seconds is None:
             raise PacketError(f"The '{response.command}' reply has no readable dungeon cooldown")
-        return response.area.model_copy(deep=True, update={"kingdom": Kingdom(kingdom)})
+        realm = _row_kingdom(response.area, kingdom)
+        if realm is None:
+            raise PacketError(f"The '{response.command}' dungeon row has no readable kingdom")
+        return response.area.model_copy(deep=True, update={"kingdom": Kingdom(realm)})
 
     def send_attack(
         self,

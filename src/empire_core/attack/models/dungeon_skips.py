@@ -7,14 +7,16 @@ Commands:
 
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING
 
 from pydantic import Field, field_serializer, field_validator
 
-from empire_core.enums import Kingdom
+from empire_core.enums import Kingdom, MapItemType
 from empire_core.gamedata import EnumOrStr
 from empire_core.map.models.items import MapAreaItem
 from empire_core.protocol.base import BaseRequest, BaseResponse
+from empire_core.protocol.js import js_number_or_none
 
 if TYPE_CHECKING:
     from empire_core.gamedata import Currency
@@ -36,6 +38,27 @@ def _row_or_none(value: object) -> MapAreaItem | None:
         return None
 
 
+def _row_kingdom(area: MapAreaItem, fallback: Kingdom) -> int | None:
+    # Client: DungeonMapobjectVO.parseAreaInfo (22064); the other map-row parsers name their kingdom too.
+    index = {
+        MapItemType.DUNGEON: 6,
+        MapItemType.TREASURE_DUNGEON: 6,
+        MapItemType.BOSS_DUNGEON: 7,
+        MapItemType.ISLE_DUNGEON: 3,
+    }.get(area.item_type)
+    if index is None:
+        return int(fallback)
+    if len(area.raw_data) <= index:
+        return None
+    value = area.raw_data[index]
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)) or not str(value).strip():
+        return None
+    numeric = js_number_or_none(value)
+    if numeric is None or not math.isfinite(numeric) or numeric != math.trunc(numeric):
+        return None
+    return int(numeric)
+
+
 def _matches_target(payload: object, x: int, y: int, kingdom: Kingdom) -> bool:
     if not isinstance(payload, dict) or not isinstance(payload.get("AI"), list):
         return True
@@ -43,7 +66,8 @@ def _matches_target(payload: object, x: int, y: int, kingdom: Kingdom) -> bool:
         area = MapAreaItem.from_list(payload["AI"], kingdom=kingdom)
     except ValueError:
         return True
-    return (area.x, area.y, area.kingdom) == (x, y, kingdom)
+    realm = _row_kingdom(area, kingdom)
+    return (area.x, area.y) == (x, y) and (realm is None or realm == kingdom)
 
 
 class MinuteSkipDungeonRequest(BaseRequest):
