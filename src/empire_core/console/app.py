@@ -656,7 +656,7 @@ class Console:
         if self._signature_cache is None or self._signature_cache[0] != key:
             try:
                 text = signature_at(self.namespace, *key)
-            except Exception:
+            except Exception:  # noqa: BLE001 - jedi runs live objects' code; a failure means no signature
                 text = ""
             self._signature_cache = (key, text)
         signature = self._signature_cache[1]

@@ -19,7 +19,7 @@ class NamespaceCompleter(Completer):
         try:
             # jedi runs live objects' __getattr__ and races the worker thread; a failure means no menu.
             found = jedi.Interpreter(document.text, [self.namespace]).complete(row, column)
-        except Exception:
+        except Exception:  # noqa: BLE001 - see above
             return
         for completion in found:
             typed = completion.get_completion_prefix_length()
