@@ -47,3 +47,11 @@ Alliance info, members, chat and help behind `client.alliance`.
 ## Membership
 
 ::: empire_core.alliance.models.membership
+
+## Settings
+
+::: empire_core.alliance.models.settings
+
+## Gifts
+
+::: empire_core.alliance.models.gifts

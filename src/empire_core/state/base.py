@@ -11,6 +11,7 @@ from typing import Any, TypeVar
 from pydantic import BaseModel
 
 from empire_core.alliance.models.chat import ChatMessageData
+from empire_core.alliance.models.gifts import AllianceGift
 from empire_core.alliance.models.help import AllianceHelpRequest
 from empire_core.alliance.models.info import AllianceInfo
 from empire_core.attack.models.counter import AttackCounterResponse
@@ -99,6 +100,7 @@ class StateBase:
         # Distinguish leaving and rejoining the same castle while an action waits for CI.
         self.area_revision = 0
         self.membership_revision = 0
+        self._alliance_info_read_revision: int | None = None
         self._set_empty_session()
 
         # Wakes the thread that advances the movements as one falls due; started with the first
@@ -181,7 +183,10 @@ class StateBase:
         self.own_alliance: AllianceInfo | None = None
         # The ain block own_alliance was read from, for the keys a later ain leaves out
         self._own_alliance_raw: dict[str, Any] | None = None
+        self._alliance_field_order: dict[str, int] = {}
+        self._alliance_reply_order: dict[str, tuple[dict[str, Any], int]] = {}
         self.alliance_chat: tuple[ChatMessageData, ...] = ()
+        self.alliance_gifts: tuple[AllianceGift, ...] = ()
         # The mailbox by message id, in the order the messages first arrived; swapped, never edited
         self.mailbox: dict[int, MessageInfo] = {}
         self.pending_rewards: int | None = None
