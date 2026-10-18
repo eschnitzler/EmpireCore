@@ -11,8 +11,8 @@ reads the file you name plus every ``EMPIRE_ACCOUNT_*`` environment variable. A
 ``registry.load(load_env_file=True)`` — importing empire_core never mutates the
 process environment as a side effect.
 
-``accounts.json`` holds passwords in plain text: keep it out of version control
-and ``chmod 600`` it.
+Start ``accounts.json`` from ``examples/accounts.json.template``. It holds
+passwords in plain text: keep it out of version control and ``chmod 600`` it.
 
     python examples/account_pool.py [accounts.json]
 """

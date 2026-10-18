@@ -265,8 +265,9 @@ class TestHandshakeSequence:
         client.login()
 
         assert client.password is not None
-        assert client.password not in conn.request_data["rlu"]
-        assert client.password in conn.request_data["lli"]
+        password = client.password.get_secret_value()
+        assert password not in conn.request_data["rlu"]
+        assert xt_login_payload(conn)["PW"] == password
 
     def test_autojoin_uses_the_documented_room_request(self):
         conn = ScriptedConnection()

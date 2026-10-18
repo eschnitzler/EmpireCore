@@ -15,7 +15,7 @@ from pathlib import Path
 from types import TracebackType
 from typing import Any, TypeVar, cast, overload
 
-from pydantic import ValidationError
+from pydantic import SecretStr, ValidationError
 from typing_extensions import Unpack
 
 from empire_core.alliance.service import AllianceService
@@ -131,7 +131,7 @@ class EmpireClient:
     def __init__(
         self,
         username: str | None = None,
-        password: str | None = None,
+        password: str | SecretStr | None = None,
         config: EmpireConfig | None = None,
         login_token: str | None = None,
         keep_session: bool = False,
@@ -182,6 +182,15 @@ class EmpireClient:
         connection's listeners: :meth:`on_disconnect` callbacks are those listeners.
         """
         return Registry(unique=True, missing_ok=True)
+
+    @property
+    def password(self) -> SecretStr | None:
+        """The password :meth:`login` logs in with, masked when printed; a plain string assigned here is wrapped."""
+        return self._password
+
+    @password.setter
+    def password(self, password: str | SecretStr | None) -> None:
+        self._password = SecretStr(password) if isinstance(password, str) else password
 
     def _attach_services(self) -> None:
         """Build one of each service; they register their packet handlers on the way."""

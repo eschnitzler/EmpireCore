@@ -300,7 +300,7 @@ class Session:
 
         request = LoginRequest.create(
             client.username or "",
-            client.password,
+            client.password.get_secret_value() if client.password is not None else None,
             **LOGIN_DEFAULTS,
             CONM=connection_time,
             RTM=round_trip_time,
