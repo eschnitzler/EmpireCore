@@ -2,7 +2,7 @@
 Loot boxes, as the login data and their pushes send them, and opening them.
 
 Commands:
-- gls: your loot boxes and key progress, a push before and a section of ``gbd``
+- gls: your loot boxes and key progress, a push before and a section of ``gbd``, and on request
 - ole: open a loot box
 """
 
@@ -58,6 +58,20 @@ class LootBoxKeys(BasePayload):
     keys: ClientNumber = Field(validation_alias="AMT", default=0, description="The keys collected")
 
 
+class GetLootBoxesRequest(BaseRequest):
+    """
+    Request your loot boxes and key progress.
+
+    Command: gls
+    Payload: {}
+
+    Client: ``C2SGetLootBoxesStatus`` (bundle line 92219, no fields), sent when
+    ``RewardHubMainDialogMysteryBoxes.show`` opens the mystery boxes (bundle line 92142)
+    """
+
+    command = "gls"
+
+
 class LootBoxesResponse(BaseResponse):
     """
     Your loot boxes, and the keys collected towards each loot box type.
@@ -65,7 +79,7 @@ class LootBoxesResponse(BaseResponse):
     A ``gls`` lists the loot boxes whole, but key progress only for some types; the client keeps the
     others as they were, and ``client.state.get_loot_boxes()`` does the same.
 
-    Command: gls, a push the server sends before ``gbd`` and again when they change.
+    Command: gls, sent before ``gbd`` and as the reply to :class:`GetLootBoxesRequest`.
 
     Client: ``GLSCommand`` (bundle line 124800), ``CastleLootboxData.parse_GLS`` (bundle line 112332)
     """
@@ -143,14 +157,14 @@ class OpenLootBoxResponse(BaseResponse):
     Payload: {"LID": .., "LTR": rewards, "LTRR": rewards?, "KBS": key progress, "TBF": key bar fills,
               "KTR": [{"ID": key, "AMT": amount}, ..], "UKI": key used}
 
-    The client reads ``LTRR`` over ``LTR`` when it is set, both as collectable rows, yet also hands
-    ``LTR`` to the opening dialog as reward ids, which ``getHighestCategoryForRewards`` compares with
-    the tombola's reward ids (bundle line 112417). Which shape the server sends is not confirmed:
-    rows are read into ``rewards``, a list of ids into ``reward_ids``, and ``raw_rewards`` keeps
-    ``LTR`` as sent.
+    ``LTR`` lists the reward id each box drew and ``LTRR`` each box's collectable rows, as a live
+    reply shows. The client reads the rows from ``LTRR`` when it is set and hands ``LTR`` to the
+    opening dialog as reward ids, which ``getHighestCategoryForRewards`` compares with the tombola's
+    (bundle line 112417). Rows go into ``rewards``, ids into ``reward_ids``, and ``raw_rewards``
+    keeps ``LTR`` as sent.
 
-    The client sets the box type's key progress to ``KBS``; it does not lower the box count, which
-    the server's next ``gls`` brings.
+    The client sets the box type's key progress to ``KBS``; it does not lower the box count, and the
+    server sends no ``gls`` after an open: a :class:`GetLootBoxesRequest` reads the new count.
 
     Client: ``OLECommand.executeCommand`` (bundle line 124819)
     """
@@ -159,9 +173,7 @@ class OpenLootBoxResponse(BaseResponse):
 
     loot_box_id: EnumOrInt["LootBox"] = Field(validation_alias="LID", default=0, description="The loot box opened")
     rewards: tuple[Collectable, ...] = Field(default=(), description="What the boxes gave, the keys won aside")
-    reward_ids: tuple[RewardId, ...] = Field(
-        default=(), description="The rewards drawn, when LTR lists reward ids instead of rows"
-    )
+    reward_ids: tuple[RewardId, ...] = Field(default=(), description="The reward each box drew, from LTR")
     raw_rewards: Any = Field(validation_alias="LTR", default=None, description="LTR as the server sent it")
     key_progress: ClientNumber = Field(
         validation_alias="KBS", default=0, description="The keys now collected towards the box's type"

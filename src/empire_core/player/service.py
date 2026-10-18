@@ -19,7 +19,13 @@ from empire_core.commanders.models.skills import (
 )
 from empire_core.enums import MysteryBoxKey, TitleSystem
 from empire_core.exceptions import CommandError, EmpireTimeoutError, PacketError
-from empire_core.player.models.economy import LootBoxKeys, OpenLootBoxRequest, OpenLootBoxResponse
+from empire_core.player.models.economy import (
+    GetLootBoxesRequest,
+    LootBoxesResponse,
+    LootBoxKeys,
+    OpenLootBoxRequest,
+    OpenLootBoxResponse,
+)
 from empire_core.player.models.info import (
     GetPlayerInfoRequest,
     GetPlayerInfoResponse,
@@ -41,7 +47,6 @@ if TYPE_CHECKING:
         OfficerTraining,
         PlayerGiftsResponse,
     )
-    from empire_core.player.models.economy import LootBoxesResponse
     from empire_core.player.models.progress import (
         AchievementsResponse,
         BoosterInfoResponse,
@@ -203,6 +208,18 @@ class PlayerService(BaseService):
     def loot_boxes(self) -> LootBoxesResponse | None:
         """Your loot boxes and key progress; None until a ``gls`` arrived."""
         return self.client.state.get_loot_boxes()
+
+    def get_loot_boxes(self, *, timeout: float = 5.0) -> LootBoxesResponse:
+        """
+        Request your loot boxes and key progress, as the client does when the mystery boxes open;
+        the reply is also kept in :attr:`loot_boxes`.
+
+        Client: ``RewardHubMainDialogMysteryBoxes.show`` (bundle line 92142) sends ``C2SGetLootBoxesStatus``
+
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+        """
+        return self.request(GetLootBoxesRequest(), LootBoxesResponse, timeout=timeout)
 
     @property
     def daily_reset(self) -> DailyResetResponse | None:
@@ -375,8 +392,9 @@ class PlayerService(BaseService):
         Open a loot box, or every box of the kind, with a mystery box key.
 
         The common key never runs out; a rarer one must be held (:attr:`currencies`) and opens one box
-        only. The box type's key progress in :attr:`loot_boxes` is set to the reply's; the box count
-        changes with the server's next ``gls``. Reward ids in the reply are resolved through the game data.
+        only. The box type's key progress in :attr:`loot_boxes` is set to the reply's; the box count is
+        not lowered, as in the client, and :meth:`get_loot_boxes` reads the new one. Reward ids in the
+        reply are resolved through the game data.
 
         Client: ``RewardHubDialogMysteryBoxItem.fillItem`` (bundle line 92191) enables the single open
         with a held or common key and the open-all with the common key only; ``OLECommand`` (bundle line 124819)
