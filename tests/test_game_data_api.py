@@ -6,7 +6,7 @@ from empire_core.combat import EffectResolver, Inventory, construction_item_bonu
 from empire_core.commanders import SkillList
 from empire_core.enums import TitleSystem
 from empire_core.exceptions import GameDataNotLoadedError
-from empire_core.gamedata import GameData, describe_effects, is_current
+from empire_core.gamedata import Event, GameData, describe_effects, is_current
 from empire_core.player import titles_in_order
 from tests.service_helpers import conn, logged_in_state, make_client
 
@@ -104,7 +104,9 @@ def test_campaign_rewards_use_the_loaded_dataset(stub_game_data_load):
     state.update_from_packet("sei", {"E": [{"EID": 95, "RS": 600, "RIDS": [3], "CQS": []}]})
     stub_game_data_load(GameData.parse("test", {"rewards": [{"rewardID": "3", "addC1": "100"}]}))
 
-    assert [(reward.kind, reward.amount) for reward in state.get_event(95).rewards()] == [(CollectableKind.COINS, 100)]
+    event = state.get_event(Event.TIME_LIMITED_CAMPAIGN_EVENT)
+    assert event is not None
+    assert [(reward.kind, reward.amount) for reward in event.rewards()] == [(CollectableKind.COINS, 100)]
 
 
 def test_empty_explicit_dataset_is_not_replaced_by_loaded_data(stub_game_data_load):
