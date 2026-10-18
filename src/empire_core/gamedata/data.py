@@ -85,6 +85,8 @@ from .tables import (
     DifficultyTypeDef,
     EquipmentGroupDef,
     EventDef,
+    GeneralRarityDef,
+    GeneralsHubCharacterDef,
     LootBoxDef,
     LootBoxTypeDef,
     QuestCondition,
@@ -115,6 +117,8 @@ if TYPE_CHECKING:
         Gem,
         General,
         GeneralAbility,
+        GeneralRarity,
+        GeneralsHubCharacter,
         GeneralSkill,
         GlobalEffect,
         Horse,
@@ -172,6 +176,8 @@ _CACHED_MODELS = (
     EventDef,
     LootBoxDef,
     LootBoxTypeDef,
+    GeneralRarityDef,
+    GeneralsHubCharacterDef,
     EquipmentGroupDef,
     DifficultyTypeDef,
     QuestDef,
@@ -356,6 +362,8 @@ _TABLES: dict[str, _TableSource] = {
     "legend_skills": _TableSource("legendskills", LegendSkillDef, "skill_id"),
     "generals": _TableSource("generals", GeneralDef, "general_id"),
     "general_abilities": _TableSource("generalAbilities", GeneralAbilityDef, "ability_id"),
+    "general_rarities": _TableSource("generalRarities", GeneralRarityDef, "rarity_id"),
+    "generals_hub_characters": _TableSource("characters", GeneralsHubCharacterDef, "character_id"),
     "currencies": _TableSource("currencies", CurrencyDef, "currency_id"),
     "raid_bosses": _TableSource("raidBosses", RaidBossDef, "raid_boss_id"),
     "buildings": _TableSource("buildings", BuildingDef, "building_id"),
@@ -564,6 +572,16 @@ class GameData(EmpireModel):
     def general_abilities(self) -> Table[GameDataId["GeneralAbility"], GeneralAbilityDef]:
         """General ability levels by ``GeneralAbility``."""
         return self._table("general_abilities")
+
+    @cached_property
+    def general_rarities(self) -> Table[GameDataId["GeneralRarity"], GeneralRarityDef]:
+        """General rarities by ``GeneralRarity``, with what unlocking and stars cost."""
+        return self._table("general_rarities")
+
+    @cached_property
+    def generals_hub_characters(self) -> Table[GameDataId["GeneralsHubCharacter"], GeneralsHubCharacterDef]:
+        """The generals hub's characters by ``GeneralsHubCharacter``."""
+        return self._table("generals_hub_characters")
 
     @cached_property
     def currencies(self) -> Table[GameDataId["CurrencyId"], CurrencyDef]:

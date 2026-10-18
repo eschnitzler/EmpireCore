@@ -624,6 +624,30 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
             display=GENERAL_NAME,
         ),
         Table(
+            "general_rarities",
+            "GeneralRarity",
+            "R",
+            "General rarity ids from the ``generalRarities`` table, named from ``name``; the client's colours call "
+            "the third epic (``GeneralVO.GENERAL_COLOR_EPIC``, bundle line 26790).",
+            "``GeneralRarityXmlVO.fillFromParamXml`` (bundle line 113254)",
+            [
+                Row(to_snake(r.name) or f"R{r.rarity_id}", int(r.rarity_id), id_text(r.rarity_id))
+                for r in data.general_rarities.values()
+            ],
+        ),
+        Table(
+            "generals_hub_characters",
+            "GeneralsHubCharacter",
+            "C",
+            "Generals hub character ids from the ``characters`` table, named from ``name``; the client's constants "
+            "are ``ID_FAT_KING``, ``ID_KNIGHT`` and ``ID_PRINCESS`` (``GeneralsHubQuestVO``, bundle line 47051).",
+            "``GeneralsHubQuestVO.fillFromParamXml`` (bundle line 47005)",
+            [
+                Row(to_snake(c.name) or f"C{c.character_id}", int(c.character_id), id_text(c.character_id))
+                for c in data.generals_hub_characters.values()
+            ],
+        ),
+        Table(
             "general_abilities",
             "GeneralAbility",
             "A",

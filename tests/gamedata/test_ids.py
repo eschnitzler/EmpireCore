@@ -90,6 +90,8 @@ IDS_PAYLOAD: dict[str, Any] = {
     ],
     "lootBoxes": [{"lootBoxID": "1", "name": "MysteryBoxBronze", "rarity": "1"}],
     "lootBoxTypes": [{"lootBoxTypeID": "1", "lootBoxTheme": "MysteryBox", "lootBoxKeyPayoutThreshold": "10"}],
+    "generalRarities": [{"generalRarityID": "4", "name": "legendary", "unlockCosts": "150"}],
+    "characters": [{"characterID": "1", "name": "fatKing", "tombolas": "6001+10001"}],
     "quests": [
         {"questID": "3047", "questSeriesID": "159", "conditions": "buyRubies+1"},
         {"questID": "3600", "eventID": "129", "comment1": "AME", "conditions": "spendCurrency1+1000"},
@@ -157,7 +159,9 @@ TABLE_OF: dict[str, str] = {
     "CurrencyId": "currencies",
     "General": "generals",
     "GeneralAbility": "general_abilities",
+    "GeneralRarity": "general_rarities",
     "GeneralSkill": "general_skills",
+    "GeneralsHubCharacter": "generals_hub_characters",
     "LegendSkill": "legend_skills",
     "RaidBoss": "raid_bosses",
     "GlobalEffect": "global_effects",

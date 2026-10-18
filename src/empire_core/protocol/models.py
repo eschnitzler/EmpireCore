@@ -308,6 +308,17 @@ from empire_core.commanders.models.equipment import (
     GetEquipmentInventoryResponse,
     RelicBonus,
 )
+from empire_core.commanders.models.generals import (
+    ClearGeneralFlagsRequest,
+    GeneralsHubCharacterStatus,
+    GeneralsHubReward,
+    GetGeneralsHubRequest,
+    GetGeneralsHubResponse,
+    SpinGeneralsHubRequest,
+    SpinGeneralsHubResponse,
+    UnlockGeneralRequest,
+    UpgradeGeneralStarsRequest,
+)
 from empire_core.commanders.models.inventory import (
     GemInventoryResponse,
     NewRelicsResponse,
@@ -929,6 +940,15 @@ __all__ = [
     "AssignGeneralResponse",
     "SetGeneralAbilitiesRequest",
     "UnlockGeneralSkillRequest",
+    "ClearGeneralFlagsRequest",
+    "GeneralsHubCharacterStatus",
+    "GeneralsHubReward",
+    "GetGeneralsHubRequest",
+    "GetGeneralsHubResponse",
+    "SpinGeneralsHubRequest",
+    "SpinGeneralsHubResponse",
+    "UnlockGeneralRequest",
+    "UpgradeGeneralStarsRequest",
     "ResetGeneralSkillsRequest",
     "AddGeneralXpRequest",
     "GetSkillsRequest",

@@ -58,6 +58,7 @@ NOT_CONSENT = {
     "collector_booster": "collector event booster items, not rubies",
     "yard_boost": "the courtyard capacity effect a fill sizes against, not a purchase",
     "admit_ruby_units": "whether the hospital takes in wounded ruby units, a free setting",
+    "free": "the generals hub's free spin, against a paid one that spends offerings, not rubies",
 }
 
 
