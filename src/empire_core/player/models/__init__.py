@@ -12,6 +12,8 @@ from .economy import (
     LootBoxAmount,
     LootBoxesResponse,
     LootBoxKeys,
+    OpenLootBoxRequest,
+    OpenLootBoxResponse,
 )
 from .info import (
     GetPlayerInfoRequest,
@@ -70,4 +72,6 @@ __all__ = [
     "LootBoxAmount",
     "LootBoxKeys",
     "LootBoxesResponse",
+    "OpenLootBoxRequest",
+    "OpenLootBoxResponse",
 ]

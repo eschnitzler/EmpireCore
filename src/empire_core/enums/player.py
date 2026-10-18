@@ -54,3 +54,20 @@ class MercenaryMissionRarity(IntEnum):
     RARE = 2
     EPIC = 3
     LEGENDARY = 4
+
+
+class MysteryBoxKey(IntEnum):
+    """
+    The key a mystery box is opened with, a currency id: an ``ole``'s ``CID`` and ``UKI``.
+
+    The common key is not counted and never runs out; the others are spent one per box.
+
+    Client: ``ClientConstCurrency.ID_MYSTERY_BOX_KEY_*`` (bundle line 1920),
+    ``RewardHubMainDialogMysteryBoxes.getSelectedKeyID`` (bundle line 92162),
+    ``MysteryBoxOpeningDialog.updateKeyAmount`` (bundle line 124875)
+    """
+
+    COMMON = 5
+    RARE = 5001
+    EPIC = 5002
+    LEGENDARY = 5003

@@ -83,6 +83,7 @@ ALLOWED: dict[str, str] = {
     "messages.models.mailbox.DeleteMessagesRequest.message_ids": "message ids",
     "messages.models.mailbox.DeleteMessagesResponse.message_ids": "message ids",
     "messages.models.mailbox.ForwardSpyLogRequest.player_ids": "player ids",
+    "player.models.economy.OpenLootBoxResponse.raw_rewards": "LTR as sent: rows or reward ids, not yet seen live",
     "player.models.progress.TopTitleRanking.thresholds": "points, one per top-X title of the system; not ids",
 }
 

@@ -59,7 +59,7 @@ from .login import VersionCheckStatus
 from .map import Kingdom, MapItemType, NPCOwner, PeaceModeStatus
 from .messages import BattleLogAttackType, LogResult, MessageType
 from .movements import MovementType
-from .player import MercenaryMissionRarity, MercenaryMissionState, PremiumAccountType, TitleSystem
+from .player import MercenaryMissionRarity, MercenaryMissionState, MysteryBoxKey, PremiumAccountType, TitleSystem
 from .ranking import RankingType
 from .rewards import LoginBonusSpecial
 from .spy import SpyArmySection, SpyLogType, SpyOutcome, SpyStep, SpyType
@@ -158,6 +158,7 @@ __all__ = [
     "BattleLogAttackType",
     # Player
     "TitleSystem",
+    "MysteryBoxKey",
     "PremiumAccountType",
     "MercenaryMissionRarity",
     "MercenaryMissionState",

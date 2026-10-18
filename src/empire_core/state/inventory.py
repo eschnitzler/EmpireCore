@@ -8,7 +8,7 @@ from empire_core.castle.models.mercenaries import MercenaryMissionsResponse
 from empire_core.castle.models.tax import TaxInfo, TaxInfoResponse
 from empire_core.castle.models.upkeep import ConstructionItemExpiryResponse, ResourcePoolResponse
 from empire_core.commanders.models.inventory import GemInventoryResponse, InventorySpace
-from empire_core.player.models.economy import LootBoxesResponse
+from empire_core.player.models.economy import LootBoxesResponse, LootBoxKeys
 from empire_core.protocol.js import js_truthy
 from empire_core.state.base import StateBase, read_section
 
@@ -111,6 +111,20 @@ class InventoryState(StateBase):
         """
         with self._lock:
             return self.loot_boxes
+
+    def set_loot_box_keys(self, keys: LootBoxKeys) -> None:
+        """Set one loot box type's key progress, as an ``ole`` reply's ``KBS`` does.
+
+        ``client.player.open_loot_box`` calls it. Nothing is set before a ``gls`` arrived.
+
+        Client: ``OLECommand.executeCommand`` (bundle line 124819) calls ``CastleLootboxData.setKeyProgress``
+        """
+        with self._lock:
+            if self.loot_boxes is None:
+                return
+            progress = {entry.loot_box_type_id: entry for entry in self.loot_boxes.key_progress}
+            progress[keys.loot_box_type_id] = keys
+            self.loot_boxes = self.loot_boxes.model_copy(update={"key_progress": tuple(progress.values())})
 
     def get_inventory_space(self) -> InventorySpace | None:
         """The equipment and gem inventory space, from the last ``esl``; None until one arrived."""

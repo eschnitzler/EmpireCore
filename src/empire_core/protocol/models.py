@@ -449,7 +449,7 @@ from empire_core.player.models.account import (
     DailyResetResponse,
     PlayerGiftsResponse,
 )
-from empire_core.player.models.economy import LootBoxesResponse
+from empire_core.player.models.economy import LootBoxesResponse, OpenLootBoxRequest, OpenLootBoxResponse
 from empire_core.player.models.info import (
     GetPlayerInfoRequest,
     GetPlayerInfoResponse,
@@ -1009,6 +1009,8 @@ __all__ = [
     "ConstructionItemExpiryResponse",
     "ResourcePoolResponse",
     "LootBoxesResponse",
+    "OpenLootBoxRequest",
+    "OpenLootBoxResponse",
     "MercenaryMissionsResponse",
     "MercenaryPackageRequest",
     "ActivityChestInfo",
