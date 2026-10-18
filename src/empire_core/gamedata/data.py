@@ -85,6 +85,7 @@ from .tables import (
     DifficultyTypeDef,
     EquipmentGroupDef,
     EventDef,
+    GemColorDef,
     GeneralRarityDef,
     GeneralsHubCharacterDef,
     LootBoxDef,
@@ -115,6 +116,7 @@ if TYPE_CHECKING:
         EquipmentGroup,
         Event,
         Gem,
+        GemColor,
         General,
         GeneralAbility,
         GeneralRarity,
@@ -178,6 +180,7 @@ _CACHED_MODELS = (
     LootBoxTypeDef,
     GeneralRarityDef,
     GeneralsHubCharacterDef,
+    GemColorDef,
     EquipmentGroupDef,
     DifficultyTypeDef,
     QuestDef,
@@ -377,6 +380,7 @@ _TABLES: dict[str, _TableSource] = {
     "daily_quests": _TableSource("dailyactivities", DailyQuestDef, "quest_id"),
     "titles": _TableSource("titles", TitleDef, "title_id"),
     "gems": _TableSource("gems", GemDef, "gem_id"),
+    "gem_colors": _TableSource("gemColors", GemColorDef, "color_id"),
     "sceat_skills": _TableSource("sceatSkills", SceatSkillDef, "skill_id"),
     "horses": _TableSource("horses", HorseStats, "wod_id"),
     "achievements": _TableSource("achievements", AchievementDef, "achievement_id"),
@@ -572,6 +576,11 @@ class GameData(EmpireModel):
     def general_abilities(self) -> Table[GameDataId["GeneralAbility"], GeneralAbilityDef]:
         """General ability levels by ``GeneralAbility``."""
         return self._table("general_abilities")
+
+    @cached_property
+    def gem_colors(self) -> Table[GameDataId["GemColor"], GemColorDef]:
+        """Gem colours by ``GemColor``."""
+        return self._table("gem_colors")
 
     @cached_property
     def general_rarities(self) -> Table[GameDataId["GeneralRarity"], GeneralRarityDef]:

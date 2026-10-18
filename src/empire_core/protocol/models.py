@@ -350,13 +350,24 @@ from empire_core.castle.models.upkeep import (
     ResourcePoolResponse,
 )
 from empire_core.castle.models.wishing_well import WishingWellResponse
+from empire_core.commanders.models.auto_sell import (
+    AutoSellEquipment,
+    AutoSellRules,
+    GetAutoSellRequest,
+    GetAutoSellResponse,
+    SetAutoSellEquipmentRequest,
+    SetAutoSellGemsRequest,
+)
 from empire_core.commanders.models.equipment import (
+    BindGemRequest,
     EquipEquipmentRequest,
     Equipment,
     EquipmentBonus,
     GetEquipmentInventoryRequest,
     GetEquipmentInventoryResponse,
     RelicBonus,
+    SellEquipmentRequest,
+    SellGemRequest,
 )
 from empire_core.commanders.models.generals import (
     ClearGeneralFlagsRequest,
@@ -1112,6 +1123,15 @@ __all__ = [
     "AssignGeneralResponse",
     "SetGeneralAbilitiesRequest",
     "UnlockGeneralSkillRequest",
+    "BindGemRequest",
+    "SellEquipmentRequest",
+    "SellGemRequest",
+    "AutoSellEquipment",
+    "AutoSellRules",
+    "GetAutoSellRequest",
+    "GetAutoSellResponse",
+    "SetAutoSellEquipmentRequest",
+    "SetAutoSellGemsRequest",
     "ClearGeneralFlagsRequest",
     "GeneralsHubCharacterStatus",
     "GeneralsHubReward",
