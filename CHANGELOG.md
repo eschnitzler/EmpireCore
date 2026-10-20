@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.58.1 (2026-10-20)
+
+### Bug Fixes
+
+- **network**: Negotiate permessage-deflate on the game socket
+  ([`f96ab41`](https://github.com/eschnitzler/EmpireCore/commit/f96ab419e79416be1f18f81697bdb22120aea58d))
+
+
 ## v0.58.0 (2026-10-18)
 
 ### Bug Fixes
