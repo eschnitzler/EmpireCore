@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.59.0 (2026-10-20)
+
+### Features
+
+- **gamedata**: Regenerate ids for items v788.02
+  ([`eb9cdbf`](https://github.com/eschnitzler/EmpireCore/commit/eb9cdbf3ed7280bf1141e21de5c50d423f12c533))
+
+
 ## v0.58.1 (2026-10-20)
 
 ### Bug Fixes
