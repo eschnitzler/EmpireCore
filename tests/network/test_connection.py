@@ -84,10 +84,13 @@ def make_ws_factory(created: list, gate: threading.Event | None = None):
         def settimeout(self, timeout):
             self.timeouts.append(timeout)
 
-        def connect(self, _url):
+        def connect(self, _url, **_options):
             if gate is not None:
                 assert gate.wait(timeout=5), "handshake gate never opened"
             self.connected = True
+
+        def getheaders(self):
+            return {}
 
         def recv_data(self):
             time.sleep(0.005)
@@ -815,7 +818,7 @@ class TestConnectErrors:
             def settimeout(self, _timeout):
                 pass
 
-            def connect(self, _url):
+            def connect(self, _url, **_options):
                 raise error
 
             def close(self):

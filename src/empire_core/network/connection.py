@@ -19,6 +19,7 @@ import websocket
 
 from empire_core.enums import GGEError
 from empire_core.exceptions import ConnectionClosedError, EmpireTimeoutError, NetworkError, ReceiveThreadError
+from empire_core.network.deflate import PERMESSAGE_DEFLATE_OFFER, accept_permessage_deflate
 from empire_core.network.framing import FrameBuffer
 from empire_core.protocol.base import NO_ROOM, build_command
 from empire_core.protocol.packet import DegradedFrameCounts, Packet, degraded_frame_counts
@@ -285,7 +286,8 @@ class Connection:
             ws.settimeout(timeout)
 
             try:
-                ws.connect(self.url)
+                ws.connect(self.url, header=[PERMESSAGE_DEFLATE_OFFER])
+                accept_permessage_deflate(ws)
                 # After the handshake, drop to the poll timeout used by the
                 # recv loop (and, unavoidably, by sends on the shared socket).
                 ws.settimeout(SOCKET_POLL_TIMEOUT)

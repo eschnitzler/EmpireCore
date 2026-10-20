@@ -34,8 +34,11 @@ def test_a_new_connection_has_joined_no_room(monkeypatch):
         def settimeout(self, timeout):
             pass
 
-        def connect(self, url):
+        def connect(self, url, **_options):
             pass
+
+        def getheaders(self):
+            return {}
 
         def recv_data(self):
             raise websocket.WebSocketTimeoutException()
