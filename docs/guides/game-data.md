@@ -169,3 +169,35 @@ chronicle, reward, tooltip and wave-filling helpers.
 The `EffectResolver` constructor also loads data automatically when omitted.
 Tool-strategy callbacks still receive their calculator's resolved dataset, so
 custom strategies work with the same data as the rest of a fill.
+
+## Unit and tool asset paths
+
+```python
+from empire_core.gamedata import AssetIndex, Tool, Unit
+
+path = client.game_data.unit_asset_path(Unit.MEAD_RANGER_L6)
+path = client.game_data.tool_asset_path(Tool.RAM)
+```
+
+These return the exact CDN-relative client bundle path from `ItemVersions`,
+for example `itemassets/Units/Workshop/Workshop_Unit_Ram/Workshop_Unit_Ram--1573584429307`.
+The extensionless bundle path is not an individual PNG URL. Tools whose client
+class is `ToolUnitVO` use `Unknown_Unit_Tools` when their own asset is absent;
+other unit classes do not use this fallback. Unknown IDs and missing final
+assets raise `KeyError`.
+
+The first resolution lazily reads the official client page, discovers its
+versioned DLL, and extracts `ItemVersions` without executing JavaScript. It
+caches the index in memory and on disk by DLL hash, independently of the items
+JSON version. Imports and loading `GameData` do not fetch the asset index.
+`AssetIndex.load(refresh=True)` checks for updates and downloads the index
+again. A network failure raises `NetworkError` and backs off for five minutes;
+malformed metadata or an index in an unsupported format raises `ValueError`.
+A failed refresh keeps the previously loaded snapshot available.
+
+For reproducible offline resolution, inject a saved mapping and its DLL hash:
+
+```python
+index = AssetIndex(saved_paths, version=saved_dll_hash)
+path = client.game_data.unit_asset_path(Unit.MEAD_RANGER_L6, index=index)
+```

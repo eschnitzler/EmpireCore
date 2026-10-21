@@ -307,7 +307,7 @@ class UnitStats(_UnitRow):
         ``AVisualVO.getVisualClassName`` (bundle line 17795), which
         ``WodPicHelper.addUnitPic`` (bundle line 2248) loads. The full asset
         path comes from the client's versioned item map (ItemVersions, in
-        ggs.dll), which the library does not load.
+        ggs.dll); ``GameData.unit_asset_path`` resolves that map lazily.
         """
         return f"{self.source}_{self.group}" + (f"_{self.unit_type}" if self.unit_type else "")
 
@@ -485,8 +485,8 @@ class ToolStats(_UnitRow):
         ``ToolUnitVO.getVisualClassName`` (bundle line 6539) draws
         ``Unknown_Unit_Tools`` instead when that name has no versioned asset;
         that check, and the full asset path, need the client's versioned item
-        map (ItemVersions, in ggs.dll), which the library does not load, so
-        this is the name before the fallback.
+        map (ItemVersions, in ggs.dll). ``GameData.tool_asset_path`` resolves
+        that map and applies the fallback; this property is the original name.
         """
         return f"{self.source}_{self.group}" + (f"_{self.tool_type}" if self.tool_type else "")
 

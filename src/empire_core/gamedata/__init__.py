@@ -64,9 +64,11 @@ if TYPE_CHECKING:
         is_current,
     )
 
+from .assets import AssetIndex
+from .cache import default_cache_dir
 from .cdn import fetch_items_data, get_items_version
 from .collectables import Collectable, CollectableObject, CollectableRows, CurrencyAmounts, CurrencyIdRows
-from .data import CAMP_TABLES, RAW_TABLES, GameData, default_cache_dir
+from .data import CAMP_TABLES, RAW_TABLES, GameData
 from .effect_texts import (
     describe_building,
     describe_construction_item,
@@ -151,6 +153,7 @@ from .tables import (
 from .troops import count_troops, get_troop_ids, troop_data_available
 
 __all__ = [
+    "AssetIndex",
     "BuildingGroundType",
     "CastleEffect",
     "BuildingGroup",
