@@ -173,12 +173,10 @@ custom strategies work with the same data as the rest of a fill.
 ## Unit and tool asset paths
 
 ```python
-from empire_core.gamedata import AssetIndex, Tool, Unit, unit_asset_path
+from empire_core.gamedata import AssetIndex, Tool, Unit
 
-# Uses the client's game_data override when one is configured.
-path = unit_asset_path(Unit.MEAD_RANGER_L6, game_data=client.game_data)
-# Or resolve against a particular GameData instance.
-path = data.tool_asset_path(Tool.RAM)
+path = client.game_data.unit_asset_path(Unit.MEAD_RANGER_L6)
+path = client.game_data.tool_asset_path(Tool.RAM)
 ```
 
 These return the exact CDN-relative client bundle path from `ItemVersions`,
@@ -201,10 +199,5 @@ For reproducible offline resolution, inject a saved mapping and its DLL hash:
 
 ```python
 index = AssetIndex(saved_paths, version=saved_dll_hash)
-path = data.unit_asset_path(Unit.MEAD_RANGER_L6, index=index)
+path = client.game_data.unit_asset_path(Unit.MEAD_RANGER_L6, index=index)
 ```
-
-The convenience functions `unit_asset_path` and `tool_asset_path` also accept
-`index=` and optional `game_data=`. Explicit game data takes precedence over the process's usual
-`GameData.require()` lookup. Use `client.game_data.unit_asset_path(...)` or pass
-`game_data=client.game_data` to honor a client override.

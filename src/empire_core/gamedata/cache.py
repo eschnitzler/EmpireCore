@@ -96,4 +96,10 @@ def write_atomic(path: Path, text: str) -> None:
         raise
 
 
-__all__ = ["locked", "write_atomic"]
+def default_cache_dir() -> Path:
+    """Where trimmed game data is cached (honours XDG_CACHE_HOME)."""
+    base = os.environ.get("XDG_CACHE_HOME") or str(Path.home() / ".cache")
+    return Path(base) / "empire_core"
+
+
+__all__ = ["default_cache_dir", "locked", "write_atomic"]

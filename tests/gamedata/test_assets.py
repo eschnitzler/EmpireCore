@@ -10,7 +10,6 @@ import requests
 
 from empire_core.exceptions import NetworkError
 from empire_core.gamedata import GameData, assets
-from tests.service_helpers import make_client
 
 UNIT_PATH = "itemassets/Units/Barracks/Barracks_Unit_Test/Barracks_Unit_Test--123"
 TOOL_PATH = "itemassets/Units/Workshop/Workshop_Unit_Test/Workshop_Unit_Test--456"
@@ -52,50 +51,27 @@ def no_network(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(requests, "get", Mock(side_effect=AssertionError("unexpected network")))
 
 
-def test_actual_paths_and_game_data_methods(data: GameData, index: assets.AssetIndex):
-    assert assets.unit_asset_path(1, game_data=data, index=index) == UNIT_PATH
-    assert assets.tool_asset_path(2, game_data=data, index=index) == TOOL_PATH
+def test_actual_paths(data: GameData, index: assets.AssetIndex):
     assert data.unit_asset_path(1, index=index) == UNIT_PATH
     assert data.tool_asset_path(2, index=index) == TOOL_PATH
 
 
 def test_exact_tool_class_fallback(data: GameData, index: assets.AssetIndex):
     missing = assets.AssetIndex({"Unknown_Unit_Tools": FALLBACK_PATH}, version=VERSION)
-    assert assets.tool_asset_path(2, game_data=data, index=missing) == FALLBACK_PATH
+    assert data.tool_asset_path(2, index=missing) == FALLBACK_PATH
     # A row classified by slotTypes alone is not a ToolUnitVO in the client.
     with pytest.raises(KeyError, match="Unknown_Unit_Missing"):
-        assets.tool_asset_path(3, game_data=data, index=index)
+        data.tool_asset_path(3, index=index)
     with pytest.raises(KeyError, match="Barracks_Unit_Test"):
-        assets.unit_asset_path(1, game_data=data, index=missing)
+        data.unit_asset_path(1, index=missing)
     with pytest.raises(KeyError, match="Unknown_Unit_Tools"):
-        assets.tool_asset_path(2, game_data=data, index=assets.AssetIndex({}, version=VERSION))
+        data.tool_asset_path(2, index=assets.AssetIndex({}, version=VERSION))
 
 
-@pytest.mark.parametrize("helper", [assets.unit_asset_path, assets.tool_asset_path])
-def test_unknown_id_does_not_load_index(helper, data: GameData):
+@pytest.mark.parametrize("method", [GameData.unit_asset_path, GameData.tool_asset_path])
+def test_unknown_id_does_not_load_index(method, data: GameData):
     with pytest.raises(KeyError, match="99999"):
-        helper(99999, game_data=data)
-
-
-def test_client_override_and_explicit_override(
-    data: GameData, index: assets.AssetIndex, monkeypatch: pytest.MonkeyPatch
-):
-    client = make_client()
-    client.game_data = data
-    monkeypatch.setattr(GameData, "require", Mock(side_effect=AssertionError("global lookup")))
-    assert assets.unit_asset_path(1, game_data=client.game_data, index=index) == UNIT_PATH
-    assert client.game_data.tool_asset_path(2, index=index) == TOOL_PATH
-    client.game_data = GameData.parse("2", {})
-    assert assets.unit_asset_path(1, game_data=data, index=index) == UNIT_PATH
-    with pytest.raises(KeyError):
-        assets.unit_asset_path(1, game_data=client.game_data, index=index)
-
-
-def test_default_game_data(data: GameData, index: assets.AssetIndex, monkeypatch: pytest.MonkeyPatch):
-    require = Mock(return_value=data)
-    monkeypatch.setattr(GameData, "require", require)
-    assert assets.unit_asset_path(1, index=index) == UNIT_PATH
-    require.assert_called_once_with()
+        method(data, 99999)
 
 
 def test_index_version_and_snapshot(index: assets.AssetIndex):
@@ -187,7 +163,7 @@ def test_import_does_not_fetch():
 def test_missing_index_is_not_a_tool_fallback(data: GameData, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(assets.AssetIndex, "load", Mock(side_effect=NetworkError("asset index unavailable")))
     with pytest.raises(NetworkError, match="unavailable"):
-        assets.tool_asset_path(2, game_data=data)
+        data.tool_asset_path(2)
 
 
 def test_malformed_disk_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
