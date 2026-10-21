@@ -164,6 +164,26 @@ AllianceHelpUpdate = (
 
 _PLAYER_BOOKMARK_TYPES = frozenset({BookmarkType.PLAYER_ENEMY, BookmarkType.PLAYER_FRIEND})
 
+_UPGRADABLE_BUFFS = frozenset(AllianceBuffType) - {AllianceBuffType.NOBLE_HOUSE}
+# AllianceBuffData.CUSTOMIZABLE_BUFFS (bundle line 27759)
+_CUSTOMIZABLE_BUFFS = frozenset(
+    {
+        AllianceBuffType.RAGE_POINT_BOOST,
+        AllianceBuffType.COOLDOWN_REDUCTION_KHAN,
+        AllianceBuffType.COOLDOWN_REDUCTION_NOMADS,
+        AllianceBuffType.ALIEN_ATTACK_BOOST,
+        AllianceBuffType.DAIMYO_ATTACK_BOOST,
+        AllianceBuffType.KHAN_DEFENSE_BOOST,
+        AllianceBuffType.HEALING_SPEED_BOOST,
+        AllianceBuffType.COOLDOWN_REDUCTION_SAMURAI_CAMP,
+        AllianceBuffType.COOLDOWN_REDUCTION_DAIMYO,
+        AllianceBuffType.TEMP_RAID_BOSS_COMMON_ATTACK_BOOST,
+        AllianceBuffType.TEMP_RAID_BOSS_RARE_ATTACK_BOOST,
+        AllianceBuffType.TEMP_RAID_BOSS_EPIC_ATTACK_BOOST,
+        AllianceBuffType.TEMP_RAID_BOSS_LEGENDARY_ATTACK_BOOST,
+    }
+)
+
 
 def _check_bookmark_name(name: str) -> None:
     # CastleWorldmapBookmarkSetDialog.isNameValid (bundle line 19570) and its maxChars (bundle line 19546)
@@ -235,12 +255,9 @@ class AllianceService(BaseService):
         (91124–91173), AllianceInfoVO.getUpgradeCosts (26031), customizable
         dialog (91199/91219), forge dialog (69522/69528), AUGCommand (121660).
         """
-        # AllianceBuffData.CUSTOMIZABLE_BUFFS (bundle 27759), constants DLL 18805.
-        customizable = {12, 13, 14, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25}
-        supported = set(range(26)) - {11}
-        if building_type not in supported or isinstance(building_type, bool):
+        if isinstance(building_type, bool) or building_type not in _UPGRADABLE_BUFFS:
             raise ValueError(f"unsupported alliance upgrade {building_type}")
-        if isinstance(level, bool) or level < 1 or (building_type not in customizable and level != 1):
+        if isinstance(level, bool) or level < 1 or (building_type not in _CUSTOMIZABLE_BUFFS and level != 1):
             raise ValueError("only customizable temporary boosts accept a selected level")
         data = self._require_game_data()
         rows = {row.level: row for row in data.alliance_buffs.values() if row.series_id == building_type}
@@ -283,7 +300,7 @@ class AllianceService(BaseService):
                     row.building_type == required.series_id and row.level >= required.level for row in details.buildings
                 ):
                     raise ValueError("temporary boost prerequisite is not satisfied")
-            if building_type in customizable:
+            if building_type in _CUSTOMIZABLE_BUFFS:
                 if not temporary or level not in rows or level > maximum:
                     raise ValueError("unknown temporary boost level")
                 if current.cooldown > 0 and level != current.level:
