@@ -18,7 +18,6 @@ from empire_core.exceptions import NetworkError
 
 from . import cache
 from .cdn import RETRY_AFTER_FAILURE
-from .data import GameData, default_cache_dir
 
 _BASE_URL = "https://empire-html5.goodgamestudios.com/default"
 _DLL = re.compile(r'(?:src|href)=["\']dll/ggs\.dll\.([a-f0-9]+)\.js["\']')
@@ -105,7 +104,7 @@ class AssetIndex:
                 failed_at, message = _last_failure
                 if time.monotonic() - failed_at < RETRY_AFTER_FAILURE:
                     raise NetworkError(message)
-            directory = Path(cache_dir) if cache_dir is not None else default_cache_dir()
+            directory = Path(cache_dir) if cache_dir is not None else cache.default_cache_dir()
             try:
                 response = requests.get(f"{_BASE_URL}/index.html", timeout=10)
                 response.raise_for_status()
@@ -139,48 +138,4 @@ class AssetIndex:
             return result
 
 
-def unit_asset_path(
-    wod_id: int,
-    *,
-    game_data: GameData | None = None,
-    index: AssetIndex | None = None,
-) -> str:
-    """
-    The unit's versioned bundle path, using explicit or global game data.
-
-    Unknown IDs or missing assets raise KeyError. Omitted indexes load lazily.
-    Client: ``WodPicHelper.addUnitPic`` (bundle lines 2249–2251),
-    ``BasicUnitVO.getShopIconURL`` (bundle line 19316).
-    """
-    row = (game_data if game_data is not None else GameData.require()).get_unit(wod_id)
-    if row is None:
-        raise KeyError(f"Unknown unit ID {wod_id}")
-    return (index if index is not None else AssetIndex.load()).path(row.asset_name)
-
-
-def tool_asset_path(
-    wod_id: int,
-    *,
-    game_data: GameData | None = None,
-    index: AssetIndex | None = None,
-) -> str:
-    """
-    The tool's versioned bundle path, with the client's ToolUnitVO fallback.
-
-    A missing ToolUnitVO asset resolves to ``Unknown_Unit_Tools``; other row
-    classes do not use that fallback. Unknown IDs or a missing final asset raise
-    KeyError. Explicit game data takes precedence over global data.
-    Client: ``ToolUnitVO.getVisualClassName`` (bundle lines 6537–6538),
-    ``BasicUnitVO.getShopIconURL`` (bundle line 19316).
-    """
-    row = (game_data if game_data is not None else GameData.require()).get_tool(wod_id)
-    if row is None:
-        raise KeyError(f"Unknown tool ID {wod_id}")
-    resolved = index if index is not None else AssetIndex.load()
-    name = row.asset_name
-    if row.sorts_as_tool and name not in resolved.paths:
-        name = "Unknown_Unit_Tools"
-    return resolved.path(name)
-
-
-__all__ = ["AssetIndex", "tool_asset_path", "unit_asset_path"]
+__all__ = ["AssetIndex"]

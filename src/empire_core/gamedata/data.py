@@ -18,7 +18,6 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-import os
 import sys
 import threading
 import time
@@ -34,6 +33,7 @@ from empire_core.exceptions import AmbiguousLookupError, GameDataNotLoadedError,
 from empire_core.protocol.base import EmpireModel
 
 from . import cache, cdn
+from .assets import AssetIndex
 from .collectables import _KINDS_BY_XML_KEY, _XML_ADD_PREFIX, Collectable, is_reward_column
 from .lenient import GameDataId
 from .models import (
@@ -102,7 +102,6 @@ from .tables import (
 )
 
 if TYPE_CHECKING:
-    from .assets import AssetIndex
     from .ids import (
         Achievement,
         AllianceCrestColor,
@@ -448,12 +447,6 @@ def _check_ids_version(version: str) -> None:
     )
 
 
-def default_cache_dir() -> Path:
-    """Where trimmed game data is cached (honours XDG_CACHE_HOME)."""
-    base = os.environ.get("XDG_CACHE_HOME") or str(Path.home() / ".cache")
-    return Path(base) / "empire_core"
-
-
 def _rows(entries: object, model: type[R], context: dict[str, Any] | None = None) -> list[R]:
     """Validate a table, skipping rows that do not fit rather than failing."""
     parsed: list[R] = []
@@ -747,16 +740,36 @@ class GameData(EmpireModel):
         return Collectable.merged(found) if combine else tuple(found)
 
     def unit_asset_path(self, wod_id: int, *, index: AssetIndex | None = None) -> str:
-        """Resolve a unit's versioned client bundle path using this game data."""
-        from .assets import unit_asset_path
+        """
+        The unit's versioned bundle path.
 
-        return unit_asset_path(wod_id, game_data=self, index=index)
+        Unknown IDs or missing assets raise KeyError. An omitted index loads lazily.
+        Client: ``WodPicHelper.addUnitPic`` (bundle lines 2249–2251),
+        ``BasicUnitVO.getShopIconURL`` (bundle line 19316).
+        """
+        row = self.get_unit(wod_id)
+        if row is None:
+            raise KeyError(f"Unknown unit ID {wod_id}")
+        return (index if index is not None else AssetIndex.load()).path(row.asset_name)
 
     def tool_asset_path(self, wod_id: int, *, index: AssetIndex | None = None) -> str:
-        """Resolve a tool's bundle path, including the client's unknown-tool fallback."""
-        from .assets import tool_asset_path
+        """
+        The tool's versioned bundle path, with the client's ToolUnitVO fallback.
 
-        return tool_asset_path(wod_id, game_data=self, index=index)
+        A missing ToolUnitVO asset resolves to ``Unknown_Unit_Tools``; other row
+        classes do not use that fallback. Unknown IDs or a missing final asset raise
+        KeyError. An omitted index loads lazily.
+        Client: ``ToolUnitVO.getVisualClassName`` (bundle lines 6537–6538),
+        ``BasicUnitVO.getShopIconURL`` (bundle line 19316).
+        """
+        row = self.get_tool(wod_id)
+        if row is None:
+            raise KeyError(f"Unknown tool ID {wod_id}")
+        resolved = index if index is not None else AssetIndex.load()
+        name = row.asset_name
+        if row.sorts_as_tool and name not in resolved.paths:
+            name = "Unknown_Unit_Tools"
+        return resolved.path(name)
 
     def get_unit(self, wod_id: int) -> UnitStats | None:
         return self.units.get(wod_id)
@@ -1126,7 +1139,7 @@ class GameData(EmpireModel):
                 reached, now or less than five minutes ago
         """
         try:
-            return cls._load(refresh, Path(cache_dir) if cache_dir is not None else default_cache_dir())
+            return cls._load(refresh, Path(cache_dir) if cache_dir is not None else cache.default_cache_dir())
         except NetworkError as e:
             kept = None if refresh else _loaded
             if kept is None:
@@ -1243,4 +1256,4 @@ class GameData(EmpireModel):
             logger.warning(f"Could not cache game data to {cache_file}: {e}")
 
 
-__all__ = ["GameData", "default_cache_dir"]
+__all__ = ["GameData"]
