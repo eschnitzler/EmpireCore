@@ -30,6 +30,7 @@ from empire_core.alliance.models.settings import (
     SetAllianceEmblemRequest,
     SetAllianceEmblemResponse,
 )
+from empire_core.alliance.models.upgrades import AllianceUpgradeRequest, AllianceUpgradeResponse
 from empire_core.enums import (
     AllianceBuffType,
     AllianceChronicleAction,
@@ -180,6 +181,8 @@ if TYPE_CHECKING:
     from empire_core.gamedata import AllianceCrestColor, AllianceCrestLayout
 
 __all__ = [
+    "AllianceUpgradeRequest",
+    "AllianceUpgradeResponse",
     "ALLIANCE_FOUND_COINS",
     "ALLIANCE_FOUND_RUBIES",
     "ALLIANCE_FOUND_WOOD",

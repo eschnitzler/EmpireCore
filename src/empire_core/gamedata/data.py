@@ -1066,6 +1066,7 @@ class GameData(EmpireModel):
         for row in _rows(items_data.get("equipment_sets"), EquipmentSetDef):
             equipment_sets.setdefault(row.set_id, []).append(row)
         default_lords = {r.lord_id: r for r in _rows(items_data.get("lords"), DefaultLordDef)}
+        currency_ids = {row.name: row.currency_id for row in _rows(items_data.get("currencies"), CurrencyDef)}
 
         data = cls(
             version=version,
@@ -1088,7 +1089,10 @@ class GameData(EmpireModel):
                     FortificationDef,
                 )
             },
-            alliance_buffs={r.alliance_buff_id: r for r in _rows(items_data.get("alliancebuffs"), AllianceBuffDef)},
+            alliance_buffs={
+                row.alliance_buff_id: row
+                for row in _rows(items_data.get("alliancebuffs"), AllianceBuffDef, {"currency_ids": currency_ids})
+            },
             attack_slots={r.slot_id: r for r in _rows(items_data.get("attackSetupSlots"), AttackSlotDef)},
             tool_categories={r.tool_category_id: r for r in _rows(items_data.get("toolCategories"), ToolCategoryDef)},
             default_lords=default_lords,
