@@ -46,6 +46,13 @@ from .board_models import (
     GetTemporaryServerRanksRequest,
     GetTemporaryServerRanksResponse,
 )
+from .faction_models import (
+    BerimondBalance,
+    BerimondTarget,
+    GetBerimondBalanceRequest,
+    GetBerimondTargetsRequest,
+    GetBerimondTargetsResponse,
+)
 from .models import (
     EVENT_SCOREBOARDS,
     POINT_EVENTS,
@@ -432,6 +439,26 @@ class EventsService(BaseService):
         """
         self._require_running(Event.TEMP_SERVER)
         return self.request(GetTemporaryServerRanksRequest(), GetTemporaryServerRanksResponse, timeout=timeout)
+
+    def get_berimond_targets(self, *, timeout: float = 5.0) -> tuple[BerimondTarget, ...]:
+        """Request special camp candidate identifiers in Battle for Berimond.
+
+        Requires the running event. Ids refer to special camps, not map area ids;
+        request map and attack details separately for a target's coordinates and eligibility.
+        Client: ``FactionCapitalMapobjectVO.parseAreaInfo`` / ``FactionTowerMapobjectVO.parseAreaInfo``
+        (bundle 22772-22773, 22818-22819), ``AFDCommand`` (127742-127743).
+        """
+        self._require_running(Event.FACTION)
+        return self.request(GetBerimondTargetsRequest(), GetBerimondTargetsResponse, timeout=timeout).targets
+
+    def get_berimond_balance(self, *, timeout: float = 5.0) -> BerimondBalance:
+        """Request the red and blue faction player counts in Battle for Berimond.
+
+        Requires the running event. This read does not require choosing or joining a faction.
+        Client: ``CastleDecoShopPanel.show`` (bundle 9302), ``FGBCommand`` (127789-127791).
+        """
+        self._require_running(Event.FACTION)
+        return self.request(GetBerimondBalanceRequest(), BerimondBalance, timeout=timeout)
 
     def _require_running(self, event: Event | int) -> SpecialEvent:
         found = self.client.state.get_event(event)
