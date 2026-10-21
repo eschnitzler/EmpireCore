@@ -7,14 +7,16 @@ Commands:
 
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING
 
 from pydantic import Field, field_serializer, field_validator
 
-from empire_core.enums import Kingdom
+from empire_core.enums import Kingdom, MapItemType
 from empire_core.gamedata import EnumOrStr
 from empire_core.map.models.items import MapAreaItem
 from empire_core.protocol.base import BaseRequest, BaseResponse
+from empire_core.protocol.js import js_number_or_none
 
 if TYPE_CHECKING:
     from empire_core.gamedata import Currency
@@ -34,6 +36,50 @@ def _row_or_none(value: object) -> MapAreaItem | None:
         return MapAreaItem.from_list(value)
     except ValueError:
         return None
+
+
+def _wire_integer(value: object) -> int | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)) or not str(value).strip():
+        return None
+    numeric = js_number_or_none(value)
+    if numeric is None or not math.isfinite(numeric) or numeric != math.trunc(numeric):
+        return None
+    return int(numeric)
+
+
+def _row_coordinates(area: MapAreaItem) -> tuple[int, int] | None:
+    # Client: DungeonMapobjectVO.parseAreaInfo (22064) reads coordinates from e[1] and e[2].
+    if len(area.raw_data) < 3:
+        return None
+    x, y = (_wire_integer(area.raw_data[index]) for index in (1, 2))
+    return None if x is None or y is None else (x, y)
+
+
+def _row_kingdom(area: MapAreaItem, fallback: Kingdom) -> int | None:
+    # Client: DungeonMapobjectVO.parseAreaInfo (22064); the other map-row parsers name their kingdom too.
+    index = {
+        MapItemType.DUNGEON: 6,
+        MapItemType.TREASURE_DUNGEON: 6,
+        MapItemType.BOSS_DUNGEON: 7,
+        MapItemType.ISLE_DUNGEON: 3,
+    }.get(area.item_type)
+    if index is None:
+        return int(fallback)
+    if len(area.raw_data) <= index:
+        return None
+    return _wire_integer(area.raw_data[index])
+
+
+def _matches_target(payload: object, x: int, y: int, kingdom: Kingdom) -> bool:
+    if not isinstance(payload, dict) or not isinstance(payload.get("AI"), list):
+        return True
+    try:
+        area = MapAreaItem.from_list(payload["AI"], kingdom=kingdom)
+    except ValueError:
+        return True
+    coordinates = _row_coordinates(area)
+    realm = _row_kingdom(area, kingdom)
+    return coordinates is None or (coordinates == (x, y) and (realm is None or realm == kingdom))
 
 
 class MinuteSkipDungeonRequest(BaseRequest):
@@ -70,6 +116,9 @@ class MinuteSkipDungeonRequest(BaseRequest):
         description="The minute skip used, ``Currency.SKIP_1_MINUTE`` to ``SKIP_24_HOURS``; sent as its key",
     )
     kingdom_id: Kingdom = Field(validation_alias="KID", description="Kingdom id")
+
+    def accepts_reply(self, payload: object) -> bool:
+        return _matches_target(payload, self.x, self.y, self.kingdom_id)
 
     @field_serializer("kingdom_id")
     def _kingdom_id_as_string(self, value: Kingdom) -> str:
@@ -124,6 +173,9 @@ class SkipDungeonCooldownRequest(BaseRequest):
         default=-1,
         description="Treasure-map node id, -1 for an ordinary dungeon",
     )
+
+    def accepts_reply(self, payload: object) -> bool:
+        return _matches_target(payload, self.x, self.y, self.kingdom_id)
 
 
 class SkipDungeonCooldownResponse(BaseResponse):
