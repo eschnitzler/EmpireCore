@@ -406,7 +406,7 @@ _TABLES: dict[str, _TableSource] = {
 """The GameData tables read lazily, by attribute name: each a :class:`Table` built from these rows."""
 
 
-FACTION_INVASION_CAMP_TABLE = "factioninvasioncamps"
+BERIMOND_INVASION_CAMP_TABLE = "factioninvasioncamps"
 
 # FactionConst.BLUE_FACTION (dll line 19333); RED_FACTION is 1.
 BLUE_FACTION = 0
@@ -415,7 +415,7 @@ BLUE_FACTION = 0
 CAMP_TABLES = (
     "nomadCamps",
     "samuraiCamps",
-    FACTION_INVASION_CAMP_TABLE,
+    BERIMOND_INVASION_CAMP_TABLE,
     "allianceInvasionCamps",
 )
 
@@ -878,7 +878,7 @@ class GameData(EmpireModel):
         camp = self.scaling_camps.get(scaling_camp_id) if scaling_camp_id > 0 else None
         return camp.level if camp is not None else None
 
-    def faction_invasion_camp(self, level: int, faction_id: int) -> NpcCampDefence | None:
+    def berimond_invasion_camp(self, level: int, faction_id: int) -> NpcCampDefence | None:
         """
         A Berimond invasion camp's row: the one for its level and its owner's faction.
 
@@ -893,7 +893,7 @@ class GameData(EmpireModel):
         return next(
             (
                 camp
-                for camp in reversed(self.camps.get(FACTION_INVASION_CAMP_TABLE, []))
+                for camp in reversed(self.camps.get(BERIMOND_INVASION_CAMP_TABLE, []))
                 if camp.count_victory == level and (camp.faction_id == BLUE_FACTION) == blue
             ),
             None,

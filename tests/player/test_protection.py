@@ -156,7 +156,7 @@ class TestProtectionState:
 
         state.update_from_packet("uap", {"KID": 10, "NS": 30, "PMS": 1, "PMT": 200})
 
-        berimond = state.get_event(Event.FACTION)
+        berimond = state.get_event(Event.BATTLE_FOR_BERIMOND)
         assert isinstance(berimond, BerimondEvent)
         assert (berimond.faction_protection_status, berimond.faction_protection_end) == (1, 1200.0)
         assert berimond.beginner_protection_end == 1030.0
@@ -168,7 +168,7 @@ class TestProtectionState:
 
         state.update_from_packet("uap", {"KID": 0, "NS": 30, "PMS": 1, "PMT": 200})
 
-        berimond = state.get_event(Event.FACTION)
+        berimond = state.get_event(Event.BATTLE_FOR_BERIMOND)
         assert isinstance(berimond, BerimondEvent) and berimond.faction_protection_status == -1
         state.shutdown()
 
@@ -214,7 +214,7 @@ class TestProtectionState:
             "gaa", {"KID": 10, "AI": [], "OI": [], "uap": {"KID": 10, "NS": 0, "PMS": 1, "PMT": 200}}
         )
 
-        berimond = state.get_event(Event.FACTION)
+        berimond = state.get_event(Event.BATTLE_FOR_BERIMOND)
         assert isinstance(berimond, BerimondEvent) and berimond.faction_protection_end == 1200.0
         state.shutdown()
 
@@ -224,7 +224,7 @@ class TestProtectionState:
 
         state.update_from_packet("ffp", {"gcu": {"C1": 3, "C2": 4}, "FN": {"FID": 2, "MC": 5, "PMT": 90, "PMS": 0}})
 
-        berimond = state.get_event(Event.FACTION)
+        berimond = state.get_event(Event.BATTLE_FOR_BERIMOND)
         assert isinstance(berimond, BerimondEvent)
         assert (berimond.faction_id, berimond.main_camp_id, berimond.faction_protection_end) == (2, 5, 1090.0)
         assert (state.get_local_player().coins, state.get_local_player().rubies) == (3, 4)
@@ -236,7 +236,7 @@ class TestProtectionState:
 
         state.update_from_packet("ffp", {"gcu": {"C1": 3, "C2": 4}, "FN": {"FID": 2}}, error_code=1)
 
-        berimond = state.get_event(Event.FACTION)
+        berimond = state.get_event(Event.BATTLE_FOR_BERIMOND)
         assert isinstance(berimond, BerimondEvent) and berimond.faction_id == 1
         assert state.get_local_player().rubies == 0
         state.shutdown()

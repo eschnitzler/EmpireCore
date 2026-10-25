@@ -97,7 +97,7 @@ _BOOSTER_KINDS: dict[int, CollectableKind] = {
     BoosterId.XP: CollectableKind.XP_BOOSTER,
     BoosterId.SAMURAI_TOKEN: CollectableKind.SAMURAI_BOOSTER,
     BoosterId.ALLIANCE_COIN: CollectableKind.ALLIANCE_COIN_BOOSTER,
-    BoosterId.LONG_TERM_POINT_EVENT: CollectableKind.LONG_TERM_POINT_EVENT_BOOSTER,
+    BoosterId.GRAND_NOBILITY_PRIZE: CollectableKind.GRAND_NOBILITY_PRIZE_BOOSTER,
     BoosterId.REPUTATION_POINT: CollectableKind.REPUTATION_BOOSTER,
     BoosterId.GALLANTRY_POINTS: CollectableKind.GALLANTRY_BOOSTER,
     BoosterId.RAGE_POINT: CollectableKind.RAGE_POINT_BOOSTER,
@@ -354,7 +354,7 @@ _XML_READERS: dict[CollectableKind, Callable[[str], dict[str, Any]]] = {
         "item": known(BoosterId, _parts(text)[0]),
         "duration_seconds": _at(_parts(text), 1),
     },
-    CollectableKind.LONG_TERM_POINT_EVENT_BOOSTER: lambda text: {
+    CollectableKind.GRAND_NOBILITY_PRIZE_BOOSTER: lambda text: {
         "duration_seconds": _at(_parts(text), 1),
         "value": text,
     },

@@ -9,7 +9,7 @@ class SpyType(IntEnum):
 
     ``SE`` in ``csm`` is the accuracy (50-100) for a military or economy
     mission and the damage (10-50) for sabotage. The client sends plague
-    monks with ``cpm``, never with ``csm``.
+    doctors with ``cpm``, never with ``csm``.
 
     Client: ``ClientConstCastle.SPYTYPE_*`` (bundle line 1004),
     ``CastlePostSpyDialog.spyCastle`` (bundle line 38459),
@@ -35,7 +35,7 @@ class SpyLogType(IntEnum):
     SABOTAGE = 0
     DEFENCE = 1
     ECO = 2
-    PLAGUE_MONK = 3
+    PLAGUE_DOCTOR = 3
 
 
 class SpyArmySection(str, Enum):

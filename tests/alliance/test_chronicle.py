@@ -109,7 +109,7 @@ class TestDetails:
             (Action.TOURNAMENT_RANK, [3], ChroniclePlace(3)),
             (Action.TOURNAMENT_REWARD, [1000, 20, "Us"], ChronicleTournamentPrize(1000, 20)),
             (Action.CHANGE_NAME, ["New name"], ChronicleText("New name")),
-            (Action.ALLIANCE_BATTLE_GROUND_MALUS_INCREASED, [5], ChronicleText("5")),
+            (Action.HORIZON_MALUS_INCREASED, [5], ChronicleText("5")),
             (Action.MEMBER_KICKED, [42, "Kicked"], ChronicleMember("Kicked")),
             (Action.DAIMYO_ALLIANCE_TOWNSHIP_CONTRACT_COMPLETED, ["12"], ChronicleDaimyoContract(12)),
         ],
@@ -167,7 +167,7 @@ class TestDescribe:
         assert entry(action, *values).describe() == line
 
     def test_a_skin_text_is_preferred_where_there_is_one(self) -> None:
-        malus = entry(Action.ALLIANCE_BATTLE_GROUND_MALUS_INCREASED, 5)
+        malus = entry(Action.HORIZON_MALUS_INCREASED, 5)
 
         assert malus.describe(skin="Maya") == "Statuette penalty increased by 5%"
         assert malus.describe() == "dialog_alliance_chronic62"

@@ -1963,7 +1963,7 @@ class CastleService(BaseService):
 
     def get_transportation_buildings(self, *, timeout: float = 5.0) -> list[TransportationBuilding]:
         """
-        The main castle's buildings a castle transport to a temporary server takes along.
+        The main castle's buildings a castle transport to the Outer Realms takes along.
 
         Client: ``CastleSpecialServerPreBuildCastleSelectionDialog.showLoaded`` (bundle line 27960) sends
         ``C2SGetCastleTransportationBuildingsVO``; ``GCTBCommand.executeCommand`` (bundle line 128860)
@@ -2148,14 +2148,14 @@ class CastleService(BaseService):
 
         Client: ``ResearchInfo.buyResearch`` (bundle line 79704) sends ``C2SResearchStartVO`` whatever the
         costs; ``updateBuyArea`` shows the ruby overlay when ``getFinalCosts`` holds rubies (bundle lines
-        79679-79680), and ``AResearchVO.getBaseCosts`` takes the temporary server's costs there (bundle
+        79679-79680), and ``AResearchVO.getBaseCosts`` takes the Outer Realms' costs there (bundle
         line 61530); ``RESCommand`` (bundle line 126872)
         """
         game_data = self._require_game_data()
         row = game_data.researches.get(research)
         if row is None:
             raise ValueError(f"the game data has no research {research!r}")
-        costs = (*row.costs, *row.temp_server_costs)
+        costs = (*row.costs, *row.outer_realms_costs)
         rubies = max((cost.amount for cost in costs if cost.kind is CollectableKind.RUBIES), default=0)
         if rubies > 0 and not spend_rubies:
             raise ValueError(f"research {research!r} costs {rubies} rubies; pass spend_rubies=True")

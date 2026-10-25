@@ -196,7 +196,7 @@ class TestSpiesInUse:
         movements = [
             spy_movement(1, 4),
             spy_movement(2, 4, mine=False),
-            spy_movement(3, 9, movement_type=MovementType.PLAGUEMONK),
+            spy_movement(3, 9, movement_type=MovementType.PLAGUE_DOCTOR),
             Movement(movement_id=4, movement_type=MovementType.SPY, owner_id=1001, local_player_id=1001),
             spy_movement(5, 3, returning=True),
         ]

@@ -25,18 +25,18 @@ for alliance boards. These requests concern the current season, not a previous r
 
 ::: empire_core.ranking.event_models
 
-`client.events.get_battleground_rank(alliance_id)` returns only your alliance's
-rank; `get_battleground_timers()` returns relink/revival seconds. Both require a
-running battleground event. `get_player_performance(event, player_id)` requests
+`client.events.get_horizon_rank(alliance_id)` returns only your alliance's
+rank; `get_horizon_timers()` returns relink/revival seconds. Both require a
+running Beyond the Horizon event. `get_player_performance(event, player_id)` requests
 `gpe` counters as `PerformanceStatistic` values (unknown ids stay integers).
-`get_temporary_server_ranks()` returns current daily and overall points/ranks.
+`get_outer_realms_ranks()` returns current daily and overall points/ranks.
 Unavailable event context raises `EventNotRunningError`; unavailable server
 context and other refusals raise `CommandError`. Transport failures propagate.
 
-Temporary-server and battleground board pages already use `ranking.get_highscore()`:
-select the current list or `TEMPSERVER_PREVIOUS_RUN_PLAYER`,
-`ALLIANCE_BATTLE_GROUND_PREVIOUS_RUN_ALLIANCE` or
-`ALLIANCE_BATTLE_GROUND_PREVIOUS_RUN_PLAYER` for previous-run boards. Those rows
+Outer Realms and Beyond the Horizon board pages already use `ranking.get_highscore()`:
+select the current list or `OUTER_REALMS_PREVIOUS_RUN_PLAYER`,
+`HORIZON_PREVIOUS_RUN_ALLIANCE` or
+`HORIZON_PREVIOUS_RUN_PLAYER` for previous-run boards. Those rows
 carry their display name and shown rank; owner information is retained when supplied.
 `abgph`, `trt`, `gpe` and `tsh` carry no pagination controls or previous-run selector.
 

@@ -1,10 +1,10 @@
-"""The temporary server (Outer Realms) and the alliance battleground: entering them and their charge camps.
+"""The Outer Realms and Beyond the Horizon: entering them and their charge camps.
 
 Commands:
 - tsc: Pick the castle you enter a special server with
 - tse: Which kind of server this session is on (push)
 - tcc: Your castles on the special servers (push)
-- tpc: A player's collector points on the temporary server
+- tpc: A player's collector points on the Outer Realms
 - gce: A charge camp's effect and its reroll
 - ccr: Reroll a charge camp's effect
 - ace: Take the rerolled effect
@@ -79,14 +79,14 @@ class CurrentServer(BaseResponse):
         return js_loose_equals(value, 1)
 
     @property
-    def is_temporary_server(self) -> bool:
-        """Whether this is the temporary server (Outer Realms)."""
-        return self.server_type == ServerType.TEMPORARY
+    def is_outer_realms(self) -> bool:
+        """Whether this is the Outer Realms."""
+        return self.server_type == ServerType.OUTER_REALMS
 
     @property
-    def is_alliance_battleground(self) -> bool:
-        """Whether this is the alliance battleground server."""
-        return self.server_type == ServerType.ALLIANCE_BATTLEGROUND
+    def is_horizon(self) -> bool:
+        """Whether this is the Beyond the Horizon server."""
+        return self.server_type == ServerType.HORIZON
 
 
 class SpecialServerCastles(BaseResponse):
@@ -99,27 +99,27 @@ class SpecialServerCastles(BaseResponse):
 
     command: ClassVar[str] = "tcc"
 
-    temporary_server_castle_id: ClientInt = Field(
-        validation_alias="TSCI", default=0, description="Your castle on the temporary server; 0 for none"
+    outer_realms_castle_id: ClientInt = Field(
+        validation_alias="TSCI", default=0, description="Your castle on the Outer Realms; 0 for none"
     )
-    battleground_castle_id: ClientInt = Field(
-        validation_alias="BGCI", default=0, description="Your castle on the alliance battleground; 0 for none"
+    horizon_castle_id: ClientInt = Field(
+        validation_alias="BGCI", default=0, description="Your castle on Beyond the Horizon; 0 for none"
     )
 
     @property
-    def temporary_server_castle_bought(self) -> bool:
-        """Whether you have a castle on the temporary server."""
-        return self.temporary_server_castle_id > 0
+    def outer_realms_castle_bought(self) -> bool:
+        """Whether you have a castle on the Outer Realms."""
+        return self.outer_realms_castle_id > 0
 
     @property
-    def battleground_castle_bought(self) -> bool:
-        """Whether you have a castle on the alliance battleground."""
-        return self.battleground_castle_id > 0
+    def horizon_castle_bought(self) -> bool:
+        """Whether you have a castle on Beyond the Horizon."""
+        return self.horizon_castle_id > 0
 
 
-class GetTemporaryServerCollectorPointsRequest(BaseRequest):
+class GetOuterRealmsCollectorPointsRequest(BaseRequest):
     """
-    Ask for a player's collector points on the temporary server (``tpc``).
+    Ask for a player's collector points on the Outer Realms (``tpc``).
 
     Client: ``C2SGetPlayerTempServerCollectorCurrencyVO`` (bundle line 134044), sent by
     ``CastleCollectorEventData.getTempserverCollectorAmount`` (bundle line 134001)
@@ -130,9 +130,9 @@ class GetTemporaryServerCollectorPointsRequest(BaseRequest):
     player_id: int = Field(validation_alias="PID", description="The player asked about")
 
 
-class TemporaryServerCollectorPoints(BaseResponse):
+class OuterRealmsCollectorPoints(BaseResponse):
     """
-    A player's collector points on the temporary server.
+    A player's collector points on the Outer Realms.
 
     Client: ``TPCCommand.executeCommand`` (bundle line 128516), ``CastleCollectorEventData.parse_PCC``
     (bundle line 134004)
@@ -255,7 +255,7 @@ class ApplyChargeCampEffectResponse(BaseResponse):
 
 class GetPreviousSpecialServerRunsRequest(BaseRequest):
     """
-    Ask when the temporary server and the alliance battleground last ran (``gpr``).
+    Ask when the Outer Realms and Beyond the Horizon last ran (``gpr``).
 
     Client: ``C2SGlobalServerPreviousRunInfoVO`` (bundle line 69969), sent by
     ``CastleHighscoreDialog.getGlobalServerInfo`` (bundle line 27707)
@@ -283,7 +283,7 @@ class PreviousSpecialServerRun(TimedPayload):
 
 class PreviousSpecialServerRuns(BaseResponse):
     """
-    The temporary server's and the alliance battleground's last runs.
+    The Outer Realms' and Beyond the Horizon's last runs.
 
     Client: ``GPRCommand.executeCommand`` (bundle line 128892), ``GlobalServerPreviousRunInfoVO.parseParams``
     (bundle line 128906), which reads each run only when it is set
@@ -291,14 +291,14 @@ class PreviousSpecialServerRuns(BaseResponse):
 
     command: ClassVar[str] = "gpr"
 
-    temporary_server: PreviousSpecialServerRun | None = Field(
-        validation_alias="TS", default=None, description="The temporary server's last run; None for none"
+    outer_realms: PreviousSpecialServerRun | None = Field(
+        validation_alias="TS", default=None, description="The Outer Realms' last run; None for none"
     )
-    alliance_battleground: PreviousSpecialServerRun | None = Field(
-        validation_alias="ABG", default=None, description="The alliance battleground's last run; None for none"
+    horizon: PreviousSpecialServerRun | None = Field(
+        validation_alias="ABG", default=None, description="Beyond the Horizon's last run; None for none"
     )
 
-    @field_validator("temporary_server", "alliance_battleground", mode="before")
+    @field_validator("outer_realms", "horizon", mode="before")
     @classmethod
     def _run(cls, value: Any) -> Any:
         return value if js_truthy(value) else None
@@ -312,7 +312,7 @@ __all__ = [
     "CurrentServer",
     "GetChargeCampEffectsRequest",
     "GetPreviousSpecialServerRunsRequest",
-    "GetTemporaryServerCollectorPointsRequest",
+    "GetOuterRealmsCollectorPointsRequest",
     "PreviousSpecialServerRun",
     "PreviousSpecialServerRuns",
     "RerollChargeCampEffectRequest",
@@ -320,5 +320,5 @@ __all__ = [
     "SelectSpecialServerCastleRequest",
     "SelectSpecialServerCastleResponse",
     "SpecialServerCastles",
-    "TemporaryServerCollectorPoints",
+    "OuterRealmsCollectorPoints",
 ]

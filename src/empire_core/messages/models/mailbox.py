@@ -226,7 +226,7 @@ class SpyLogHeader:
     What a spy log's header says: ``subtypeSpy+subtypeResult+areaType#kingdomID+ownerID+areaName``.
 
     The part after ``#`` is ``areaName+areaID`` instead for a sabotage or
-    plague monk log about a player's area that ended in the attacker's
+    plague doctor log about a player's area that ended in the attacker's
     success or the defender's failure. A number the header lacks, or that
     ``parseInt`` cannot read, is None; so is a subtype or result the client
     defines no constant for.
@@ -270,7 +270,7 @@ class SpyLogHeader:
         area_type = js_parse_int(subtypes[2]) if len(subtypes) > 2 else None
         if (
             message.message_type == MessageType.SPY_PLAYER
-            and raw_type in (SpyLogType.SABOTAGE, SpyLogType.PLAGUE_MONK)
+            and raw_type in (SpyLogType.SABOTAGE, SpyLogType.PLAGUE_DOCTOR)
             and raw_result in (LogResult.ATTACKER_SUCCESS, LogResult.DEFENDER_FAILED)
         ):
             return cls(
@@ -545,8 +545,7 @@ class SpyReportArea(BasePayload):
     Which of the optional keys the client reads depends on the area's type:
     ``RT`` for an outpost, village, monument or resource isle, ``DL`` for a
     dungeon or an NPC owner, ``SPC`` for a faction area, ``DAR`` and ``DDCID``
-    for a daimyo castle or township, ``ACVC`` and ``AID`` for an alliance
-    battle ground tower.
+    for a daimyo castle or township, ``ACVC`` and ``AID`` for a Beyond the Horizon tower.
 
     Client: ``InteractiveMapobjectVO.parseAreaInfoBattleLog`` (bundle line 3638)
     and its overrides: ``OutpostMapobjectVO`` (18787), ``DaimyoCastleMapObjectVO``
@@ -576,7 +575,7 @@ class SpyReportArea(BasePayload):
     owner_id: int | None = Field(
         validation_alias="DP",
         default=None,
-        description="The owner's player id, below 0 for an NPC; for a faction invasion camp, its dungeon type",
+        description="The owner's player id, below 0 for an NPC; for a Berimond invasion camp, its dungeon type",
     )
     level: int | None = Field(
         validation_alias="DL",
@@ -672,7 +671,7 @@ class SpyReportResponse(BaseResponse):
     accuracy_or_damage: ClientInt = Field(
         validation_alias="SA",
         default=0,
-        description="Accuracy percent, or damage percent for sabotage and plague monks",
+        description="Accuracy percent, or damage percent for sabotage and plague doctors",
     )
     risk: ClientInt = Field(validation_alias="SR", default=0, description="Risk of being caught, percent")
     army: SpyArmyBlock = Field(

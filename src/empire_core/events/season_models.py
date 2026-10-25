@@ -1,4 +1,4 @@
-"""Season event maps (the Thornking, the Sea Queen, the Underworld): entering the map, its camp and transfers.
+"""Season event maps (the Thorn King, the Blade Coast, the Underworld): entering the map, its camp and transfers.
 
 Commands:
 - jea: Enter a season event's map at your camp there

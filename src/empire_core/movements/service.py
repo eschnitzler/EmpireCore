@@ -322,7 +322,7 @@ class MovementsService(BaseService):
                 sent as -1 whenever feathers are used, as the client does
             feathers: Pay for the movement with feathers
             slowdown: Movement slowdown modifier (0 = none, default: 0); costs rubies
-            alliance_tower: The target is an alliance battleground tower: sent as ``tde``,
+            alliance_tower: The target is a Beyond the Horizon tower: sent as ``tde``,
                 as the client does for that target, and answered with a ``SendTowerSupportResponse``
             timeout: Timeout in seconds
             spend_rubies: Send even when the premium commander, the horse or the slowdown costs rubies

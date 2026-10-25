@@ -40,12 +40,12 @@ HIGHSCORE_CONST_LISTS = {
     "TOURNAMENT_FAME": 20,
     "ALLIANCE_TOURNAMENT_FAME": 21,
     "FACTION_TOURNAMENT": 30,
-    "POINT_EVENT": 40,
-    "BEGGING_KNIGHTS": 41,
+    "NOBILITY_CONTEST": 40,
+    "MARAUDERS_CONTEST": 41,
     "ALIEN_INVASION": 42,
-    "LUCKY_WHEEL": 43,
-    "ALLIANCE_ALIEN_INVASION_PLAYER": 44,
-    "ALLIANCE_ALIEN_INVASION_ALLIANCE": 45,
+    "WHEEL_OF_FORTUNE": 43,
+    "WAR_OF_THE_REALMS_PLAYER": 44,
+    "WAR_OF_THE_REALMS_ALLIANCE": 45,
     "ALLIANCE_NOMADINVASION_PLAYER": 46,
     "ALLIANCE_NOMADINVASION_ALLIANCE": 47,
     "NOMADINVASION": 48,
@@ -54,39 +54,39 @@ HIGHSCORE_CONST_LISTS = {
     "COLOSSUS": 50,
     "SAMURAI_PLAYER": 51,
     "SAMURAI_ALLIANCE": 52,
-    "LONG_TERM_POINT_EVENT": 53,
-    "FACTION_INVASION_PLAYER_BLUE": 54,
-    "FACTION_INVASION_PLAYER_RED": 55,
-    "FACTION_INVASION_ALLIANCE": 56,
-    "ALLIANCE_RED_ALIEN_INVASION_PLAYER": 58,
-    "ALLIANCE_RED_ALIEN_INVASION_ALLIANCE": 59,
-    "TEMP_SERVER_DAILY_MIGHT_POINTS_BUILDINGS": 61,
-    "TEMP_SERVER_GLOBAL": 62,
+    "GRAND_NOBILITY_PRIZE": 53,
+    "BERIMOND_INVASION_PLAYER_BLUE": 54,
+    "BERIMOND_INVASION_PLAYER_RED": 55,
+    "BERIMOND_INVASION_ALLIANCE": 56,
+    "BLOODCROW_INVASION_PLAYER": 58,
+    "BLOODCROW_INVASION_ALLIANCE": 59,
+    "OUTER_REALMS_DAILY_MIGHT_POINTS_BUILDINGS": 61,
+    "OUTER_REALMS_GLOBAL": 62,
     "KINGDOMS_LEAGUE_SEASON": 63,
     "KINGDOMS_LEAGUE_SEASON_EVENT": 64,
-    "TEMP_SERVER_DAILY_COLLECTOR_POINTS": 65,
-    "TEMP_SERVER_DAILY_RANK_SWAP": 66,
+    "OUTER_REALMS_DAILY_COLLECTOR_POINTS": 65,
+    "OUTER_REALMS_DAILY_RANK_SWAP": 66,
     "ALLIANCE_KINGDOMS_LEAGUE_SEASON": 67,
     "ALLIANCE_KINGDOMS_LEAGUE_SEASON_EVENT": 68,
     "ALLIANCE_DAIMYO": 69,
-    "ALLIANCE_BATTLE_GROUND_ALLIANCE_COLLECTOR": 70,
-    "ALLIANCE_BATTLE_GROUND_PLAYER_COLLECTOR": 71,
-    "LUCKY_WHEEL_SALE_DAYS": 72,
-    "ALLIANCE_BATTLE_GROUND_ALLIANCE_TOWER": 74,
-    "ALLIANCE_BATTLE_GROUND_PLAYER_TOWER": 75,
-    "TEMPSERVER_PREVIOUS_RUN_PLAYER": 76,
-    "ALLIANCE_BATTLE_GROUND_PREVIOUS_RUN_ALLIANCE": 77,
-    "ALLIANCE_BATTLE_GROUND_PREVIOUS_RUN_PLAYER": 78,
-    "DONATION_EVENT": 79,
+    "HORIZON_ALLIANCE_COLLECTOR": 70,
+    "HORIZON_PLAYER_COLLECTOR": 71,
+    "WHEEL_OF_UNIMAGINABLE_AFFLUENCE": 72,
+    "HORIZON_ALLIANCE_TOWER": 74,
+    "HORIZON_PLAYER_TOWER": 75,
+    "OUTER_REALMS_PREVIOUS_RUN_PLAYER": 76,
+    "HORIZON_PREVIOUS_RUN_ALLIANCE": 77,
+    "HORIZON_PREVIOUS_RUN_PLAYER": 78,
+    "IMPERIAL_PATRONAGE": 79,
     "DECO_GACHA_EVENT": 80,
-    "CHRISTMAS_GACHA_EVENT": 81,
-    "EASTER_GACHA_EVENT": 82,
-    "SUMMER_GACHA_EVENT": 83,
+    "ENCHANTED_SNOWGLOBE": 81,
+    "SUMMONING_OF_THE_HOLLOW_MOON": 82,
+    "SANDS_OF_FORTUNE": 83,
     "GRAND_TOURNAMENT": 84,
-    "ANNIVERSARY_GACHA_EVENT": 85,
-    "HALLOWEEN_GACHA_EVENT": 86,
-    "BLACK_FRIDAY_GACHA_EVENT": 87,
-    "CARNIVAL_GACHA_EVENT": 88,
+    "KINGS_BANQUET": 85,
+    "HALLOWEEN_BANQUET": 86,
+    "MIDNIGHT_MARKET": 87,
+    "CARNIVAL_OF_MASKS": 88,
     "ALLIANCE_RAID_MOBILISATION_EVENT": 89,
 }
 
@@ -136,7 +136,7 @@ class TestHighscoreRequest:
 class TestRankingListRequest:
     def test_payload_follows_the_client_key_order(self):
         request = GetRankingListRequest(
-            list_type=RankingType.LONG_TERM_POINT_EVENT, league_type_id=2, max_results=8, rank=41
+            list_type=RankingType.GRAND_NOBILITY_PRIZE, league_type_id=2, max_results=8, rank=41
         )
 
         assert list(request.to_payload().items()) == [("LT", 53), ("LID", 2), ("M", 8), ("R", 41)]
@@ -155,7 +155,7 @@ class TestRankingListRequest:
     def test_the_league_is_required(self):
         # LeaderBoardDataProvider sends the league it was built with on every page
         with pytest.raises(ValidationError):
-            GetRankingListRequest(list_type=RankingType.LONG_TERM_POINT_EVENT, max_results=10)  # type: ignore[call-arg]
+            GetRankingListRequest(list_type=RankingType.GRAND_NOBILITY_PRIZE, max_results=10)  # type: ignore[call-arg]
 
     def test_alliance_event_keys_follow_the_vo_keys(self):
         # LeaderBoardDataProvider.sendCommand copies {SDI, EID} onto the VO after its constructor
@@ -182,7 +182,7 @@ class TestRankingWindowRequest:
     def test_payload_follows_the_client_key_order(self):
         # C2SListLeaderboardScoresWindowVO: LT, LID, M, SI
         request = GetRankingWindowRequest(
-            list_type=RankingType.LONG_TERM_POINT_EVENT, league_type_id=3, max_results=8, score_id="1234"
+            list_type=RankingType.GRAND_NOBILITY_PRIZE, league_type_id=3, max_results=8, score_id="1234"
         )
 
         assert list(request.to_payload().items()) == [("LT", 53), ("LID", 3), ("M", 8), ("SI", "1234")]
@@ -190,7 +190,7 @@ class TestRankingWindowRequest:
     def test_own_page_sends_an_empty_score_id_and_the_league(self):
         # getCurrentPlayerPage: new C2SListLeaderboardScoresWindowVO(LT, LID, M), SI defaults to ""
         assert GetRankingWindowRequest(
-            list_type=RankingType.POINT_EVENT, league_type_id=2, max_results=8
+            list_type=RankingType.NOBILITY_CONTEST, league_type_id=2, max_results=8
         ).to_payload() == {
             "LT": 40,
             "LID": 2,
@@ -200,11 +200,11 @@ class TestRankingWindowRequest:
 
     def test_the_league_is_required(self):
         with pytest.raises(ValidationError):
-            GetRankingWindowRequest(list_type=RankingType.POINT_EVENT, max_results=8)  # type: ignore[call-arg]
+            GetRankingWindowRequest(list_type=RankingType.NOBILITY_CONTEST, max_results=8)  # type: ignore[call-arg]
 
     def test_score_id_is_encoded_as_the_client_encodes_text(self):
         request = GetRankingWindowRequest(
-            list_type=RankingType.POINT_EVENT, league_type_id=1, max_results=8, score_id='a"b'
+            list_type=RankingType.NOBILITY_CONTEST, league_type_id=1, max_results=8, score_id='a"b'
         )
 
         assert json.loads(request.to_packet().split("%", 5)[5][:-1])["SI"] == "a&quot;b"
@@ -212,7 +212,7 @@ class TestRankingWindowRequest:
     def test_a_result_without_a_league_sends_none(self):
         # getCurrentSearchPage passes the hit's LID as read; undefined is not serialised
         request = GetRankingWindowRequest(
-            list_type=RankingType.POINT_EVENT, league_type_id=None, max_results=8, score_id="5"
+            list_type=RankingType.NOBILITY_CONTEST, league_type_id=None, max_results=8, score_id="5"
         )
 
         assert request.to_payload() == {"LT": 40, "M": 8, "SI": "5"}
@@ -228,12 +228,12 @@ class TestRankingWindowRequest:
 class TestSearchRankingListRequest:
     def test_payload_follows_the_client_key_order(self):
         # C2SSearchLeaderboardScoresEventVO: LT, SV
-        request = SearchRankingListRequest(list_type=RankingType.LONG_TERM_POINT_EVENT, search_value="Someone")
+        request = SearchRankingListRequest(list_type=RankingType.GRAND_NOBILITY_PRIZE, search_value="Someone")
 
         assert list(request.to_payload().items()) == [("LT", 53), ("SV", "Someone")]
 
     def test_search_value_is_encoded_as_the_client_encodes_text(self):
-        request = SearchRankingListRequest(list_type=RankingType.POINT_EVENT, search_value="50% o'clock")
+        request = SearchRankingListRequest(list_type=RankingType.NOBILITY_CONTEST, search_value="50% o'clock")
 
         assert json.loads(request.to_packet().split("%", 5)[5][:-1])["SV"] == "50&percnt; o&145;clock"
 
@@ -316,7 +316,7 @@ class TestHighscoreRows:
         assert isinstance(row, HighscorePlayerRow) and row.owner is not None
         assert (row.rank, row.score, row.owner.owner_id) == (3, 0, 5)
 
-    def test_the_temporary_server_name_and_shown_rank(self):
+    def test_the_outer_realms_name_and_shown_rank(self):
         payload = {"LT": 76, "L": [[4, 50, {"OID": 5, "N": "x"}, "Shown", 2], [5, 40, {"OID": 6}, "", 0]]}
         first, second = GetHighscoreResponse.model_validate(payload).rows
         assert isinstance(first, HighscorePlayerRow) and isinstance(second, HighscorePlayerRow)

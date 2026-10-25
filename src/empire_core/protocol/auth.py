@@ -9,7 +9,7 @@ Commands:
 - vpn: Check a new player name
 - vln: Check a login name
 - lpp: Password recovery
-- glt: Login token for a temporary or alliance battleground server
+- glt: Login token for a Outer Realms or Beyond the Horizon server
 - tlep: Login on that server by its token
 """
 

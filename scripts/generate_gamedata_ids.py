@@ -80,6 +80,8 @@ class Row:
     suffix: str
     """Appended to the name when another row shares it."""
     attrs: tuple[Value, ...] = ()
+    doc: str = ""
+    """The member's docstring; none when empty."""
 
 
 @dataclass(frozen=True)
@@ -514,6 +516,28 @@ def main_quest_rows(data: GameData, texts: Texts | None) -> list[Row]:
     return rows
 
 
+def event_rows(data: GameData, texts: Texts | None) -> list[Row]:
+    """
+    ``event_title_<eventID>`` without a leading "The", else the client's ``eventType``; each member's docstring
+    names both.
+
+    Names that collide each carry their id, as in every table: titles several events share (``Traveling
+    Knights``, ``Colossus``, ``Berimond Armorer``), and a title that matches an untitled event's code name
+    (``NOMAD_INVASION_72`` is "Nomad Invasion", ``NOMAD_INVASION_5`` the untitled ``NomadInvasion``).
+    """
+    rows = []
+    for e in data.events.values():
+        event_id = int(e.event_id)
+        title = texts.get(EVENT_TITLE(value=event_id)) if texts is not None else None
+        code = f"the client's ``{e.event_type}``" if e.event_type else "no ``eventType`` in the client"
+        if title:
+            base, doc = re.sub(r"^The\s+", "", text_name(title)), f'In game "{title}"; {code}.'
+        else:
+            base, doc = to_snake(e.event_type) or f"E{event_id}", f"No in-game title; {code}."
+        rows.append(Row(base, event_id, id_text(event_id), doc=doc))
+    return rows
+
+
 def building_rows(data: GameData) -> list[Row]:
     return [
         Row(
@@ -784,18 +808,10 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
             "events",
             "Event",
             "E",
-            "Event ids from the ``events`` table, named from ``eventType`` and player-facing titles.",
+            "Event ids from the ``events`` table, named from the title players see, else ``eventType``.",
             "``CastleSpecialEventData.storeXmlEvents`` (bundle line 139777) keys rows by ``eventID``, "
-            "``ASpecialEventVO.parseBasicsFromXmlNode`` (bundle line 2959) reads ``eventType``; "
-            "event 129 uses ``event_title_129`` (Grand Tournament), getter bundle line 5090",
-            [
-                Row(
-                    "GRAND_TOURNAMENT" if int(e.event_id) == 129 else to_snake(e.event_type) or f"E{e.event_id}",
-                    int(e.event_id),
-                    id_text(e.event_id),
-                )
-                for e in data.events.values()
-            ],
+            "``ASpecialEventVO.parseBasicsFromXmlNode`` (bundle line 2959) reads ``eventType``",
+            event_rows(data, texts),
             display=EVENT_TITLE,
         ),
         Table(
@@ -1110,11 +1126,13 @@ def class_lines(table: Table, named: list[tuple[str, Value]]) -> list[str]:
         out.append("        return member")
     if table.display:
         out += ["", *display_name_lines(table.display)]
-    by_value = {row.value: row.attrs for row in table.rows}
+    by_value = {row.value: row for row in table.rows}
     if named:
         out.append("")
     for name, value in named:
-        out += member_lines(name, value, by_value[value])
+        out += member_lines(name, value, by_value[value].attrs)
+        if by_value[value].doc:
+            out.append(f'    """{by_value[value].doc}"""')
     return out
 
 

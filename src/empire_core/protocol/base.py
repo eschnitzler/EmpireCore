@@ -220,12 +220,12 @@ class GGECommand:
     MSD = "msd"  # Shorten a dungeon's cooldown with a minute skip
     SDC = "sdc"  # Skip a dungeon's cooldown
     CDS = "cds"  # Send support troops
-    TDE = "tde"  # Send support to an alliance battleground tower
+    TDE = "tde"  # Send support to a Beyond the Horizon tower
     CDD = "cdd"  # Send support to a daimyo township
-    ABGCAM = "abgcam"  # Send an attack on the alliance battleground
+    ABGCAM = "abgcam"  # Send an attack on Beyond the Horizon
     THM = "thm"  # Send a treasure hunt attack
     LDT = "ldt"  # Taunt a daimyo into attacking a township
-    CPM = "cpm"  # Send plague monks
+    CPM = "cpm"  # Send plague doctors
     CSS = "css"  # A siege movement (reply only)
 
     # Building

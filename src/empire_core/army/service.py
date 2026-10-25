@@ -244,7 +244,7 @@ class ArmyService(BaseService):
         Produce units or tools.
 
         Spends rubies when the unit or tool has a ruby price (``cost_rubies`` or, on a temporary
-        server, ``temp_server_cost_rubies`` in the game data, refused on either kind of server), and
+        server, ``outer_realms_cost_rubies`` in the game data, refused on either kind of server), and
         with ``spend_rubies`` on missing resources; see "Spending rubies" in the guides.
 
         Args:
@@ -273,7 +273,7 @@ class ArmyService(BaseService):
             row = game_data.get_unit(wod_id) or game_data.get_tool(wod_id)
             if row is None:
                 self._require_spend_rubies(spend_rubies, f"wod id {wod_id} is not in the game data and may cost rubies")
-            elif max(row.cost_rubies, row.temp_server_cost_rubies) > 0:
+            elif max(row.cost_rubies, row.outer_realms_cost_rubies) > 0:
                 self._require_spend_rubies(spend_rubies, f"wod id {wod_id} costs rubies")
         kingdom_id = self._join_castle(castle_id, timeout)
         request = ProduceUnitsRequest(

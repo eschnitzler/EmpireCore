@@ -11,10 +11,10 @@ from empire_core import Movement
 from empire_core.events import (
     EVENT_CLASSES,
     AlienInvasionEvent,
-    ArtifactEvent,
     GachaEvent,
     SamuraiInvasionEvent,
     SpecialEvent,
+    TravelingKnightsEvent,
 )
 from empire_core.gamedata.ids.events import Event
 from empire_core.state import GameState
@@ -22,10 +22,10 @@ from empire_core.state import GameState
 
 def test_get_event_is_typed_by_the_event(state: GameState) -> None:
     assert_type(state.get_event(Event.SAMURAI_INVASION), SamuraiInvasionEvent | None)
-    assert_type(state.get_event(Event.RED_ALLIANCE_ALIEN_INVASION), AlienInvasionEvent | None)
-    assert_type(state.get_event(Event.CARNIVAL_GACHA), GachaEvent | None)
-    assert_type(state.get_event(Event.ARTIFACT_67), ArtifactEvent | None)
-    assert_type(state.get_event(Event.EQUIPMENT_ENHANCER), SpecialEvent | None)
+    assert_type(state.get_event(Event.BLOODCROW_INVASION), AlienInvasionEvent | None)
+    assert_type(state.get_event(Event.CARNIVAL_OF_MASKS), GachaEvent | None)
+    assert_type(state.get_event(Event.TRAVELING_KNIGHTS_67), TravelingKnightsEvent | None)
+    assert_type(state.get_event(Event.TECHNICUS), SpecialEvent | None)
     assert_type(state.get_event(103), SpecialEvent | None)
 
 

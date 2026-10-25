@@ -10,22 +10,22 @@ from empire_core.events import (
     EVENT_CLASSES,
     AllianceBonusEvent,
     AllianceTournamentEvent,
-    ArtifactEvent,
+    BannerOfGloryEvent,
     CampaignEvent,
     CampaignQuestEvent,
     DiscountSaleEvent,
     EventAnnouncementEvent,
     EventPart,
-    FameBoosterEvent,
     FortuneTellerEvent,
     GiftEvent,
     GrandTournamentEvent,
-    LuckyWheelEvent,
-    PointEvent,
+    NobilityContestEvent,
     SeasonEvent,
     SkipForFreeEvent,
     SpecialEvent,
     TournamentEvent,
+    TravelingKnightsEvent,
+    WheelOfFortuneEvent,
 )
 from empire_core.gamedata import GameData, QuestId
 from empire_core.gamedata.ids.events import Event
@@ -54,21 +54,21 @@ def settle(state) -> None:
 @pytest.mark.parametrize(
     ("event", "model"),
     [
-        (Event.ALLI_TOURNAMENT, AllianceTournamentEvent),
+        (Event.ALLIANCE_TOURNAMENT, AllianceTournamentEvent),
         (Event.GRAND_TOURNAMENT, GrandTournamentEvent),
-        (Event.LUCKY_WHEEL, LuckyWheelEvent),
-        (Event.SALE_DAYS_LUCKY_WHEEL, LuckyWheelEvent),
-        (Event.ARTIFACT_67, ArtifactEvent),
-        (Event.THORNKING, SeasonEvent),
-        (Event.SEAQUEEN, SeasonEvent),
+        (Event.WHEEL_OF_FORTUNE, WheelOfFortuneEvent),
+        (Event.WHEEL_OF_UNIMAGINABLE_AFFLUENCE, WheelOfFortuneEvent),
+        (Event.TRAVELING_KNIGHTS_67, TravelingKnightsEvent),
+        (Event.THORN_KING, SeasonEvent),
+        (Event.BLADE_COAST, SeasonEvent),
         (Event.UNDERWORLD, SeasonEvent),
-        (Event.FAMEBOOSTER, FameBoosterEvent),
+        (Event.BANNER_OF_GLORY, BannerOfGloryEvent),
         (Event.PRIME_ALLI_BONUS, AllianceBonusEvent),
-        (Event.ALLI_PAYMENT_BONUS, AllianceBonusEvent),
+        (Event.ALLIANCE_PRIME_DAY, AllianceBonusEvent),
         (Event.RELIC_ENCHANTER_PRIME_SALE, DiscountSaleEvent),
         (Event.SEASON_PASS_PRIME_SALE, DiscountSaleEvent),
         (Event.SKIP_FOR_FREE, SkipForFreeEvent),
-        (Event.GGS_GIFT, GiftEvent),
+        (Event.GIFT_BOX, GiftEvent),
         (Event.EVENT_ANNOUNCEMENT, EventAnnouncementEvent),
         (Event.FORTUNE_TELLER, FortuneTellerEvent),
         (Event.TOURNAMENT, TournamentEvent),
@@ -141,12 +141,12 @@ class TestScoreEvents:
 
         assert "A" not in state.get_event(129).parts
 
-    def test_lucky_wheel_reads_its_score_and_wheel(self, state, clock):
+    def test_wheel_of_fortune_reads_its_score_and_wheel(self, state, clock):
         entry = {"EID": 15, "RS": 60, "OP": 9, "PET": 3, "HFS": 1, "PMA": 0, "CWC": 2, "WCP": 0.5, "JSID": 4, "KL": 1}
         sei(state, entry)
 
         event = state.get_event(15)
-        assert isinstance(event, LuckyWheelEvent) and isinstance(event, PointEvent)
+        assert isinstance(event, WheelOfFortuneEvent) and isinstance(event, NobilityContestEvent)
         assert (event.own_points, event.point_event_type, event.kingdoms_league_mode) == (9, 3, False)
         assert (event.has_free_spin, event.pro_mode, event.win_class, event.win_class_progress) == (True, False, 2, 0.5)
         assert (event.jackpot_set_id, event.jackpot_spin_set_id) == (4, 0)

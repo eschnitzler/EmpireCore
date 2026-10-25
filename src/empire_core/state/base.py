@@ -10,10 +10,10 @@ from typing import Any, TypeVar
 
 from pydantic import BaseModel
 
-from empire_core.alliance.models.battleground import BattlegroundMemberPerformance
 from empire_core.alliance.models.chat import ChatMessageData
 from empire_core.alliance.models.gifts import AllianceGift
 from empire_core.alliance.models.help import AllianceHelpRequest
+from empire_core.alliance.models.horizon import HorizonMemberPerformance
 from empire_core.alliance.models.info import AllianceInfo
 from empire_core.attack.models.alien_camps import AlienRerollCountsResponse
 from empire_core.attack.models.counter import AttackCounterResponse
@@ -49,7 +49,7 @@ from empire_core.commanders.models.skills import SkillList
 from empire_core.enums import Kingdom
 from empire_core.events.models import ShuttingDownEvents, SpecialEvent
 from empire_core.events.special_server_models import CurrentServer, SpecialServerCastles
-from empire_core.events.status_models import RaidBossStatus
+from empire_core.events.status_models import RiftRaidStatus
 from empire_core.exceptions import StateNotLoadedError
 from empire_core.map.models.treasure_maps import TreasureMap
 from empire_core.map.models.world import ServerInfoResponse
@@ -81,7 +81,7 @@ from empire_core.player.models.progress import (
 from empire_core.protocol.base import read_or_none
 from empire_core.quests.models import DailyQuests, Quest, QuestBook
 from empire_core.rewards.models import ActivityChestInfo
-from empire_core.spy.models import MaxSpiesResponse, PlagueMonkInfoResponse
+from empire_core.spy.models import MaxSpiesResponse, PlagueDoctorInfoResponse
 from empire_core.state.models import Castle, JoinedArea, Player
 from empire_core.utils.callbacks import BoundEvent, Registry
 
@@ -193,7 +193,7 @@ class StateBase:
         # Running events by id, in the order they started; swapped, never edited
         self.events: dict[int, SpecialEvent] = {}
         self._events_updated_at: float | None = None
-        self._raid_boss_receipt: tuple[dict[str, Any], RaidBossStatus] | None = None
+        self._raid_boss_receipt: tuple[dict[str, Any], RiftRaidStatus] | None = None
         # The client keeps one set of counts for every alien invasion (CastleAlienRerollData)
         self.alien_reroll_counts: AlienRerollCountsResponse | None = None
         self.shutting_down_events: ShuttingDownEvents | None = None
@@ -240,7 +240,7 @@ class StateBase:
         self.title_ranks: TitleRanksResponse | None = None
         self.achievements: AchievementsResponse | None = None
         self.relocation: RelocationInfoResponse | None = None
-        self.plague_monks: PlagueMonkInfoResponse | None = None
+        self.plague_doctors: PlagueDoctorInfoResponse | None = None
         self.daily_reset: DailyResetResponse | None = None
         self.attack_counter: AttackCounterResponse | None = None
         self.officer_training: OfficerTraining | None = None
@@ -276,7 +276,7 @@ class StateBase:
         # The crafting queues by queue id, kingdom and castle, and the fusion forges by id; swapped, never edited
         self.crafting_queues: dict[tuple[int, Kingdom, int], CraftingQueue] | None = None
         self.fusion_forges: dict[int, FusionForge] | None = None
-        self.battleground_performance: tuple[BattlegroundMemberPerformance, ...] | None = None
+        self.horizon_performance: tuple[HorizonMemberPerformance, ...] | None = None
 
         # Freshness bookkeeping (see the GameState docstring). Wall-clock seconds.
         self._packet_times: dict[str, float] = {}

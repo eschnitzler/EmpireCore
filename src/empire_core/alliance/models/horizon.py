@@ -1,4 +1,4 @@
-"""The alliance battleground: alliance tower buffs, towers, centers of power, influence and performance.
+"""Beyond the Horizon: alliance tower buffs, towers, centers of power, influence and performance.
 
 Commands:
 - tbi: An alliance tower's buffs
@@ -8,10 +8,10 @@ Commands:
 - tpi: The castles linked to an alliance tower
 - cpe: Your alliance's centers of power, counted against their limits
 - cpd: Your alliance's centers of power, one by one
-- gabgap: An alliance's battleground influence
-- gabgpp: A player's battleground influence
-- gae: Your alliance members' battleground performance
-- ajp: Your alliance as the battleground will see it, before you join
+- gabgap: An alliance's Beyond the Horizon influence
+- gabgpp: A player's Beyond the Horizon influence
+- gae: Your alliance members' Beyond the Horizon performance
+- ajp: Your alliance as Beyond the Horizon will see it, before you join
 """
 
 from __future__ import annotations
@@ -96,7 +96,7 @@ class GetAllianceTowerBuffsRequest(BaseRequest):
     """
     Ask for an alliance tower's buffs.
 
-    Sent only on the alliance battleground server, in tower scoring.
+    Sent only on the Beyond the Horizon server, in tower scoring.
 
     Command: tbi
     Payload: {"XPOS": x, "YPOS": y, "AID": alliance_id}
@@ -131,7 +131,7 @@ class ActivateAllianceTowerBuffsRequest(BaseRequest):
     """
     Activate an alliance tower's buffs, for rubies.
 
-    Sent only on the alliance battleground server, in tower scoring. The price falls as the tower's
+    Sent only on the Beyond the Horizon server, in tower scoring. The price falls as the tower's
     revival nears; the client looks it up in the event's activation table and sends only when you hold
     at least that many rubies.
 
@@ -184,7 +184,7 @@ class IncreaseAllianceTowerBuffsRequest(BaseRequest):
     """
     Raise an alliance tower's buff levels, for rubies.
 
-    Sent only on the alliance battleground server, in tower scoring. Each level's price comes from
+    Sent only on the Beyond the Horizon server, in tower scoring. Each level's price comes from
     the event's tower effect table; the client sends only when you hold more rubies than the total.
 
     Command: iatb
@@ -223,7 +223,7 @@ class GetAllianceTowersRequest(BaseRequest):
     """
     Ask for an alliance's towers.
 
-    Sent only on the alliance battleground server, in tower scoring.
+    Sent only on the Beyond the Horizon server, in tower scoring.
 
     Command: tie
     Payload: {"AID": alliance_id}
@@ -265,7 +265,7 @@ class GetAllianceTowerCastlesRequest(BaseRequest):
     """
     Ask for the castles linked to an alliance tower.
 
-    Sent only on the alliance battleground server, in tower scoring.
+    Sent only on the Beyond the Horizon server, in tower scoring.
 
     Command: tpi
     Payload: {"XPOS": x, "YPOS": y}
@@ -323,7 +323,7 @@ class GetCentersOfPowerRequest(BaseRequest):
     """
     Ask how many centers of power your alliance holds, against their limits.
 
-    Sent only on the alliance battleground server, in alliance collector scoring.
+    Sent only on the Beyond the Horizon server, in alliance collector scoring.
 
     Command: cpe
     Payload: {"AID": alliance_id}
@@ -375,14 +375,14 @@ class GetCentersOfPowerDetailRequest(BaseRequest):
     """
     Ask for your alliance's centers of power one by one.
 
-    Sent only on the alliance battleground server, in alliance collector scoring.
+    Sent only on the Beyond the Horizon server, in alliance collector scoring.
 
     Command: cpd
     Payload: {"AID": alliance_id}
 
     Client: ``C2SAllianceBattleGroundGetCentersOfPowerDetailVO`` (bundle line 69090), sent with your
     alliance's id by ``CastleAllianceCentersOfPowerDialog.showLoaded`` (bundle line 69069), opened from
-    the alliance battleground tab
+    Beyond the Horizon tab
     """
 
     command = "cpd"
@@ -446,9 +446,9 @@ class CentersOfPowerDetailResponse(BaseResponse):
 
 class GetAllianceInfluenceRequest(BaseRequest):
     """
-    Ask for an alliance's battleground influence.
+    Ask for an alliance's Beyond the Horizon influence.
 
-    Sent only on the alliance battleground server, in alliance collector scoring.
+    Sent only on the Beyond the Horizon server, in alliance collector scoring.
 
     Command: gabgap
     Payload: {"AID": alliance_id}
@@ -465,7 +465,7 @@ class GetAllianceInfluenceRequest(BaseRequest):
 
 class AllianceInfluenceResponse(BaseResponse):
     """
-    An alliance's battleground influence.
+    An alliance's Beyond the Horizon influence.
 
     Command: gabgap
     Payload: {"AID": alliance_id, "AMT": influence}
@@ -482,9 +482,9 @@ class AllianceInfluenceResponse(BaseResponse):
 
 class GetPlayerInfluenceRequest(BaseRequest):
     """
-    Ask for a player's battleground influence.
+    Ask for a player's Beyond the Horizon influence.
 
-    Sent only on the alliance battleground server, in alliance collector scoring.
+    Sent only on the Beyond the Horizon server, in alliance collector scoring.
 
     Command: gabgpp
     Payload: {"PID": player_id}
@@ -501,7 +501,7 @@ class GetPlayerInfluenceRequest(BaseRequest):
 
 class PlayerInfluenceResponse(BaseResponse):
     """
-    A player's battleground influence.
+    A player's Beyond the Horizon influence.
 
     Command: gabgpp
     Payload: {"PID": player_id, "AMT": influence}
@@ -516,11 +516,11 @@ class PlayerInfluenceResponse(BaseResponse):
     influence: ClientInt = Field(validation_alias="AMT", default=0, description="Their influence")
 
 
-class GetBattlegroundPerformanceRequest(BaseRequest):
+class GetHorizonPerformanceRequest(BaseRequest):
     """
-    Ask for your alliance members' battleground performance.
+    Ask for your alliance members' Beyond the Horizon performance.
 
-    Sent only on the alliance battleground server, whose event dialog alone shows the performance tab.
+    Sent only on the Beyond the Horizon server, whose event dialog alone shows the performance tab.
 
     Command: gae
     Payload: {"AID": alliance_id, "EID": event_id}
@@ -535,13 +535,13 @@ class GetBattlegroundPerformanceRequest(BaseRequest):
 
     alliance_id: int = Field(validation_alias="AID", description="Your alliance's id")
     event_id: EnumOrInt[Event] = Field(
-        validation_alias="EID", default=Event.ALLIANCE_BATTLE_GROUND, description="The event, the alliance battleground"
+        validation_alias="EID", default=Event.BEYOND_THE_HORIZON, description="The event, Beyond the Horizon"
     )
 
 
-class BattlegroundMemberPerformance(BasePayload):
+class HorizonMemberPerformance(BasePayload):
     """
-    One member's battleground performance.
+    One member's Beyond the Horizon performance.
 
     Client: ``AllianceBattlegroundAlliancePerformanceVO.parseData`` (bundle line 34235) reads the
     numbers through ``int()`` and one ``PST`` row per statistic, ``CrestVO.loadFromParamObject`` the crest
@@ -564,9 +564,9 @@ class BattlegroundMemberPerformance(BasePayload):
         return {row["PSI"]: js_int(row.get("AMT")) for row in value if isinstance(row, dict) and "PSI" in row}
 
 
-class BattlegroundPerformanceResponse(BaseResponse):
+class HorizonPerformanceResponse(BaseResponse):
     """
-    Your alliance members' battleground performance.
+    Your alliance members' Beyond the Horizon performance.
 
     Command: gae
     Payload: {"AME": [{"PID": .., "NOM": .., "L": .., "AMT": .., "PST": [{"PSI": .., "AMT": ..}], "E": crest}]}
@@ -577,27 +577,27 @@ class BattlegroundPerformanceResponse(BaseResponse):
 
     command = "gae"
 
-    members: list[BattlegroundMemberPerformance] = Field(
+    members: list[HorizonMemberPerformance] = Field(
         validation_alias="AME", default_factory=list, description="One entry per member"
     )
 
     @field_validator("members", mode="before")
     @classmethod
-    def _member_rows(cls, value: Any) -> list[BattlegroundMemberPerformance]:
+    def _member_rows(cls, value: Any) -> list[HorizonMemberPerformance]:
         return readable_list(
-            BattlegroundMemberPerformance,
+            HorizonMemberPerformance,
             value,
             accept=lambda row: isinstance(row, dict),
             warn=logger,
-            what="battleground performance rows",
+            what="Beyond the Horizon performance rows",
         )
 
 
-class GetBattlegroundEntryRequest(BaseRequest):
+class GetHorizonEntryRequest(BaseRequest):
     """
-    Ask how your alliance will enter the alliance battleground.
+    Ask how your alliance will enter Beyond the Horizon.
 
-    Sent on your main server, before you buy your way onto the battleground.
+    Sent on your main server, before you buy your way onto Beyond the Horizon.
 
     Command: ajp
     Payload: {}
@@ -609,9 +609,9 @@ class GetBattlegroundEntryRequest(BaseRequest):
     command = "ajp"
 
 
-class BattlegroundEntryResponse(BaseResponse):
+class HorizonEntryResponse(BaseResponse):
     """
-    Your alliance as the alliance battleground will take it: its name, members and your rank.
+    Your alliance as Beyond the Horizon will take it: its name, members and your rank.
 
     The client shows the member count against the event's maximum alliance size.
 
@@ -636,9 +636,9 @@ __all__ = [
     "AllianceTowerBuff",
     "AllianceTowerBuffIncrease",
     "AllianceTowerBuffs",
-    "BattlegroundEntryResponse",
-    "BattlegroundMemberPerformance",
-    "BattlegroundPerformanceResponse",
+    "HorizonEntryResponse",
+    "HorizonMemberPerformance",
+    "HorizonPerformanceResponse",
     "CenterOfPower",
     "CentersOfPowerResponse",
     "CentersOfPowerDetailResponse",
@@ -649,8 +649,8 @@ __all__ = [
     "GetAllianceTowerCastlesResponse",
     "GetAllianceTowersRequest",
     "GetAllianceTowersResponse",
-    "GetBattlegroundEntryRequest",
-    "GetBattlegroundPerformanceRequest",
+    "GetHorizonEntryRequest",
+    "GetHorizonPerformanceRequest",
     "GetCentersOfPowerDetailRequest",
     "GetCentersOfPowerRequest",
     "GetPlayerInfluenceRequest",

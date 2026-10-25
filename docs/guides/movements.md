@@ -65,7 +65,7 @@ stateDiagram-v2
   it; an alien attack only at you) or at another member of your alliance. On
   an alliance member it fires for a player's attack, an alien attack, the
   alliance nomad camp, and NPCs that are not dungeon owners (outpost, capital
-  and metropolis owners, the plague monk, NPC ids the client does not know);
+  and metropolis owners, the plague doctor, NPC ids the client does not know);
   robber barons, camps, event dungeons and other dungeon owners do not fire
   it. `NPCOwner` names these NPC owner ids, e.g. `NPCOwner.DAIMYO_TOWNSHIP`
   and `NPCOwner.ALLIANCE_NOMAD_CAMP`. An alliance member's attack on someone outside the alliance does not
@@ -294,7 +294,7 @@ raises `PremiumCommanderCostError` unless you pass `spend_rubies=True`; see
 [the premium commander](commanders.md#the-premium-commander).
 
 `send_support` returns the server's reply, the new movement on it. A support to
-an alliance battleground tower goes out as `tde`, as the game sends it: pass
+a Beyond the Horizon tower goes out as `tde`, as the game sends it: pass
 `alliance_tower=True`. A daimyo township takes its support without a commander
 or horse, through `send_township_support(source_castle_id, x, y, units)`.
 

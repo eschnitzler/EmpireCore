@@ -15,20 +15,20 @@ from pydantic import AfterValidator, ConfigDict, Field, SerializeAsAny, Validati
 
 from empire_core.enums import NPCOwner, RankingType
 from empire_core.enums.events import WorldCupVote
-from empire_core.events.faction_models import BerimondKingdomStatus, FactionStanding
+from empire_core.events.berimond_models import BerimondKingdomStatus, FactionStanding
 from empire_core.events.minigame_models import (
     DonationItemPoints,
     GachaUpdate,
-    LuckyWheelChangeModeResponse,
-    LuckyWheelSpinResponse,
-    LuckyWheelStatus,
+    WheelOfFortuneChangeModeResponse,
+    WheelOfFortuneSpinResponse,
+    WheelOfFortuneStatus,
 )
 from empire_core.events.progression_models import (
     DaimyoAreasResponse,
     DaimyoContractsResponse,
     DaimyoWarEffortsResponse,
 )
-from empire_core.events.status_models import GrandTournamentQuestStatus, RaidBossStatus
+from empire_core.events.status_models import GrandTournamentQuestStatus, RiftRaidStatus
 from empire_core.exceptions import ReplyMismatchError
 from empire_core.gamedata import EnumOrInt, RewardId
 from empire_core.gamedata.ids.events import Event
@@ -80,22 +80,22 @@ class Scoreboard(EmpireModel):
 
 
 EVENT_SCOREBOARDS: dict[Event, Scoreboard] = {
-    Event.FACTION: Scoreboard(
+    Event.BATTLE_FOR_BERIMOND: Scoreboard(
         player_lists=(RankingType.FACTION_TOURNAMENT,),
         source="FactionRankingComponent.generateProperties (bundle line 95410)",
     ),
-    Event.POINT_EVENT: Scoreboard(
-        player_lists=(RankingType.POINT_EVENT,), source="CastlePointEventDialog (bundle line 117423)"
+    Event.NOBILITY_CONTEST: Scoreboard(
+        player_lists=(RankingType.NOBILITY_CONTEST,), source="CastlePointEventDialog (bundle line 117423)"
     ),
-    Event.BEGGING_KNIGHTS: Scoreboard(
-        player_lists=(RankingType.BEGGING_KNIGHTS,), source="CastleBeggingKnightsDialog (bundle line 114835)"
+    Event.MARAUDERS_CONTEST: Scoreboard(
+        player_lists=(RankingType.MARAUDERS_CONTEST,), source="CastleBeggingKnightsDialog (bundle line 114835)"
     ),
-    Event.ALLIANCE_ALIEN_INVASION: Scoreboard(
-        player_lists=(RankingType.ALLIANCE_ALIEN_INVASION_PLAYER,),
-        alliance_list=RankingType.ALLIANCE_ALIEN_INVASION_ALLIANCE,
+    Event.WAR_OF_THE_REALMS: Scoreboard(
+        player_lists=(RankingType.WAR_OF_THE_REALMS_PLAYER,),
+        alliance_list=RankingType.WAR_OF_THE_REALMS_ALLIANCE,
         source="CastleAllianceAlienInvasionEventDialogProperties (bundle lines 114205-114207)",
     ),
-    Event.ALLIANCE_NOMAD_INVASION: Scoreboard(
+    Event.NOMAD_INVASION_72: Scoreboard(
         player_lists=(),
         alliance_list=RankingType.ALLIANCE_NOMADINVASION_ALLIANCE,
         source="CastleAllianceNomadInvasionPointsEventSublayer (bundle line 98542); no player board",
@@ -105,23 +105,23 @@ EVENT_SCOREBOARDS: dict[Event, Scoreboard] = {
         alliance_list=RankingType.SAMURAI_ALLIANCE,
         source="CastleAllianceSamuraiInvasionDialogAllianceSublayer (bundle line 98953); no player board",
     ),
-    Event.LONG_TERM_POINT_EVENT: Scoreboard(
-        player_lists=(RankingType.LONG_TERM_POINT_EVENT,),
+    Event.GRAND_NOBILITY_PRIZE: Scoreboard(
+        player_lists=(RankingType.GRAND_NOBILITY_PRIZE,),
         is_leaderboard=True,
         source="LongtermPointEventGlobalLeaderBoardDialog (bundle line 100413)",
     ),
-    Event.FACTION_INVASION: Scoreboard(
-        player_lists=(RankingType.FACTION_INVASION_PLAYER_BLUE, RankingType.FACTION_INVASION_PLAYER_RED),
-        alliance_list=RankingType.FACTION_INVASION_ALLIANCE,
+    Event.BERIMOND_INVASION: Scoreboard(
+        player_lists=(RankingType.BERIMOND_INVASION_PLAYER_BLUE, RankingType.BERIMOND_INVASION_PLAYER_RED),
+        alliance_list=RankingType.BERIMOND_INVASION_ALLIANCE,
         source="CastleFactionInvasionEventHighscoreDialog (bundle lines 53151-53155)",
     ),
-    Event.RED_ALLIANCE_ALIEN_INVASION: Scoreboard(
-        player_lists=(RankingType.ALLIANCE_RED_ALIEN_INVASION_PLAYER,),
-        alliance_list=RankingType.ALLIANCE_RED_ALIEN_INVASION_ALLIANCE,
+    Event.BLOODCROW_INVASION: Scoreboard(
+        player_lists=(RankingType.BLOODCROW_INVASION_PLAYER,),
+        alliance_list=RankingType.BLOODCROW_INVASION_ALLIANCE,
         source="CastleRedAllianceAlienInvasionEventDialogProperties (bundle lines 117712-117714)",
     ),
-    Event.DONATION_EVENT: Scoreboard(
-        player_lists=(RankingType.DONATION_EVENT,),
+    Event.IMPERIAL_PATRONAGE: Scoreboard(
+        player_lists=(RankingType.IMPERIAL_PATRONAGE,),
         is_leaderboard=True,
         source="DonationEventDialogRanking (bundle line 115746)",
     ),
@@ -480,9 +480,9 @@ class ScoredEvent(SpecialEvent, _ScoreFields):
         return _with_points(self, ranks, points, maxima)  # type: ignore[no-any-return]
 
 
-class PointEvent(ScoredEvent):
+class NobilityContestEvent(ScoredEvent):
     """
-    The nobility contest, and the base of :class:`LuckyWheelEvent`: the lucky wheels keep the same score
+    The nobility contest, and the base of :class:`WheelOfFortuneEvent`: the Wheels of Fortune keep the same score
     (``LuckyWheelEventVO`` holds a ``LuckyWheelPointEventTypeScoreEventVO``, an
     ``APointEventTypeScoreEventVO``; bundle lines 59673, 117131).
 
@@ -517,7 +517,7 @@ class LeagueScoredEvent(ScoredEvent):
         values["reward_set_id"] = js_int(entry.get("RSID"))
 
 
-class BeggingKnightsEvent(LeagueScoredEvent):
+class MaraudersContestEvent(LeagueScoredEvent):
     """
     The marauders' contest.
 
@@ -534,7 +534,7 @@ class BeggingKnightsEvent(LeagueScoredEvent):
         values["total_hours"] = js_int(entry.get("TH"))
 
 
-class LongTermPointEvent(LeagueScoredEvent):
+class GrandNobilityPrizeEvent(LeagueScoredEvent):
     """
     The grand nobility prize.
 
@@ -642,7 +642,7 @@ class SamuraiInvasionEvent(InvasionEvent):
     )
 
 
-class FactionInvasionEvent(InvasionEvent):
+class BerimondInvasionEvent(InvasionEvent):
     """
     The Berimond invasion: ``FB`` and ``FR`` are the blue and red players' scores, ``A`` the alliance's.
 
@@ -819,9 +819,9 @@ class BerimondEvent(SpecialEvent):
         return _with_points(self, ranks, points, None)  # type: ignore[no-any-return]
 
 
-class RaidBossEvent(SpecialEvent):
+class RiftRaidEvent(SpecialEvent):
     """
-    The alliance raid boss: ``score`` is your own score, the alliance's is in ``alliance_points``.
+    The Rift Raid: ``score`` is your own score, the alliance's is in ``alliance_points``.
 
     Client: ``AllianceRaidbossEventEventVO.parseData`` and ``parseParamObject`` (bundle lines 9109-9110),
     defaults at bundle line 9108; ``setRankAndPoints`` (bundle line 9117); ``PEPCommand.exec`` (bundle
@@ -830,7 +830,7 @@ class RaidBossEvent(SpecialEvent):
 
     _reads_kl = False
 
-    boss_status: RaidBossStatus | None = Field(default=None, description="Latest alliance raid boss status")
+    boss_status: RiftRaidStatus | None = Field(default=None, description="Latest alliance raid boss status")
 
     score: EventPart = Field(default_factory=EventPart, description="Your score; its points are the entry's SP.OP")
     league_id: int = Field(default=0, description="Your alliance's league, from the entry's A")
@@ -858,7 +858,7 @@ class RaidBossEvent(SpecialEvent):
             values["boss_level_points"] = js_int(entry["BLPP"])
         if js_truthy(entry.get("BSE")):
             try:
-                status = RaidBossStatus.model_validate(entry["BSE"])
+                status = RiftRaidStatus.model_validate(entry["BSE"])
                 values["boss_status"] = status.with_previous(values.get("boss_status"))
             except ValidationError:
                 logging.getLogger(__name__).warning("Unreadable embedded raid status; kept previous boss status")
@@ -879,9 +879,9 @@ class RaidBossEvent(SpecialEvent):
         return self.model_copy(update=update)
 
 
-class TempServerEvent(SpecialEvent):
+class OuterRealmsEvent(SpecialEvent):
     """
-    A temporary server.
+    the Outer Realms.
 
     Client: ``TempServerEventVO.parseParamObject`` (bundle line 118162), defaults at bundle line 118161
     """
@@ -915,7 +915,7 @@ class TempServerEvent(SpecialEvent):
             values["is_cross_play"] = js_loose_equals(entry["ICSE"], 1)
 
 
-class DonationEvent(SpecialEvent):
+class ImperialPatronageEvent(SpecialEvent):
     """
     Imperial patronage.
 
@@ -1184,9 +1184,9 @@ class GrandTournamentEvent(ScoredEvent):
         return self.model_copy(update={"parts": ReadOnlyDict(parts)})
 
 
-class LuckyWheelEvent(PointEvent):
+class WheelOfFortuneEvent(NobilityContestEvent):
     """
-    The lucky wheel (15) and the sale days lucky wheel (89): a point event score and the wheel's state.
+    The Wheel of Fortune (15) and the Wheel of Unimaginable Affluence (89): a point event score and the wheel's state.
 
     The client keeps the wheel's win class and its progress as sent; the library reads them as numbers.
 
@@ -1235,7 +1235,7 @@ class LuckyWheelEvent(PointEvent):
     def with_points(self, ranks: Any, points: Any, maxima: Any) -> SpecialEvent:
         return _with_points(self, ranks, points, None)  # type: ignore[no-any-return]
 
-    def with_reply(self, reply: LuckyWheelStatus | LuckyWheelChangeModeResponse) -> LuckyWheelEvent:
+    def with_reply(self, reply: WheelOfFortuneStatus | WheelOfFortuneChangeModeResponse) -> WheelOfFortuneEvent:
         """
         The wheel after a spin, a jackpot, a win class raise or a mode change.
 
@@ -1246,7 +1246,7 @@ class LuckyWheelEvent(PointEvent):
             "jackpot_set_id": reply.jackpot_set_id,
             "jackpot_spin_set_id": reply.jackpot_spin_set_id,
         }
-        if isinstance(reply, LuckyWheelChangeModeResponse):
+        if isinstance(reply, WheelOfFortuneChangeModeResponse):
             values["pro_mode"] = not self.pro_mode
             return self.model_copy(update=values)
         values.update(
@@ -1256,7 +1256,7 @@ class LuckyWheelEvent(PointEvent):
             win_class=reply.win_class,
             win_class_progress=reply.win_class_progress,
         )
-        if isinstance(reply, LuckyWheelSpinResponse):
+        if isinstance(reply, WheelOfFortuneSpinResponse):
             if reply.own_rank is not None:
                 values["own_rank"] = reply.own_rank
             if reply.own_points is not None:
@@ -1264,9 +1264,9 @@ class LuckyWheelEvent(PointEvent):
         return self.model_copy(update=values)
 
 
-class ArtifactEvent(SpecialEvent):
+class TravelingKnightsEvent(SpecialEvent):
     """
-    An artifact event: the parts of the artifact you have found.
+    a Traveling Knights event: the parts of the artifact you have found.
 
     Client: ``ArtifactEventVO.parseBasicsFromParamObject`` and ``parseParamObject`` (bundle lines 59141, 59161)
     """
@@ -1289,11 +1289,11 @@ class ArtifactEvent(SpecialEvent):
 
 class SeasonEvent(SpecialEvent):
     """
-    A season event: the Thornking (2), the Sea Queen (4) or the Underworld (64).
+    A season event: the Thorn King (2), the Blade Coast (4) or the Underworld (64).
 
     Client: ``ASeasonEventVO.parseParamObject`` (bundle line 31376); ``ThornkingEventVO``,
     ``SeaqueenEventVO`` and ``UnderworldEventVO.parseParamObject`` (bundle lines 118454, 117975, 118678)
-    read ``UL.MID`` first, the Thornking's through ``int()`` and the others' as sent; the library
+    read ``UL.MID`` first, the Thorn King's through ``int()`` and the others' as sent; the library
     reads every one through ``int()``
     """
 
@@ -1319,8 +1319,8 @@ class SeasonEvent(SpecialEvent):
         values["finished"] = js_int(entry.get("F")) == 1
 
 
-class FameBoosterEvent(SpecialEvent):
-    """The fame booster. Client: ``FameboosterEventVO.parseParamObject`` (bundle line 116103)"""
+class BannerOfGloryEvent(SpecialEvent):
+    """The Banner of Glory. Client: ``FameboosterEventVO.parseParamObject`` (bundle line 116103)"""
 
     _reads_kl = False
 
@@ -1662,44 +1662,51 @@ class EventAnnouncementEvent(SpecialEvent):
 _EVENT_IDS: dict[int, Event] = {int(e): e for e in Event}
 
 EVENT_CLASSES: dict[Event, type[SpecialEvent]] = {
-    Event.FACTION: BerimondEvent,
-    Event.POINT_EVENT: PointEvent,
-    Event.BEGGING_KNIGHTS: BeggingKnightsEvent,
-    Event.LONG_TERM_POINT_EVENT: LongTermPointEvent,
-    Event.ALLIANCE_ALIEN_INVASION: AlienInvasionEvent,
-    Event.RED_ALLIANCE_ALIEN_INVASION: AlienInvasionEvent,
-    Event.ALLIANCE_NOMAD_INVASION: NomadInvasionEvent,
+    Event.BATTLE_FOR_BERIMOND: BerimondEvent,
+    Event.NOBILITY_CONTEST: NobilityContestEvent,
+    Event.MARAUDERS_CONTEST: MaraudersContestEvent,
+    Event.GRAND_NOBILITY_PRIZE: GrandNobilityPrizeEvent,
+    Event.WAR_OF_THE_REALMS: AlienInvasionEvent,
+    Event.BLOODCROW_INVASION: AlienInvasionEvent,
+    Event.NOMAD_INVASION_72: NomadInvasionEvent,
     Event.SAMURAI_INVASION: SamuraiInvasionEvent,
-    Event.FACTION_INVASION: FactionInvasionEvent,
-    Event.ALLIANCE_RAIDBOSS_EVENT: RaidBossEvent,
-    Event.TEMP_SERVER: TempServerEvent,
-    Event.DONATION_EVENT: DonationEvent,
+    Event.BERIMOND_INVASION: BerimondInvasionEvent,
+    Event.RIFT_RAID: RiftRaidEvent,
+    Event.OUTER_REALMS: OuterRealmsEvent,
+    Event.IMPERIAL_PATRONAGE: ImperialPatronageEvent,
     Event.GACHA_DECO2X2: GachaEvent,
-    Event.CHRISTMAS_GACHA: GachaEvent,
-    Event.EASTER_GACHA: GachaEvent,
-    Event.SUMMER_GACHA: GachaEvent,
-    Event.ANNIVERSARY_GACHA: GachaEvent,
-    Event.HALLOWEEN_GACHA: GachaEvent,
-    Event.BLACK_FRIDAY_GACHA: GachaEvent,
-    Event.CARNIVAL_GACHA: GachaEvent,
-    Event.SEASON_LEAGUE: KingdomsLeagueEvent,
+    Event.ENCHANTED_SNOWGLOBE: GachaEvent,
+    Event.SUMMONING_OF_THE_HOLLOW_MOON: GachaEvent,
+    Event.SANDS_OF_FORTUNE: GachaEvent,
+    Event.KINGS_BANQUET: GachaEvent,
+    Event.HALLOWEEN_BANQUET: GachaEvent,
+    Event.MIDNIGHT_MARKET: GachaEvent,
+    Event.CARNIVAL_OF_MASKS: GachaEvent,
+    Event.KINGDOMS_LEAGUE: KingdomsLeagueEvent,
     Event.GLOBAL_EFFECT: GlobalEffectEvent,
     Event.GLOBAL_EFFECT_BUFF: GlobalEffectBuffEvent,
-    Event.ALLI_TOURNAMENT: AllianceTournamentEvent,
+    Event.ALLIANCE_TOURNAMENT: AllianceTournamentEvent,
     Event.GRAND_TOURNAMENT: GrandTournamentEvent,
-    Event.LUCKY_WHEEL: LuckyWheelEvent,
-    Event.SALE_DAYS_LUCKY_WHEEL: LuckyWheelEvent,
+    Event.WHEEL_OF_FORTUNE: WheelOfFortuneEvent,
+    Event.WHEEL_OF_UNIMAGINABLE_AFFLUENCE: WheelOfFortuneEvent,
     **dict.fromkeys(
-        (Event.ARTIFACT_19, Event.ARTIFACT_23, Event.ARTIFACT_29, Event.ARTIFACT_30, Event.ARTIFACT_67), ArtifactEvent
+        (
+            Event.TRAVELING_KNIGHTS_19,
+            Event.TRAVELING_KNIGHTS_23,
+            Event.TRAVELING_KNIGHTS_29,
+            Event.TRAVELING_KNIGHTS_30,
+            Event.TRAVELING_KNIGHTS_67,
+        ),
+        TravelingKnightsEvent,
     ),
-    **dict.fromkeys((Event.THORNKING, Event.SEAQUEEN, Event.UNDERWORLD), SeasonEvent),
-    Event.FAMEBOOSTER: FameBoosterEvent,
+    **dict.fromkeys((Event.THORN_KING, Event.BLADE_COAST, Event.UNDERWORLD), SeasonEvent),
+    Event.BANNER_OF_GLORY: BannerOfGloryEvent,
     Event.PRIME_ALLI_BONUS: AllianceBonusEvent,
-    Event.ALLI_PAYMENT_BONUS: AllianceBonusEvent,
+    Event.ALLIANCE_PRIME_DAY: AllianceBonusEvent,
     Event.RELIC_ENCHANTER_PRIME_SALE: DiscountSaleEvent,
     Event.SEASON_PASS_PRIME_SALE: DiscountSaleEvent,
     Event.SKIP_FOR_FREE: SkipForFreeEvent,
-    Event.GGS_GIFT: GiftEvent,
+    Event.GIFT_BOX: GiftEvent,
     Event.EVENT_ANNOUNCEMENT: EventAnnouncementEvent,
     Event.FORTUNE_TELLER: FortuneTellerEvent,
     Event.WORLD_CUP: WorldCupEvent,
@@ -1716,28 +1723,28 @@ event's ``eventType``
 
 POINT_EVENTS: frozenset[Event] = frozenset(
     {
-        Event.FACTION,
-        Event.LUCKY_WHEEL,
-        Event.ALLI_TOURNAMENT,
-        Event.POINT_EVENT,
-        Event.BEGGING_KNIGHTS,
-        Event.ALLIANCE_ALIEN_INVASION,
-        Event.ALLIANCE_NOMAD_INVASION,
+        Event.BATTLE_FOR_BERIMOND,
+        Event.WHEEL_OF_FORTUNE,
+        Event.ALLIANCE_TOURNAMENT,
+        Event.NOBILITY_CONTEST,
+        Event.MARAUDERS_CONTEST,
+        Event.WAR_OF_THE_REALMS,
+        Event.NOMAD_INVASION_72,
         Event.SAMURAI_INVASION,
-        Event.LONG_TERM_POINT_EVENT,
-        Event.FACTION_INVASION,
-        Event.SALE_DAYS_LUCKY_WHEEL,
-        Event.RED_ALLIANCE_ALIEN_INVASION,
+        Event.GRAND_NOBILITY_PRIZE,
+        Event.BERIMOND_INVASION,
+        Event.WHEEL_OF_UNIMAGINABLE_AFFLUENCE,
+        Event.BLOODCROW_INVASION,
         Event.GACHA_DECO2X2,
-        Event.CHRISTMAS_GACHA,
-        Event.EASTER_GACHA,
+        Event.ENCHANTED_SNOWGLOBE,
+        Event.SUMMONING_OF_THE_HOLLOW_MOON,
         Event.GRAND_TOURNAMENT,
-        Event.SUMMER_GACHA,
-        Event.ANNIVERSARY_GACHA,
-        Event.HALLOWEEN_GACHA,
-        Event.ALLIANCE_RAIDBOSS_EVENT,
-        Event.BLACK_FRIDAY_GACHA,
-        Event.CARNIVAL_GACHA,
+        Event.SANDS_OF_FORTUNE,
+        Event.KINGS_BANQUET,
+        Event.HALLOWEEN_BANQUET,
+        Event.RIFT_RAID,
+        Event.MIDNIGHT_MARKET,
+        Event.CARNIVAL_OF_MASKS,
     }
 )
 """The events that keep your rank and points, the ones a ``pep`` is answered for.
@@ -1745,7 +1752,7 @@ POINT_EVENTS: frozenset[Event] = frozenset(
 Client: ``CastleSpecialEventFactory.createByEventType`` (bundle line 61602) builds each event as
 its ``eventType`` + ``EventVO``; these are the classes with a ``setRankAndPoints``, which
 ``PEPCommand.exec`` (bundle line 128213) calls: ``AScoreEventVO`` (bundle line 15044) and its
-subclasses (the nobility contest, marauders, long-term points, alliance tournament (bundle line
+subclasses (the nobility contest, marauders, Grand Nobility Prize, alliance tournament (bundle line
 114412), the invasions (bundle lines 55701, 58926, 114310, 116056), the alliance Grand Tournament
 (bundle line 5101) and the gacha events, ``AGachaEventVO``, bundle line 15372), ``FactionEventVO``
 (bundle line 7461), ``AllianceRaidbossEventEventVO`` (bundle line 9117) and ``LuckyWheelEventVO``
@@ -1767,7 +1774,7 @@ class SpecialEventInfoRequest(BaseRequest):
     Payload: {}
 
     Client: ``C2SSpecialEventInfoVO`` (bundle lines 37406-37407), which has no fields; sent
-    after a temporary server castle is bought (bundle line 24305)
+    after the Outer Realms castle is bought (bundle line 24305)
     """
 
     command = "sei"
@@ -1787,7 +1794,7 @@ class GetEventPointsRequest(BaseRequest):
 
     command = "pep"
 
-    event_id: int = Field(validation_alias="EID", description="The event, e.g. Event.POINT_EVENT")
+    event_id: int = Field(validation_alias="EID", description="The event, e.g. Event.NOBILITY_CONTEST")
 
     def accepts_reply(self, payload: Any) -> bool:
         """Whether a pep reply is about this event: its ``EID``, when sent, is the one asked for.
@@ -1805,15 +1812,15 @@ class GetEventPointsResponse(BaseResponse):
 
     ``OR``, ``OP`` and ``PT`` are lists, one value per score the event keeps, in this order:
 
-    - a score event (nobility contest, marauders, long-term points, gacha): your own
+    - a score event (nobility contest, marauders, Grand Nobility Prize, gacha): your own
       (``AScoreEventVO.setRankAndPoints``, bundle line 15044)
     - the alliance tournament: your alliance's, the first only (``AlliTournamentEventVO``, bundle line 114412)
-    - Berimond and the lucky wheel: your own, the first only (``FactionEventVO``, bundle line 7461, into your
+    - Berimond and the Wheel of Fortune: your own, the first only (``FactionEventVO``, bundle line 7461, into your
       league; ``LuckyWheelEventVO``, bundle line 59687)
     - the alien, red alien, nomad and samurai invasions and the alliance Grand Tournament: yours, then your
       alliance's; ``PT`` may be sent, these events do not read it (bundle lines 58926, 114310, 55701, 5101)
     - the Berimond invasion: blue players, red players, then your alliance, ``PT`` per part (bundle line 116056)
-    - the alliance raid boss: yours, then your alliance's (bundle line 9117), and ``BLPP``
+    - the Rift Raid: yours, then your alliance's (bundle line 9117), and ``BLPP``
 
     Client: ``PEPCommand.exec`` (bundle lines 128213-128216), which hands the lists to the event's
     ``setRankAndPoints``; the state applies them the same way (``client.state.get_event``)

@@ -14,7 +14,7 @@ from empire_core.attack.filling import _target_defense
 from empire_core.attack.targeting import _read_precalculation, _read_target, _Target
 from empire_core.combat import TargetRead
 from empire_core.enums import GGEError, MapItemType
-from empire_core.events import FactionInvasionEvent
+from empire_core.events import BerimondInvasionEvent
 from empire_core.exceptions import EmpireTimeoutError
 from tests.attack.fill_helpers import FillClient
 from tests.service_helpers import conn, xt_packet
@@ -231,7 +231,7 @@ class TestBerimondInvasionCampTarget(FillClient):
         client = self.build([[601, 100_000]])
         if with_event:
             entry = {"EID": 85, "RS": 3600, "FB": {"LID": 2}, "FR": {"LID": 5}, "A": {"LID": 2}}
-            client.state.special_events[85] = FactionInvasionEvent.from_entry(85, entry, None, time.time(), {})
+            client.state.special_events[85] = BerimondInvasionEvent.from_entry(85, entry, None, time.time(), {})
         conn(client).script["adi"] = xt_packet("adi", None, error_code=203)
         conn(client).script["gaa"] = xt_packet("gaa", {"KID": 0, "AI": [row], "OI": []})
         target = _Target(x=700, y=710)

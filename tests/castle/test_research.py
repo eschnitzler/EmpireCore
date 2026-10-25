@@ -82,7 +82,7 @@ class TestCosts:
         marching = researches[Research.MARCHING_FORMATION_L4]
         assert marching.cost_rubies == 3500
         assert [(cost.kind, cost.amount) for cost in marching.costs] == [(CollectableKind.RUBIES, 3500)]
-        assert [cost.kind for cost in marching.temp_server_costs] == [CollectableKind.WOOD, CollectableKind.STONE]
+        assert [cost.kind for cost in marching.outer_realms_costs] == [CollectableKind.WOOD, CollectableKind.STONE]
 
     def test_a_currency_cost_is_read_by_its_name(self):
         (token, _) = game_data().researches[799].costs

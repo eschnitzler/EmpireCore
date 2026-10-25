@@ -71,13 +71,13 @@ _ATTACK_PRECALCULATION: dict[int, _Precalculation] = {
     MapItemType.EVENT_DUNGEON: _ADI,
     MapItemType.ISLE_DUNGEON: _ADI,
     MapItemType.ALIEN_CAMP: _ADI,
-    MapItemType.RED_ALIEN_CAMP: _ADI,
+    MapItemType.BLOODCROW_CAMP: _ADI,
     MapItemType.NOMAD_CAMP: _ADI,
     MapItemType.SAMURAI_CAMP: _ADI,
-    MapItemType.FACTION_INVASION_CAMP: _ADI,
+    MapItemType.BERIMOND_INVASION_CAMP: _ADI,
     MapItemType.ALLIANCE_NOMAD_CAMP: _ADI,
     MapItemType.DAIMYO_CASTLE: _ADI,
-    MapItemType.ALLIANCE_BATTLE_GROUND_RESOURCE_TOWER: _ADI,
+    MapItemType.HORIZON_RESOURCE_TOWER: _ADI,
     MapItemType.WOLF_KING: _ADI,
     MapItemType.ARE_PORTAL: _ADI,
     # ACTION_TYPE_BOSSDUNGEONATTACK
@@ -91,7 +91,7 @@ _ATTACK_PRECALCULATION: dict[int, _Precalculation] = {
     # ACTION_TYPE_ISLAND_ATTACK
     MapItemType.ISLE_RESOURCE: (GetIslandAttackInfoRequest, GetIslandAttackInfoResponse),
     # ACTION_TYPE_ATTACK_ABG_TOWERS
-    MapItemType.ALLIANCE_BATTLE_GROUND_TOWER: (GetAllianceTowerAttackInfoRequest, GetAllianceTowerAttackInfoResponse),
+    MapItemType.HORIZON_TOWER: (GetAllianceTowerAttackInfoRequest, GetAllianceTowerAttackInfoResponse),
 }
 
 _CONQUER_PRECALCULATION: dict[int, _Precalculation] = {
@@ -267,13 +267,13 @@ def _read_target(service: AttackService, target: "_Target", *, castle_id: int, t
     elif item.is_invasion_camp:
         if target.level is None:
             player = service.client.state.get_local_player()
-            faction_invasion = service.client.state.get_event(Event.FACTION_INVASION)
+            berimond_invasion = service.client.state.get_event(Event.BERIMOND_INVASION)
             target.level = invasion_camp_level(
                 item,
                 player.level,
                 game_data=service._require_game_data(),
-                faction_invasion_score=(
-                    faction_invasion.camp_score(item.owner_id) if faction_invasion is not None else None
+                berimond_invasion_score=(
+                    berimond_invasion.camp_score(item.owner_id) if berimond_invasion is not None else None
                 ),
             )
     elif item.dungeon_level is not None and item.dungeon_level > 0:

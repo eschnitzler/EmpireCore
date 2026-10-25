@@ -310,7 +310,7 @@ class TestMemberData:
                     assert tuple(getattr(member, a.name) for a in table.attrs) == row.attrs, member
 
     def test_members_are_their_values(self):
-        unit, currency, event = ids.Unit.MEAD_RANGER_L6, ids.Currency.KHAN_TABLETS, ids.Event.NOMAD_INVASION
+        unit, currency, event = ids.Unit.MEAD_RANGER_L6, ids.Currency.KHAN_TABLETS, ids.Event.NOMAD_INVASION_5
         assert unit == 211 and hash(unit) == hash(211) and {211: "x"}[unit] == "x"
         assert event == 5 and isinstance(event, int)
         assert currency == "KT" and hash(currency) == hash("KT")
@@ -335,7 +335,7 @@ class TestMemberData:
             event: ids.Event
 
         typed = Typed.model_validate({"unit": 211, "currency": "KT", "event": 5})
-        assert typed.unit is ids.Unit.MEAD_RANGER_L6 and typed.event is ids.Event.NOMAD_INVASION
+        assert typed.unit is ids.Unit.MEAD_RANGER_L6 and typed.event is ids.Event.NOMAD_INVASION_5
         assert typed.model_dump(mode="json") == {"unit": 211, "currency": "KT", "event": 5}
 
     def test_game_data_lookups_take_members(self, lookup_data):
@@ -378,7 +378,7 @@ class TestTables:
         d = lookup_data
         assert d.buildings[ids.Building.KEEP_L1].building_id is ids.Building.KEEP_L1
         assert d.researches[ids.Research.STRENGTH_TRAINING_L1].label == "recruitment speed"
-        assert d.events[ids.Event.NOMAD_INVASION].event_type == "NomadInvasion"
+        assert d.events[ids.Event.NOMAD_INVASION_5].event_type == "NomadInvasion"
         assert d.loot_boxes[ids.LootBox.MYSTERY_BOX_BRONZE_R1].name == "MysteryBoxBronze"
         assert d.loot_box_types[ids.LootBoxType.MYSTERY_BOX].key_payout_threshold == 10
         assert d.equipment_groups[ids.EquipmentGroup.ATTACK_PVP].slot_id == 6
@@ -686,6 +686,40 @@ class TestGenerator:
         }
         texts = {"research_7_title": "Genius", "research_8_title": "Genius"}
         assert self.text_members(payload, texts, "Research") == {"GENIUS_L1_10": 10, "GENIUS_L1_11": 11}
+
+    def test_events_are_named_from_their_title_else_their_event_type(self):
+        payload = {
+            "events": [
+                {"eventID": "3", "eventType": "Faction"},
+                {"eventID": "5", "eventType": "NomadInvasion"},
+                {"eventID": "62", "eventType": "BeggingKnights"},
+                {"eventID": "72", "eventType": "AllianceNomadInvasion"},
+                {"eventID": "106", "eventType": "TempServer"},
+                {"eventID": "19", "eventType": "Artifact"},
+                {"eventID": "23", "eventType": "Artifact"},
+            ]
+        }
+        texts = {
+            "event_title_3": "Battle for Berimond",
+            "event_title_62": "Marauders' contest",
+            "event_title_72": "Nomad Invasion",
+            "event_title_106": "The Outer Realms",
+            "event_title_19": "Traveling Knights",
+            "event_title_23": "Traveling Knights",
+        }
+        assert self.text_members(payload, texts, "Event") == {
+            "BATTLE_FOR_BERIMOND": 3,
+            "NOMAD_INVASION_5": 5,
+            "MARAUDERS_CONTEST": 62,
+            "NOMAD_INVASION_72": 72,
+            "OUTER_REALMS": 106,
+            "TRAVELING_KNIGHTS_19": 19,
+            "TRAVELING_KNIGHTS_23": 23,
+        }
+        table = next(t for t in gen.tables(GameData.parse("786.03", payload), gen.Texts(texts)) if t.enum == "Event")
+        docs = {row.value: row.doc for row in table.rows}
+        assert docs[106] == """In game "The Outer Realms"; the client's ``TempServer``."""
+        assert docs[5] == "No in-game title; the client's ``NomadInvasion``."
 
     def test_the_texts_used_are_the_snapshot(self):
         texts = gen.Texts({"@metadata": {"versionNo": "1"}, "Currency_Name_KhanTablet": "Khan tablets", "unused": "x"})

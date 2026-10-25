@@ -35,8 +35,8 @@ from empire_core.utils.cancel import sleep_unless_cancelled
 from .models import (
     AutoSpyRequest,
     AutoSpyResponse,
-    SendPlagueMonksRequest,
-    SendPlagueMonksResponse,
+    SendPlagueDoctorsRequest,
+    SendPlagueDoctorsResponse,
     SendSpyRequest,
     SendSpyResponse,
     SpyScreenInfoRequest,
@@ -46,7 +46,7 @@ from .pool import island_title_chain, legend_spy_bonus, research_spy_bonus, titl
 from .risk import (
     MAX_ACCURACY,
     MAX_DAMAGE,
-    MAX_DEPLOYABLE_PLAGUEMONKS,
+    MAX_DEPLOYABLE_PLAGUE_DOCTORS,
     MAX_RISK_SABOTAGE,
     MAX_RISK_SPY,
     MIN_DAMAGE,
@@ -57,7 +57,7 @@ from .risk import (
 
 if TYPE_CHECKING:
     from empire_core.client.client import EmpireClient
-    from empire_core.spy.models import MaxSpiesResponse, PlagueMonkInfoResponse
+    from empire_core.spy.models import MaxSpiesResponse, PlagueDoctorInfoResponse
 
 logger = logging.getLogger(__name__)
 
@@ -231,9 +231,9 @@ class SpyService(BaseService):
         return self.client.state.get_max_spies()
 
     @property
-    def plague_monks(self) -> PlagueMonkInfoResponse | None:
-        """Your plague monks, from the last ``cpi``; None until one arrived."""
-        return self.client.state.get_plague_monks()
+    def plague_doctors(self) -> PlagueDoctorInfoResponse | None:
+        """Your plague doctors, from the last ``cpi``; None until one arrived."""
+        return self.client.state.get_plague_doctors()
 
     def forward_report(self, message_id: int, player_ids: list[int]) -> None:
         """Share a spy report with other players in game.
@@ -469,7 +469,7 @@ class SpyService(BaseService):
             target_x: Target X coordinate
             target_y: Target Y coordinate
             target_kingdom: Target kingdom
-            spy_type: MILITARY, ECO or SABOTAGE; plague monks are not sent this way
+            spy_type: MILITARY, ECO or SABOTAGE; plague doctors are not sent this way
             spies: How many spies to send
             accuracy_or_damage: Accuracy percent (50-100), or damage percent (10-50) for sabotage
             horse_booster_id: A horse's wod id to speed the spies up (-1 = none)
@@ -487,7 +487,7 @@ class SpyService(BaseService):
         (bundle line 100126)
         """
         if spy_type == SpyType.PLAGUE:
-            raise ValueError("the client sends plague monks with cpm, not csm")
+            raise ValueError("the client sends plague doctors with cpm, not csm")
         self._require_spend_rubies(spend_rubies, self._travel_ruby_cost(horse_booster_id, feathers, slowdown))
         request = SendSpyRequest(
             castle_id=source_castle_id,
@@ -503,48 +503,48 @@ class SpyService(BaseService):
         )
         return self.request(request, SendSpyResponse)
 
-    def send_plague_monks(
+    def send_plague_doctors(
         self,
         target_x: int,
         target_y: int,
         target_kingdom: Kingdom = Kingdom.GREEN,
         *,
-        monks: int,
+        doctors: int,
         damage: int,
         timeout: float = 5.0,
-    ) -> SendPlagueMonksResponse:
+    ) -> SendPlagueDoctorsResponse:
         """
-        Send plague monks to a target and return the server's reply.
+        Send plague doctors to a target and return the server's reply.
 
         Args:
             target_x: Target X coordinate
             target_y: Target Y coordinate
             target_kingdom: Target kingdom
-            monks: How many plague monks to send, 1 up to 20 and no more than are at home
+            doctors: How many plague doctors to send, 1 up to 20 and no more than are at home
             damage: Damage percent, 10-50 as for a sabotage
             timeout: Timeout in seconds
 
         Raises:
-            ValueError: A count or damage the client's dialog would not send, or more monks
-                than :attr:`plague_monks` has at home, before anything is sent
-            CommandError: The server refused the monks
+            ValueError: A count or damage the client's dialog would not send, or more doctors
+                than :attr:`plague_doctors` has at home, before anything is sent
+            CommandError: The server refused the doctors
 
         Client: ``CastleSpyDialogPlagueState.spyCastle`` (bundle line 72160) refuses when no monk
         is at home; ``updateSpyVO`` (bundle line 72141) offers up to
         ``min(availablePlagueMonks, MAX_DEPLOYABLE_PLAGUEMONKS)`` and a damage from
         ``ACastleSpyDialogState.updateSliderForDamage`` (bundle line 34370)
         """
-        if not 1 <= monks <= MAX_DEPLOYABLE_PLAGUEMONKS:
-            raise ValueError(f"send 1-{MAX_DEPLOYABLE_PLAGUEMONKS} plague monks, not {monks}")
+        if not 1 <= doctors <= MAX_DEPLOYABLE_PLAGUE_DOCTORS:
+            raise ValueError(f"send 1-{MAX_DEPLOYABLE_PLAGUE_DOCTORS} plague doctors, not {doctors}")
         if not MIN_DAMAGE <= damage <= MAX_DAMAGE:
-            raise ValueError(f"plague monk damage must be {MIN_DAMAGE}-{MAX_DAMAGE}, got {damage}")
-        known = self.plague_monks
-        if known is not None and monks > known.available_plague_monks:
-            raise ValueError(f"{known.available_plague_monks} plague monks are at home, not {monks}")
-        request = SendPlagueMonksRequest(
-            target_x=target_x, target_y=target_y, target_kingdom=target_kingdom, monks=monks, damage=damage
+            raise ValueError(f"plague doctor damage must be {MIN_DAMAGE}-{MAX_DAMAGE}, got {damage}")
+        known = self.plague_doctors
+        if known is not None and doctors > known.available_plague_doctors:
+            raise ValueError(f"{known.available_plague_doctors} plague doctors are at home, not {doctors}")
+        request = SendPlagueDoctorsRequest(
+            target_x=target_x, target_y=target_y, target_kingdom=target_kingdom, doctors=doctors, damage=damage
         )
-        return self.request(request, SendPlagueMonksResponse, timeout=timeout)
+        return self.request(request, SendPlagueDoctorsResponse, timeout=timeout)
 
     def send_instant_spy(
         self,

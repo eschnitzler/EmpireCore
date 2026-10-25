@@ -96,10 +96,10 @@ class HighscorePlayerRow(BasePayload):
     score: ClientInt = Field(default=0, description="The listed value; 0 on a row without one")
     owner: MapObject | None = Field(default=None, description="The player's owner record; None when unreadable")
     display_name: str | None = Field(
-        default=None, description="The name the temporary server lists show; None when the row has none"
+        default=None, description="The name the Outer Realms lists show; None when the row has none"
     )
     shown_rank: int | None = Field(
-        default=None, description="The rank the previous-run and temporary server lists show; None to show rank"
+        default=None, description="The rank the previous-run and Outer Realms lists show; None to show rank"
     )
 
     @model_validator(mode="before")
@@ -388,7 +388,7 @@ class GetRankingWindowRequest(BaseRequest):
     sends. The reply is shaped like ``llsp``'s. ``LID``, ``SDI`` and ``EID``
     are sent as for ``llsp``: your own page goes with the event's league,
     a search hit's page with the hit's league. A live server refused a
-    long-term point list's own page with league -1 (GENERAL_ERROR, 1) and
+    Grand Nobility Prize list's own page with league -1 (GENERAL_ERROR, 1) and
     answered it with the event's league.
 
     Client: ``C2SListLeaderboardScoresWindowVO`` (bundle line 76012), sent by

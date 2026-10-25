@@ -130,7 +130,9 @@ class TestSpyTypeValues:
 
     def test_log_subtypes_differ_from_mission_types(self):
         # MessageConst.SUBTYPE_SPY_*: a military mission's log is DEFENCE (1)
-        assert [int(t) for t in (SpyLogType.SABOTAGE, SpyLogType.DEFENCE, SpyLogType.ECO, SpyLogType.PLAGUE_MONK)] == [
+        assert [
+            int(t) for t in (SpyLogType.SABOTAGE, SpyLogType.DEFENCE, SpyLogType.ECO, SpyLogType.PLAGUE_DOCTOR)
+        ] == [
             0,
             1,
             2,
@@ -144,7 +146,7 @@ class TestSpyScreenInfoResponse:
         screen = SpyScreenInfoResponse.model_validate(SSI_NPC_CAMP)
 
         assert (screen.available_spies, screen.guard_count) == (2, 0)
-        assert (screen.available_plague_monks, screen.total_plague_monks) == (0, 0)
+        assert (screen.available_plague_doctors, screen.total_plague_doctors) == (0, 0)
         assert (screen.target_x, screen.target_y) == (501, 297)
         area = screen.target_area
         assert area.kingdom_id == 0

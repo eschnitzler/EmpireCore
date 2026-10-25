@@ -53,7 +53,7 @@ class TestRagePoints:
 
         state.update_from_packet("rpr", {"EID": 72, "PCRP": 40, "PTRP": 90})
 
-        event = state.get_event(Event.ALLIANCE_NOMAD_INVASION)
+        event = state.get_event(Event.NOMAD_INVASION_72)
         assert isinstance(event, NomadInvasionEvent)
         assert (event.player_rage, event.player_total_rage, event.alliance_rage) == (40, 90, 5)
         state.shutdown()
@@ -65,6 +65,6 @@ class TestRagePoints:
         state.update_from_packet("rpr", {"EID": 71, "PCRP": 40, "PTRP": 90})
         state.update_from_packet("rpr", {"EID": 72, "PCRP": 40, "PTRP": 90}, error_code=1)
 
-        event = state.get_event(Event.ALLIANCE_NOMAD_INVASION)
+        event = state.get_event(Event.NOMAD_INVASION_72)
         assert isinstance(event, NomadInvasionEvent) and event.player_rage == 1
         state.shutdown()

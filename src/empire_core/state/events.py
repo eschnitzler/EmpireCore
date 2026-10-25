@@ -12,52 +12,52 @@ from typing_extensions import overload
 from empire_core.attack.models.alien_camps import AlienRerollCountsResponse
 from empire_core.attack.models.taunts import RagePointsResponse
 from empire_core.enums import Kingdom
-from empire_core.enums.events import LuckyWheelType
-from empire_core.events.faction_models import BerimondKingdomStatus
+from empire_core.enums.events import WheelOfFortuneType
+from empire_core.events.berimond_models import BerimondKingdomStatus
 from empire_core.events.minigame_models import (
     ArtifactFoundResponse,
-    DonationProgressResponse,
     GachaFreeChestResponse,
     GachaSpinResponse,
-    LuckyWheelBuyJackpotResponse,
-    LuckyWheelChangeModeResponse,
-    LuckyWheelIncreaseWinClassResponse,
-    LuckyWheelSpinResponse,
+    ImperialPatronageProgressResponse,
     VoteWorldCupResponse,
+    WheelOfFortuneBuyJackpotResponse,
+    WheelOfFortuneChangeModeResponse,
+    WheelOfFortuneIncreaseWinClassResponse,
+    WheelOfFortuneSpinResponse,
 )
 from empire_core.events.models import (
     AlienInvasionEvent,
     AllianceBonusEvent,
     AllianceTournamentEvent,
-    ArtifactEvent,
-    BeggingKnightsEvent,
+    BannerOfGloryEvent,
     BerimondEvent,
+    BerimondInvasionEvent,
     CampaignEvent,
     CampaignQuestEvent,
     DiscountSaleEvent,
-    DonationEvent,
     EventAnnouncementEvent,
-    FactionInvasionEvent,
-    FameBoosterEvent,
     FortuneTellerEvent,
     GachaEvent,
     GiftEvent,
     GlobalEffectBuffEvent,
     GlobalEffectEvent,
+    GrandNobilityPrizeEvent,
     GrandTournamentEvent,
+    ImperialPatronageEvent,
     KingdomsLeagueEvent,
-    LongTermPointEvent,
-    LuckyWheelEvent,
+    MaraudersContestEvent,
+    NobilityContestEvent,
     NomadInvasionEvent,
-    PointEvent,
-    RaidBossEvent,
+    OuterRealmsEvent,
+    RiftRaidEvent,
     SamuraiInvasionEvent,
     SeasonEvent,
     ShuttingDownEvents,
     SkipForFreeEvent,
     SpecialEvent,
-    TempServerEvent,
     TournamentEvent,
+    TravelingKnightsEvent,
+    WheelOfFortuneEvent,
     WorldCupEvent,
     event_class,
 )
@@ -68,7 +68,7 @@ from empire_core.events.progression_models import (
     DaimyoWarEffortsResponse,
 )
 from empire_core.events.special_server_models import CurrentServer, SpecialServerCastles
-from empire_core.events.status_models import GrandTournamentQuestStatus, GrandTournamentQuestUpdate, RaidBossStatus
+from empire_core.events.status_models import GrandTournamentQuestStatus, GrandTournamentQuestUpdate, RiftRaidStatus
 from empire_core.gamedata.ids.events import Event
 from empire_core.map.models.areas import KingdomProtection
 from empire_core.player.models.protection import StartFactionProtectionResponse
@@ -258,7 +258,7 @@ class EventState(StateBase):
         """Handle 'point event points': your rank (``OR``), points (``OP``) and the event's most points (``PT``).
 
         Each event reads them as its client class does: a score event its first of each, an
-        invasion one per part in order, Berimond and the lucky wheels the first rank and points,
+        invasion one per part in order, Berimond and the Wheels of Fortune the first rank and points,
         the raid boss and the alliance Grand Tournament the first for you and the second for your
         alliance, the alliance tournament the first for your alliance, and ``BLPP`` the raid boss's
         level points. The library reads every value through ``int()``, where the client keeps them
@@ -342,7 +342,7 @@ class EventState(StateBase):
         (bundle line 134604) hand a set one to the running faction event's ``parse_FKI`` (bundle line 7365)
         """
         self._expire_events()
-        event = self.events.get(Event.FACTION)
+        event = self.events.get(Event.BATTLE_FOR_BERIMOND)
         if not js_truthy(data) or not isinstance(event, BerimondEvent):
             return
         status = BerimondKingdomStatus.model_validate(data if isinstance(data, dict) else {})
@@ -356,20 +356,20 @@ class EventState(StateBase):
         if status is not None:
             self._raid_boss_receipt = (data, status)
 
-    def _raid_status_reply(self, data: Any) -> RaidBossStatus | None:
+    def _raid_status_reply(self, data: Any) -> RiftRaidStatus | None:
         """The status applied for this exact packet payload, under the caller's bse command lock."""
         with self._lock:
             receipt = self._raid_boss_receipt
             return receipt[1] if receipt is not None and receipt[0] is data else None
 
-    def _handle_raid_status(self, data: Any) -> RaidBossStatus | None:
+    def _handle_raid_status(self, data: Any) -> RiftRaidStatus | None:
         """BSECommand and BBSCommand target the running raid event (bundle 127523,127538)."""
         self._expire_events()
-        event = self.events.get(Event.ALLIANCE_RAIDBOSS_EVENT)
-        if not isinstance(event, RaidBossEvent):
+        event = self.events.get(Event.RIFT_RAID)
+        if not isinstance(event, RiftRaidEvent):
             return None
         try:
-            status = RaidBossStatus.model_validate(data).with_previous(event.boss_status)
+            status = RiftRaidStatus.model_validate(data).with_previous(event.boss_status)
         except ValidationError:
             logger.warning("Unreadable raid boss status; kept previous event status")
             return None
@@ -399,7 +399,7 @@ class EventState(StateBase):
         Client: ``CastleUserData.parse_UAP`` (bundle line 9906) hands it to ``FactionEventVO.parse_uap``
         (bundle line 7364)
         """
-        event = self.events.get(Event.FACTION)
+        event = self.events.get(Event.BATTLE_FOR_BERIMOND)
         berimond = [block for block in blocks if block.kingdom_id == Kingdom.BERIMOND]
         if not (isinstance(event, BerimondEvent) and berimond):
             return
@@ -413,7 +413,7 @@ class EventState(StateBase):
         Client: ``FFPCommand.executeCommand`` (bundle line 127785), ``CastleSpecialEventData.parse_FN``
         (bundle line 139876), which does nothing without the event or the block
         """
-        event = self.events.get(Event.FACTION)
+        event = self.events.get(Event.BATTLE_FOR_BERIMOND)
         reply = read_section(StartFactionProtectionResponse, data, "the faction protection")
         if isinstance(event, BerimondEvent) and reply is not None and reply.faction is not None:
             self._replace_event(event.with_faction(reply.faction, _clock()))
@@ -504,19 +504,19 @@ class EventState(StateBase):
             self.current_server = server
 
     def _handle_tcc(self, data: Any) -> None:
-        """Keep your special server castles and mark the running temporary server event's castle bought or not.
+        """Keep your special server castles and mark the running Outer Realms event's castle bought or not.
 
-        The client also marks the alliance battleground event's ``castleBought``; with no model for that
-        event here, ``special_server_castles`` alone carries the battleground flag.
+        The client also marks Beyond the Horizon event's ``castleBought``; with no model for that
+        event here, ``special_server_castles`` alone carries Beyond the Horizon flag.
 
         Client: ``TCCCommand.executeCommand`` (bundle line 127354)
         """
         if (castles := read_section(SpecialServerCastles, data, "the special server castles")) is None:
             return
         self.special_server_castles = castles
-        event = self.events.get(Event.TEMP_SERVER)
-        if isinstance(event, TempServerEvent):
-            self._replace_event(event.model_copy(update={"castle_bought": castles.temporary_server_castle_bought}))
+        event = self.events.get(Event.OUTER_REALMS)
+        if isinstance(event, OuterRealmsEvent):
+            self._replace_event(event.model_copy(update={"castle_bought": castles.outer_realms_castle_bought}))
 
     def get_current_server(self) -> CurrentServer | None:
         """The kind of server this session is on, from the last ``tse``; None until one came."""
@@ -529,36 +529,48 @@ class EventState(StateBase):
             return self.special_server_castles
 
     def _handle_lws(self, data: Any) -> None:
-        """Apply a spin to the wheel it turned: the sale days wheel for an ``LWET`` of 1, else the lucky wheel.
+        """
+        Apply a spin to the wheel it turned: the Wheel of Unimaginable Affluence for an ``LWET`` of 1, else the Wheel of
+        Fortune.
 
         Client: ``LWSCommand.executeCommand`` (bundle line 128141)
         """
-        reply = read_section(LuckyWheelSpinResponse, data, "a lucky wheel spin")
+        reply = read_section(WheelOfFortuneSpinResponse, data, "a Wheel of Fortune spin")
         if reply is not None:
-            sale_days = reply.wheel == LuckyWheelType.SALE_DAYS
-            self._apply_lucky_wheel(Event.SALE_DAYS_LUCKY_WHEEL if sale_days else Event.LUCKY_WHEEL, reply)
+            sale_days = reply.wheel == WheelOfFortuneType.WHEEL_OF_UNIMAGINABLE_AFFLUENCE
+            self._apply_wheel_of_fortune(
+                Event.WHEEL_OF_UNIMAGINABLE_AFFLUENCE if sale_days else Event.WHEEL_OF_FORTUNE, reply
+            )
 
     def _handle_lwj(self, data: Any) -> None:
-        """Apply a jackpot spin to the lucky wheel. Client: ``LWJCommand.executeCommand`` (bundle line 128105)"""
-        if (reply := read_section(LuckyWheelBuyJackpotResponse, data, "a lucky wheel jackpot")) is not None:
-            self._apply_lucky_wheel(Event.LUCKY_WHEEL, reply)
+        """Apply a jackpot spin to the Wheel of Fortune. Client: ``LWJCommand.executeCommand`` (bundle line 128105)"""
+        if (reply := read_section(WheelOfFortuneBuyJackpotResponse, data, "a Wheel of Fortune jackpot")) is not None:
+            self._apply_wheel_of_fortune(Event.WHEEL_OF_FORTUNE, reply)
 
     def _handle_lwc(self, data: Any) -> None:
-        """Apply a win class raise to the lucky wheel. Client: ``LWCCommand.executeCommand`` (bundle line 128090)"""
-        if (reply := read_section(LuckyWheelIncreaseWinClassResponse, data, "a lucky wheel win class")) is not None:
-            self._apply_lucky_wheel(Event.LUCKY_WHEEL, reply)
+        """
+        Apply a win class raise to the Wheel of Fortune.
+
+        Client: ``LWCCommand.executeCommand`` (bundle line 128090)
+        """
+        if (
+            reply := read_section(WheelOfFortuneIncreaseWinClassResponse, data, "a Wheel of Fortune win class")
+        ) is not None:
+            self._apply_wheel_of_fortune(Event.WHEEL_OF_FORTUNE, reply)
 
     def _handle_lwm(self, data: Any) -> None:
-        """Apply a mode change to the lucky wheel. Client: ``LWMCommand.executeCommand`` (bundle line 128122)"""
-        if (reply := read_section(LuckyWheelChangeModeResponse, data, "a lucky wheel mode change")) is not None:
-            self._apply_lucky_wheel(Event.LUCKY_WHEEL, reply)
+        """Apply a mode change to the Wheel of Fortune. Client: ``LWMCommand.executeCommand`` (bundle line 128122)"""
+        if (
+            reply := read_section(WheelOfFortuneChangeModeResponse, data, "a Wheel of Fortune mode change")
+        ) is not None:
+            self._apply_wheel_of_fortune(Event.WHEEL_OF_FORTUNE, reply)
 
-    def _apply_lucky_wheel(
+    def _apply_wheel_of_fortune(
         self,
         eid: Event,
-        reply: LuckyWheelSpinResponse | LuckyWheelIncreaseWinClassResponse | LuckyWheelChangeModeResponse,
+        reply: WheelOfFortuneSpinResponse | WheelOfFortuneIncreaseWinClassResponse | WheelOfFortuneChangeModeResponse,
     ) -> None:
-        if isinstance(event := self.events.get(eid), LuckyWheelEvent):
+        if isinstance(event := self.events.get(eid), WheelOfFortuneEvent):
             self._replace_event(event.with_reply(reply))
 
     def _handle_dge(self, data: Any) -> None:
@@ -589,16 +601,16 @@ class EventState(StateBase):
         does not run
         """
         reply = read_section(ArtifactFoundResponse, data, "the artifact pieces")
-        if reply is not None and isinstance(event := self.events.get(reply.event_id), ArtifactEvent):
+        if reply is not None and isinstance(event := self.events.get(reply.event_id), TravelingKnightsEvent):
             self._replace_event(event.model_copy(update={"parts_found": reply.parts_found}))
 
-    def _handle_donation_progress(self, data: Any) -> None:
+    def _handle_imperial_patronage_progress(self, data: Any) -> None:
         """Keep the points per donation item (``gdti``, ``ddi``) on the running imperial patronage.
 
         Client: ``CastleDonationEventData.parseGDTI`` (bundle line 58869)
         """
-        reply = read_section(DonationProgressResponse, data, "the donation progress")
-        if reply is not None and isinstance(event := self.events.get(Event.DONATION_EVENT), DonationEvent):
+        reply = read_section(ImperialPatronageProgressResponse, data, "the donation progress")
+        if reply is not None and isinstance(event := self.events.get(Event.IMPERIAL_PATRONAGE), ImperialPatronageEvent):
             self._replace_event(event.model_copy(update={"donated_points": reply.items}))
 
     def _handle_vwc(self, data: Any) -> None:
@@ -626,7 +638,7 @@ class EventState(StateBase):
         if event is None:
             return
         self.events = {key: value for key, value in self.events.items() if key != eid}
-        if eid == Event.ALLIANCE_RAIDBOSS_EVENT:
+        if eid == Event.RIFT_RAID:
             self._raid_boss_receipt = None
         self._forget_treasure_map_of(event)
         self._fire(self.on_event_removed, event)
@@ -652,7 +664,7 @@ class EventState(StateBase):
                 return
             self.events = {eid: event for eid, event in events.items() if event.end_time > now}
             for event in ended:
-                if event.event_id == Event.ALLIANCE_RAIDBOSS_EVENT:
+                if event.event_id == Event.RIFT_RAID:
                     self._raid_boss_receipt = None
                 self._forget_treasure_map_of(event)
                 self._fire(self.on_event_removed, event)
@@ -674,67 +686,77 @@ class EventState(StateBase):
             return dict(self.events)
 
     @overload
-    def get_event(self, event: Literal[Event.FACTION]) -> BerimondEvent | None: ...
+    def get_event(self, event: Literal[Event.BATTLE_FOR_BERIMOND]) -> BerimondEvent | None: ...
     @overload
-    def get_event(self, event: Literal[Event.POINT_EVENT]) -> PointEvent | None: ...
+    def get_event(self, event: Literal[Event.NOBILITY_CONTEST]) -> NobilityContestEvent | None: ...
     @overload
-    def get_event(self, event: Literal[Event.BEGGING_KNIGHTS]) -> BeggingKnightsEvent | None: ...
+    def get_event(self, event: Literal[Event.MARAUDERS_CONTEST]) -> MaraudersContestEvent | None: ...
     @overload
-    def get_event(self, event: Literal[Event.LONG_TERM_POINT_EVENT]) -> LongTermPointEvent | None: ...
+    def get_event(self, event: Literal[Event.GRAND_NOBILITY_PRIZE]) -> GrandNobilityPrizeEvent | None: ...
     @overload
     def get_event(
-        self, event: Literal[Event.ALLIANCE_ALIEN_INVASION, Event.RED_ALLIANCE_ALIEN_INVASION]
+        self, event: Literal[Event.WAR_OF_THE_REALMS, Event.BLOODCROW_INVASION]
     ) -> AlienInvasionEvent | None: ...
     @overload
-    def get_event(self, event: Literal[Event.ALLIANCE_NOMAD_INVASION]) -> NomadInvasionEvent | None: ...
+    def get_event(self, event: Literal[Event.NOMAD_INVASION_72]) -> NomadInvasionEvent | None: ...
     @overload
     def get_event(self, event: Literal[Event.SAMURAI_INVASION]) -> SamuraiInvasionEvent | None: ...
     @overload
-    def get_event(self, event: Literal[Event.FACTION_INVASION]) -> FactionInvasionEvent | None: ...
+    def get_event(self, event: Literal[Event.BERIMOND_INVASION]) -> BerimondInvasionEvent | None: ...
     @overload
-    def get_event(self, event: Literal[Event.ALLIANCE_RAIDBOSS_EVENT]) -> RaidBossEvent | None: ...
+    def get_event(self, event: Literal[Event.RIFT_RAID]) -> RiftRaidEvent | None: ...
     @overload
-    def get_event(self, event: Literal[Event.TEMP_SERVER]) -> TempServerEvent | None: ...
+    def get_event(self, event: Literal[Event.OUTER_REALMS]) -> OuterRealmsEvent | None: ...
     @overload
-    def get_event(self, event: Literal[Event.DONATION_EVENT]) -> DonationEvent | None: ...
+    def get_event(self, event: Literal[Event.IMPERIAL_PATRONAGE]) -> ImperialPatronageEvent | None: ...
     @overload
     def get_event(
         self,
         event: Literal[
             Event.GACHA_DECO2X2,
-            Event.CHRISTMAS_GACHA,
-            Event.EASTER_GACHA,
-            Event.SUMMER_GACHA,
-            Event.ANNIVERSARY_GACHA,
-            Event.HALLOWEEN_GACHA,
-            Event.BLACK_FRIDAY_GACHA,
-            Event.CARNIVAL_GACHA,
+            Event.ENCHANTED_SNOWGLOBE,
+            Event.SUMMONING_OF_THE_HOLLOW_MOON,
+            Event.SANDS_OF_FORTUNE,
+            Event.KINGS_BANQUET,
+            Event.HALLOWEEN_BANQUET,
+            Event.MIDNIGHT_MARKET,
+            Event.CARNIVAL_OF_MASKS,
         ],
     ) -> GachaEvent | None: ...
     @overload
-    def get_event(self, event: Literal[Event.SEASON_LEAGUE]) -> KingdomsLeagueEvent | None: ...
+    def get_event(self, event: Literal[Event.KINGDOMS_LEAGUE]) -> KingdomsLeagueEvent | None: ...
     @overload
     def get_event(self, event: Literal[Event.GLOBAL_EFFECT]) -> GlobalEffectEvent | None: ...
     @overload
     def get_event(self, event: Literal[Event.GLOBAL_EFFECT_BUFF]) -> GlobalEffectBuffEvent | None: ...
     @overload
-    def get_event(self, event: Literal[Event.ALLI_TOURNAMENT]) -> AllianceTournamentEvent | None: ...
+    def get_event(self, event: Literal[Event.ALLIANCE_TOURNAMENT]) -> AllianceTournamentEvent | None: ...
     @overload
     def get_event(self, event: Literal[Event.GRAND_TOURNAMENT]) -> GrandTournamentEvent | None: ...
     @overload
-    def get_event(self, event: Literal[Event.LUCKY_WHEEL, Event.SALE_DAYS_LUCKY_WHEEL]) -> LuckyWheelEvent | None: ...
+    def get_event(
+        self, event: Literal[Event.WHEEL_OF_FORTUNE, Event.WHEEL_OF_UNIMAGINABLE_AFFLUENCE]
+    ) -> WheelOfFortuneEvent | None: ...
     @overload
     def get_event(
         self,
-        event: Literal[Event.ARTIFACT_19, Event.ARTIFACT_23, Event.ARTIFACT_29, Event.ARTIFACT_30, Event.ARTIFACT_67],
-    ) -> ArtifactEvent | None: ...
-    @overload
-    def get_event(self, event: Literal[Event.THORNKING, Event.SEAQUEEN, Event.UNDERWORLD]) -> SeasonEvent | None: ...
-    @overload
-    def get_event(self, event: Literal[Event.FAMEBOOSTER]) -> FameBoosterEvent | None: ...
+        event: Literal[
+            Event.TRAVELING_KNIGHTS_19,
+            Event.TRAVELING_KNIGHTS_23,
+            Event.TRAVELING_KNIGHTS_29,
+            Event.TRAVELING_KNIGHTS_30,
+            Event.TRAVELING_KNIGHTS_67,
+        ],
+    ) -> TravelingKnightsEvent | None: ...
     @overload
     def get_event(
-        self, event: Literal[Event.PRIME_ALLI_BONUS, Event.ALLI_PAYMENT_BONUS]
+        self, event: Literal[Event.THORN_KING, Event.BLADE_COAST, Event.UNDERWORLD]
+    ) -> SeasonEvent | None: ...
+    @overload
+    def get_event(self, event: Literal[Event.BANNER_OF_GLORY]) -> BannerOfGloryEvent | None: ...
+    @overload
+    def get_event(
+        self, event: Literal[Event.PRIME_ALLI_BONUS, Event.ALLIANCE_PRIME_DAY]
     ) -> AllianceBonusEvent | None: ...
     @overload
     def get_event(
@@ -743,7 +765,7 @@ class EventState(StateBase):
     @overload
     def get_event(self, event: Literal[Event.SKIP_FOR_FREE]) -> SkipForFreeEvent | None: ...
     @overload
-    def get_event(self, event: Literal[Event.GGS_GIFT]) -> GiftEvent | None: ...
+    def get_event(self, event: Literal[Event.GIFT_BOX]) -> GiftEvent | None: ...
     @overload
     def get_event(self, event: Literal[Event.EVENT_ANNOUNCEMENT]) -> EventAnnouncementEvent | None: ...
     @overload

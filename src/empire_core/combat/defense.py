@@ -16,7 +16,7 @@ from empire_core.army.spy_army import SpyArmy
 from empire_core.commanders.models.roster import Commander
 from empire_core.enums import CombatEffectType, Flank, Kingdom, MapItemType, NPCOwner
 from empire_core.gamedata import GameData, NpcCampDefence, ToolStats
-from empire_core.gamedata.data import BLUE_FACTION, FACTION_INVASION_CAMP_TABLE
+from empire_core.gamedata.data import BERIMOND_INVASION_CAMP_TABLE, BLUE_FACTION
 from empire_core.gamedata.ids.events import Event
 from empire_core.map.models.items import MapAreaItem
 
@@ -60,7 +60,7 @@ NOMAD_INVASION_EVENT_ID = 72
 DAIMYO_CASTLE_TABLE = "daimyoCastles"
 
 
-class FactionInvasionSide(NamedTuple):
+class BerimondInvasionSide(NamedTuple):
     """What a Berimond invasion camp's owner decides: its faction, and the sub type of its event league."""
 
     faction_id: int
@@ -68,7 +68,7 @@ class FactionInvasionSide(NamedTuple):
 
 
 class LeagueScore(Protocol):
-    """An event score's league, e.g. a part of :class:`~empire_core.events.FactionInvasionEvent`."""
+    """An event score's league, e.g. a part of :class:`~empire_core.events.BerimondInvasionEvent`."""
 
     @property
     def league_id(self) -> int: ...
@@ -80,13 +80,13 @@ class LeagueScore(Protocol):
 # The blue faction king owns the blue camps; the client takes any other owner as red.
 # Client: CastleNPCOwnerFactory.generateBlueFactionNPC / generateRedFactionNPC (bundle lines 14591, 14587),
 # FactionConst (dll line 19333), EventConst.LEAGUETYPE_EVENT_SUBTYPE_FACTION_INVASION_BLUE / _RED (dll line 19291)
-BLUE_FACTION_INVASION = FactionInvasionSide(faction_id=BLUE_FACTION, sub_type=2)
-RED_FACTION_INVASION = FactionInvasionSide(faction_id=1, sub_type=3)
+BLUE_BERIMOND_INVASION = BerimondInvasionSide(faction_id=BLUE_FACTION, sub_type=2)
+RED_BERIMOND_INVASION = BerimondInvasionSide(faction_id=1, sub_type=3)
 
 
-def faction_invasion_side(owner_id: int | None) -> FactionInvasionSide:
+def berimond_invasion_side(owner_id: int | None) -> BerimondInvasionSide:
     """The side of a Berimond invasion camp with this owner (its row's ``owner_id``)."""
-    return BLUE_FACTION_INVASION if owner_id == NPCOwner.BLUE_FACTION_KING else RED_FACTION_INVASION
+    return BLUE_BERIMOND_INVASION if owner_id == NPCOwner.BLUE_FACTION_KING else RED_BERIMOND_INVASION
 
 
 def invasion_camp_level(
@@ -94,7 +94,7 @@ def invasion_camp_level(
     player_level: int,
     *,
     game_data: GameData | None = None,
-    faction_invasion_score: LeagueScore | None = None,
+    berimond_invasion_score: LeagueScore | None = None,
 ) -> int | None:
     """
     The level an invasion event target is fought at, which its row does not carry.
@@ -105,7 +105,7 @@ def invasion_camp_level(
       in its event starts and climbs by one for every defeat it has taken.
     - A Berimond invasion camp starts at the bottom of the league the running
       event puts you in for the camp's faction and climbs by one per defeat.
-      Without ``faction_invasion_score`` the league is taken as the band
+      Without ``berimond_invasion_score`` the league is taken as the band
       holding ``player_level``, as for a samurai camp.
     - A daimyo castle names a rank instead of a defeat count, and the rank
       carries the level.
@@ -120,9 +120,9 @@ def invasion_camp_level(
         game_data: Loaded items payload
         item: The target's map row
         player_level: The attacking player's level
-        faction_invasion_score: For a Berimond invasion camp, your score for
+        berimond_invasion_score: For a Berimond invasion camp, your score for
             its faction in the running event,
-            ``client.state.get_event(Event.FACTION_INVASION).camp_score(item.owner_id)``
+            ``client.state.get_event(Event.BERIMOND_INVASION).camp_score(item.owner_id)``
 
     Returns:
         The level to size the wave at, or None when this is not one of the
@@ -151,13 +151,13 @@ def invasion_camp_level(
     if item.item_type == MapItemType.DAIMYO_TOWNSHIP:
         return player_level
 
-    if item.item_type == MapItemType.FACTION_INVASION_CAMP:
-        score = faction_invasion_score
+    if item.item_type == MapItemType.BERIMOND_INVASION_CAMP:
+        score = berimond_invasion_score
         if score is None:
-            sub_type = faction_invasion_side(item.owner_id).sub_type
-            base = game_data.event_base_camp_level(Event.FACTION_INVASION, player_level, sub_type=sub_type)
+            sub_type = berimond_invasion_side(item.owner_id).sub_type
+            base = game_data.event_base_camp_level(Event.BERIMOND_INVASION, player_level, sub_type=sub_type)
         else:
-            league = game_data.league_type(score.league_id, Event.FACTION_INVASION, sub_type=score.sub_type)
+            league = game_data.league_type(score.league_id, Event.BERIMOND_INVASION, sub_type=score.sub_type)
             base = league.victory_min if league is not None else None
         return None if base is None else base + field
 
@@ -583,7 +583,7 @@ def event_camp_defense(
     """
     What defends an event camp, per flank.
 
-    Nomad, samurai, faction invasion and alliance invasion camps are described
+    Nomad, samurai, Berimond invasion and alliance invasion camps are described
     differently from robber baron camps: instead of a per-flank composition they
     give a defense strength, a unit and tool list, and wall and gate bonuses.
     The same units defend every flank, so the composition is split evenly and
@@ -595,7 +595,7 @@ def event_camp_defense(
         victories: The camp's victory count; for ``factioninvasioncamps``, the
             camp's level (:func:`invasion_camp_level`)
         faction_id: For ``factioninvasioncamps``, which has a row per faction
-            at each level, the camp's faction (:func:`faction_invasion_side`)
+            at each level, the camp's faction (:func:`berimond_invasion_side`)
 
     Raises:
         ValueError: ``factioninvasioncamps`` without ``faction_id``
@@ -606,10 +606,10 @@ def event_camp_defense(
         unit; treat the wall and gate bonuses as the reliable part.
     """
     game_data = game_data if game_data is not None else GameData.require()
-    if table == FACTION_INVASION_CAMP_TABLE:
+    if table == BERIMOND_INVASION_CAMP_TABLE:
         if faction_id is None:
-            raise ValueError("A faction invasion camp's row depends on its faction; pass faction_id")
-        row = game_data.faction_invasion_camp(victories, faction_id)
+            raise ValueError("A Berimond invasion camp's row depends on its faction; pass faction_id")
+        row = game_data.berimond_invasion_camp(victories, faction_id)
     else:
         row = next(
             (camp for camp in game_data.camps.get(table, []) if camp.count_victory == victories),
@@ -634,8 +634,8 @@ __all__ = [
     "robber_baron_camp_fortification_levels",
     "robber_baron_camp_level",
     "invasion_camp_level",
-    "faction_invasion_side",
-    "FactionInvasionSide",
+    "berimond_invasion_side",
+    "BerimondInvasionSide",
     "LeagueScore",
     "defender_flank_effects",
     "event_camp_defense",

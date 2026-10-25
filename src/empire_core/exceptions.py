@@ -122,7 +122,7 @@ class WrongServerError(LoginError):
 
 class SpecialServerUnavailableError(LoginError):
     """
-    Raised when a temporary or alliance battleground server refuses the token login because it is closed
+    Raised when a Outer Realms or Beyond the Horizon server refuses the token login because it is closed
     (``NO_EVENT``, 145).
 
     Client: ``TLEPCommand.executeCommand`` (bundle line 127388) shows ``alert_tempServer_serverNotAvailable``

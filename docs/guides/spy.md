@@ -201,8 +201,8 @@ free spies the `ssi` reply gives, and so does `execute_instant_spy`.
   target's guards, your free spies and its map row.
 - `send_spy_mission(...)`: send one mission exactly as given, without planning
   or waiting.
-- `send_plague_monks(target_x, target_y, monks=..., damage=...)`: send up to
-  20 of your plague monks at home with a sabotage damage of 10-50.
+- `send_plague_doctors(target_x, target_y, doctors=..., damage=...)`: send up to
+  20 of your plague doctors at home with a sabotage damage of 10-50.
 - `auto_spy(target_x, target_y)`: spy at once with the auto-spy subscription.
 - `spies_in_use()`: spies on your own spy movements, out or on their way
   home, as state tracks them.

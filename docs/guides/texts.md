@@ -103,7 +103,7 @@ Gem.GEM_OF_THE_RESERVES_L6.display_name()     # "Gem of the reserves: 6"
 Research.BEEFSTORAGE_G193_L1.display_name()   # "Premium beef storage build item blueprint"
 Research.DRAGON_CHARM_G175_L1.display_name()  # None: a crafting recipe research's name holds
                                               # its recipe's output, which is not done here
-Event.NOMAD_INVASION.text_id                  # "event_title_5"; display_name() is None, as
+Event.NOMAD_INVASION_5.text_id                  # "event_title_5"; display_name() is None, as
                                               # the English file has no such text
 cached_text(Unit.MEAD_RANGER_L6.text_id)      # None until the English texts are loaded
 

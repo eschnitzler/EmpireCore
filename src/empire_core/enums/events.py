@@ -39,15 +39,16 @@ class RaidBossCardStatus(IntEnum):
     LOCKED_ABORTED = 4
 
 
-class LuckyWheelType(IntEnum):
+class WheelOfFortuneType(IntEnum):
     """
-    Which lucky wheel a spin turns.
+    Which Wheel of Fortune a spin turns.
 
-    Client: ``C2SLuckyWheelSpinVO`` (bundle line 59784) spins the sale days wheel for 1, the lucky wheel otherwise
+    Client: ``C2SLuckyWheelSpinVO`` (bundle line 59784) spins the Wheel of Unimaginable Affluence for 1, the Wheel of
+    Fortune otherwise
     """
 
-    LUCKY_WHEEL = 0
-    SALE_DAYS = 1
+    WHEEL_OF_FORTUNE = 0
+    WHEEL_OF_UNIMAGINABLE_AFFLUENCE = 1
 
 
 class GachaRarity(IntEnum):

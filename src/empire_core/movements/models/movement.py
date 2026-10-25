@@ -446,7 +446,7 @@ class CancelMovementRequest(BaseRequest):
     - travel between your areas: your own, heading to the target, from a
       source area that is still yours
     - spies, market transports and occupations: your own, heading to the target
-    - treasure hunts and plague monks: never
+    - treasure hunts and plague doctors: never
 
     The movement list also disables it while the source area is under
     conquer control. The advisor's overview cancels every advisor attack

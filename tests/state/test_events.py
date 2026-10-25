@@ -10,18 +10,18 @@ from pydantic import ValidationError
 from empire_core.events.models import (
     AlienInvasionEvent,
     BerimondEvent,
+    BerimondInvasionEvent,
     EventPart,
-    FactionInvasionEvent,
     GlobalEffectBuffEvent,
     GlobalEffectEvent,
+    GrandNobilityPrizeEvent,
     KingdomsLeagueEvent,
-    LongTermPointEvent,
+    NobilityContestEvent,
     NomadInvasionEvent,
-    PointEvent,
-    RaidBossEvent,
+    OuterRealmsEvent,
+    RiftRaidEvent,
     SamuraiInvasionEvent,
     SpecialEvent,
-    TempServerEvent,
 )
 from empire_core.gamedata import GlobalEffect, RaidBoss
 from empire_core.gamedata.ids.events import Event
@@ -122,31 +122,31 @@ class TestTypedEvents:
             612: GlobalEffectBuffEvent,
             601: KingdomsLeagueEvent,
             46: SpecialEvent,
-            133: RaidBossEvent,
-            83: LongTermPointEvent,
+            133: RiftRaidEvent,
+            83: GrandNobilityPrizeEvent,
             103: AlienInvasionEvent,
-            106: TempServerEvent,
-            60: PointEvent,
+            106: OuterRealmsEvent,
+            60: NobilityContestEvent,
         }
-        assert events[46].event is Event.EQUIPMENT_ENHANCER and events[46].end_time == 1000 + 2648884
+        assert events[46].event is Event.TECHNICUS and events[46].end_time == 1000 + 2648884
         assert [e for e, event in events.items() if event.is_trigger] == [610, 612, 601]
 
     def test_a_score_event(self, state, clock):
         state.update_from_packet("sei", LIVE_SEI)
 
-        point = state.get_event(Event.POINT_EVENT)
-        assert isinstance(point, PointEvent)
+        point = state.get_event(Event.NOBILITY_CONTEST)
+        assert isinstance(point, NobilityContestEvent)
         assert (point.league_id, point.own_rank, point.own_points, point.point_event_type) == (7, -1, 0, 15)
         assert (point.difficulty_id, point.difficulty_scaling, point.point_scale) == (0, False, 1)
         long_term = state.get_event(83)
-        assert isinstance(long_term, LongTermPointEvent)
+        assert isinstance(long_term, GrandNobilityPrizeEvent)
         assert (long_term.league_id, long_term.reward_set_id, long_term.leaderboard_reward_set_id) == (3, 74, 19)
         assert (long_term.own_rank, long_term.upcoming_event_ids) == (0, (103, 80, 72))
 
     def test_an_invasion(self, state, clock):
         state.update_from_packet("sei", {"E": [LIVE_RED_ALIEN]})
 
-        alien = state.get_event(Event.RED_ALLIANCE_ALIEN_INVASION)
+        alien = state.get_event(Event.BLOODCROW_INVASION)
         assert isinstance(alien, AlienInvasionEvent)
         assert alien.parts == {
             "SP": part(league_id=4, own_rank=-1, reward_set_id=2),
@@ -162,18 +162,18 @@ class TestTypedEvents:
     def test_the_raid_boss(self, state, clock):
         state.update_from_packet("sei", {"E": [LIVE_RAID]})
 
-        raid = state.get_event(Event.ALLIANCE_RAIDBOSS_EVENT)
-        assert isinstance(raid, RaidBossEvent)
+        raid = state.get_event(Event.RIFT_RAID)
+        assert isinstance(raid, RiftRaidEvent)
         assert raid.score == part(league_id=1, leaderboard_reward_set_id=1, reward_set_id=5)
         assert (raid.league_id, raid.subdivision_id, raid.division_round_id) == (1, 14, 11)
         assert (raid.raid_boss_ids, raid.boss_level_points, raid.kingdoms_league_mode) == ((1, 2, 3), 0, False)
         assert all(isinstance(boss, RaidBoss) for boss in raid.raid_boss_ids)
 
-    def test_the_temporary_server(self, state, clock):
+    def test_the_outer_realms(self, state, clock):
         state.update_from_packet("sei", LIVE_SEI)
 
-        server = state.get_event(Event.TEMP_SERVER)
-        assert isinstance(server, TempServerEvent)
+        server = state.get_event(Event.OUTER_REALMS)
+        assert isinstance(server, OuterRealmsEvent)
         assert (server.daily_reset_time, server.setting_id, server.castle_bought, server.is_cross_play) == (
             1000 + 40743,
             21,
@@ -185,7 +185,7 @@ class TestTypedEvents:
         entry = {"EID": 3, "RS": 600, "LID": 2, "UL": 1, "RSID": 4, "FN": {"FID": 1, "MC": 9, "PMT": 30, "PMS": 2}}
         state.update_from_packet("sei", {"E": [entry]})
 
-        berimond = state.get_event(Event.FACTION)
+        berimond = state.get_event(Event.BATTLE_FOR_BERIMOND)
         assert isinstance(berimond, BerimondEvent)
         assert (berimond.league_id, berimond.unlocked, berimond.reward_set_id) == (2, True, 4)
         assert (berimond.faction_id, berimond.main_camp_id, berimond.faction_protection_status) == (1, 9, 2)
@@ -208,7 +208,7 @@ class TestTypedEvents:
         assert league.remaining_seconds(clock[0]) == DAY
 
     def test_only_events_whose_class_reads_it_take_the_season_mode(self, state, clock):
-        # The raid boss, temporary server and donation VOs' parseParamObject skip ASpecialEventVO's
+        # The raid boss, Outer Realms and donation VOs' parseParamObject skip ASpecialEventVO's
         state.update_from_packet("sei", {"E": [{"EID": eid, "RS": 60, "KL": 1} for eid in (133, 106, 123, 103, 46)]})
 
         modes = {eid: event.kingdoms_league_mode for eid, event in state.get_events().items()}
@@ -288,7 +288,7 @@ class TestMerging:
         assert samurai.parts == {"SP": part(own_rank=3), "A": part(sub_type=1)}
         assert "A" not in samurai.raw
         faction = state.get_event(85)
-        assert isinstance(faction, FactionInvasionEvent)
+        assert isinstance(faction, BerimondInvasionEvent)
         assert {key: (part.league_id, part.sub_type) for key, part in faction.parts.items()} == {
             "FB": (1, 2),
             "FR": (3, 3),
@@ -520,7 +520,7 @@ class TestEndsAndIds:
         clock[0] += 60
 
         assert ids(state) == [60]
-        assert (state.is_event_active(Event.FACTION), state.is_event_active(60)) == (False, True)
+        assert (state.is_event_active(Event.BATTLE_FOR_BERIMOND), state.is_event_active(60)) == (False, True)
         assert state.get_event(60).remaining_seconds(clock[0]) == 540
 
     def test_an_event_never_given_an_end_has_ended(self, state, clock):
@@ -559,7 +559,7 @@ class TestRepliesWithEvents:
         assert (berimond.league_id, berimond.unlocked) == (2, True)
         assert state.get_last_packet_time("sei") is not None
 
-    def test_a_bounty_hunter_skip_applies_its_coins_and_sei(self, state, clock):
+    def test_a_shady_lady_skip_applies_its_coins_and_sei(self, state, clock):
         state.update_from_packet("gbd", {"gpi": {"PID": 7}})
 
         state.update_from_packet("bst", {"gcu": {"C1": 120, "C2": 30}, "sei": {"E": [{"EID": 25, "RS": 600}]}})

@@ -1,4 +1,4 @@
-"""Sending plague monks (cpm)."""
+"""Sending plague doctors (cpm)."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import pytest
 from empire_core.enums import Kingdom
 from empire_core.exceptions import CommandError
 from empire_core.protocol.base import parse_response
-from empire_core.protocol.models import PlagueMonkInfoResponse, SendPlagueMonksRequest, SendPlagueMonksResponse
+from empire_core.protocol.models import PlagueDoctorInfoResponse, SendPlagueDoctorsRequest, SendPlagueDoctorsResponse
 from empire_core.state.manager import GameState
 from tests.service_helpers import conn, make_client, xt_packet
 
@@ -20,38 +20,38 @@ REPLY = {
 }
 
 
-class TestPlagueMonkModels:
+class TestPlagueDoctorModels:
     def test_keys_follow_the_client_order(self):
-        request = SendPlagueMonksRequest(target_x=7, target_y=8, target_kingdom=Kingdom.ICE, monks=4, damage=30)
+        request = SendPlagueDoctorsRequest(target_x=7, target_y=8, target_kingdom=Kingdom.ICE, doctors=4, damage=30)
         # C2SCreatePlagueMonkMovementVO declares TX, TY, TK, C, E
         assert list(request.to_payload().items()) == [("TX", 7), ("TY", 8), ("TK", 2), ("C", 4), ("E", 30)]
 
     def test_the_reply_carries_the_movement_and_the_monks_left(self):
         reply = parse_response("cpm", REPLY)
-        assert isinstance(reply, SendPlagueMonksResponse)
+        assert isinstance(reply, SendPlagueDoctorsResponse)
         assert reply.movement_id == 12
-        assert reply.plague_monks == PlagueMonkInfoResponse(available_plague_monks=3, total_plague_monks=8)
+        assert reply.plague_doctors == PlagueDoctorInfoResponse(available_plague_doctors=3, total_plague_doctors=8)
 
     def test_a_falsy_cpi_is_none(self):
         # CastleSpyData.parse_CPI skips a falsy section
-        assert SendPlagueMonksResponse.model_validate({"cpi": None}).plague_monks is None
+        assert SendPlagueDoctorsResponse.model_validate({"cpi": None}).plague_doctors is None
 
 
-class TestSendPlagueMonks:
+class TestSendPlagueDoctors:
     def test_sends_cpm_and_returns_the_reply(self):
         client = make_client({"cpm": xt_packet("cpm", REPLY)}, GameState())
 
-        reply = client.spy.send_plague_monks(700, 710, Kingdom.GREEN, monks=4, damage=30)
+        reply = client.spy.send_plague_doctors(700, 710, Kingdom.GREEN, doctors=4, damage=30)
 
         assert conn(client).request_payloads[0] == ("cpm", {"TX": 700, "TY": 710, "TK": 0, "C": 4, "E": 30})
         assert reply.movement_id == 12
 
-    @pytest.mark.parametrize(("monks", "damage"), [(0, 30), (21, 30), (4, 9), (4, 51)])
-    def test_what_the_dialog_would_not_send_is_refused(self, monks, damage):
+    @pytest.mark.parametrize(("doctors", "damage"), [(0, 30), (21, 30), (4, 9), (4, 51)])
+    def test_what_the_dialog_would_not_send_is_refused(self, doctors, damage):
         client = make_client()
 
         with pytest.raises(ValueError):
-            client.spy.send_plague_monks(700, 710, monks=monks, damage=damage)
+            client.spy.send_plague_doctors(700, 710, doctors=doctors, damage=damage)
 
         assert conn(client).request_payloads == []
 
@@ -60,8 +60,8 @@ class TestSendPlagueMonks:
         state.update_from_packet("cpi", {"APM": 2, "TPM": 5})
         client = make_client(state=state)
 
-        with pytest.raises(ValueError, match="2 plague monks"):
-            client.spy.send_plague_monks(700, 710, monks=3, damage=30)
+        with pytest.raises(ValueError, match="2 plague doctors"):
+            client.spy.send_plague_doctors(700, 710, doctors=3, damage=30)
 
         assert conn(client).request_payloads == []
 
@@ -69,4 +69,4 @@ class TestSendPlagueMonks:
         client = make_client({"cpm": xt_packet("cpm", None, error_code=21)}, GameState())
 
         with pytest.raises(CommandError):
-            client.spy.send_plague_monks(700, 710, monks=1, damage=10)
+            client.spy.send_plague_doctors(700, 710, doctors=1, damage=10)

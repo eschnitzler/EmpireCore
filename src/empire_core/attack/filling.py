@@ -12,7 +12,7 @@ from empire_core.attack.targeting import _row_item, _Target
 from empire_core.combat import (
     DefenderFlankEffects,
     Inventory,
-    faction_invasion_side,
+    berimond_invasion_side,
     fortification_bonuses,
     robber_baron_camp_defense,
     robber_baron_camp_fortification_levels,
@@ -82,11 +82,11 @@ def _target_defense(game_data: GameData, target: "_Target") -> dict[Flank, Defen
         item = _row_item(target.row)
         if item is None:
             return None
-        if item.item_type == MapItemType.FACTION_INVASION_CAMP:
+        if item.item_type == MapItemType.BERIMOND_INVASION_CAMP:
             # FactionInvasionCampMapObjectVO (bundle lines 76367-76382): wall and gate from the
             # faction's camp row at the camp's level, no moat.
-            side = faction_invasion_side(item.owner_id)
-            camp = game_data.faction_invasion_camp(target.level, side.faction_id) if target.level is not None else None
+            side = berimond_invasion_side(item.owner_id)
+            camp = game_data.berimond_invasion_camp(target.level, side.faction_id) if target.level is not None else None
             wall = camp.wall_bonus / 100 if camp is not None else 0.0
             gate = camp.gate_bonus / 100 if camp is not None else 0.0
             moat = 0.0

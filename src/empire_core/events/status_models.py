@@ -180,7 +180,7 @@ class RaidBossCard(BasePayload):
     unlocked_level: ClientInt = Field(validation_alias="ULV", description="Unlocked boss level")
 
 
-class RaidBossStatus(BasePayload):
+class RiftRaidStatus(BasePayload):
     """Current boss and cards; wall timers are snapshots at receipt.
 
     Client: ``AllianceRaidbossServerDataVO.parse_bse``, ``parse_bbs``, ``parseActiveBlock``,
@@ -248,7 +248,7 @@ class RaidBossStatus(BasePayload):
         """Whether the response includes a current boss or boss level."""
         return self.boss_id > 0 or self.level_id > 0
 
-    def with_previous(self, previous: RaidBossStatus | None) -> RaidBossStatus:
+    def with_previous(self, previous: RiftRaidStatus | None) -> RiftRaidStatus:
         """Retain identity, stage and walls for fields the client updates only when supplied."""
         if previous is None:
             return self
@@ -263,17 +263,17 @@ class RaidBossStatus(BasePayload):
         return self.model_copy(update=updates)
 
 
-class GetRaidBossStatusRequest(BaseRequest):
+class GetRiftRaidStatusRequest(BaseRequest):
     """Client: ``C2SGetAllianceRaidBossStatus`` (bundle 47183-47187)."""
 
     command: ClassVar[str] = "bse"
 
 
-class GetRaidBossStatusResponse(BaseResponse):
+class GetRiftRaidStatusResponse(BaseResponse):
     """Client: ``BSECommand`` (bundle 127537-127538)."""
 
     command: ClassVar[str] = "bse"
-    status: RaidBossStatus = Field(description="Boss status supplied by the server")
+    status: RiftRaidStatus = Field(description="Boss status supplied by the server")
 
     @model_validator(mode="before")
     @classmethod
@@ -281,7 +281,7 @@ class GetRaidBossStatusResponse(BaseResponse):
         return {"status": value} if isinstance(value, dict) and "status" not in value else value
 
 
-class RaidBossStatusBroadcast(GetRaidBossStatusResponse):
+class RiftRaidStatusBroadcast(GetRiftRaidStatusResponse):
     """Client: ``BBSCommand`` (bundle 127522-127523), parsed like bse."""
 
     command: ClassVar[str] = "bbs"

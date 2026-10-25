@@ -11,7 +11,7 @@ It covers:
 - Your alliance's chronicle and subscriber count
 - Map bookmarks, your own and your alliance's (list, add, change, delete)
 - Joining automatically, members' aqua points and the alliance forge
-- The alliance battleground: entry, performance, influence, centers of power and alliance towers
+- Beyond the Horizon: entry, performance, influence, centers of power and alliance towers
 """
 
 from __future__ import annotations
@@ -27,34 +27,6 @@ from empire_core.alliance.models.aqua import (
     AllianceMemberAquaPoints,
     AllianceMemberAquaPointsRequest,
     AllianceMemberAquaPointsResponse,
-)
-from empire_core.alliance.models.battleground import (
-    ActivateAllianceTowerBuffsRequest,
-    ActivateAllianceTowerBuffsResponse,
-    AllianceInfluenceResponse,
-    AllianceTowerBuffIncrease,
-    AllianceTowerBuffs,
-    BattlegroundEntryResponse,
-    BattlegroundMemberPerformance,
-    BattlegroundPerformanceResponse,
-    CenterOfPower,
-    CentersOfPowerDetailResponse,
-    CentersOfPowerResponse,
-    GetAllianceInfluenceRequest,
-    GetAllianceTowerBuffsRequest,
-    GetAllianceTowerBuffsResponse,
-    GetAllianceTowerCastlesRequest,
-    GetAllianceTowerCastlesResponse,
-    GetAllianceTowersRequest,
-    GetAllianceTowersResponse,
-    GetBattlegroundEntryRequest,
-    GetBattlegroundPerformanceRequest,
-    GetCentersOfPowerDetailRequest,
-    GetCentersOfPowerRequest,
-    GetPlayerInfluenceRequest,
-    IncreaseAllianceTowerBuffsRequest,
-    IncreaseAllianceTowerBuffsResponse,
-    PlayerInfluenceResponse,
 )
 from empire_core.alliance.models.bookmarks import (
     ATTACK_ORDER_MAX_SECONDS,
@@ -130,6 +102,34 @@ from empire_core.alliance.models.help import (
     AskHelpRequest,
     HelpAllRequest,
     HelpMemberRequest,
+)
+from empire_core.alliance.models.horizon import (
+    ActivateAllianceTowerBuffsRequest,
+    ActivateAllianceTowerBuffsResponse,
+    AllianceInfluenceResponse,
+    AllianceTowerBuffIncrease,
+    AllianceTowerBuffs,
+    CenterOfPower,
+    CentersOfPowerDetailResponse,
+    CentersOfPowerResponse,
+    GetAllianceInfluenceRequest,
+    GetAllianceTowerBuffsRequest,
+    GetAllianceTowerBuffsResponse,
+    GetAllianceTowerCastlesRequest,
+    GetAllianceTowerCastlesResponse,
+    GetAllianceTowersRequest,
+    GetAllianceTowersResponse,
+    GetCentersOfPowerDetailRequest,
+    GetCentersOfPowerRequest,
+    GetHorizonEntryRequest,
+    GetHorizonPerformanceRequest,
+    GetPlayerInfluenceRequest,
+    HorizonEntryResponse,
+    HorizonMemberPerformance,
+    HorizonPerformanceResponse,
+    IncreaseAllianceTowerBuffsRequest,
+    IncreaseAllianceTowerBuffsResponse,
+    PlayerInfluenceResponse,
 )
 from empire_core.alliance.models.info import (
     AllianceInfo,
@@ -1102,29 +1102,29 @@ class AllianceService(BaseService):
             return self.request(ForgeCraftRequest(pay_with_rubies=pay_with_rubies), ForgeCraftResponse, timeout=timeout)
 
     # =========================================================================
-    # Alliance battleground
+    # Beyond the Horizon
     # =========================================================================
 
-    def get_battleground_entry(self, *, timeout: float = 5.0) -> BattlegroundEntryResponse:
+    def get_horizon_entry(self, *, timeout: float = 5.0) -> HorizonEntryResponse:
         """
-        Your alliance as the alliance battleground will take it: its name, member count and your rank.
+        Your alliance as Beyond the Horizon will take it: its name, member count and your rank.
 
-        Sent on your main server, as the client does before you buy your way onto the battleground.
+        Sent on your main server, as the client does before you buy your way onto Beyond the Horizon.
 
         Client: ``CastleAllianceBattleGroundBuyInfoDialog.getAlliInfo`` (bundle line 45639)
         """
-        return self.request(GetBattlegroundEntryRequest(), BattlegroundEntryResponse, timeout=timeout)
+        return self.request(GetHorizonEntryRequest(), HorizonEntryResponse, timeout=timeout)
 
     @property
-    def battleground_performance(self) -> list[BattlegroundMemberPerformance] | None:
-        """Your alliance members' battleground performance, from the last ``gae``; None until one arrived."""
-        return self.client.state.get_battleground_performance()
+    def horizon_performance(self) -> list[HorizonMemberPerformance] | None:
+        """Your alliance members' Beyond the Horizon performance, from the last ``gae``; None until one arrived."""
+        return self.client.state.get_horizon_performance()
 
-    def get_battleground_performance(self, *, timeout: float = 5.0) -> list[BattlegroundMemberPerformance]:
+    def get_horizon_performance(self, *, timeout: float = 5.0) -> list[HorizonMemberPerformance]:
         """
-        Your alliance members' battleground performance, kept as :attr:`battleground_performance`.
+        Your alliance members' Beyond the Horizon performance, kept as :attr:`horizon_performance`.
 
-        Only on the alliance battleground server.
+        Only on the Beyond the Horizon server.
 
         Raises:
             NotInAllianceError: You are in no alliance; nothing is sent
@@ -1134,14 +1134,14 @@ class AllianceService(BaseService):
         """
         alliance_id = self._require_local_alliance_id()
         return self.request(
-            GetBattlegroundPerformanceRequest(alliance_id=alliance_id), BattlegroundPerformanceResponse, timeout=timeout
+            GetHorizonPerformanceRequest(alliance_id=alliance_id), HorizonPerformanceResponse, timeout=timeout
         ).members
 
-    def get_battleground_alliance_influence(self, alliance_id: int, *, timeout: float = 5.0) -> int:
+    def get_horizon_alliance_influence(self, alliance_id: int, *, timeout: float = 5.0) -> int:
         """
-        An alliance's battleground influence.
+        An alliance's Beyond the Horizon influence.
 
-        Only on the alliance battleground server, in alliance collector scoring.
+        Only on the Beyond the Horizon server, in alliance collector scoring.
 
         Client: ``CastleCollectorEventData.getABGAllianceCollectorAmount`` (bundle line 134003)
         """
@@ -1149,11 +1149,11 @@ class AllianceService(BaseService):
             GetAllianceInfluenceRequest(alliance_id=alliance_id), AllianceInfluenceResponse, timeout=timeout
         ).influence
 
-    def get_battleground_player_influence(self, player_id: int, *, timeout: float = 5.0) -> int:
+    def get_horizon_player_influence(self, player_id: int, *, timeout: float = 5.0) -> int:
         """
-        A player's battleground influence.
+        A player's Beyond the Horizon influence.
 
-        Only on the alliance battleground server, in alliance collector scoring.
+        Only on the Beyond the Horizon server, in alliance collector scoring.
 
         Client: ``CastleCollectorEventData.getABGCollectorAmount`` (bundle line 134002)
         """
@@ -1165,7 +1165,7 @@ class AllianceService(BaseService):
         """
         How many capitals, metropolises and kings' towers your alliance holds, against their limits.
 
-        Only on the alliance battleground server, in alliance collector scoring.
+        Only on the Beyond the Horizon server, in alliance collector scoring.
 
         Raises:
             NotInAllianceError: You are in no alliance; nothing is sent
@@ -1180,7 +1180,7 @@ class AllianceService(BaseService):
         """
         Your alliance's centers of power one by one, with the member holding each.
 
-        Only on the alliance battleground server, in alliance collector scoring.
+        Only on the Beyond the Horizon server, in alliance collector scoring.
 
         Raises:
             NotInAllianceError: You are in no alliance; nothing is sent
@@ -1195,9 +1195,9 @@ class AllianceService(BaseService):
 
     def get_towers(self, alliance_id: int, *, timeout: float = 5.0) -> list[MapAreaItem]:
         """
-        An alliance's towers on the battleground, as map rows.
+        An alliance's towers on Beyond the Horizon, as map rows.
 
-        Only on the alliance battleground server, in tower scoring.
+        Only on the Beyond the Horizon server, in tower scoring.
 
         Client: ``CastleAllianceInfoDialogABGTower.show`` (bundle line 66587)
         """
@@ -1209,7 +1209,7 @@ class AllianceService(BaseService):
         """
         The castles linked to the alliance tower at ``(x, y)``, with their owners.
 
-        Only on the alliance battleground server, in tower scoring.
+        Only on the Beyond the Horizon server, in tower scoring.
 
         Client: ``CastleABGTowerDetailDialog.showLoaded`` (bundle line 46066)
         """
@@ -1219,7 +1219,7 @@ class AllianceService(BaseService):
         """
         The buffs of the alliance tower at ``(x, y)``, held by ``alliance_id``.
 
-        Only on the alliance battleground server, in tower scoring. The buffs are as the server lists
+        Only on the Beyond the Horizon server, in tower scoring. The buffs are as the server lists
         them; the client also shows the event's other tower effects, at level 0.
 
         Client: ``CastleABGTowerEffectsDialog.showLoaded`` (bundle line 71024)
@@ -1236,7 +1236,7 @@ class AllianceService(BaseService):
         """
         Activate the buffs of the alliance tower at ``(x, y)``, for rubies; returns its buffs now.
 
-        Only on the alliance battleground server, in tower scoring. The price comes from the event's
+        Only on the Beyond the Horizon server, in tower scoring. The price comes from the event's
         activation table, cheaper the nearer the tower's revival; the server charges it.
 
         Raises:
@@ -1262,7 +1262,7 @@ class AllianceService(BaseService):
         """
         Raise buffs of the alliance tower at ``(x, y)``, for rubies; returns its buffs now.
 
-        Only on the alliance battleground server, in tower scoring. Each increase names the buff's
+        Only on the Beyond the Horizon server, in tower scoring. Each increase names the buff's
         effect, its current level (a :meth:`get_tower_buffs` level) and the level to reach; each level's
         price comes from the event's tower effect table, and the server charges it.
 

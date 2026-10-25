@@ -4,7 +4,7 @@ along, and the feast discount.
 
 Commands:
 - sub: your castles holding a building that can be upgraded, for a prime sale
-- gctb: the main castle's buildings a castle transport to a temporary server takes along
+- gctb: the main castle's buildings a castle transport to the Outer Realms takes along
 - fce: the discount on feasts
 """
 
@@ -102,7 +102,7 @@ class ShowUpgradableBuildingsResponse(BaseResponse):
 
 class GetTransportationBuildingsRequest(BaseRequest):
     """
-    Read the buildings a castle transport to a temporary server takes along.
+    Read the buildings a castle transport to the Outer Realms takes along.
 
     Command: gctb
     Payload: {}

@@ -200,7 +200,7 @@ class GetIslandAttackInfoResponse(GetAttackInfoResponse):
 
 class GetAllianceTowerAttackInfoRequest(BaseRequest):
     """
-    Ask for the attack pre-calculation against an alliance battleground tower.
+    Ask for the attack pre-calculation against a Beyond the Horizon tower.
 
     ``C2S_GET_TREASURE_INFO`` shares the ``gti`` id; the client builds no request for it.
 
@@ -223,7 +223,7 @@ class GetAllianceTowerAttackInfoRequest(BaseRequest):
 
 class GetAllianceTowerAttackInfoResponse(GetAttackInfoResponse):
     """
-    The attack pre-calculation for an alliance battleground tower, read as a castle's is.
+    The attack pre-calculation for a Beyond the Horizon tower, read as a castle's is.
 
     The server refuses it with PLAYER_HAS_NOOB_PROTECTION, TARGET_HAS_PEACE or
     SPECIALCAMP_PROTECTED besides the usual errors.

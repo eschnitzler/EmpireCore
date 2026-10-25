@@ -41,7 +41,7 @@ berimond = client.player.faction_points
 ranks = client.player.title_ranks               # top-X ranks, Storm Islands title, shown systems (select_titles)
 achievements = client.player.achievements
 relocation = client.player.relocation
-monks = client.spy.plague_monks
+doctors = client.spy.plague_doctors
 quests = client.quests.active                   # your active quests, by id
 book = client.quests.book                       # the quest book's main quests
 daily = client.quests.daily                     # daily quest level, today's quests
@@ -118,7 +118,7 @@ every value is as old as the last packet that carried it:
 | Top-X ranks, Storm Islands title | `uar` (pushed) | log in again |
 | Achievements | `vli` (pushed); finished ones add up, progress per achievement | log in again |
 | Relocation | `gri` (pushed) | log in again |
-| Plague monks | `cpi` (pushed), the `cpm` and `sbp` replies | log in again |
+| Plague doctors | `cpi` (pushed), the `cpm` and `sbp` replies | log in again |
 | Daily reset | `drt` (login data only) | log in again |
 | Attack counter | `gai` (pushed) | log in again |
 | Officers' school training | `gatp` (any `gatp` without a running program clears it), `gtp` (its running program; none clears it) | log in again |

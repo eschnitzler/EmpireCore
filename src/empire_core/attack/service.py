@@ -45,14 +45,14 @@ from empire_core.attack.models.presets import (
     UnlockPresetRequest,
 )
 from empire_core.attack.models.send import (
-    AllianceBattlegroundAttackRequest,
-    AllianceBattlegroundAttackResponse,
     CreateAttackRequest,
     CreateAttackResponse,
     DaimyoTauntRequest,
     DaimyoTauntResponse,
-    TemporaryServerAttackRequest,
-    TemporaryServerAttackResponse,
+    HorizonAttackRequest,
+    HorizonAttackResponse,
+    OuterRealmsAttackRequest,
+    OuterRealmsAttackResponse,
     TreasureHuntAttackRequest,
     TreasureHuntAttackResponse,
 )
@@ -278,8 +278,8 @@ class AttackService(BaseService):
         min_soldiers: int | None = None,
         collector_attack: bool = False,
         *,
-        alliance_battleground: bool = False,
-        temporary_server: bool = False,
+        horizon: bool = False,
+        outer_realms: bool = False,
         spend_rubies: bool = False,
         timeout: float = 5.0,
     ) -> CreateAttackResponse:
@@ -348,13 +348,12 @@ class AttackService(BaseService):
                 there (``FC`` 1), as the client's confirmation dialog does
             collector_attack: A collector event attack (``ICA`` 1), as the client sends one
                 after its collector booster dialog
-            alliance_battleground: Send it as ``abgcam``, as the client does on the alliance
-                battleground server while the event scores alliance collector points and the
-                target is a castle or capital; the reply is then an
-                ``AllianceBattlegroundAttackResponse``. Such an attack has no auto-skip cooldown
-            temporary_server: Send it as ``cam``, as the client does on the temporary server while
+            horizon: Send it as ``abgcam``, as the client does on the Beyond the Horizon
+                server while the event scores alliance collector points and the target is a castle or
+                capital; the reply is then a ``HorizonAttackResponse``. Such an attack has no auto-skip cooldown
+            outer_realms: Send it as ``cam``, as the client does on the Outer Realms while
                 its event scores collector points and the target is a castle; the reply is then a
-                ``TemporaryServerAttackResponse``. Such an attack has no auto-skip cooldown, and
+                ``OuterRealmsAttackResponse``. Such an attack has no auto-skip cooldown, and
                 ``collector_attack`` is not sent: the client always sends ``ICA`` 0 there
             min_soldiers: The fewest units the waves must carry together, such
                 as ``FilledAttack.min_soldiers`` or
@@ -375,7 +374,7 @@ class AttackService(BaseService):
             GameDataNotLoadedError: The premium commander leads, VIP time runs and
                 the game data cannot be loaded; or a horse is picked without feathers
                 before it was called
-            ValueError: Both ``alliance_battleground`` and ``temporary_server`` are set, areas of yours sit
+            ValueError: Both ``horizon`` and ``outer_realms`` are set, areas of yours sit
                 at the source position in several kingdoms and no
                 ``kingdom_id`` is given, no wave carries any units, a container is overfull, or the horse or
                 slowdown costs rubies and ``spend_rubies`` is False
@@ -390,8 +389,8 @@ class AttackService(BaseService):
         line 133898) send the source area's ``kingdomID`` as ``KID``; ``CastlePostAttackDialog.sendAttack``
         (bundle line 38381) picks between them
         """
-        if alliance_battleground and temporary_server:
-            raise ValueError("an attack is sent on the alliance battleground or on the temporary server, not both")
+        if horizon and outer_realms:
+            raise ValueError("an attack is sent on Beyond the Horizon or on the Outer Realms, not both")
         if isinstance(waves, FilledAttack):
             yard_wave = waves.yard if yard_wave is None else yard_wave
             min_soldiers = waves.min_soldiers if min_soldiers is None else min_soldiers
@@ -419,18 +418,10 @@ class AttackService(BaseService):
         self._require_spend_rubies(spend_rubies, self._travel_ruby_cost(horse_booster_id, feathers, slowdown))
         kingdom_id = self._own_area_kingdom(source_x, source_y, kingdom_id)
         response_type = (
-            AllianceBattlegroundAttackResponse
-            if alliance_battleground
-            else TemporaryServerAttackResponse
-            if temporary_server
-            else CreateAttackResponse
+            HorizonAttackResponse if horizon else OuterRealmsAttackResponse if outer_realms else CreateAttackResponse
         )
         request = (
-            AllianceBattlegroundAttackRequest
-            if alliance_battleground
-            else TemporaryServerAttackRequest
-            if temporary_server
-            else CreateAttackRequest
+            HorizonAttackRequest if horizon else OuterRealmsAttackRequest if outer_realms else CreateAttackRequest
         )(
             source_x=source_x,
             source_y=source_y,
@@ -451,7 +442,7 @@ class AttackService(BaseService):
             support_tools=tuple(support_tools or ()),
             collector_booster=dict((collector_booster or {}).items()),
             send_anyway=1 if send_anyway else 0,
-            collector_attack=1 if collector_attack and not temporary_server else 0,
+            collector_attack=1 if collector_attack and not outer_realms else 0,
         )
 
         def send() -> CreateAttackResponse:

@@ -46,7 +46,7 @@ class TestRankingService:
         client = make_client({"llsp": xt_packet("llsp", payload)})
 
         entries = client.ranking.get_ranking_list(
-            list_type=RankingType.LONG_TERM_POINT_EVENT, rank=3, max_results=8, league_type_id=3
+            list_type=RankingType.GRAND_NOBILITY_PRIZE, rank=3, max_results=8, league_type_id=3
         )
 
         assert (entries[0].rank, entries[0].score) == (3, 500)
@@ -57,7 +57,7 @@ class TestRankingService:
         # DonationEventDialogRanking: GlobalLeaderBoardComponent.init(highscoreID), so LID -1
         client = make_client({"llsp": xt_packet("llsp", {"L": [], "T": 0})})
 
-        client.ranking.get_ranking_list(RankingType.LONG_TERM_POINT_EVENT, 1, 10, -1)
+        client.ranking.get_ranking_list(RankingType.GRAND_NOBILITY_PRIZE, 1, 10, -1)
 
         assert conn(client).request_payloads == [("llsp", {"LT": 53, "LID": -1, "M": 10, "R": 1})]
 
@@ -75,7 +75,7 @@ class TestRankingService:
         client = make_client({"llsw": xt_packet("llsw", payload)})
 
         entries = client.ranking.get_own_ranking_page(
-            list_type=RankingType.LONG_TERM_POINT_EVENT, max_results=8, league_type_id=2
+            list_type=RankingType.GRAND_NOBILITY_PRIZE, max_results=8, league_type_id=2
         )
 
         assert (entries[0].rank, entries[0].player_name) == (17, "Player")
@@ -89,10 +89,10 @@ class TestRankingService:
             }
         )
 
-        results = client.ranking.search_leaderboard(list_type=RankingType.LONG_TERM_POINT_EVENT, search_value="Some")
+        results = client.ranking.search_leaderboard(list_type=RankingType.GRAND_NOBILITY_PRIZE, search_value="Some")
         hit = results[0]
         entries = client.ranking.get_ranking_window(
-            list_type=RankingType.LONG_TERM_POINT_EVENT,
+            list_type=RankingType.GRAND_NOBILITY_PRIZE,
             score_id=hit.score_ids[0],
             max_results=8,
             league_type_id=hit.league_type_id,
@@ -109,7 +109,7 @@ class TestRankingService:
         client = make_client({})
 
         with pytest.raises(ValueError):
-            client.ranking.search_leaderboard(list_type=RankingType.LONG_TERM_POINT_EVENT, search_value="")
+            client.ranking.search_leaderboard(list_type=RankingType.GRAND_NOBILITY_PRIZE, search_value="")
 
         assert conn(client).request_payloads == []
 

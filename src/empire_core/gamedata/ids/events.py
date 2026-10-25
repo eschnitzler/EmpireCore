@@ -7,11 +7,10 @@ from empire_core.texts import has_text, text
 
 class Event(IntEnum):
     """
-    Event ids from the ``events`` table, named from ``eventType`` and player-facing titles.
+    Event ids from the ``events`` table, named from the title players see, else ``eventType``.
 
     Client: ``CastleSpecialEventData.storeXmlEvents`` (bundle line 139777) keys rows by ``eventID``,
-    ``ASpecialEventVO.parseBasicsFromXmlNode`` (bundle line 2959) reads ``eventType``; event 129 uses
-    ``event_title_129`` (Grand Tournament), getter bundle line 5090
+    ``ASpecialEventVO.parseBasicsFromXmlNode`` (bundle line 2959) reads ``eventType``
     """
 
     @property
@@ -32,126 +31,249 @@ class Event(IntEnum):
         """
         return text(self.text_id, lang=lang) if has_text(self.text_id, lang) else None
 
-    THORNKING = 2
-    FACTION = 3
-    SEAQUEEN = 4
-    NOMAD_INVASION = 5
-    PAYMENTREWARD_6 = 6
-    PRIME_SALE = 7
+    THORN_KING = 2
+    """In game "The Thorn King"; the client's ``Thornking``."""
+    BATTLE_FOR_BERIMOND = 3
+    """In game "Battle for Berimond"; the client's ``Faction``."""
+    BLADE_COAST = 4
+    """In game "The Blade Coast"; the client's ``Seaqueen``."""
+    NOMAD_INVASION_5 = 5
+    """No in-game title; the client's ``NomadInvasion``."""
+    PRIME_DAY = 6
+    """In game "Prime Day"; the client's ``Paymentreward``."""
+    PRIME_SALE_7 = 7
+    """No in-game title; the client's ``PrimeSale``."""
     SKIP_FOR_FREE = 8
+    """No in-game title; the client's ``SkipForFree``."""
     AWARDREWARD = 10
+    """No in-game title; the client's ``Awardreward``."""
     ALIEN_INVASION = 11
-    GGS_GIFT = 13
-    UNIT_DEALER_14 = 14
-    LUCKY_WHEEL = 15
-    FAMEBOOSTER = 16
-    UNIT_DEALER_17 = 17
+    """No in-game title; the client's ``AlienInvasion``."""
+    GIFT_BOX = 13
+    """In game "Gift box"; the client's ``GGSGift``."""
+    MERCENARY_STORM_ISLANDS = 14
+    """In game "Mercenary: Storm Islands"; the client's ``UnitDealer``."""
+    WHEEL_OF_FORTUNE = 15
+    """In game "Wheel of Fortune"; the client's ``LuckyWheel``."""
+    BANNER_OF_GLORY = 16
+    """In game "Banner of Glory"; the client's ``Famebooster``."""
+    MERCENARY_UNDERWORLD = 17
+    """In game "Mercenary: Underworld"; the client's ``UnitDealer``."""
     ADJUST_SKIP_BUILDING = 18
-    ARTIFACT_19 = 19
+    """No in-game title; the client's ``AdjustSkipBuilding``."""
+    TRAVELING_KNIGHTS_19 = 19
+    """In game "Traveling Knights"; the client's ``Artifact``."""
     OVERSEER = 20
-    SHADOW_UNIT = 21
-    MERCHANT_22 = 22
-    ARTIFACT_23 = 23
+    """No in-game title; the client's ``Overseer``."""
+    SHADOW_MERCENARIES = 21
+    """In game "Shadow Mercenaries"; the client's ``ShadowUnit``."""
+    TRAVELING_MERCHANT = 22
+    """In game "Traveling merchant"; the client's ``Merchant``."""
+    TRAVELING_KNIGHTS_23 = 23
+    """In game "Traveling Knights"; the client's ``Artifact``."""
     TOURNAMENT = 24
-    BOUNTYHUNTER = 25
-    RANDOMDUNGEON_26 = 26
+    """In game "Tournament"; the client's ``Tournament``."""
+    SHADY_LADY = 25
+    """In game "Shady Lady"; the client's ``Bountyhunter``."""
+    KING_OF_THE_ROBBER_BARONS = 26
+    """In game "King of the robber barons"; the client's ``Randomdungeon``."""
     ARMORER = 27
-    ARTIFACT_29 = 29
-    ARTIFACT_30 = 30
+    """In game "Armorer"; the client's ``Armorer``."""
+    TRAVELING_KNIGHTS_29 = 29
+    """In game "Traveling Knights"; the client's ``Artifact``."""
+    TRAVELING_KNIGHTS_30 = 30
+    """In game "Traveling Knights"; the client's ``Artifact``."""
     ALCHEMIST = 35
-    ALLI_TOURNAMENT = 36
-    RENEGADE_37 = 37
-    RENEGADE_38 = 38
-    RENEGADE_39 = 39
-    CONSTRUCTION_EXPERT = 40
-    PLAGUE = 41
-    MERCHANT_42 = 42
-    UNIT_DEALER_43 = 43
+    """No in-game title; the client's ``Alchemist``."""
+    ALLIANCE_TOURNAMENT = 36
+    """In game "Alliance tournament"; the client's ``AlliTournament``."""
+    RENEGADE_SPY_EVERWINTER_GLACIER = 37
+    """In game "Renegade spy: Everwinter Glacier"; the client's ``Renegade``."""
+    RENEGADE_SPY_BURNING_SANDS = 38
+    """In game "Renegade spy: Burning Sands"; the client's ``Renegade``."""
+    RENEGADE_SPY_FIRE_PEAKS = 39
+    """In game "Renegade spy: Fire Peaks"; the client's ``Renegade``."""
+    ARCHITECT = 40
+    """In game "Architect"; the client's ``ConstructionExpert``."""
+    PLAGUE_DOCTORS = 41
+    """In game "Plague Doctors"; the client's ``Plague``."""
+    TRAVELING_MERCHANT_EVENT = 42
+    """In game "Traveling merchant: event"; the client's ``Merchant``."""
+    MERCENARY_THORN_KING = 43
+    """In game "Mercenary: Thorn King"; the client's ``UnitDealer``."""
     COLOSSUS_44 = 44
+    """In game "Colossus"; the client's ``Colossus``."""
     PRIME_ALLI_BONUS = 45
-    EQUIPMENT_ENHANCER = 46
-    RANDOMDUNGEON_48 = 48
+    """No in-game title; the client's ``PrimeAlliBonus``."""
+    TECHNICUS = 46
+    """In game "Technicus"; the client's ``EquipmentEnhancer``."""
+    RANDOMDUNGEON = 48
+    """No in-game title; the client's ``Randomdungeon``."""
     NOMAD_HUNTER = 49
-    RESEARCH_EXPERT = 50
-    ALLI_PAYMENT_BONUS = 55
+    """In game "Nomad Hunter"; the client's ``NomadHunter``."""
+    RESEARCHER = 50
+    """In game "Researcher"; the client's ``ResearchExpert``."""
+    ALLIANCE_PRIME_DAY = 55
+    """In game "Alliance prime day"; the client's ``AlliPaymentBonus``."""
     COLOSSUS_57 = 57
-    UNIT_DEALER_58 = 58
-    POINT_EVENT = 60
+    """In game "Colossus"; the client's ``Colossus``."""
+    MERCENARY_BLADE_COAST = 58
+    """In game "Mercenary: Blade Coast"; the client's ``UnitDealer``."""
+    NOBILITY_CONTEST = 60
+    """In game "Nobility Contest"; the client's ``PointEvent``."""
     EVENT_SKIN = 61
-    BEGGING_KNIGHTS = 62
+    """No in-game title; the client's ``EventSkin``."""
+    MARAUDERS_CONTEST = 62
+    """In game "Marauders' contest"; the client's ``BeggingKnights``."""
     WORLD_CUP = 63
+    """No in-game title; the client's ``WorldCup``."""
     UNDERWORLD = 64
+    """In game "The Underworld"; the client's ``Underworld``."""
     USER_SURVEY = 65
-    PLAYER_GIFT_MERCHANT = 66
-    ARTIFACT_67 = 67
-    EVENT_PACKAGE_PRIME_SALE = 68
-    COLOSSUS_69 = 69
-    PRIME_SALE_REVIVE_ALL = 70
-    ALLIANCE_ALIEN_INVASION = 71
-    ALLIANCE_NOMAD_INVASION = 72
+    """No in-game title; the client's ``UserSurvey``."""
+    GIFT_PEDDLER = 66
+    """In game "Gift Peddler"; the client's ``PlayerGiftMerchant``."""
+    TRAVELING_KNIGHTS_67 = 67
+    """In game "Traveling Knights"; the client's ``Artifact``."""
+    PRIME_SALE_68 = 68
+    """In game "Prime sale"; the client's ``EventPackagePrimeSale``."""
+    GOLD_COLOSSUS = 69
+    """In game "Gold Colossus"; the client's ``Colossus``."""
+    HOSPITAL_PRIME_SALE = 70
+    """In game "Hospital prime sale"; the client's ``PrimeSaleReviveAll``."""
+    WAR_OF_THE_REALMS = 71
+    """In game "War of the Realms"; the client's ``AllianceAlienInvasion``."""
+    NOMAD_INVASION_72 = 72
+    """In game "Nomad Invasion"; the client's ``AllianceNomadInvasion``."""
     EVENT_ANNOUNCEMENT = 73
+    """No in-game title; the client's ``EventAnnouncement``."""
     PAYMENTREWARD_74 = 74
-    EVENT_BOOSTER_PRIME_SALE = 75
-    FACTION_ARMORER = 76
+    """No in-game title; the client's ``Paymentreward``."""
+    PRIME_SALE_FOR_BOOSTERS = 75
+    """In game "Prime sale for boosters"; the client's ``EventBoosterPrimeSale``."""
+    BERIMOND_ARMORER_76 = 76
+    """In game "Berimond Armorer"; the client's ``FactionArmorer``."""
     TEMPORARY_QUEST = 77
+    """No in-game title; the client's ``TemporaryQuest``."""
     PAYMENTREWARD_78 = 78
-    PAYMENTREWARD_79 = 79
+    """No in-game title; the client's ``Paymentreward``."""
+    PRIME_DAY_SPECIAL_OFFER = 79
+    """In game "Prime day special offer"; the client's ``Paymentreward``."""
     SAMURAI_INVASION = 80
-    SAMURAI_HUNTER = 81
-    TIERED_PAYMENTREWARD = 82
-    LONG_TERM_POINT_EVENT = 83
+    """In game "Samurai Invasion"; the client's ``SamuraiInvasion``."""
+    SAMURAI_ARMORER = 81
+    """In game "Samurai armorer"; the client's ``SamuraiHunter``."""
+    TIERED_PRIME_DAY = 82
+    """In game "Tiered prime day"; the client's ``TieredPaymentreward``."""
+    GRAND_NOBILITY_PRIZE = 83
+    """In game "Grand Nobility Prize"; the client's ``LongTermPointEvent``."""
     PRIVATE_PRIME_TIME_EVENT = 84
-    FACTION_INVASION = 85
-    FACTION_HUNTER = 86
-    EQUIPMENT_ENHANCER_PRIME_SALE = 87
+    """No in-game title; the client's ``PrivatePrimeTimeEvent``."""
+    BERIMOND_INVASION = 85
+    """In game "Berimond Invasion"; the client's ``FactionInvasion``."""
+    BERIMOND_ARMORER_86 = 86
+    """In game "Berimond Armorer"; the client's ``FactionHunter``."""
+    PRIME_SALE_TECHNICUS = 87
+    """In game "Prime sale technicus"; the client's ``EquipmentEnhancerPrimeSale``."""
     RELIC_ENCHANTER_PRIME_SALE = 88
-    SALE_DAYS_LUCKY_WHEEL = 89
-    SHOPPING_CART_PRIME_SALE = 90
+    """No in-game title; the client's ``RelicEnchanterPrimeSale``."""
+    WHEEL_OF_UNIMAGINABLE_AFFLUENCE = 89
+    """In game "Wheel of Unimaginable Affluence"; the client's ``SaleDaysLuckyWheel``."""
+    SHOPPING_CART_PRIME_DAY = 90
+    """In game "Shopping cart prime day"; the client's ``ShoppingCartPrimeSale``."""
     APPRENTICE_SMITH = 92
+    """No in-game title; the client's ``apprenticeSmith``."""
     WISHING_WELL_COIN_VENDOR = 93
+    """No in-game title; the client's ``wishingWellCoinVendor``."""
     NOMAD_INVASION_VENDOR = 94
+    """In game "Nomad invasion vendor"; the client's ``NomadInvasionVendor``."""
     TIME_LIMITED_CAMPAIGN_EVENT = 95
+    """No in-game title; the client's ``TimeLimitedCampaignEvent``."""
     TIME_LIMITED_CAMPAIGN_QUEST_EVENT = 96
+    """No in-game title; the client's ``TimeLimitedCampaignQuestEvent``."""
     UNIT_PRIME_SALE = 100
-    EQUIPMENT_MERCHANT = 101
-    E102 = 102
-    RED_ALLIANCE_ALIEN_INVASION = 103
+    """No in-game title; the client's ``UnitPrimeSale``."""
+    EQUIPMENT_TRADER = 101
+    """In game "Equipment Trader"; the client's ``EquipmentMerchant``."""
+    STORM_ISLANDS = 102
+    """In game "Storm Islands"; no ``eventType`` in the client."""
+    BLOODCROW_INVASION = 103
+    """In game "Bloodcrow invasion"; the client's ``RedAllianceAlienInvasion``."""
     FUSION_RECHARGE_PRIME_SALE = 104
+    """No in-game title; the client's ``FusionRechargePrimeSale``."""
     PREMIUM_FUSION_PRIME_SALE = 105
-    TEMP_SERVER = 106
+    """No in-game title; the client's ``PremiumFusionPrimeSale``."""
+    OUTER_REALMS = 106
+    """In game "The Outer Realms"; the client's ``TempServer``."""
     COLLECTOR_EVENT = 108
+    """No in-game title; the client's ``CollectorEvent``."""
     COLLECTOR_SHOP = 109
+    """No in-game title; the client's ``CollectorShop``."""
     TEMP_SERVER_MULTIPLIER = 110
+    """No in-game title; the client's ``TempServerMultiplier``."""
     DAIMYO_SHOP = 111
+    """In game "Daimyo shop"; the client's ``DaimyoShop``."""
     PRIME_SALE_EXPANSION = 112
-    ALLIANCE_BATTLE_GROUND = 113
+    """No in-game title; the client's ``PrimeSaleExpansion``."""
+    BEYOND_THE_HORIZON = 113
+    """In game "Beyond the Horizon"; the client's ``AllianceBattleGround``."""
     WEB_SHOP = 114
+    """No in-game title; the client's ``WebShop``."""
     REACTIVATION_PRIVATE_PRIME_TIME_EVENT = 115
+    """No in-game title; the client's ``ReactivationPrivatePrimeTimeEvent``."""
     APPRENTICE_TOKEN_VENDOR = 116
+    """No in-game title; the client's ``apprenticeTokenVendor``."""
     FORTUNE_TELLER = 117
+    """In game "Fortune teller"; the client's ``FortuneTeller``."""
     LOYALTY = 118
+    """No in-game title; the client's ``Loyalty``."""
     MOBILE_BROWSER_SHOP_STANDARD = 119
+    """No in-game title; the client's ``MobileBrowserShopStandard``."""
     MOBILE_BROWSER_SHOP_SPECIAL = 120
+    """No in-game title; the client's ``MobileBrowserShopSpecial``."""
     MOBILE_BROWSER_SHOP_TEMPSERVER_STANDARD = 121
+    """No in-game title; the client's ``MobileBrowserShopTempserverStandard``."""
     MOBILE_BROWSER_SHOP_TEMPSERVER_SPECIAL = 122
-    DONATION_EVENT = 123
+    """No in-game title; the client's ``MobileBrowserShopTempserverSpecial``."""
+    IMPERIAL_PATRONAGE = 123
+    """In game "Imperial Patronage"; the client's ``DonationEvent``."""
     PRIME_TIME_SKIN_EVENT = 124
+    """No in-game title; the client's ``PrimeTimeSkinEvent``."""
     SPECIAL_DAILY_BUNDLE_EVENT = 125
+    """No in-game title; the client's ``SpecialDailyBundleEvent``."""
     GACHA_DECO2X2 = 126
-    CHRISTMAS_GACHA = 127
-    EASTER_GACHA = 128
+    """No in-game title; the client's ``GachaDeco2x2``."""
+    ENCHANTED_SNOWGLOBE = 127
+    """In game "The Enchanted Snowglobe"; the client's ``ChristmasGacha``."""
+    SUMMONING_OF_THE_HOLLOW_MOON = 128
+    """In game "Summoning of the Hollow Moon"; the client's ``EasterGacha``."""
     GRAND_TOURNAMENT = 129
-    SUMMER_GACHA = 130
-    ANNIVERSARY_GACHA = 131
-    HALLOWEEN_GACHA = 132
-    ALLIANCE_RAIDBOSS_EVENT = 133
-    BLACK_FRIDAY_GACHA = 134
-    CARNIVAL_GACHA = 135
+    """In game "Grand Tournament"; the client's ``AllianceMobilizationEvent``."""
+    SANDS_OF_FORTUNE = 130
+    """In game "Sands of Fortune"; the client's ``SummerGacha``."""
+    KINGS_BANQUET = 131
+    """In game "King's Banquet"; the client's ``AnniversaryGacha``."""
+    HALLOWEEN_BANQUET = 132
+    """In game "Halloween Banquet"; the client's ``HalloweenGacha``."""
+    RIFT_RAID = 133
+    """In game "Rift Raid"; the client's ``AllianceRaidbossEvent``."""
+    MIDNIGHT_MARKET = 134
+    """In game "Midnight Market"; the client's ``BlackFridayGacha``."""
+    CARNIVAL_OF_MASKS = 135
+    """In game "Carnival of Masks"; the client's ``CarnivalGacha``."""
     CONVERSION_PRIVATE_PRIME_TIME_EVENT = 136
+    """No in-game title; the client's ``ConversionPrivatePrimeTimeEvent``."""
     RAIDBOSS_SHOP_EVENT = 138
+    """No in-game title; the client's ``RaidbossShopEvent``."""
     SEASON_PASS_PRIME_SALE = 599
-    SEASON_LEAGUE = 601
+    """No in-game title; the client's ``SeasonPassPrimeSale``."""
+    KINGDOMS_LEAGUE = 601
+    """In game "Kingdom's League"; the client's ``SeasonLeague``."""
     GLOBAL_EFFECT = 610
+    """No in-game title; the client's ``GlobalEffect``."""
     KILL_GLOBAL_EFFECT = 611
+    """No in-game title; the client's ``KillGlobalEffect``."""
     GLOBAL_EFFECT_BUFF = 612
+    """No in-game title; the client's ``GlobalEffectBuff``."""
     KILL_GLOBAL_EFFECT_BUFF = 613
+    """No in-game title; the client's ``KillGlobalEffectBuff``."""

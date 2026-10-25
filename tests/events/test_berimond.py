@@ -180,6 +180,6 @@ def test_kingdom_status_inside_the_login_kpi_follows_the_sei():
         "gbd",
         {"sei": {"E": [{"EID": 3, "RS": 600, "UL": 1}]}, "kpi": {"UL": [{"KID": 10, "U": 1, "C": 0}], "fki": FKI}},
     )
-    event = state.get_event(Event.FACTION)
+    event = state.get_event(Event.BATTLE_FOR_BERIMOND)
     assert event is not None and event.kingdom_status is not None
     assert event.kingdom_status.blue_capital_reachable

@@ -13,7 +13,7 @@ from typing import Any
 from pydantic import Field, field_validator
 
 from empire_core.enums import Kingdom
-from empire_core.events.faction_models import FactionStanding
+from empire_core.events.berimond_models import FactionStanding
 from empire_core.map.models.areas import KingdomProtection
 from empire_core.protocol.base import (
     BaseRequest,

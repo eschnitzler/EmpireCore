@@ -194,7 +194,7 @@ class TestRiskTargetFlags:
             ([37, 1, 2], (True, True)),  # daimyo castle
             ([42, 1, 2], (True, True)),  # wolf king
             ([35, 1, 2, -1, 1, 0, 0, 0, 0, 0, 0, 0, 0], (True, True)),  # nomad khan camp: -801
-            ([30, 1, 2, -1, 3, 0, 0, -401], (True, True)),  # faction invasion camp: its owner field
+            ([30, 1, 2, -1, 3, 0, 0, -401], (True, True)),  # Berimond invasion camp: its owner field
         ],
     )
     def test_row_flags(self, row, flags):

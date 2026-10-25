@@ -2,7 +2,7 @@
 
 import pytest
 
-from empire_core.enums import CollectableKind, GachaRarity, Kingdom, LuckyWheelType, WorldCupVote
+from empire_core.enums import CollectableKind, GachaRarity, Kingdom, WheelOfFortuneType, WorldCupVote
 from empire_core.exceptions import CommandError, EventNotRunningError
 from empire_core.gamedata import Event, GameData
 from empire_core.protocol.base import get_response_model
@@ -10,7 +10,7 @@ from empire_core.protocol.models import (
     ColossusCoinDepositResponse,
     GachaInfoResponse,
     GachaSpinResponse,
-    LuckyWheelSpinResponse,
+    WheelOfFortuneSpinResponse,
 )
 from empire_core.state.manager import GameState
 from tests.service_helpers import conn, gcl_castles, make_client, xt_packet
@@ -26,15 +26,15 @@ def events_client(entries, script=None, castles=None):
     return client
 
 
-class TestLuckyWheel:
+class TestWheelOfFortune:
     def test_spin_sends_the_wheel_and_updates_it(self):
         reply = {**WHEEL, "WC": 4, "R": [["C1", 500]], "OR": [12], "OP": [40]}
         client = events_client([{"EID": 15}], {"lws": xt_packet("lws", reply)})
-        result = client.events.spin_lucky_wheel()
+        result = client.events.spin_wheel_of_fortune()
         assert conn(client).request_payloads == [("lws", {"LWET": 0})]
         assert result.winning_category == 4
         assert result.rewards[0].kind is CollectableKind.COINS and result.rewards[0].amount == 500
-        wheel = client.state.get_event(Event.LUCKY_WHEEL)
+        wheel = client.state.get_event(Event.WHEEL_OF_FORTUNE)
         assert wheel is not None
         assert (wheel.pro_mode, wheel.win_class, wheel.win_class_progress, wheel.jackpot_set_id) == (True, 3, 2, 7)
         assert (wheel.own_rank, wheel.own_points) == (12, 40)
@@ -42,20 +42,20 @@ class TestLuckyWheel:
     def test_sale_days_spin_updates_the_sale_days_wheel(self):
         reply = {**WHEEL, "LWET": 1, "WC": 1, "R": []}
         client = events_client([{"EID": 15}, {"EID": 89}], {"lws": xt_packet("lws", reply)})
-        client.events.spin_lucky_wheel(LuckyWheelType.SALE_DAYS)
+        client.events.spin_wheel_of_fortune(WheelOfFortuneType.WHEEL_OF_UNIMAGINABLE_AFFLUENCE)
         assert conn(client).request_payloads == [("lws", {"LWET": 1})]
-        assert client.state.get_event(Event.SALE_DAYS_LUCKY_WHEEL).win_class == 3
-        assert client.state.get_event(Event.LUCKY_WHEEL).win_class == 0
+        assert client.state.get_event(Event.WHEEL_OF_UNIMAGINABLE_AFFLUENCE).win_class == 3
+        assert client.state.get_event(Event.WHEEL_OF_FORTUNE).win_class == 0
 
     def test_mode_change_flips_the_mode(self):
         client = events_client([{"EID": 15, "PMA": 0}], {"lwm": xt_packet("lwm", {"JSID": 2, "JHID": 5})})
-        client.events.change_lucky_wheel_mode()
-        wheel = client.state.get_event(Event.LUCKY_WHEEL)
+        client.events.change_wheel_of_fortune_mode()
+        wheel = client.state.get_event(Event.WHEEL_OF_FORTUNE)
         assert conn(client).request_payloads == [("lwm", {})]
         assert (wheel.pro_mode, wheel.jackpot_set_id, wheel.jackpot_spin_set_id) == (True, 2, 5)
 
     @pytest.mark.parametrize(
-        "method,command", [("buy_lucky_wheel_jackpot", "lwj"), ("increase_lucky_wheel_win_class", "lwc")]
+        "method,command", [("buy_wheel_of_fortune_jackpot", "lwj"), ("increase_wheel_of_fortune_win_class", "lwc")]
     )
     def test_ruby_actions_need_consent_and_update_the_wheel(self, method, command):
         client = events_client([{"EID": 15}], {command: xt_packet(command, {**WHEEL, "R": []})})
@@ -64,49 +64,49 @@ class TestLuckyWheel:
         assert conn(client).request_payloads == []
         getattr(client.events, method)(spend_rubies=True)
         assert conn(client).request_payloads == [(command, {})]
-        assert client.state.get_event(Event.LUCKY_WHEEL).win_class == 3
+        assert client.state.get_event(Event.WHEEL_OF_FORTUNE).win_class == 3
 
     def test_refused_spin_raises_and_keeps_the_wheel(self):
         client = events_client([{"EID": 15}], {"lws": xt_packet("lws", error_code=1)})
-        before = client.state.get_event(Event.LUCKY_WHEEL)
+        before = client.state.get_event(Event.WHEEL_OF_FORTUNE)
         with pytest.raises(CommandError):
-            client.events.spin_lucky_wheel()
-        assert client.state.get_event(Event.LUCKY_WHEEL) is before
+            client.events.spin_wheel_of_fortune()
+        assert client.state.get_event(Event.WHEEL_OF_FORTUNE) is before
 
     def test_not_running_sends_nothing(self):
         client = events_client([])
         with pytest.raises(EventNotRunningError):
-            client.events.spin_lucky_wheel()
+            client.events.spin_wheel_of_fortune()
         assert conn(client).request_payloads == []
 
     def test_jackpot_reply_parses_as_a_spin(self):
         model = get_response_model("lwj")
-        assert model is not None and issubclass(model, LuckyWheelSpinResponse)
+        assert model is not None and issubclass(model, WheelOfFortuneSpinResponse)
 
 
 class TestGacha:
     def test_pull_sends_the_pulls_and_updates_the_event(self):
         reply = {"ID": 31, "OP": 9, "OR": 4, "FCRT": 60, "LTR": [{"RR": [["C2", 5]], "R": 3}, {"RR": [], "R": 9}]}
         client = events_client([{"EID": 127}], {"dge": xt_packet("dge", reply)})
-        result = client.events.pull_gacha(Event.CHRISTMAS_GACHA, 2, spend_rubies=True)
+        result = client.events.pull_gacha(Event.ENCHANTED_SNOWGLOBE, 2, spend_rubies=True)
         assert conn(client).request_payloads == [("dge", {"EID": 127, "AMT": 2, "OB": 0})]
         assert isinstance(result, GachaSpinResponse) and result.gacha_id == 31
         assert result.pulls[0].rarity is GachaRarity.EPIC and result.pulls[0].rewards[0].amount == 5
         assert result.pulls[1].rarity == 9
-        gacha = client.state.get_event(Event.CHRISTMAS_GACHA)
+        gacha = client.state.get_event(Event.ENCHANTED_SNOWGLOBE)
         assert (gacha.own_points, gacha.own_rank) == (9, 4)
         assert gacha.free_chest_reset_time > 0
 
     def test_pull_needs_consent(self):
         client = events_client([{"EID": 127}])
         with pytest.raises(ValueError, match="spend_rubies=True"):
-            client.events.pull_gacha(Event.CHRISTMAS_GACHA)
+            client.events.pull_gacha(Event.ENCHANTED_SNOWGLOBE)
         assert conn(client).request_payloads == []
 
     def test_free_chest_push_updates_the_event_it_names(self):
         client = events_client([{"EID": 127, "OP": 3}])
         client._on_packet(xt_packet("cfc", {"EID": 127, "OP": 0, "OR": 2, "FCRT": 0}))
-        gacha = client.state.get_event(Event.CHRISTMAS_GACHA)
+        gacha = client.state.get_event(Event.ENCHANTED_SNOWGLOBE)
         assert (gacha.own_points, gacha.own_rank) == (3, 2)
 
     def test_gacha_info_is_parsed_without_fields(self):
@@ -127,7 +127,7 @@ class TestColossus:
     def test_coin_donation_reads_the_coins(self):
         reply = {"che": self.CHE, "gcu": {"C1": 10, "C2": 3}}
         client = events_client([{"EID": 69}], {"ccd": xt_packet("ccd", reply)})
-        result = client.events.donate_to_coin_colossus(500)
+        result = client.events.donate_to_gold_colossus(500)
         assert conn(client).request_payloads == [("ccd", {"DC": 500})]
         assert isinstance(result, ColossusCoinDepositResponse)
         assert result.currency is not None and result.currency.coins == 10
@@ -145,7 +145,7 @@ class TestDonation:
         reply = {"DIS": [{"DII": 5, "DIP": 120}]}
         client = events_client([{"EID": 123}], {"gdti": xt_packet("gdti", reply)})
         assert client.events.donated_points is None
-        points = client.events.get_donation_progress()
+        points = client.events.get_imperial_patronage_progress()
         assert conn(client).request_payloads == [("gdti", {})]
         assert [(row.donation_item_id, row.points) for row in points] == [(5, 120)]
         assert client.events.donated_points == points
@@ -172,7 +172,7 @@ def test_marauder_packages_then_points():
         ("bkp", {"SCID": 321, "SKID": 0, "WP": 2, "SP": 0, "FP": 1}),
         ("pep", {"EID": 62}),
     ]
-    assert points is not None and client.state.get_event(Event.BEGGING_KNIGHTS).own_points == 70
+    assert points is not None and client.state.get_event(Event.MARAUDERS_CONTEST).own_points == 70
 
 
 class TestArtifact:
@@ -202,17 +202,17 @@ class TestArtifact:
         assert client.state.get_event(19) is None
 
 
-class TestBountyHunter:
+class TestShadyLady:
     def test_validate_sends_nothing_else(self):
         client = events_client([{"EID": 25}], {"brt": xt_packet("brt", {})})
-        client.events.validate_bounty_target()
+        client.events.validate_shady_lady_target()
         assert conn(client).request_payloads == [("brt", {})]
 
     def test_skip_needs_consent_and_reads_the_rubies(self):
         client = events_client([{"EID": 25}], {"bst": xt_packet("bst", {"gcu": {"C1": 5, "C2": 9}, "sei": {"E": []}})})
         with pytest.raises(ValueError, match="spend_rubies=True"):
-            client.events.skip_bounty_target()
-        result = client.events.skip_bounty_target(spend_rubies=True)
+            client.events.skip_shady_lady_target()
+        result = client.events.skip_shady_lady_target(spend_rubies=True)
         assert conn(client).request_payloads == [("bst", {})]
         assert result.currency is not None and result.currency.rubies == 9
 

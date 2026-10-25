@@ -169,9 +169,9 @@ Server eligibility checks remain authoritative. Neither method updates a cached 
 
 Some events send attacks with commands of their own:
 
-- On the alliance battleground server, while the event scores alliance
+- On the Beyond the Horizon server, while the event scores alliance
   collector points, the game sends an attack on a castle or capital as
-  `abgcam`: pass `alliance_battleground=True` to `send_attack`. It takes the
+  `abgcam`: pass `horizon=True` to `send_attack`. It takes the
   same waves and options, without an auto-skip cooldown.
 - `send_treasure_hunt_attack(map_id, node_id, waves, commander_id)` attacks a
   treasure map node. The map and node name the target; no source castle is sent.
