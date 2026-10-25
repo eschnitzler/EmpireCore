@@ -14,6 +14,17 @@ from typing import TYPE_CHECKING, Any
 from empire_core.army.models.units import AttackWave
 from empire_core.army.spy_army import SpyArmy
 from empire_core.attack.filling import _pool, _support_tools, _target_defense
+from empire_core.attack.models.advisor import (
+    ActivateAttackAdvisorRequest,
+    ActivateAttackAdvisorResponse,
+    AttackAdvisorOverviewRequest,
+    AttackAdvisorOverviewResponse,
+)
+from empire_core.attack.models.alien_camps import (
+    AlienRerollCountsResponse,
+    HiddenAlienCampsResponse,
+    RerollAlienCampRequest,
+)
 from empire_core.attack.models.dungeon_skips import (
     MinuteSkipDungeonRequest,
     MinuteSkipDungeonResponse,
@@ -31,6 +42,7 @@ from empire_core.attack.models.presets import (
     PresetArmy,
     RenamePresetRequest,
     SavePresetRequest,
+    UnlockPresetRequest,
 )
 from empire_core.attack.models.send import CreateAttackRequest
 from empire_core.attack.models.target_info import (
@@ -39,6 +51,8 @@ from empire_core.attack.models.target_info import (
     GetTreasureNodeAttackInfoRequest,
     GetTreasureNodeAttackInfoResponse,
 )
+from empire_core.attack.models.taunts import LaunchTauntAttackRequest, LaunchWolfKingTauntRequest
+from empire_core.attack.models.tools import BoughtTools, BuyToolsRequest, BuyToolsResponse
 from empire_core.attack.pacing import AttackSendPacer
 from empire_core.attack.targeting import _merged, _precalculation, _read_target, _row_item, _Target
 from empire_core.combat import (
@@ -71,8 +85,18 @@ from empire_core.combat import (
 from empire_core.combat import fill_waves as solve_waves
 from empire_core.combat.capacity import ALIEN_INVASION_AREA_TYPES, OTHER_PLAYER_INFO_AREA_TYPES, LegendaryFight
 from empire_core.commanders.models.roster import Commander
-from empire_core.enums import AttackType, CombatEffectType, Flank, GGEError, Kingdom, LootPriority, MapItemType
-from empire_core.events.models import GlobalEffectBuffEvent, GlobalEffectEvent, GlobalEffectTimer
+from empire_core.enums import (
+    AttackAdvisorType,
+    AttackType,
+    CollectableKind,
+    CombatEffectType,
+    Flank,
+    GGEError,
+    Kingdom,
+    LootPriority,
+    MapItemType,
+)
+from empire_core.events.models import AlienInvasionEvent, GlobalEffectBuffEvent, GlobalEffectEvent, GlobalEffectTimer
 from empire_core.exceptions import (
     AttackBelowMinimumError,
     AttackInProgressError,
@@ -82,8 +106,10 @@ from empire_core.exceptions import (
 from empire_core.gamedata import WodAmount, WodAmountMapping
 from empire_core.gamedata.ids.events import Event
 from empire_core.map.models.items import MapAreaItem
+from empire_core.protocol.base import BaseResponse
 from empire_core.protocol.text import SMARTFOX_INVALID_CHARS, is_smartfox_valid
 from empire_core.services.base import BaseService
+from empire_core.utils import callbacks
 
 if TYPE_CHECKING:
     from empire_core.attack.models.counter import AttackCounterResponse
@@ -103,6 +129,7 @@ class AttackService(BaseService):
     def __init__(self, client: EmpireClient) -> None:
         super().__init__(client)
         self.pacer = AttackSendPacer(lambda: client.config.attack_send_interval)
+        self.on_response("hac", self._handle_hidden_alien_camps)
 
     @property
     def counter(self) -> AttackCounterResponse | None:
@@ -526,6 +553,217 @@ class AttackService(BaseService):
                 f"{''.join(SMARTFOX_INVALID_CHARS)}, got {name!r}"
             )
         self.execute(RenamePresetRequest(index=index, name=name), timeout=timeout)
+
+    def unlock_preset(self, index: int, *, spend_rubies: bool = False, timeout: float = 5.0) -> None:
+        """
+        Unlock an attack preset slot, paying its price from the game data.
+
+        Slots unlock in order: the client marks its first locked slot unlocked whatever ``index`` was.
+
+        Args:
+            index: The slot to unlock, the next after the ``AttackPreset.index`` values :meth:`get_presets` returns
+            spend_rubies: Allow the rubies the slot costs
+            timeout: Timeout in seconds
+
+        Raises:
+            ValueError: The slot costs rubies, or is not in the game data, and ``spend_rubies`` is False
+            GameDataNotLoadedError: ``spend_rubies`` is False and the game data cannot be loaded
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+
+        Client: ``FightPresetData.unlockPreset`` (bundle line 141889) after ``CastleConfirmCostsDialog``
+        (bundle line 101700) shows the slot's price; ``UASCommand`` (bundle line 122134)
+        """
+        if not spend_rubies:
+            slot = self._require_game_data().attack_slots.get(index)
+            if slot is None:
+                self._require_spend_rubies(
+                    spend_rubies, f"preset slot {index} is not in the game data and may cost rubies"
+                )
+            elif slot.cost_rubies > 0:
+                self._require_spend_rubies(spend_rubies, f"preset slot {index} costs {slot.cost_rubies} rubies")
+        self.execute(UnlockPresetRequest(index=index), timeout=timeout)
+
+    # =========================================================================
+    # Taunts
+    # =========================================================================
+
+    def taunt_nomad_khan(self, *, share_with_alliance: bool = False, timeout: float = 5.0) -> None:
+        """
+        Taunt the khan of the running alliance nomad invasion into attacking you.
+
+        Args:
+            share_with_alliance: Show the attack to your alliance
+            timeout: Timeout in seconds
+
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+
+        Client: ``CastleNomadInvasionTauntDialog.tauntKhan`` (bundle line 55677); ``LTACommand`` (bundle line 128204)
+        """
+        request = LaunchTauntAttackRequest(share_with_alliance=int(share_with_alliance))
+        self.execute(request, timeout=timeout)
+
+    def taunt_wolf_king(self, *, timeout: float = 5.0) -> None:
+        """
+        Taunt the wolf king into attacking you.
+
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+
+        Client: ``ButtonTauntComponent.onClick`` (bundle line 110098); ``LWTACommand`` (bundle line 124329)
+        """
+        self.execute(LaunchWolfKingTauntRequest(), timeout=timeout)
+
+    # =========================================================================
+    # Attack advisor
+    # =========================================================================
+
+    def activate_attack_advisor(
+        self, advisor: AttackAdvisorType, *, timeout: float = 5.0
+    ) -> ActivateAttackAdvisorResponse:
+        """
+        Activate an attack advisor, using one of the activation tokens you hold for it.
+
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+
+        Client: ``AdvisorAttackActivationComponent.onClick`` (bundle line 56251); ``AACommand``
+        (bundle line 121193)
+        """
+        return self.request(
+            ActivateAttackAdvisorRequest(advisor=advisor), ActivateAttackAdvisorResponse, timeout=timeout
+        )
+
+    def get_attack_advisor_overview(
+        self, advisor: AttackAdvisorType, *, timeout: float = 5.0
+    ) -> AttackAdvisorOverviewResponse:
+        """
+        What an attack advisor's attacks won and cost.
+
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+
+        Client: ``C2SAdvisorAttackOverviewVO`` (bundle line 105059); ``AAOCommand`` (bundle line 121210)
+        """
+        return self.request(
+            AttackAdvisorOverviewRequest(advisor=advisor), AttackAdvisorOverviewResponse, timeout=timeout
+        )
+
+    # =========================================================================
+    # Tools
+    # =========================================================================
+
+    def buy_tools(
+        self,
+        castle_id: int,
+        tool: Tool | int,
+        amount: int,
+        *,
+        map_id: int = -1,
+        package_id: int = -1,
+        spend_rubies: bool = False,
+        timeout: float = 5.0,
+    ) -> BoughtTools:
+        """
+        Buy tools into one of your castles for rubies, as the attack and defence screens do.
+
+        Args:
+            castle_id: The castle the tools go to
+            tool: The tool
+            amount: How many
+            map_id: The treasure map, when the attack starts from an event camp
+            package_id: The event package whose price applies
+            spend_rubies: Allow the rubies they cost
+            timeout: Timeout in seconds
+
+        Returns:
+            The tools bought; the coins and rubies after also reach the state
+
+        Raises:
+            ValueError: ``spend_rubies`` is False
+            UnknownCastleError: The castle list has no such castle
+            PacketError: The reply names no tools bought
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+
+        Client: ``CastleDefenceBuyUnitsDialog.onClick`` (bundle line 22500), priced with the tool's ``costC2``
+        (bundle line 22493); ``IBTCommand`` (bundle line 123574)
+        """
+        self._require_spend_rubies(spend_rubies, "instantly bought tools cost rubies")
+        castle = self._require_own_castle(castle_id)
+        request = BuyToolsRequest(
+            tool=tool,
+            amount=amount,
+            x=castle.x,
+            y=castle.y,
+            map_id=map_id,
+            kingdom=castle.kingdom_id,
+            package_id=package_id,
+        )
+        response = self.request(request, BuyToolsResponse, timeout=timeout)
+        if response.bought is None:
+            raise PacketError("The 'ibt' reply names no tools bought")
+        return response.bought
+
+    # =========================================================================
+    # Alien camps
+    # =========================================================================
+
+    @property
+    def alien_reroll_counts(self) -> AlienRerollCountsResponse | None:
+        """How often you rerolled alien camps, which sets the next reroll's price; None until the server sent it."""
+        return self.client.state.get_alien_reroll_counts()
+
+    def reroll_alien_camp(
+        self,
+        x: int,
+        y: int,
+        *,
+        currency: Currency | CollectableKind = CollectableKind.RUBIES,
+        spend_rubies: bool = False,
+        timeout: float = 5.0,
+    ) -> None:
+        """
+        Replace an alien invasion camp on the map with another.
+
+        Args:
+            x: Map x of the camp
+            y: Map y of the camp
+            currency: What pays: ``CollectableKind.RUBIES``, or one of a running alien invasion's
+                ``reroll_currency_keys`` (``CollectableKind.COINS`` for ``"C1"``, else the ``Currency``)
+            spend_rubies: Allow paying with rubies
+            timeout: Timeout in seconds
+
+        Raises:
+            ValueError: Rubies pay and ``spend_rubies`` is False, or no running alien invasion
+                takes ``currency``
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+
+        Client: ``CastleRerollAlienDialog.onSendReroll`` (bundle line 109749) with ``"C2"`` or one of the
+        event's ``rerollCurrencyKeys`` (bundle line 109770); ``RAECommand`` (bundle line 127100)
+        """
+        key = currency.server_key if isinstance(currency, CollectableKind) else currency.value
+        if key == CollectableKind.RUBIES.server_key:
+            self._require_spend_rubies(spend_rubies, "an alien camp reroll paid with rubies costs rubies")
+        else:
+            offered = {
+                offered_key
+                for event in self.client.state.get_events().values()
+                if isinstance(event, AlienInvasionEvent)
+                for offered_key in event.reroll_currency_keys
+            }
+            if key not in offered:
+                raise ValueError(f"No running alien invasion rerolls camps for {key!r}")
+        self.execute(RerollAlienCampRequest(currency_key=key, x=x, y=y), timeout=timeout)
+
+    on_alien_camps_hidden = callbacks.Event[HiddenAlienCampsResponse]()
+    """Call ``callback`` with each ``hac`` push: the alien camps the server took off your map.
+
+    Removing a callback not registered is a no-op.
+    """
+
+    def _handle_hidden_alien_camps(self, response: BaseResponse) -> None:
+        if isinstance(response, HiddenAlienCampsResponse):
+            self._fire(self.on_alien_camps_hidden, response)
 
     def fill_waves(
         self,

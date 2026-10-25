@@ -51,10 +51,28 @@ from .progress import (
     TitleRanksResponse,
     TopTitleRanking,
 )
+from .protection import (
+    CANCEL_PEACE_MODE,
+    FACTION_PROTECTION_RUBIES,
+    GetProtectionRequest,
+    ProtectionResponse,
+    StartFactionProtectionRequest,
+    StartFactionProtectionResponse,
+    StartPeaceModeRequest,
+    StartPeaceModeResponse,
+)
 
 __all__ = [
     "AquaPointsResponse",
     "GetAquaPointsRequest",
+    "CANCEL_PEACE_MODE",
+    "FACTION_PROTECTION_RUBIES",
+    "GetProtectionRequest",
+    "ProtectionResponse",
+    "StartFactionProtectionRequest",
+    "StartFactionProtectionResponse",
+    "StartPeaceModeRequest",
+    "StartPeaceModeResponse",
     "GetPlayerInfoRequest",
     "GetPlayerInfoResponse",
     "PlayerOwnerInfo",

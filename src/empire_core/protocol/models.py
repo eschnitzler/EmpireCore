@@ -232,6 +232,18 @@ from empire_core.army.models.units import (
     UnitInventory,
     WaveFlank,
 )
+from empire_core.attack.models.advisor import (
+    ActivateAttackAdvisorRequest,
+    ActivateAttackAdvisorResponse,
+    AttackAdvisorOverviewRequest,
+    AttackAdvisorOverviewResponse,
+)
+from empire_core.attack.models.alien_camps import (
+    AlienRerollCountsResponse,
+    HiddenAlienCampsResponse,
+    RerollAlienCampRequest,
+    RerollAlienCampResponse,
+)
 from empire_core.attack.models.counter import AttackCounterResponse
 from empire_core.attack.models.dungeon_skips import (
     MinuteSkipDungeonRequest,
@@ -255,6 +267,8 @@ from empire_core.attack.models.presets import (
     RenamePresetResponse,
     SavePresetRequest,
     SavePresetResponse,
+    UnlockPresetRequest,
+    UnlockPresetResponse,
 )
 from empire_core.attack.models.send import CreateAttackRequest, CreateAttackResponse
 from empire_core.attack.models.target_info import (
@@ -282,6 +296,18 @@ from empire_core.attack.models.target_info import (
     GetTreasureNodeAttackInfoResponse,
     GetVillageAttackInfoRequest,
     GetVillageAttackInfoResponse,
+)
+from empire_core.attack.models.taunts import (
+    LaunchTauntAttackRequest,
+    LaunchTauntAttackResponse,
+    LaunchWolfKingTauntRequest,
+    LaunchWolfKingTauntResponse,
+    RagePointsResponse,
+)
+from empire_core.attack.models.tools import (
+    BoughtTools,
+    BuyToolsRequest,
+    BuyToolsResponse,
 )
 from empire_core.castle.models import (
     FREE_SLOT,
@@ -533,6 +559,7 @@ from empire_core.events.faction_models import (
     BerimondKingdomStatus,
     BerimondPoints,
     BerimondTarget,
+    FactionStanding,
     GetBerimondBalanceRequest,
     GetBerimondPointsRequest,
     GetBerimondTargetsRequest,
@@ -701,6 +728,15 @@ from empire_core.player.models.progress import (
     TitleInfoResponse,
     TitleRanksResponse,
 )
+from empire_core.player.models.protection import (
+    CANCEL_PEACE_MODE,
+    GetProtectionRequest,
+    ProtectionResponse,
+    StartFactionProtectionRequest,
+    StartFactionProtectionResponse,
+    StartPeaceModeRequest,
+    StartPeaceModeResponse,
+)
 from empire_core.protocol.auth import (
     CheckUsernameAvailableRequest,
     CheckUsernameAvailableResponse,
@@ -820,6 +856,31 @@ __all__ = [
     "ForgeCraftRequest",
     "ForgeCraftResponse",
     "AllianceLaboratoriesResponse",
+    "ActivateAttackAdvisorRequest",
+    "ActivateAttackAdvisorResponse",
+    "AttackAdvisorOverviewRequest",
+    "AttackAdvisorOverviewResponse",
+    "AlienRerollCountsResponse",
+    "HiddenAlienCampsResponse",
+    "RerollAlienCampRequest",
+    "RerollAlienCampResponse",
+    "LaunchTauntAttackRequest",
+    "LaunchTauntAttackResponse",
+    "LaunchWolfKingTauntRequest",
+    "LaunchWolfKingTauntResponse",
+    "RagePointsResponse",
+    "BoughtTools",
+    "BuyToolsRequest",
+    "BuyToolsResponse",
+    "UnlockPresetRequest",
+    "UnlockPresetResponse",
+    "CANCEL_PEACE_MODE",
+    "GetProtectionRequest",
+    "ProtectionResponse",
+    "StartFactionProtectionRequest",
+    "StartFactionProtectionResponse",
+    "StartPeaceModeRequest",
+    "StartPeaceModeResponse",
     "ConstructionItemPlacement",
     "EquipConstructionItemRequest",
     "EquipConstructionItemResponse",
@@ -1512,6 +1573,7 @@ __all__ = [
     "GetBerimondTargetsResponse",
     "GetBerimondBalanceRequest",
     "BerimondKingdomStatus",
+    "FactionStanding",
     "BerimondPoints",
     "GetBerimondPointsRequest",
     "SelectBerimondCampRequest",

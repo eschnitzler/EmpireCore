@@ -1,16 +1,33 @@
-"""Attacks: sending, pre-calculation, presets and dungeon cooldowns."""
+"""Attacks: sending, pre-calculation, presets, dungeon cooldowns, taunts, the attack advisor and alien camps."""
 
 from typing import TYPE_CHECKING
 
-from empire_core.enums import AttackType, AutoSkipCooldownType, Flank, Kingdom, LootPriority, MapItemType
+from empire_core.enums import (
+    AttackAdvisorType,
+    AttackType,
+    AutoSkipCooldownType,
+    CollectableKind,
+    Flank,
+    Kingdom,
+    LootPriority,
+    MapItemType,
+)
 from empire_core.utils.lazy import lazy_exports
 
 from .models import (
     PRESET_NAME_MAX_LENGTH,
+    ActivateAttackAdvisorRequest,
+    ActivateAttackAdvisorResponse,
+    AlienRerollCountsResponse,
+    AttackAdvisorOverviewRequest,
+    AttackAdvisorOverviewResponse,
     AttackCounterResponse,
     AttackInfoResponse,
     AttackPreset,
     AttackTargetArea,
+    BoughtTools,
+    BuyToolsRequest,
+    BuyToolsResponse,
     CreateAttackRequest,
     CreateAttackResponse,
     GetAllianceTowerAttackInfoRequest,
@@ -41,22 +58,50 @@ from .models import (
     GetTreasureNodeAttackInfoResponse,
     GetVillageAttackInfoRequest,
     GetVillageAttackInfoResponse,
+    HiddenAlienCampsResponse,
+    LaunchTauntAttackRequest,
+    LaunchTauntAttackResponse,
+    LaunchWolfKingTauntRequest,
+    LaunchWolfKingTauntResponse,
     MinuteSkipDungeonRequest,
     MinuteSkipDungeonResponse,
     PresetArmy,
+    RagePointsResponse,
     RenamePresetRequest,
     RenamePresetResponse,
+    RerollAlienCampRequest,
+    RerollAlienCampResponse,
     SavePresetRequest,
     SavePresetResponse,
     SkipDungeonCooldownRequest,
     SkipDungeonCooldownResponse,
+    UnlockPresetRequest,
+    UnlockPresetResponse,
 )
 from .service import AttackService
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import Currency, CurrencyId, LegendSkill, Tool
+    from empire_core.gamedata import Currency, CurrencyId, Event, LegendSkill, Tool
 
 __all__ = [
+    "ActivateAttackAdvisorRequest",
+    "ActivateAttackAdvisorResponse",
+    "AttackAdvisorOverviewRequest",
+    "AttackAdvisorOverviewResponse",
+    "AlienRerollCountsResponse",
+    "HiddenAlienCampsResponse",
+    "RerollAlienCampRequest",
+    "RerollAlienCampResponse",
+    "LaunchTauntAttackRequest",
+    "LaunchTauntAttackResponse",
+    "LaunchWolfKingTauntRequest",
+    "LaunchWolfKingTauntResponse",
+    "RagePointsResponse",
+    "BoughtTools",
+    "BuyToolsRequest",
+    "BuyToolsResponse",
+    "UnlockPresetRequest",
+    "UnlockPresetResponse",
     "MinuteSkipDungeonRequest",
     "MinuteSkipDungeonResponse",
     "SkipDungeonCooldownRequest",
@@ -101,6 +146,8 @@ __all__ = [
     "GetTreasureNodeAttackInfoRequest",
     "GetTreasureNodeAttackInfoResponse",
     "AttackType",
+    "AttackAdvisorType",
+    "CollectableKind",
     "LootPriority",
     "AutoSkipCooldownType",
     "AttackService",
@@ -109,6 +156,7 @@ __all__ = [
     "Kingdom",
     "MapItemType",
     "Currency",
+    "Event",
     "CurrencyId",
     "LegendSkill",
     "Tool",
@@ -116,4 +164,6 @@ __all__ = [
 
 
 if not TYPE_CHECKING:
-    __getattr__ = lazy_exports(__name__, "empire_core.gamedata.ids", ("Currency", "CurrencyId", "LegendSkill", "Tool"))
+    __getattr__ = lazy_exports(
+        __name__, "empire_core.gamedata.ids", ("Currency", "CurrencyId", "Event", "LegendSkill", "Tool")
+    )

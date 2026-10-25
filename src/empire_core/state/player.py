@@ -9,9 +9,10 @@ from pydantic import ValidationError
 
 from empire_core.gamedata import Currency
 from empire_core.gamedata.lenient import known
+from empire_core.map.models.areas import KingdomProtection
 from empire_core.protocol.js import js_int, js_truthy
 from empire_core.spy.models import MaxSpiesResponse
-from empire_core.state.base import StateBase, loaded
+from empire_core.state.base import StateBase, loaded, read_section
 from empire_core.state.models import Alliance, Player
 
 logger = logging.getLogger(__name__)
@@ -69,8 +70,10 @@ def _as_int(value: Any, previous: int) -> int:
 
 
 class PlayerState(StateBase):
-    def _parse_player_sections(self, data: dict[str, Any]) -> None:
+    def _parse_player_sections(self, data: dict[str, Any]) -> list[KingdomProtection]:
         """Parse the gpi/gxp/gcu/vip/gho/uap/gac sections as ONE atomic player update.
+
+        Returns the protection blocks read, for the events they also update.
 
         `local_player` is handed out to user code and read without the lock,
         so a field-by-field merge would let a reader observe a half-merged
@@ -90,6 +93,7 @@ class PlayerState(StateBase):
         Client: ``CastleUserData.parse_GPI`` / ``parse_GXP`` / ``parse_GHO`` /
         ``parse_UAP``, ``CurrencyData.parseGCU``, ``CastleVIPData.parse_VIP``.
         """
+        blocks = self._protection_blocks(data)
         fresh: Player | None = None
         pid = None
         player = self.local_player
@@ -103,7 +107,7 @@ class PlayerState(StateBase):
                 else:
                     fresh = Player(**gpi)
         if player is None:
-            return
+            return blocks
 
         merged = dict(player.__dict__)
         updated: set[str] = set()
@@ -146,14 +150,17 @@ class PlayerState(StateBase):
             merged["ranking"] = gho.get("RP", merged["ranking"])
             updated |= {"honor", "ranking"}
 
-        protection = dict(merged["beginner_protection"])
-        for key in ("uap", "gac"):
-            uap = _section(data, key)
-            if isinstance(uap.get("KID"), int) and isinstance(uap.get("NS"), int):
-                protection[uap["KID"]] = uap["NS"] > 0
-        if protection != merged["beginner_protection"]:
-            merged["beginner_protection"] = protection
+        beginner = dict(merged["beginner_protection"])
+        protection = dict(merged["protection"])
+        for block in blocks:
+            beginner[block.kingdom_id] = block.is_noob_protected
+            protection[block.kingdom_id] = block
+        if beginner != merged["beginner_protection"]:
+            merged["beginner_protection"] = beginner
             updated.add("beginner_protection")
+        if protection != merged["protection"]:
+            merged["protection"] = protection
+            updated.add("protection")
 
         if updated:
             self._swap_model_fields(player, merged, updated)
@@ -162,6 +169,16 @@ class PlayerState(StateBase):
             self.players[pid] = player
             self.local_player = player
             logger.debug(f"Local player: {player.name} (ID: {pid})")
+        return blocks
+
+    @staticmethod
+    def _protection_blocks(data: dict[str, Any]) -> list[KingdomProtection]:
+        """The login data's ``uap`` and ``gac``, or a ``uap`` push, each for the kingdom it names.
+
+        Client: ``GBDCommand.exec`` (bundle line 129425) hands both to ``CastleUserData.parse_UAP`` (bundle line 9906)
+        """
+        blocks = (read_section(KingdomProtection, data.get(key), f"the {key} protection") for key in ("uap", "gac"))
+        return [block for block in blocks if block is not None and block.kingdom_id is not None]
 
     def _parse_special_currencies(self, data: dict[str, Any]) -> None:
         """Apply the login data's sce section (special currencies)."""
@@ -266,7 +283,7 @@ class PlayerState(StateBase):
         """Get a snapshot of the local player, which the login data brings.
 
         Returns a copy taken under the lock, with detached ``special_currencies``,
-        ``castles`` and ``beginner_protection`` containers, so several fields can be read consistently
+        ``castles``, ``beginner_protection`` and ``protection`` containers, so several fields can be read consistently
         while the receive thread is updating state. ``state.local_player``
         remains available for direct access but is a live object.
 
@@ -283,6 +300,7 @@ class PlayerState(StateBase):
                     "special_currencies": dict(player.special_currencies),
                     "castles": dict(player.castles),
                     "beginner_protection": dict(player.beginner_protection),
+                    "protection": dict(player.protection),
                 }
             )
 

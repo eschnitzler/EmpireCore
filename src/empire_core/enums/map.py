@@ -1,4 +1,6 @@
-"""Kingdom ids, map area types and NPC owner ids."""
+"""Kingdom ids, map area types, NPC owner ids and protection."""
+
+from __future__ import annotations
 
 from enum import IntEnum
 
@@ -204,10 +206,50 @@ class PeaceModeStatus(IntEnum):
     """
     Where the player's peace mode stands, a ``uap`` block's ``PMS`` outside Berimond.
 
-    Client: ``CastleUserData.PEACEMODE_STATUS_*`` (bundle line 10188)
+    Client: ``CastleUserData.PEACEMODE_STATUS_*`` (bundle line 10195)
     """
 
     OFF = -1
     PRETIME = 0
     PEACETIME = 1
     POSTTIME = 2
+
+
+class PeaceModeDuration(IntEnum):
+    """
+    A peace mode length to buy: the value is its place in the start dialog's list, which ``mps`` sends.
+
+    Client: ``CastleStartPeaceModeDialog.fillPeaceTimeList`` (bundle line 35181) lists
+    ``PlayerConst.PEACE_MODE_DURATION`` and ``PEACE_MODE_C2`` (dll lines 19560-19561)
+    """
+
+    _value_: int
+    seconds: int
+    """How long the peace lasts."""
+    rubies: int
+    """What it costs before ruby discounts."""
+
+    def __new__(cls, value: int, seconds: int = 0, rubies: int = 0) -> PeaceModeDuration:
+        member = int.__new__(cls, value)
+        member._value_ = value
+        member.seconds = seconds
+        member.rubies = rubies
+        return member
+
+    DAYS_7 = 0, 604800, 5000
+    DAYS_14 = 1, 1209600, 7500
+    DAYS_21 = 2, 1814400, 10000
+    DAYS_60 = 3, 5184000, 20000
+
+
+class FactionProtectionStatus(IntEnum):
+    """
+    Where your Berimond faction protection stands, a ``uap`` block's ``PMS`` in Berimond.
+
+    Client: ``FactionEventVO.FACTION_PROTECTION_STATUS_*`` (bundle line 7511)
+    """
+
+    OFF = -1
+    PRETIME = 0
+    ACTIVE = 1
+    COOLDOWN = 2

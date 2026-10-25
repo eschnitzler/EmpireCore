@@ -44,6 +44,7 @@ ALLOWED: dict[str, str] = {
     "alliance.models.bookmarks.BookmarkAttackOrder.assigned_attacker_ids": "player ids",
     "alliance.models.bookmarks.DeleteAllianceBookmarkRequest.entries": "request wire shape: [bookmark_id, notify] rows",
     "alliance.models.bookmarks.DeleteBookmarkRequest.positions": "request wire shape: [kingdom, x, y] rows",
+    "attack.models.alien_camps.HiddenAlienCampsResponse.positions": "coordinates: the (x, y) of each camp hidden",
     "events.models.GetEventPointsResponse.max_points": "points, one per score the event keeps; not ids",
     "events.models.GetEventPointsResponse.own_points": "points, one per score the event keeps; not ids",
     "events.models.GetEventPointsResponse.own_ranks": "ranks, one per score the event keeps; not ids",

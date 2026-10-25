@@ -59,7 +59,7 @@ from .gamedata import (
     UnitRole,
 )
 from .login import VersionCheckStatus
-from .map import Kingdom, MapItemType, NPCOwner, PeaceModeStatus
+from .map import FactionProtectionStatus, Kingdom, MapItemType, NPCOwner, PeaceModeDuration, PeaceModeStatus
 from .messages import BattleLogAttackType, LogResult, MessageType
 from .movements import MovementType
 from .player import MercenaryMissionRarity, MercenaryMissionState, MysteryBoxKey, PremiumAccountType, TitleSystem
@@ -113,6 +113,8 @@ __all__ = [
     "MapItemType",
     "NPCOwner",
     "PeaceModeStatus",
+    "PeaceModeDuration",
+    "FactionProtectionStatus",
     # Movement
     "MovementType",
     # Attack / combat

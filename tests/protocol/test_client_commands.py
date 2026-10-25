@@ -24,7 +24,9 @@ script = _load_script()
 TABLES = json.loads(SNAPSHOT.read_text(encoding="utf-8"))
 
 # Commands the library knows that the client has no constant for, each with why it stays.
-NOT_IN_CLIENT: dict[tuple[str, str], str] = {}
+NOT_IN_CLIENT: dict[tuple[str, str], str] = {
+    ("server", "lwta"): "the client registers LWTACommand under C2S_LAUNCH_WOLFKING_TAUNT_ATTACK (bundle line 124330)",
+}
 
 
 def test_every_registered_command_is_in_the_client():

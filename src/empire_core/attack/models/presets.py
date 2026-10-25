@@ -4,6 +4,7 @@ Commands:
 - gas: Get attack presets
 - sas: Save an attack preset
 - upan: Rename an attack preset
+- uas: Unlock an attack preset slot
 """
 
 from __future__ import annotations
@@ -279,6 +280,34 @@ class RenamePresetResponse(BaseResponse):
     command = "upan"
 
 
+class UnlockPresetRequest(BaseRequest):
+    """
+    Unlock an attack preset slot, paying its price.
+
+    Command: uas
+    Payload: {"S": index}
+    Client: ``C2SUnlockPreDefinedAttackSetupVO`` (bundle line 141917), sent by
+    ``FightPresetData.unlockPreset`` (bundle line 141889) after a cost confirmation of the slot's
+    ``attackSetupSlots`` price (``FightPresetData.parseXML``, bundle line 141850; bundle line 101700)
+    """
+
+    command = "uas"
+
+    index: int = Field(validation_alias="S", description="The preset slot to unlock")
+
+
+class UnlockPresetResponse(BaseResponse):
+    """
+    The server unlocked the slot.
+
+    Command: uas
+    Client: ``UASCommand.executeCommand`` (bundle line 122134), which reads nothing from the body;
+    ``FightPresetData.handleSuccessfullyUnlocked`` (bundle line 141890) then marks the first locked slot unlocked
+    """
+
+    command = "uas"
+
+
 __all__ = [
     "GetPresetsRequest",
     "GetPresetsResponse",
@@ -289,4 +318,6 @@ __all__ = [
     "PRESET_NAME_MAX_LENGTH",
     "RenamePresetRequest",
     "RenamePresetResponse",
+    "UnlockPresetRequest",
+    "UnlockPresetResponse",
 ]

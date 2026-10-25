@@ -14,7 +14,7 @@ from typing import Any, ClassVar
 
 from pydantic import ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
-from empire_core.enums import Kingdom, MapItemType, PeaceModeStatus
+from empire_core.enums import FactionProtectionStatus, Kingdom, MapItemType, PeaceModeStatus
 from empire_core.protocol.base import (
     BasePayload,
     BaseRequest,
@@ -253,8 +253,11 @@ class KingdomProtection(BasePayload):
     protection in Berimond, as the client reads them. The client acts on the
     block only for the kingdom it is in.
 
-    Client: ``CastleUserData.parse_UAP`` (bundle lines 9899-9906), which hands a
-    Berimond block to ``FactionEventVO.parse_uap`` (bundle line 7366)
+    It comes as a ``uap`` push or reply, in the login data's ``uap`` and ``gac``, and inside
+    a map read (``gaa``) and a spy reply (``ssi``).
+
+    Client: ``CastleUserData.parse_UAP`` (bundle line 9906), which hands a Berimond block
+    to ``FactionEventVO.parse_uap`` (bundle line 7364)
     """
 
     kingdom_id: int | None = Field(
@@ -287,6 +290,11 @@ class KingdomProtection(BasePayload):
     def peace_mode_status(self) -> PeaceModeStatus | None:
         """``protection_status`` as a peace mode stage; None for a value the client does not define."""
         return enum_or_none(PeaceModeStatus, self.protection_status)
+
+    @property
+    def faction_protection_status(self) -> FactionProtectionStatus | None:
+        """``protection_status`` as a Berimond faction protection stage; None for a value the client does not define."""
+        return enum_or_none(FactionProtectionStatus, self.protection_status)
 
 
 class MapArea(BasePayload):
