@@ -23,6 +23,11 @@ from empire_core.events.minigame_models import (
     LuckyWheelSpinResponse,
     LuckyWheelStatus,
 )
+from empire_core.events.progression_models import (
+    DaimyoAreasResponse,
+    DaimyoContractsResponse,
+    DaimyoWarEffortsResponse,
+)
 from empire_core.events.status_models import GrandTournamentQuestStatus, RaidBossStatus
 from empire_core.exceptions import ReplyMismatchError
 from empire_core.gamedata import EnumOrInt, RewardId
@@ -617,9 +622,24 @@ class InvasionEvent(ScoredEvent):
 
 
 class SamuraiInvasionEvent(InvasionEvent):
-    """The samurai invasion. Client: ``SamuraiInvasionEventVO.parseData`` (bundle line 55680)"""
+    """
+    The samurai invasion, and its daimyo as the last ``gda``, ``gdc`` and ``gdw`` sent them.
+
+    Client: ``SamuraiInvasionEventVO.parseData`` (bundle line 55680); the client keeps the daimyo in
+    ``SamuraiDaimyoDataServer`` (bundle lines 142515-142540)
+    """
 
     _rebuilt_parts = ("SP", "A")
+
+    daimyo_areas: DaimyoAreasResponse | None = Field(
+        default=None, description="The daimyo castles and townships; None until read"
+    )
+    daimyo_contracts: DaimyoContractsResponse | None = Field(
+        default=None, description="Your alliance's daimyo contracts; None until read"
+    )
+    daimyo_war_efforts: DaimyoWarEffortsResponse | None = Field(
+        default=None, description="Your war efforts against the daimyo; None until read"
+    )
 
 
 class FactionInvasionEvent(InvasionEvent):

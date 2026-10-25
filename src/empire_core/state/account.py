@@ -14,7 +14,8 @@ from empire_core.player.models.account import (
     OfficerTraining,
     PlayerGiftsResponse,
 )
-from empire_core.protocol.js import js_int, js_truthy
+from empire_core.player.models.officers_school import TrainingProgramsResponse
+from empire_core.protocol.js import js_truthy
 from empire_core.state.base import StateBase, loaded, read_section
 
 ACCOUNT_SECTIONS = ("drt", "gai", "gatp", "bie", "pgl", "rww", "nrf", "DTS")
@@ -78,7 +79,7 @@ class AccountState(StateBase):
         return True
 
     def _handle_gtp(self, data: Any) -> None:
-        """Handle the training programs: ``AT`` is the program running, the offered ones are not read.
+        """Keep the training programs, and swap the program known for ``AT``'s.
 
         Without ``AT`` no program runs. With one while a program is known, the program becomes ``AT``'s
         slot and bonus with the time the known one had left: the client swaps when ``AT.TE`` is not the
@@ -86,19 +87,21 @@ class AccountState(StateBase):
         the first effect it knows), so it swaps in effect every time. With ``AT`` and no program known,
         nothing changes, as in the client.
 
-        Client: ``GTPCommand.executeCommand`` (bundle line 126146), ``OfficersSchoolData.parse_GTP`` and
-        ``parseOfficerEffectVO`` (bundle lines 144609-144614, 144631)
+        Client: ``GTPCommand.executeCommand`` (bundle line 126183), ``OfficersSchoolData.parse_GTP``
+        (bundle line 144715)
         """
-        if not isinstance(data, dict):
+        programs = read_section(TrainingProgramsResponse, data, "the training programs")
+        if programs is None:
             return
-        running = data.get("AT")
-        if not js_truthy(running):
+        self.training_programs = programs
+        running = programs.running
+        if running is None:
             self.officer_training = None
-        elif self.officer_training is not None and isinstance(running, dict):
+        elif self.officer_training is not None:
             now = time.monotonic()
             self.officer_training = OfficerTraining(
-                slot_id=js_int(running.get("S")),
-                bonus=running.get("E"),
+                slot_id=running.slot_id,
+                bonus=running.bonus,
                 seconds=self.officer_training.remaining_seconds(now),
                 received_at=now,
             )
@@ -120,6 +123,11 @@ class AccountState(StateBase):
         """
         with self._lock:
             return self.officer_training
+
+    def get_training_programs(self) -> TrainingProgramsResponse | None:
+        """The officers' school's training programs, from the last ``gtp``; None until one arrived."""
+        with self._lock:
+            return self.training_programs
 
     def get_boosted_global_effects(self) -> BoostedGlobalEffectsResponse | None:
         """The global effects the running booster event boosts, from the last ``bie``; None until one arrived."""

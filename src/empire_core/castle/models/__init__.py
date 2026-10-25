@@ -144,6 +144,15 @@ from .fusion_forge import (
     RefillFusionForgeRequest,
     RefillFusionForgeResponse,
 )
+from .hunter import (
+    HunterInfo,
+    SetHunterRequest,
+)
+from .judgement import (
+    JudgeCitizenRequest,
+    JudgeCitizenResponse,
+    JudgementStarted,
+)
 from .kingdoms import (
     KingdomInfoRequest,
     KingdomInfoResponse,
@@ -276,6 +285,11 @@ from .villages import (
 from .wishing_well import WishingWellResponse
 
 __all__ = [
+    "HunterInfo",
+    "SetHunterRequest",
+    "JudgeCitizenRequest",
+    "JudgeCitizenResponse",
+    "JudgementStarted",
     "FULL_SKIP",
     "CancelCraftingRequest",
     "CancelCraftingResponse",

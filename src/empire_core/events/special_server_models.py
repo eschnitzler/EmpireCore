@@ -8,6 +8,7 @@ Commands:
 - gce: A charge camp's effect and its reroll
 - ccr: Reroll a charge camp's effect
 - ace: Take the rerolled effect
+- gpr: When the special servers last ran
 """
 
 from __future__ import annotations
@@ -18,8 +19,8 @@ from pydantic import Field, field_serializer, field_validator, model_validator
 
 from empire_core.enums import ServerType
 from empire_core.gamedata import EnumOrInt
-from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse
-from empire_core.protocol.js import ClientInt, js_int, js_loose_equals
+from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, TimedPayload
+from empire_core.protocol.js import ClientInt, ClientNumber, js_int, js_loose_equals, js_truthy
 
 if TYPE_CHECKING:
     from empire_core.gamedata import Effect
@@ -252,6 +253,57 @@ class ApplyChargeCampEffectResponse(BaseResponse):
     command: ClassVar[str] = "ace"
 
 
+class GetPreviousSpecialServerRunsRequest(BaseRequest):
+    """
+    Ask when the temporary server and the alliance battleground last ran (``gpr``).
+
+    Client: ``C2SGlobalServerPreviousRunInfoVO`` (bundle line 69969), sent by
+    ``CastleHighscoreDialog.getGlobalServerInfo`` (bundle line 27707)
+    """
+
+    command: ClassVar[str] = "gpr"
+
+
+class PreviousSpecialServerRun(TimedPayload):
+    """
+    A special server's last run: when it ended and its settings.
+
+    Client: ``GlobalServerPreviousRunInfoVO.parseParams`` (bundle line 128906)
+    """
+
+    seconds_since_end: ClientNumber = Field(
+        validation_alias="ET", default=0, description="Seconds since the run ended when the values were read"
+    )
+    setting_id: ClientInt = Field(validation_alias="TSID", default=0, description="The run's server settings")
+
+    def ended_seconds_ago(self, now: float | None = None) -> float:
+        """Seconds since the run ended."""
+        return self.seconds_since_end + self._elapsed(now)
+
+
+class PreviousSpecialServerRuns(BaseResponse):
+    """
+    The temporary server's and the alliance battleground's last runs.
+
+    Client: ``GPRCommand.executeCommand`` (bundle line 128892), ``GlobalServerPreviousRunInfoVO.parseParams``
+    (bundle line 128906), which reads each run only when it is set
+    """
+
+    command: ClassVar[str] = "gpr"
+
+    temporary_server: PreviousSpecialServerRun | None = Field(
+        validation_alias="TS", default=None, description="The temporary server's last run; None for none"
+    )
+    alliance_battleground: PreviousSpecialServerRun | None = Field(
+        validation_alias="ABG", default=None, description="The alliance battleground's last run; None for none"
+    )
+
+    @field_validator("temporary_server", "alliance_battleground", mode="before")
+    @classmethod
+    def _run(cls, value: Any) -> Any:
+        return value if js_truthy(value) else None
+
+
 __all__ = [
     "ApplyChargeCampEffectRequest",
     "ApplyChargeCampEffectResponse",
@@ -259,7 +311,10 @@ __all__ = [
     "ChargeCampEffects",
     "CurrentServer",
     "GetChargeCampEffectsRequest",
+    "GetPreviousSpecialServerRunsRequest",
     "GetTemporaryServerCollectorPointsRequest",
+    "PreviousSpecialServerRun",
+    "PreviousSpecialServerRuns",
     "RerollChargeCampEffectRequest",
     "RerollChargeCampEffectResponse",
     "SelectSpecialServerCastleRequest",

@@ -1,5 +1,6 @@
 """The joined area: the jaa reply, its mines (gsm) and resource carts (rci), slum level (csl),
-builder discount (gab) and position (ghw); and the world map's size (nfo)."""
+builder discount (gab) and position (ghw); the hunter (hin), the citizen judgement (sjc, jjc) and the world
+map's size (nfo)."""
 
 import logging
 import time
@@ -8,6 +9,8 @@ from typing import Any
 from empire_core.castle.models.actions import SelectCastleResponse
 from empire_core.castle.models.castles import PlayerCastle
 from empire_core.castle.models.collect import MineStatus, MineStatusList, ResourceCart, ResourceCartInfo
+from empire_core.castle.models.hunter import HunterInfo
+from empire_core.castle.models.judgement import JudgementStarted
 from empire_core.castle.models.updates import (
     AreaBooster,
     CastleBuildingsPushed,
@@ -17,7 +20,8 @@ from empire_core.castle.models.updates import (
 from empire_core.enums import Kingdom, ResourceCartType
 from empire_core.map.models.world import MapSize, ServerInfoResponse
 from empire_core.protocol.base import enum_or_none, read_or_none
-from empire_core.state.base import StateBase, loaded
+from empire_core.protocol.js import js_truthy
+from empire_core.state.base import StateBase, loaded, read_section
 from empire_core.state.models import JoinedArea
 
 logger = logging.getLogger(__name__)
@@ -73,6 +77,33 @@ class AreaState(StateBase):
             self._apply_mines(reply.mines)
         if reply.resource_carts is not None:
             self._apply_resource_carts(reply.resource_carts)
+        if js_truthy(data.get("hin")):
+            self._handle_hin(data["hin"])
+
+    def _handle_hin(self, data: Any) -> None:
+        """Keep the hunter's values, from a ``hin`` reply or a join's ``hin``.
+
+        Client: ``HINCommand.executeCommand`` (bundle line 124591), ``CastleHunterData.parse_HIN`` (bundle line 25211)
+        """
+        if (hunter := read_section(HunterInfo, data, "the hunter")) is not None:
+            self.hunter = hunter
+
+    def _handle_sjc(self, data: Any) -> None:
+        """Keep the citizen judgement that started.
+
+        Client: ``SJCCommand.executeCommand`` (bundle line 124681), ``CastleJudgementData.parse_SJC``
+        (bundle line 134465)
+        """
+        if (started := read_section(JudgementStarted, data, "the judgement")) is not None:
+            self.judgement_id = started.judgement_id
+
+    def _handle_jjc(self, data: Any) -> None:
+        """End the open citizen judgement: the verdict was given.
+
+        Client: ``JJCCommand.executeCommand`` (bundle line 124666), ``CastleJudgementData.parse_JJC``
+        (bundle line 134466)
+        """
+        self.judgement_id = None
 
     def _handle_gsm(self, data: Any) -> None:
         """Apply a ``gsm`` push: the joined castle's mines.
@@ -205,6 +236,16 @@ class AreaState(StateBase):
         """
         with self._lock:
             return loaded(self.server_info, "Server info").map_size(kingdom)
+
+    def get_hunter(self) -> HunterInfo | None:
+        """The hunter's values, from the last ``hin`` or castle join that carried them; None until one did."""
+        with self._lock:
+            return self.hunter
+
+    def get_judgement_id(self) -> int | None:
+        """The open citizen judgement, from the last ``sjc``; None while none is open."""
+        with self._lock:
+            return self.judgement_id
 
     def get_joined_area(self) -> JoinedArea | None:
         """The area joined, with its slum level and builder discount; ``None`` before any join.

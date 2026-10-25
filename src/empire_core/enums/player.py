@@ -71,3 +71,16 @@ class MysteryBoxKey(IntEnum):
     RARE = 5001
     EPIC = 5002
     LEGENDARY = 5003
+
+
+class Hero(IntEnum):
+    """
+    The hero you pick for the tutorial's quest character, the ``HID`` of ``hdc``.
+
+    Client: ``TutorialConst.TUTORIAL_HERO_0_ID`` to ``TUTORIAL_HERO_2_ID`` (dll line 19886),
+    ``CastleChooseHeroDialog.onClick`` (bundle line 42416)
+    """
+
+    YOUNG_KNIGHT = 801
+    OLD_KNIGHT = 802
+    FEMALE_WARRIOR = 803

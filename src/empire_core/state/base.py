@@ -25,6 +25,7 @@ from empire_core.castle.models.construction_items import (
 )
 from empire_core.castle.models.crafting import CraftingQueue
 from empire_core.castle.models.fusion_forge import FusionForge
+from empire_core.castle.models.hunter import HunterInfo
 from empire_core.castle.models.kingdoms import KingdomInfoResponse
 from empire_core.castle.models.landmarks import (
     KingsTowerListResponse,
@@ -64,6 +65,8 @@ from empire_core.player.models.account import (
 )
 from empire_core.player.models.aqua import StormIslandsInfo
 from empire_core.player.models.economy import LootBoxesResponse
+from empire_core.player.models.hero import HeroDecisionResponse
+from empire_core.player.models.officers_school import TrainingProgramsResponse
 from empire_core.player.models.progress import (
     AchievementsResponse,
     BoosterInfoResponse,
@@ -194,6 +197,12 @@ class StateBase:
         self.shutting_down_events: ShuttingDownEvents | None = None
         self.current_server: CurrentServer | None = None
         self.special_server_castles: SpecialServerCastles | None = None
+
+        # The officers' school's programs, the hunter, the open citizen judgement and your hero; each replaced
+        self.training_programs: TrainingProgramsResponse | None = None
+        self.hunter: HunterInfo | None = None
+        self.judgement_id: int | None = None
+        self.hero: HeroDecisionResponse | None = None
 
         # Active quests by id, the quest book and the daily quests; each replaced, never edited
         self.quests: dict[int, Quest] = {}

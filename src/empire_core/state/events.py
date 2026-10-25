@@ -61,6 +61,12 @@ from empire_core.events.models import (
     WorldCupEvent,
     event_class,
 )
+from empire_core.events.progression_models import (
+    AllianceCampInfo,
+    DaimyoAreasResponse,
+    DaimyoContractsResponse,
+    DaimyoWarEffortsResponse,
+)
 from empire_core.events.special_server_models import CurrentServer, SpecialServerCastles
 from empire_core.events.status_models import GrandTournamentQuestStatus, GrandTournamentQuestUpdate, RaidBossStatus
 from empire_core.gamedata.ids.events import Event
@@ -424,6 +430,61 @@ class EventState(StateBase):
             self._replace_event(
                 event.model_copy(update={"player_rage": rage.player_rage, "player_total_rage": rage.player_total_rage})
             )
+
+    def _handle_aic(self, data: Any) -> None:
+        """Apply an alliance invasion camp's first entry to the running alliance nomad invasion it names.
+
+        The client also looks the camp up in its game data and drops the push for a camp it lacks; the state
+        has no game data, so it keeps any camp.
+
+        Client: ``AICCommand.executeCommand`` (bundle line 128188), ``AllianceNomadInvasionEventVO.parse_AIC``
+        (bundle line 114370)
+        """
+        rows = data.get("AC") if isinstance(data, dict) else None
+        first = rows[0] if isinstance(rows, list) and rows else None
+        camp = read_section(AllianceCampInfo, first, "the alliance invasion camp")
+        event = self._sent_event(first.get("EID")) if isinstance(first, dict) else None
+        if camp is not None and isinstance(event, NomadInvasionEvent):
+            self._replace_event(
+                event.model_copy(update={"alliance_rage": camp.alliance_rage, "khan_camp_id": camp.camp_id})
+            )
+
+    def _handle_gda(self, data: Any) -> None:
+        """Keep the daimyo castles and townships on the running samurai invasion.
+
+        Client: ``GDACommand.executeCommand`` (bundle line 128283), ``SamuraiDaimyoDataServer.parseGDA``
+        (bundle line 142540)
+        """
+        self._expire_events()
+        event = self.events.get(Event.SAMURAI_INVASION)
+        areas = read_section(DaimyoAreasResponse, data, "the daimyo areas")
+        if areas is not None and isinstance(event, SamuraiInvasionEvent):
+            self._replace_event(event.model_copy(update={"daimyo_areas": areas.merged_into(event.daimyo_areas)}))
+
+    def _handle_gdc(self, data: Any) -> None:
+        """Keep your alliance's daimyo contracts on the running samurai invasion.
+
+        Client: ``GDCCommand.executeCommand`` (bundle line 128298), ``SamuraiDaimyoDataServer.parseGDC``
+        (bundle line 142527)
+        """
+        self._expire_events()
+        event = self.events.get(Event.SAMURAI_INVASION)
+        contracts = read_section(DaimyoContractsResponse, data, "the daimyo contracts")
+        if contracts is not None and isinstance(event, SamuraiInvasionEvent):
+            merged = contracts.merged_into(event.daimyo_contracts)
+            self._replace_event(event.model_copy(update={"daimyo_contracts": merged}))
+
+    def _handle_gdw(self, data: Any) -> None:
+        """Keep your war efforts against the daimyo on the running samurai invasion.
+
+        Client: ``GDWCommand.executeCommand`` (bundle line 128313), ``SamuraiDaimyoDataServer.parseGDW``
+        (bundle line 142515)
+        """
+        self._expire_events()
+        event = self.events.get(Event.SAMURAI_INVASION)
+        efforts = read_section(DaimyoWarEffortsResponse, data, "the daimyo war efforts")
+        if efforts is not None and isinstance(event, SamuraiInvasionEvent):
+            self._replace_event(event.model_copy(update={"daimyo_war_efforts": efforts}))
 
     def _handle_rce(self, data: Any) -> None:
         """Apply an alien reroll counts push over the counts known.
