@@ -63,6 +63,7 @@ from .login import VersionCheckStatus
 from .map import (
     FactionProtectionStatus,
     Kingdom,
+    KingdomDirection,
     MapItemType,
     NPCOwner,
     PeaceModeDuration,
@@ -119,6 +120,7 @@ __all__ = [
     "PerformanceStatistic",
     # Map / kingdom
     "Kingdom",
+    "KingdomDirection",
     "MapItemType",
     "NPCOwner",
     "PeaceModeStatus",

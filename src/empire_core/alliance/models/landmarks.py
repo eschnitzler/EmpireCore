@@ -1,7 +1,8 @@
-"""Your alliance's laboratories, pushed when they change.
+"""Your alliance's landmarks, pushed when they change.
 
 Commands:
 - sll: The alliance's laboratories
+- rca: The royal capital's alliance
 """
 
 from __future__ import annotations
@@ -44,4 +45,16 @@ class AllianceLaboratoriesResponse(BaseResponse):
         return items
 
 
-__all__ = ["AllianceLaboratoriesResponse"]
+class RoyalCapitalAllianceResponse(BaseResponse):
+    """
+    A push about the alliance holding the royal capital, which the client reads nothing from.
+
+    Command: rca, pushed
+
+    Client: ``RCACommand.executeCommand`` (bundle line 121991) parses the push and drops it
+    """
+
+    command = "rca"
+
+
+__all__ = ["AllianceLaboratoriesResponse", "RoyalCapitalAllianceResponse"]

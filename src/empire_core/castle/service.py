@@ -38,6 +38,8 @@ from empire_core.castle.models.actions import (
     AbandonCastleResponse,
     CancelAbandonCastleRequest,
     JoinAreaRequest,
+    LeaveAreaRequest,
+    RelocateCastleRequest,
     RenameCastleRequest,
     SelectCastleRequest,
     SelectCastleResponse,
@@ -83,14 +85,18 @@ from empire_core.castle.models.details import (
     GetDetailedCastleRequest,
     GetDetailedCastleResponse,
 )
+from empire_core.castle.models.kingdoms import KingdomInfoRequest, KingdomInfoResponse, SelectKingdomCastleRequest
 from empire_core.castle.models.landmarks import (
     GetLaboratoryProgressRequest,
     GetMonumentProgressRequest,
+    KingsTowerListResponse,
     LaboratoryListResponse,
     LaboratoryProgressResponse,
     LaboratoryResetResponse,
     LandmarkProgress,
+    MonumentListResponse,
     MonumentProgressResponse,
+    MonumentResetResponse,
 )
 from empire_core.castle.models.mercenaries import MercenaryMission, MercenaryMissionsResponse, MercenaryPackageRequest
 from empire_core.castle.models.objects import (
@@ -119,6 +125,7 @@ from empire_core.castle.models.tax import (
     TaxInfo,
     TaxInfoResponse,
 )
+from empire_core.castle.models.villages import GetVillageListRequest, VillageListResponse
 from empire_core.enums import (
     BuildingState,
     CollectableKind,
@@ -126,6 +133,7 @@ from empire_core.enums import (
     CurrencyId,
     ExpansionType,
     Kingdom,
+    KingdomDirection,
     MapItemType,
     MercenaryMissionState,
     ResourceCartType,
@@ -139,7 +147,6 @@ from empire_core.services.base import BaseService
 
 if TYPE_CHECKING:
     from empire_core.castle.models.collect import MineStatus, ResourceCart
-    from empire_core.castle.models.kingdoms import KingdomInfoResponse
     from empire_core.castle.models.permanent import PermanentCastle
     from empire_core.castle.models.research import ResearchInfoResponse
     from empire_core.castle.models.upkeep import ConstructionItemExpiryResponse, ResourcePoolResponse
@@ -155,6 +162,8 @@ _RENAME_RUBIES = 2500
 _FREE_SKIP_SECONDS = 240
 _BUILDING = (BuildingState.BUILD_STOPPED, BuildingState.BUILD_IN_PROGRESS)
 _UPGRADING = (BuildingState.UPGRADE_STOPPED, BuildingState.UPGRADE_IN_PROGRESS)
+# RelocationConst.RELOCATION_COST_C2 (dll line 19674), by relocations made, the last for any more
+_RELOCATION_RUBIES = (0, 5000, 20000, 35000)
 # CastleListVO.getMainCastleByKingdomID (bundle line 13864)
 _MAIN_CASTLE_TYPES = (MapItemType.CASTLE, MapItemType.KINGDOM_CASTLE)
 _LANDMARK_PROGRESS: dict[
@@ -590,6 +599,26 @@ class CastleService(BaseService):
         return self.client.state.get_laboratory_reset()
 
     @property
+    def kings_towers(self) -> KingsTowerListResponse | None:
+        """Your kings towers, from the last ``gkl``; None until one arrived."""
+        return self.client.state.get_kings_towers()
+
+    @property
+    def monuments(self) -> MonumentListResponse | None:
+        """Your monuments, from the last ``gml``; None until one arrived."""
+        return self.client.state.get_monuments()
+
+    @property
+    def monument_reset(self) -> MonumentResetResponse | None:
+        """When the monuments reset next, from the last ``mre`` that counted down; None until one arrived."""
+        return self.client.state.get_monument_reset()
+
+    @property
+    def villages(self) -> VillageListResponse | None:
+        """Your villages and private resource villages, from the last ``kgv``; None until one arrived."""
+        return self.client.state.get_villages()
+
+    @property
     def tax(self) -> TaxInfo | None:
         """The tax collection, from the last ``txi``; None until one arrived."""
         return self.client.state.get_tax()
@@ -598,6 +627,73 @@ class CastleService(BaseService):
     def kingdoms(self) -> KingdomInfoResponse | None:
         """Your kingdoms and the transfers to them; None until a ``kpi`` arrived."""
         return self.client.state.get_kingdoms()
+
+    def get_kingdoms(self, *, timeout: float = 5.0) -> KingdomInfoResponse:
+        """
+        Ask for your kingdoms and the transfers to them; the reply also updates :attr:`kingdoms`.
+
+        It lists the kingdoms the server sends, which :attr:`kingdoms` merges over those known.
+
+        Client: ``CastleHandleKingdomDialog.showLoaded`` (bundle line 55406) sends ``C2SKingdomPayInfoVO``
+        """
+        return self.request(KingdomInfoRequest(), KingdomInfoResponse, timeout=timeout)
+
+    def get_villages(self, *, timeout: float = 5.0) -> VillageListResponse:
+        """
+        Ask for your villages and private resource villages; the reply also updates :attr:`villages`.
+
+        Client: ``CastleListVillagesOverviewDialog.getData`` (bundle line 108009) sends
+        ``C2SKingdomGetVillageListVO``
+        """
+        return self.request(GetVillageListRequest(), VillageListResponse, timeout=timeout)
+
+    def unlock_kingdom(
+        self,
+        kingdom_id: Kingdom,
+        prebuilt_castle_id: int,
+        direction: KingdomDirection | None = None,
+        *,
+        ruby_castle: bool = False,
+        spend_rubies: bool = False,
+        timeout: float = 5.0,
+    ) -> None:
+        """
+        Unlock a kingdom with one of its prebuilt castles.
+
+        Each kingdom offers prebuilt castles in the items ``prebuiltcastles`` table, whose ``spaceIDs``
+        name the kingdom: a cheap one, one priced in resources and one whose only price is rubies.
+        ``ruby_castle`` takes that last one and needs ``spend_rubies``; otherwise ``spend_rubies`` pays
+        any missing resources with rubies.
+
+        Args:
+            kingdom_id: The kingdom to unlock
+            prebuilt_castle_id: The prebuilt castle's ``preBuiltCastleID``
+            direction: The side of the map to place the castle on; only the Storm Islands may go without
+            ruby_castle: The castle is the one priced in rubies only
+            spend_rubies: Allow spending rubies
+            timeout: Timeout in seconds
+
+        Raises:
+            ValueError: No direction outside the Storm Islands, or ``ruby_castle`` without ``spend_rubies``
+            CommandError: The server refused
+
+        Client: ``AUnlockPrebuiltCastle.buyPrebuiltCastle`` (bundle line 55479) asks the direction
+        (``CastleKingdomChooseLocalizationDialog``) and ``getCosts`` prices it; the Storm Islands castle
+        choice sends a direction of 0 (``CastleSpecialServerPreBuildCastleSelectionDialog.onConfirmed``,
+        bundle line 27956); ``CastleResourceWaitDialogProperties.getResourceSkipCommand`` (bundle line 35239)
+        sends ``PWR``; ``PrebuiltCastleItemVO.isPremium`` (bundle line 142354)
+        """
+        if direction is None and kingdom_id != Kingdom.STORM:
+            raise ValueError(f"unlocking {Kingdom(kingdom_id).name} needs a direction")
+        self._require_spend_rubies(spend_rubies, "the ruby castle costs rubies" if ruby_castle else None)
+        request = SelectKingdomCastleRequest(
+            prebuilt_castle_id=prebuilt_castle_id,
+            direction=0 if direction is None else direction,
+            pay_with_rubies=spend_rubies and not ruby_castle,
+            ruby_castle=ruby_castle,
+            kingdom_id=kingdom_id,
+        )
+        self.execute(request, timeout=timeout)
 
     @property
     def construction_item_expiry(self) -> ConstructionItemExpiryResponse | None:
@@ -900,6 +996,50 @@ class CastleService(BaseService):
         if castle is None:
             raise UnknownCastleError(castle_id)
         self.execute(CancelAbandonCastleRequest(castle_id=castle_id, kingdom_id=castle.kingdom_id), timeout=timeout)
+
+    def relocate(self, x: int, y: int, *, spend_rubies: bool = False, timeout: float = 5.0) -> None:
+        """
+        Move your main castle in the green kingdom to a new position.
+
+        The client offers it on the green kingdom's map, at a free position or a ruin. The first
+        relocation is free; the next cost ``RelocationConst.RELOCATION_COST_C2`` (5000, 20000, then
+        35000 rubies each), less any ruby discount, and need ``spend_rubies``, as does any relocation
+        while no ``gri`` has said how many were made. The cooldown
+        (``client.player.relocation``) is left to the server.
+
+        Args:
+            x: Map x of the new position
+            y: Map y of the new position
+            spend_rubies: Allow a relocation that costs rubies
+            timeout: Timeout in seconds
+
+        Raises:
+            ValueError: The relocation costs rubies, or its price is not known, and ``spend_rubies`` is False
+            CommandError: The server refused, as with ``CASTLE_HAS_MOVEMENTS`` while armies are on the way
+
+        Client: ``CastleRelocateDialog.getCost`` and ``onClick`` (bundle line 109656),
+        ``SwitchToRelocateWorldmapCommand.execute`` (bundle line 100959), ``RSTCommand.executeCommand``
+        (bundle line 126855); ``RelocationConst.getRelocationCost`` (dll line 19674)
+        """
+        relocation = self.client.state.get_relocation()
+        if relocation is None:
+            cost = "no relocation count is known yet, so the relocation may cost rubies"
+        elif price := _RELOCATION_RUBIES[min(relocation.relocation_count, len(_RELOCATION_RUBIES) - 1)]:
+            cost = f"this relocation costs {price} rubies"
+        else:
+            cost = None
+        self._require_spend_rubies(spend_rubies, cost)
+        self.execute(RelocateCastleRequest(x=x, y=y), timeout=timeout)
+
+    def leave_area(self) -> None:
+        """
+        Leave the area you joined last, as the client does when it opens the kingdom overview.
+
+        The client has no handler for a reply, so none is waited for.
+
+        Client: ``CastleKingdomOverviewScreen.show`` (bundle line 108518) sends ``C2SLeaveAreaVO``
+        """
+        self.send(LeaveAreaRequest())
 
     # =========================================================================
     # Resource Operations

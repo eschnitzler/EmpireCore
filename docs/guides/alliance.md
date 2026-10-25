@@ -361,6 +361,8 @@ castles has to donate and your special currencies.
 `client.alliance.get_member_aqua_points()` lists each member's Storm Islands
 aqua points; `client.player.get_aqua_points()` asks for yours and your
 alliance's, and `client.player.aqua_points` keeps the last value.
+`client.player.get_storm_islands_info()` adds your rank and your alliance's
+standing on the islands, kept as `client.player.storm_islands`.
 
 `client.alliance.forge()` crafts in the alliance forge. Below legend level 1 it
 needs the alliance's `is_able_to_forge`; from legend level 1 the relic forge

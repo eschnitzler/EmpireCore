@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, TypeVar
 
 from pydantic import ValidationError
 
-from empire_core.enums import RankingType
+from empire_core.enums import KingdomTransferType, RankingType
 from empire_core.enums.events import RaidBossCardStatus
 from empire_core.events.titles import get_event_titles
 from empire_core.exceptions import (
@@ -34,7 +34,7 @@ from empire_core.ranking.models import (
 from empire_core.services.base import BaseService
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import RaidBoss
+    from empire_core.gamedata import Currency, RaidBoss
 
 from .board_models import (
     GetBattlegroundRankRequest,
@@ -69,10 +69,12 @@ from .models import (
     RaidBossEvent,
     Scoreboard,
     ScoredEvent,
+    SeasonEvent,
     ShuttingDownEvents,
     SpecialEvent,
     SpecialEventInfoRequest,
 )
+from .season_models import JoinSeasonCampRequest, MinuteSkipSeasonTransferRequest, SelectSeasonCampRequest
 from .status_models import (
     AbortRaidRequest,
     AbortRaidResponse,
@@ -510,6 +512,81 @@ class EventsService(BaseService):
         """Battle for Berimond's last kingdom status; None while it is not running or none has come."""
         event = self.client.state.get_event(Event.FACTION)
         return event.kingdom_status if event is not None else None
+
+    def join_season_camp(self, event: Event, *, timeout: float = 5.0) -> None:
+        """Enter a running season event's map at your camp there.
+
+        Raises:
+            EventNotRunningError: The event is not running
+            ValueError: It is no season event, or names no map
+            CommandError: The server refused
+
+        Client: ``SeasonCampPanelButton.onButtonClicked`` (bundle line 108195) sends ``C2SJoinCampVO``
+        with the running season event's map; ``JEACommand`` (bundle line 131625).
+        """
+        self.execute(JoinSeasonCampRequest(map_id=self._season_map(event)), timeout=timeout)
+
+    def unlock_season_camp(
+        self,
+        prebuilt_camp_id: int,
+        space_id: int,
+        *,
+        ruby_camp: bool = False,
+        spend_rubies: bool = False,
+        timeout: float = 5.0,
+    ) -> None:
+        """Start on a season event's map with one of its prebuilt camps.
+
+        The camps are rows of the items ``prebuiltcastles`` table; ``space_id`` is the first of the
+        row's ``spaceIDs``, which the client sends. ``ruby_camp`` takes the camp priced in rubies only
+        and needs ``spend_rubies``; otherwise ``spend_rubies`` pays any missing resources with rubies.
+
+        Raises:
+            ValueError: ``ruby_camp`` without ``spend_rubies``
+            CommandError: The server refused
+
+        Client: ``AUnlockPrebuiltCastle.buyPrebuiltCastle`` (bundle line 55482),
+        ``CastleResourceWaitDialogProperties.getResourceSkipCommand`` (bundle line 35238),
+        ``PrebuiltCastleItemVO.isPremium`` (bundle line 142354), ``CSCCommand`` (bundle line 128343).
+        """
+        self._require_spend_rubies(spend_rubies, "the ruby camp costs rubies" if ruby_camp else None)
+        request = SelectSeasonCampRequest(
+            prebuilt_camp_id=prebuilt_camp_id,
+            pay_with_rubies=spend_rubies and not ruby_camp,
+            ruby_camp=ruby_camp,
+            space_id=space_id,
+        )
+        self.execute(request, timeout=timeout)
+
+    def skip_season_transfer_time(
+        self,
+        event: Event,
+        transfer_type: KingdomTransferType,
+        minute_skip: Currency | str,
+        *,
+        timeout: float = 5.0,
+    ) -> None:
+        """Shorten the units or goods on their way to a running season event's map with a minute skip item.
+
+        Raises:
+            EventNotRunningError: The event is not running
+            ValueError: It is no season event or names no map, or ``minute_skip`` is no minute skip you hold
+            CommandError: The server refused
+
+        Client: ``SeasonTravelGoodsMinuteSkipProperties.getMinuteSkipCommand`` and
+        ``SeasonTravelUnitsMinuteSkipProperties.getMinuteSkipCommand`` (bundle lines 99612, 99644),
+        ``MSMCommand`` (bundle line 125852).
+        """
+        map_id = self._season_map(event)
+        self._require_minute_skip(minute_skip)
+        request = MinuteSkipSeasonTransferRequest(map_id=map_id, transfer_type=transfer_type, minute_skip=minute_skip)
+        self.execute(request, timeout=timeout)
+
+    def _season_map(self, event: Event) -> int:
+        found = self._require_running(event)
+        if not isinstance(found, SeasonEvent) or found.map_id is None:
+            raise ValueError(f"{Event(event).name} is no season event with a map")
+        return found.map_id
 
     def _require_running(self, event: Event | int) -> SpecialEvent:
         found = self.client.state.get_event(event)

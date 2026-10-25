@@ -21,7 +21,12 @@ from empire_core.commanders.models.skills import (
 from empire_core.enums import Kingdom, MysteryBoxKey, PeaceModeDuration, TitleSystem
 from empire_core.exceptions import CommandError, EmpireError, EmpireTimeoutError, PacketError
 from empire_core.player.models.account import FoodProductionStatus
-from empire_core.player.models.aqua import AquaPointsResponse, GetAquaPointsRequest
+from empire_core.player.models.aqua import (
+    AquaPointsResponse,
+    GetAquaPointsRequest,
+    StormIslandsInfo,
+    StormIslandsInfoRequest,
+)
 from empire_core.player.models.economy import (
     GetLootBoxesRequest,
     LootBoxesResponse,
@@ -147,6 +152,23 @@ class PlayerService(BaseService):
         Client: ``CastleEilandPanel`` (bundle line 56736) asks while it knows none
         """
         return self.request(GetAquaPointsRequest(), AquaPointsResponse, timeout=timeout)
+
+    @property
+    def storm_islands(self) -> StormIslandsInfo | None:
+        """Your and your alliance's Storm Islands standing, from the last ``sii``; None until one arrived."""
+        return self.client.state.get_storm_islands()
+
+    def get_storm_islands_info(self, *, timeout: float = 5.0) -> StormIslandsInfo:
+        """
+        Your and your alliance's Storm Islands standing; it and your aqua points are applied to state.
+
+        Raises:
+            CommandError: The server refused
+
+        Client: ``CastleStormIslandsMainDialog.showLoaded`` (bundle line 17524) asks while you are in an
+        alliance; ``SIICommand`` (bundle line 127742)
+        """
+        return self.request(StormIslandsInfoRequest(), StormIslandsInfo, timeout=timeout)
 
     @property
     def skills(self) -> SkillList | None:

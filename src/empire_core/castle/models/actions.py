@@ -7,6 +7,8 @@ Commands:
 - mas: Abandon a castle
 - mac: Cancel abandoning a castle
 - rst: Relocate castle
+- laa: Leave the joined area
+- gtwara: The joined area is gone, back to the world map
 """
 
 from __future__ import annotations
@@ -409,10 +411,11 @@ class RelocateCastleRequest(BaseRequest):
     Command: rst
     Payload: {"PX": x, "PY": y}
 
-    The client sends only the position: no castle id and no kingdom.
+    The client sends only the position: no castle id and no kingdom. It relocates the main castle in
+    the green kingdom.
 
-    Client: ``C2SStartRelocationVO`` (bundle line 109634), sent by
-    ``CastleRelocateDialog.onClick`` (bundle line 109619)
+    Client: ``C2SStartRelocationVO`` (bundle line 109671), sent by
+    ``CastleRelocateDialog.onClick`` (bundle line 109656)
     """
 
     command = "rst"
@@ -423,14 +426,53 @@ class RelocateCastleRequest(BaseRequest):
 
 class RelocateCastleResponse(BaseResponse):
     """
-    Response to castle relocation.
+    The relocation started.
 
     Command: rst
 
-    Client: ``RSTCommand.executeCommand`` (bundle line 126817)
+    Client: ``RSTCommand.executeCommand`` (bundle line 126855) reads nothing from the reply
     """
 
     command = "rst"
+
+
+# =============================================================================
+# LAA - Leave Area
+# =============================================================================
+
+
+class LeaveAreaRequest(BaseRequest):
+    """
+    Leave the area you joined last.
+
+    Command: laa
+    Payload: {}
+
+    The client registers no handler for an ``laa`` reply.
+
+    Client: ``C2SLeaveAreaVO`` (bundle line 108588), sent by ``CastleKingdomOverviewScreen.show``
+    (bundle line 108518)
+    """
+
+    command = "laa"
+
+
+# =============================================================================
+# GTWARA - Go To World map After Remove Area
+# =============================================================================
+
+
+class LeftRemovedAreaResponse(BaseResponse):
+    """
+    The area you were in is gone, and the client goes back to the world map.
+
+    Command: gtwara, pushed
+
+    Client: ``GTWARACommand.executeCommand`` (bundle line 127296) reads nothing and runs
+    ``SwitchToWorldmapCommand``
+    """
+
+    command = "gtwara"
 
 
 __all__ = [
@@ -439,6 +481,8 @@ __all__ = [
     "CancelAbandonCastleRequest",
     "CancelAbandonCastleResponse",
     "JoinAreaRequest",
+    "LeaveAreaRequest",
+    "LeftRemovedAreaResponse",
     "SelectCastleRequest",
     "SelectCastleResponse",
     "RenameCastleRequest",

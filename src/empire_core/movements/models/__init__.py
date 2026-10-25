@@ -40,6 +40,8 @@ from .support import (
 from .transfers import (
     KingdomGoodsTransferRequest,
     KingdomGoodsTransferResponse,
+    KingdomSkipTransferRequest,
+    KingdomSkipTransferResponse,
     KingdomUnitTransferRequest,
     KingdomUnitTransferResponse,
     MinuteSkipKingdomTransferRequest,
@@ -78,6 +80,8 @@ __all__ = [
     "TreasureMapTransferSkipResponse",
     "TreasureMapUnitTransferRequest",
     "TreasureMapUnitTransferResponse",
+    "KingdomSkipTransferRequest",
+    "KingdomSkipTransferResponse",
     "MovementArea",
     "MovementArmy",
     "MovementMarket",

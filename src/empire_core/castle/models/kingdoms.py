@@ -1,19 +1,20 @@
 """
-Your kingdoms: which are unlocked, and the units and goods on their way to one.
+Your kingdoms: which are unlocked, unlocking one, and the units and goods on their way to one.
 
 Commands:
 - kpi: kingdom info, a login section of ``gbd``, a reply, and inside the transfer replies
+- ksc: Unlock a kingdom with one of its prebuilt castles
 """
 
 from __future__ import annotations
 
 from typing import Any, ClassVar
 
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, field_serializer, field_validator
 
-from empire_core.enums import CollectableKind, Kingdom
+from empire_core.enums import CollectableKind, Kingdom, KingdomDirection
 from empire_core.gamedata import Collectable, CollectableRows, EnumOrInt
-from empire_core.protocol.base import BaseResponse, TimedPayload, readable_list
+from empire_core.protocol.base import BaseRequest, BaseResponse, TimedPayload, readable_list
 from empire_core.protocol.js import ClientInt, ClientNumber, js_int, js_loose_equals, js_truthy
 
 
@@ -130,6 +131,20 @@ def _transfers(value: Any) -> tuple[KingdomTransfer, ...]:
     return tuple(readable_list(KingdomTransfer, value, accept=lambda entry: isinstance(entry, dict)))
 
 
+class KingdomInfoRequest(BaseRequest):
+    """
+    Ask for your kingdoms and the transfers to them.
+
+    Command: kpi
+    Payload: {}
+
+    Client: ``C2SKingdomPayInfoVO`` (bundle line 55424), sent by ``CastleHandleKingdomDialog.showLoaded``
+    (bundle line 55406) and after a Storm Islands reset (``IKRCommand.executeCommand``, bundle line 127728)
+    """
+
+    command = "kpi"
+
+
 class KingdomInfoResponse(BaseResponse):
     """
     Your kingdoms' unlocks, and the units and goods on their way to them.
@@ -170,4 +185,60 @@ class KingdomInfoResponse(BaseResponse):
         return next((kingdom for kingdom in self.kingdoms if kingdom.kingdom_id == kingdom_id), None)
 
 
-__all__ = ["KingdomInfoResponse", "KingdomTransfer", "KingdomUnlock"]
+class SelectKingdomCastleRequest(BaseRequest):
+    """
+    Unlock a kingdom with one of its prebuilt castles.
+
+    Command: ksc
+    Payload: {"ID": prebuilt_castle_id, "D": direction, "PWR": 0 or 1, "OC2": 0 or 1, "SID": kingdom_id}
+
+    Keys follow the client's order. ``OC2`` takes the castle whose only price is rubies; ``PWR`` pays the
+    missing resources with rubies, which the client sends only from its resource wait dialog. The Storm
+    Islands castle choice sends a direction of 0.
+
+    Client: ``C2SSelectKingdomCastleVO`` (bundle line 34224), sent by ``AUnlockPrebuiltCastle.buyPrebuiltCastle``
+    (bundle line 55479), ``CastleSpecialServerPreBuildCastleSelectionDialog.onConfirmed`` (bundle line 27956)
+    and ``CastleResourceWaitDialogProperties.getResourceSkipCommand`` (bundle line 35239)
+    """
+
+    command = "ksc"
+
+    prebuilt_castle_id: int = Field(
+        validation_alias="ID", description="The prebuilt castle, a row of the items prebuiltcastles table"
+    )
+    direction: EnumOrInt[KingdomDirection] = Field(
+        validation_alias="D", default=0, description="The side of the map the castle is placed on; 0 for none"
+    )
+    pay_with_rubies: bool = Field(
+        validation_alias="PWR", default=False, description="Pay the missing resources with rubies"
+    )
+    ruby_castle: bool = Field(
+        validation_alias="OC2", default=False, description="The castle is the one bought with rubies"
+    )
+    kingdom_id: Kingdom = Field(validation_alias="SID", description="The kingdom to unlock")
+
+    @field_serializer("pay_with_rubies", "ruby_castle")
+    def _flag(self, value: bool) -> int:
+        return int(value)
+
+
+class SelectKingdomCastleResponse(BaseResponse):
+    """
+    The kingdom unlocked.
+
+    Command: ksc
+
+    Client: ``KSCCommand.executeCommand`` (bundle line 124741) reads nothing from the reply
+    """
+
+    command = "ksc"
+
+
+__all__ = [
+    "KingdomInfoRequest",
+    "KingdomInfoResponse",
+    "KingdomTransfer",
+    "KingdomUnlock",
+    "SelectKingdomCastleRequest",
+    "SelectKingdomCastleResponse",
+]

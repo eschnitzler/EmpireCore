@@ -1,9 +1,12 @@
-"""Monuments and laboratories: upgrade progress, your laboratories and their reset.
+"""Kings towers, monuments and laboratories: upgrade progress, the ones you hold and their resets.
 
 Commands:
 - glp: A laboratory's progress
 - gmp: A monument's progress
+- gkl: Your kings towers, a login section of ``gbd`` and a push
+- gml: Your monuments, a login section of ``gbd`` and a push
 - gll: Your laboratories, a login section of ``gbd`` and a push
+- mre: When monuments reset, a login section of ``gbd`` and a push
 - lrr: When laboratories reset, a login section of ``gbd`` and a push
 """
 
@@ -90,16 +93,17 @@ class MonumentProgressResponse(LandmarkProgress):
     command = "gmp"
 
 
-class OwnLaboratory(BasePayload):
+class OwnArea(BasePayload):
     """
-    One of your laboratories: ``[map_row, [[wod_id, amount], ...]]``.
+    A map object of yours with the units stationed in it: ``[map_row, [[wod_id, amount], ...]]``.
 
-    Client: ``LaboratoryMapobjectVO.parseGLL`` (bundle line 25952) reads the map row with
-    ``parseAreaInfo`` and the units with ``fillFromWodAmountArray``
+    Client: ``parseAreaInfo`` reads the map row and ``fillFromWodAmountArray`` the units, in
+    ``KingstowerMapobjectVO.parseGKL``, ``MonumentMapobjectVO.parseGML``, ``LaboratoryMapobjectVO.parseGLL``
+    and ``CastleKingdomVillageInfoVO.parseParamObject`` (bundle lines 19066, 21663, 25952, 73469)
     """
 
-    location: MapAreaItem = Field(description="The laboratory's map row")
-    units: WodAmounts = Field(default_factory=dict, description="Units stationed in the laboratory")
+    location: MapAreaItem = Field(description="The object's map row")
+    units: WodAmounts = Field(default_factory=dict, description="Units stationed in it")
 
     @model_validator(mode="before")
     @classmethod
@@ -107,6 +111,70 @@ class OwnLaboratory(BasePayload):
         if not isinstance(data, list) or not data:
             return data
         return {"location": MapAreaItem.from_list(data[0]), "units": data[1] if len(data) > 1 else []}
+
+
+class OwnKingsTower(OwnArea):
+    """One of your kings towers. Client: ``KingstowerMapobjectVO.parseGKL`` (bundle line 19066)"""
+
+
+class OwnMonument(OwnArea):
+    """One of your monuments. Client: ``MonumentMapobjectVO.parseGML`` (bundle line 21663)"""
+
+
+class OwnLaboratory(OwnArea):
+    """One of your laboratories. Client: ``LaboratoryMapobjectVO.parseGLL`` (bundle line 25952)"""
+
+
+class KingsTowerListResponse(BaseResponse):
+    """
+    Your kings towers, listed whole.
+
+    Command: gkl, as a login section of ``gbd``, a push and inside an ``mir``
+    Payload: {"AI": [row, ...]}
+
+    Client: ``GKLCommand.executeCommand`` (bundle line 129589), ``CastleKingstowerList.parseGKL``
+    (bundle line 73493), which replaces the list; ``CastleUserData.parse_MIR`` (bundle line 9884)
+    """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    command = "gkl"
+
+    kings_towers: list[OwnKingsTower] = Field(
+        validation_alias="AI", default_factory=list, description="Your kings towers"
+    )
+
+    @field_validator("kings_towers", mode="before")
+    @classmethod
+    def _rows(cls, value: Any) -> Any:
+        return readable_list(
+            OwnKingsTower, value, accept=lambda row: isinstance(row, list), warn=logger, what="kings towers"
+        )
+
+
+class MonumentListResponse(BaseResponse):
+    """
+    Your monuments, listed whole.
+
+    Command: gml, as a login section of ``gbd``, a push and inside an ``mir``
+    Payload: {"AI": [row, ...]}
+
+    Client: ``GMLCommand.executeCommand`` (bundle line 129638), ``CastleMonumentList.parseGML``
+    (bundle line 73545), which replaces the list; ``CastleUserData.parse_MIR`` (bundle line 9884)
+    """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    command = "gml"
+
+    monuments: list[OwnMonument] = Field(validation_alias="AI", default_factory=list, description="Your monuments")
+
+    @field_validator("monuments", mode="before")
+    @classmethod
+    def _rows(cls, value: Any) -> Any:
+        return readable_list(
+            OwnMonument, value, accept=lambda row: isinstance(row, list), warn=logger, what="monuments"
+        )
 
 
 class LaboratoryListResponse(BaseResponse):
@@ -159,7 +227,36 @@ class LaboratoryResetResponse(TimedResponse):
         return int(max(0.0, self.seconds - self._elapsed(now)))
 
 
+class MonumentResetResponse(TimedResponse):
+    """
+    When the monuments reset next; a negative time means they reset now.
+
+    Command: mre, as a login section of ``gbd`` and a push
+    Payload: {"MRS": seconds}
+
+    Client: ``MRECommand.executeCommand`` (bundle line 131653), ``CastleMonumentData.parseMRE``
+    (bundle line 46192), which ignores an ``MRS`` of 0, resets the shown monuments for a negative
+    one and otherwise counts down to the next reset; ``GBDCommand.exec`` (bundle line 129430)
+    """
+
+    command = "mre"
+
+    seconds: ClientNumber = Field(
+        validation_alias="MRS", default=0, description="Seconds until the next reset when read; negative: resetting now"
+    )
+
+    def remaining_seconds(self, now: float | None = None) -> int:
+        """Whole seconds until the next reset, 0 at least."""
+        return int(max(0.0, self.seconds - self._elapsed(now)))
+
+
 __all__ = [
+    "KingsTowerListResponse",
+    "MonumentListResponse",
+    "MonumentResetResponse",
+    "OwnArea",
+    "OwnKingsTower",
+    "OwnMonument",
     "LaboratoryListResponse",
     "LaboratoryResetResponse",
     "OwnLaboratory",

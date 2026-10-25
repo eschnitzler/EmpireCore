@@ -129,7 +129,11 @@ every value is as old as the last packet that carried it:
 | Gems and relic gems | `ggm`, `gec` (pushed; adds or takes gems away) | log in again |
 | Loot boxes, key progress | `gls` (pushed, also before the login data); a `gls` updates only the key progress it lists | log in again |
 | Equipment and gem inventory space | `esl` (pushed), the `bgm`, `ceq`, `cge`, `frc` and `seq` replies | log in again |
-| Kingdoms, transfers between them | `kpi`, the `kgt`, `kst`, `kut`, `msk` and `fjf` replies; a `kpi` updates only the kingdoms it lists | log in again |
+| Kingdoms, transfers between them | `kpi`, the `kgt`, `kst`, `kut`, `msk` and `fjf` replies; a `kpi` updates only the kingdoms it lists; an `ikr` (pushed) locks the Storm Islands | `client.castle.get_kingdoms()` |
+| Kings towers, monuments, laboratories | `gkl`, `gml`, `gll` (pushed), the castle list an `mir` brings | log in again |
+| Monument and laboratory resets | `mre`, `lrr` (pushed) | log in again |
+| Villages | `kgv` | `client.castle.get_villages()` |
+| Storm Islands standing, aqua points | `sii`, `gap`; an `ikr` (pushed) zeroes the aqua points | `client.player.get_storm_islands_info()` |
 | Mercenary missions | `mpe` | log in again |
 | Tax collection | `txi`, the `txs`, `txc` and `btx` replies | `client.castle.get_tax_info()` |
 | Construction item expiry | `nec` (pushed) | log in again |

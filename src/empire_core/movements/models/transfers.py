@@ -4,6 +4,7 @@ Commands:
 - kut: Transfer units from a castle to another kingdom
 - kgt: Transfer goods from a castle to another kingdom
 - msk: Shorten a transfer to another kingdom with a minute skip
+- kst: Finish a transfer to another kingdom at once, for rubies
 """
 
 from __future__ import annotations
@@ -209,9 +210,67 @@ class MinuteSkipKingdomTransferResponse(BaseResponse):
     command = "msk"
 
 
+# =============================================================================
+# KST - Kingdom Skip Transfer
+# =============================================================================
+
+
+class KingdomSkipTransferRequest(BaseRequest):
+    """
+    Finish the units or goods on their way to a kingdom at once, for rubies.
+
+    Command: kst
+    Payload: {"KID": kingdom_id, "TT": transfer_type}
+
+    Keys follow the client's order; both are sent as numbers.
+
+    Client: ``C2SKingdomSkipTransferVO`` (bundle line 24292), sent by
+    ``KingdomUnitsTravelMinuteSkipProperties.getFullSkipCommand`` (bundle line 37508),
+    ``KingdomGoodsTravelMinuteSkipProperties.getFullSkipCommand`` (bundle line 55591),
+    ``CastleHandleKingdomDialogSupport.onClick`` (bundle lines 98420, 98422) and
+    ``FactionEventOverviewSublayer.onClickRubySkipTroops`` (bundle line 95297)
+    """
+
+    command = "kst"
+
+    kingdom_id: Kingdom = Field(validation_alias="KID", description="The kingdom the transfer goes to")
+    transfer_type: KingdomTransferType = Field(
+        validation_alias="TT", description="Whether the transfer carries units or goods"
+    )
+
+
+class KingdomSkipTransferResponse(BaseResponse):
+    """
+    The transfers after a full skip.
+
+    Command: kst
+    Payload: {"gcu": {...}, "grc": {...}, "gui": {...}, "kpi": {...}}
+
+    ``gcu``, ``grc`` and ``kpi`` update ``client.state``; ``gui``, the joined castle's units, is not kept.
+
+    Client: ``KSTCommand.executeCommand`` (bundle line 124755)
+    """
+
+    command = "kst"
+
+    currencies: CurrencyBlock = Field(validation_alias="gcu", default=None, description="Coins and rubies after")
+    resources: CastleResources | None = Field(
+        validation_alias="grc",
+        default=None,
+        description="The joined castle's resources after",
+    )
+
+    @field_validator("resources", mode="before")
+    @classmethod
+    def _block(cls, value: Any) -> CastleResources | None:
+        return block_or_none(CastleResources, value)
+
+
 __all__ = [
     "KingdomGoodsTransferRequest",
     "KingdomGoodsTransferResponse",
+    "KingdomSkipTransferRequest",
+    "KingdomSkipTransferResponse",
     "KingdomUnitTransferRequest",
     "KingdomUnitTransferResponse",
     "MinuteSkipKingdomTransferRequest",

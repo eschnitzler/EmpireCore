@@ -46,6 +46,32 @@ and `no_abandon_seconds` show a running abandon and how long until a castle has
 been held long enough to abandon. Opening the gate and peace mode cost rubies
 and are not in the library.
 
+### Kingdoms, relocation and leaving an area
+
+```python
+client.castle.get_kingdoms()                       # kpi; also updates client.castle.kingdoms
+client.castle.unlock_kingdom(Kingdom.ICE, 4, KingdomDirection.NORTH)
+client.castle.relocate(300, 400)                   # the first relocation is free
+client.castle.relocate(300, 400, spend_rubies=True)  # later ones cost 5000, 20000, then 35000 rubies
+client.castle.leave_area()                         # laa; the game waits for no reply
+```
+
+`unlock_kingdom` takes one of the kingdom's prebuilt castles (the items
+`prebuiltcastles` table) and the side of the map to place it on; only the Storm
+Islands go without a direction. The castle priced in rubies only needs
+`ruby_castle=True` and `spend_rubies=True`; `spend_rubies` alone pays any
+missing resources with rubies. `relocate` moves your main castle in the green
+kingdom; a relocation that costs rubies, or one whose price is not known yet
+(no `gri` arrived), needs `spend_rubies`.
+
+### Kings towers, monuments and villages
+
+`client.castle.kings_towers`, `monuments`, `laboratories` and `villages` are the
+lists the login brought, replaced by each push (`gkl`, `gml`, `gll`) or reply
+(`kgv`, from `client.castle.get_villages()`). Each entry is the map row with the
+units stationed there. `client.castle.monument_reset` and `laboratory_reset`
+count down to the next reset.
+
 ## Construction items
 
 Request the items in storage with `get_construction_items()`. The result contains

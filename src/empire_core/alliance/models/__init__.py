@@ -146,7 +146,7 @@ from .info import (
     GetAllianceInfoResponse,
     PeaceOffer,
 )
-from .landmarks import AllianceLaboratoriesResponse
+from .landmarks import AllianceLaboratoriesResponse, RoyalCapitalAllianceResponse
 from .members import (
     AllianceApplication,
     AllianceApplicationListRequest,
@@ -208,6 +208,7 @@ __all__ = [
     "relic_forge_coin_cost",
     "relic_forge_ruby_cost",
     "AllianceLaboratoriesResponse",
+    "RoyalCapitalAllianceResponse",
     "AllianceUpgradeRequest",
     "AllianceUpgradeResponse",
     "ALLIANCE_FOUND_COINS",

@@ -30,6 +30,8 @@ from .actions import (
     CancelAbandonCastleRequest,
     CancelAbandonCastleResponse,
     JoinAreaRequest,
+    LeaveAreaRequest,
+    LeftRemovedAreaResponse,
     RelocateCastleRequest,
     RelocateCastleResponse,
     RenameCastleRequest,
@@ -85,19 +87,28 @@ from .details import (
     StorageCapacity,
 )
 from .kingdoms import (
+    KingdomInfoRequest,
     KingdomInfoResponse,
     KingdomTransfer,
     KingdomUnlock,
+    SelectKingdomCastleRequest,
+    SelectKingdomCastleResponse,
 )
 from .landmarks import (
     GetLaboratoryProgressRequest,
     GetMonumentProgressRequest,
+    KingsTowerListResponse,
     LaboratoryListResponse,
     LaboratoryProgressResponse,
     LaboratoryResetResponse,
     LandmarkProgress,
+    MonumentListResponse,
     MonumentProgressResponse,
+    MonumentResetResponse,
+    OwnArea,
+    OwnKingsTower,
     OwnLaboratory,
+    OwnMonument,
 )
 from .mercenaries import MercenaryMission, MercenaryMissionsResponse, MercenaryPackageRequest
 from .objects import (
@@ -154,12 +165,28 @@ from .upkeep import (
     ConstructionItemExpiryResponse,
     ResourcePoolResponse,
 )
+from .villages import (
+    GetVillageListRequest,
+    OwnVillage,
+    PrivateVillage,
+    VillageListResponse,
+)
 from .wishing_well import WishingWellResponse
 
 __all__ = [
     "LaboratoryListResponse",
     "LaboratoryResetResponse",
     "OwnLaboratory",
+    "GetVillageListRequest",
+    "OwnVillage",
+    "PrivateVillage",
+    "VillageListResponse",
+    "KingsTowerListResponse",
+    "MonumentListResponse",
+    "MonumentResetResponse",
+    "OwnArea",
+    "OwnKingsTower",
+    "OwnMonument",
     "ConstructionItemPlacement",
     "EquipConstructionItemRequest",
     "EquipConstructionItemResponse",
@@ -192,6 +219,8 @@ __all__ = [
     "SelectCastleRequest",
     "SelectCastleResponse",
     "JoinAreaRequest",
+    "LeaveAreaRequest",
+    "LeftRemovedAreaResponse",
     "RenameCastleRequest",
     "RenameCastleResponse",
     "AbandonCastleRequest",
@@ -290,6 +319,9 @@ __all__ = [
     "KingdomInfoResponse",
     "KingdomTransfer",
     "KingdomUnlock",
+    "KingdomInfoRequest",
+    "SelectKingdomCastleRequest",
+    "SelectKingdomCastleResponse",
     "ConstructionItemExpiryResponse",
     "ResourcePoolResponse",
 ]
