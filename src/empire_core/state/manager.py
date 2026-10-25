@@ -10,7 +10,7 @@ from empire_core.state.account import ACCOUNT_SECTIONS, AccountState
 from empire_core.state.alliance import AllianceState
 from empire_core.state.area import AreaState
 from empire_core.state.base import MovementEventCallback
-from empire_core.state.castles import CastleState
+from empire_core.state.castles import LABORATORY_SECTIONS, CastleState
 from empire_core.state.commanders import CommanderState
 from empire_core.state.events import EventCallback, EventsCallback, EventState
 from empire_core.state.inventory import INVENTORY_SECTIONS, InventoryState
@@ -55,6 +55,7 @@ _TRACKED_SECTIONS = (
     "grc",
     *ACCOUNT_SECTIONS,
     *INVENTORY_SECTIONS,
+    *LABORATORY_SECTIONS,
 )
 
 _PLAYER_SECTIONS = frozenset({"gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap", "gac", "sce"})
@@ -70,7 +71,7 @@ _SECTION_PUSHES = frozenset({"gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "u
 # BIECommand, PGLCommand, RWWCommand, NRFCommand (bundle lines 122051, 126126, 122579, 127961,
 # 126903, 124002), GGMCommand, GLSCommand, ESLCommand, KPICommand, MPECommand, TXICommand,
 # NECCommand, IRCCommand (bundle lines 123957, 124800, 123895, 124684, 125109, 128792, 123294, 123090),
-# GRCCommand (bundle line 123065)
+# GRCCommand (bundle line 123065), GLLCommand, LRRCommand (bundle lines 129604, 131638)
 _WHOLE_SECTIONS = {
     "gli": "gli",
     "skl": "skl",
@@ -81,6 +82,7 @@ _WHOLE_SECTIONS = {
     "grc": "grc",
     **{section: section for section in ACCOUNT_SECTIONS if section != "drt"},
     **{section: section for section in INVENTORY_SECTIONS},
+    **{section: section for section in LABORATORY_SECTIONS},
 }
 
 # Replies that carry a gbd section under its own key, applied only on success: ARLCommand,
@@ -95,7 +97,7 @@ _WHOLE_SECTIONS = {
 # and sbp's vip; cpm's gcu comes with its movement. The tax replies TXSCommand and TXCCommand
 # (bundle lines 128808, 128748) and BTXCommand bring their txi. The equipment and gem replies
 # BGMCommand, CEQCommand, CGECommand, FRCCommand and SEQCommand (bundle lines 123727, 123783,
-# 123798, 123912, 124019) bring their esl; the kingdom replies KGTCommand, KSTCommand, KUTCommand,
+# 123798, 123955, 124019) bring their esl, and frc its ain; the kingdom replies KGTCommand, KSTCommand, KUTCommand,
 # MSKCommand and FJFCommand (bundle lines 124654, 124713, 124728, 125795, 127783) their kpi.
 # RWBCommand (bundle line 124426) brings only its gcu to state; its parseRWB (bundle line 111900)
 # also reads a gui the state does not keep. A castle's resources (grc) wherever AreaDataUpdater.parseGRC
@@ -103,7 +105,7 @@ _WHOLE_SECTIONS = {
 # EBUCommand, EUPCommand, EUDCommand, RBUCommand, EBECommand through the area updater (bundle lines 122761,
 # 122861, 122846, 123163, 122744), JAACommand (bundle line 130194), RCCCommand (bundle lines 123182,
 # 28797), BUPCommand, CRMCommand, VFICommand, GDRCommand, CCDCommand, CDECommand (bundle lines 125531,
-# 125982, 121127, 123016, 127640, 127658); a refused crm still reaches the movement handler
+# 125982, 121127, 123053, 127640, 127658), gdr also its sce; a refused crm still reaches the movement handler
 _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
     **dict.fromkeys(("arl", "gla", "sdi", "sti"), ("gli",)),
     "seq": ("gli", "gcu", "esl"),
@@ -118,14 +120,14 @@ _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
     "cpm": ("cpi",),
     "sbp": ("gcu", "cpi", "vip", "grc"),
     **dict.fromkeys(("txs", "txc"), ("gcu", "txi")),
-    **dict.fromkeys(("bgm", "ceq", "cge", "frc"), ("esl",)),
+    **dict.fromkeys(("bgm", "ceq", "cge"), ("esl",)),
+    "frc": ("ain", "esl"),
     **dict.fromkeys(("kgt", "kst"), ("gcu", "kpi", "grc")),
     "kut": ("gcu", "kpi"),
     **dict.fromkeys(("msk", "fjf"), ("kpi",)),
     "rwb": ("gcu",),
-    **dict.fromkeys(
-        ("ebu", "eup", "eud", "rbu", "ebe", "jaa", "rcc", "bup", "crm", "vfi", "gdr", "ccd", "cde"), ("grc",)
-    ),
+    **dict.fromkeys(("ebu", "eup", "eud", "rbu", "ebe", "jaa", "rcc", "bup", "crm", "vfi", "ccd", "cde"), ("grc",)),
+    "gdr": ("grc", "sce"),
 }
 
 # Commands whose state the client applies only from a successful reply: SEICommand, SEECommand,
@@ -142,6 +144,8 @@ _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
 _SUCCESS_ONLY = frozenset(
     {"sei", "see", "tei", "tee", "pep", "fjf", "bst", "acm", "aqi", "ufp", "bfs", "gtp", *_WHOLE_SECTIONS}
     | {"agr", "afa", "abl", "aee", "ahl", "ahh", "ahd", "sne", "dms", "ams", "uac", "pre"}
+    # AJACommand, SLLCommand, GAPCommand (bundle lines 121532, 122063, 122976)
+    | {"aja", "sll", "gap"}
     # GBDCommand.exec (bundle line 129376) reads the login data only on ALL_OK
     | {"gbd"}
     | (set(_NESTED_SECTIONS) - {"cpm", "crm"})
@@ -323,6 +327,10 @@ class GameState(
         "afa": "_handle_afa",
         "abl": "_handle_abl",
         "aee": "_handle_aee",
+        "aja": "_handle_aja",
+        "sll": "_handle_sll",
+        "gap": "_handle_gap",
+        "frc": "_handle_frc",
         "acm": "_handle_acm",
         "aqi": "_handle_aqi",
         "ahl": "_handle_ahl",
@@ -446,6 +454,7 @@ class GameState(
         skipped |= self._parse_progress(data)
         skipped |= self._parse_account(data)
         skipped |= self._parse_inventory(data)
+        skipped |= self._parse_laboratories(data)
         self._parse_castles(data)
         self._parse_permanent_castles(data)
         self._parse_max_spies(data)
@@ -513,10 +522,11 @@ class GameState(
     def _handle_mir(self, data: Any) -> None:
         """Apply the castle list sent after taking a castle or outpost.
 
-        Client: ``MIRCommand.executeCommand`` / ``CastleUserData.parse_MIR``.
+        Client: ``MIRCommand.executeCommand`` / ``CastleUserData.parse_MIR`` (bundle line 9884), which
+        applies a truthy ``gcl`` and ``gll``.
         """
-        if isinstance(data, dict) and data.get("gcl"):
-            self._handle_gbd({"gcl": data["gcl"]})
+        if isinstance(data, dict):
+            self._handle_gbd({key: data[key] for key in ("gcl", "gll") if data.get(key)})
 
     def _handle_fjf(self, data: Any) -> None:
         """Apply a faction join reply's events (``sei``), then the castle list in its ``mir``.
@@ -566,10 +576,10 @@ class GameState(
         "cmr", "rcc" and the map read "gaa" (refused too) — and the login sections "gpi", "gxp", "gcu", "vip",
         "gal", "gcl", "gho", "uap", "gpc", "gms", "sei", "tei", "gli", "skl", "ain", "acl", "rei", "boi", "gmu",
         "ufa", "uar", "vli", "gri", "cpi", "dql", "gai", "gatp", "bie", "pgl", "rww", "nrf", "ggm", "gls", "esl",
-        "kpi", "mpe", "txi", "nec", "irc" and "grc", stamped whether they came inside a gbd, as a push of their own or
-        inside a reply that carries one ("sei" from a fjf or bst, "gli" from an arl, "ain" from an akm, "rei"
-        from a res, "kpi" from a kut, ...), plus "gac" and "drt", which only come inside a gbd. "gsm" and "rci"
-        are stamped whenever mines or resource carts are applied, from their push or a jaa, cmr or rcc reply;
+        "kpi", "mpe", "txi", "nec", "irc", "grc", "gll" and "lrr", stamped whether they came inside a gbd, as a push
+        of their own or inside a reply that carries one ("sei" from a fjf or bst, "gli" from an arl, "ain" from an
+        akm, "rei" from a res, "kpi" from a kut, ...), plus "gac" and "drt", which only come inside a gbd. "gsm" and
+        "rci" are stamped whenever mines or resource carts are applied, from their push or a jaa, cmr or rcc reply;
         "csl" and "gab" from their push or a jaa, the push even when no area was joined to apply it to. A send
         reply is stamped even when the server refused the send; the commands the client reads only from a
         successful reply (the event ones, the login section ones, the castle ones, the quest ones, "gec", "acm",

@@ -4,6 +4,7 @@ construction item expiry and the resource citizen."""
 import logging
 from typing import Any
 
+from empire_core.alliance.models.forge import ForgeCraftResponse
 from empire_core.castle.models.construction_items import (
     ConstructionItemInventory,
     ConstructionItemPlacement,
@@ -139,6 +140,21 @@ class InventoryState(StateBase):
         if isinstance(data, dict):
             gems = self.gems if self.gems is not None else GemInventoryResponse()
             self.gems = gems.changed(data.get("GEM"))
+
+    def _handle_frc(self, data: Any) -> None:
+        """Add the gem or relic gem the alliance forge crafted; an equipment item is not kept here.
+
+        Client: ``FRCCommand.executeCommand`` (bundle line 123955) calls ``CastleGemData.parse_FRC``
+        (bundle line 144434) without an ``E``, which adds an ``RGEM``, else a ``GEM``
+        """
+        crafted = read_section(ForgeCraftResponse, data, "the forge's craft")
+        if crafted is None or crafted.equipment is not None:
+            return
+        gems = self.gems if self.gems is not None else GemInventoryResponse()
+        if crafted.relic_gem is not None:
+            self.gems = gems.model_copy(update={"relic_gems": (*gems.relic_gems, crafted.relic_gem)})
+        elif crafted.gem_id is not None:
+            self.gems = gems.changed([[int(crafted.gem_id), 1]])
 
     def get_gems(self) -> GemInventoryResponse | None:
         """The gems and relic gems in your inventory; None until a ``ggm`` or ``gec`` arrived.

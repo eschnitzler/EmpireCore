@@ -7,6 +7,7 @@ registry. The models live in their area packages and are exported from them
 from there, never from here.
 """
 
+from empire_core.alliance.models.aqua import AllianceMemberAquaPointsRequest, AllianceMemberAquaPointsResponse
 from empire_core.alliance.models.bookmarks import (
     ATTACK_ORDER_MAX_SECONDS,
     ATTACK_ORDER_MIN_SECONDS,
@@ -47,6 +48,8 @@ from empire_core.alliance.models.diplomacy import (
     ChangeDiplomacyResponse,
     DonateRequest,
     DonateResponse,
+    DonationResourcesResponse,
+    GetDonationResourcesRequest,
     RefuseDiplomacyRequest,
     RefuseDiplomacyResponse,
     SendNewsletterRequest,
@@ -54,6 +57,7 @@ from empire_core.alliance.models.diplomacy import (
     SetAutoWarRequest,
     SetAutoWarResponse,
 )
+from empire_core.alliance.models.forge import ForgeCraftRequest, ForgeCraftResponse
 from empire_core.alliance.models.forum import (
     CreateForumTopicRequest,
     CreateForumTopicResponse,
@@ -117,6 +121,7 @@ from empire_core.alliance.models.info import (
     GetAllianceInfoResponse,
     PeaceOffer,
 )
+from empire_core.alliance.models.landmarks import AllianceLaboratoriesResponse
 from empire_core.alliance.models.members import (
     AllianceApplication,
     AllianceApplicationListRequest,
@@ -139,6 +144,7 @@ from empire_core.alliance.models.membership import (
     AllianceRecruit,
     ApplyToAllianceRequest,
     ApplyToAllianceResponse,
+    AutoJoinedAllianceResponse,
     FindAllianceRecruitsRequest,
     FindAllianceRecruitsResponse,
     GetAllianceInvitationRequest,
@@ -150,7 +156,14 @@ from empire_core.alliance.models.membership import (
     SetLookingForMembersRequest,
     SetLookingForMembersResponse,
 )
-from empire_core.alliance.models.search import AllianceSearchResult, SearchAllianceRequest, SearchAllianceResponse
+from empire_core.alliance.models.search import (
+    AllianceSearchListResponse,
+    AllianceSearchResult,
+    AutoAllianceSearchRequest,
+    AutoAllianceSearchResponse,
+    SearchAllianceRequest,
+    SearchAllianceResponse,
+)
 from empire_core.alliance.models.settings import (
     ALLIANCE_DESCRIPTION_MAX_LENGTH,
     ALLIANCE_NAME_MAX_LENGTH,
@@ -384,7 +397,9 @@ from empire_core.castle.models.kingdoms import KingdomInfoResponse
 from empire_core.castle.models.landmarks import (
     GetLaboratoryProgressRequest,
     GetMonumentProgressRequest,
+    LaboratoryListResponse,
     LaboratoryProgressResponse,
+    LaboratoryResetResponse,
     LandmarkProgress,
     MonumentProgressResponse,
 )
@@ -653,6 +668,7 @@ from empire_core.player.models.account import (
     DailyResetResponse,
     PlayerGiftsResponse,
 )
+from empire_core.player.models.aqua import AquaPointsResponse, GetAquaPointsRequest
 from empire_core.player.models.economy import (
     GetLootBoxesRequest,
     LootBoxesResponse,
@@ -780,6 +796,21 @@ from empire_core.spy.models import (
 )
 
 __all__ = [
+    "AquaPointsResponse",
+    "GetAquaPointsRequest",
+    "LaboratoryListResponse",
+    "LaboratoryResetResponse",
+    "AllianceSearchListResponse",
+    "AutoAllianceSearchRequest",
+    "AutoAllianceSearchResponse",
+    "AutoJoinedAllianceResponse",
+    "DonationResourcesResponse",
+    "GetDonationResourcesRequest",
+    "AllianceMemberAquaPointsRequest",
+    "AllianceMemberAquaPointsResponse",
+    "ForgeCraftRequest",
+    "ForgeCraftResponse",
+    "AllianceLaboratoriesResponse",
     "ConstructionItemPlacement",
     "EquipConstructionItemRequest",
     "EquipConstructionItemResponse",

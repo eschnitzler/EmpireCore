@@ -14,8 +14,11 @@ from empire_core.alliance.models.help import (
     AllianceHelpRequestRemoved,
 )
 from empire_core.alliance.models.info import AllianceInfo, alliance_of_ain
+from empire_core.alliance.models.landmarks import AllianceLaboratoriesResponse
+from empire_core.alliance.models.membership import AutoJoinedAllianceResponse
 from empire_core.enums import OnlineState
 from empire_core.exceptions import ReplyMismatchError
+from empire_core.player.models.aqua import AquaPointsResponse
 from empire_core.protocol.base import read_or_none
 from empire_core.protocol.js import js_int, js_truthy
 from empire_core.state.base import StateBase, read_section
@@ -116,6 +119,33 @@ class AllianceState(StateBase):
             return
         self._patch_own_alliance({"aee": {"ACCA": crest, "ACFB": data.get("ACFB")}})
 
+    def _handle_sll(self, data: Any) -> None:
+        """Client: ``CastleAllianceData.parseSLL`` (bundle line 11605) replaces your alliance's laboratories."""
+        if read_section(AllianceLaboratoriesResponse, data, "the alliance's laboratories") is not None:
+            self._patch_own_alliance({"ALA": data.get("ALA")})
+
+    def _handle_gap(self, data: Any) -> None:
+        """Keep your aqua points and your alliance's.
+
+        Client: ``CastleUserData.parse_GAP`` (bundle line 9881) sets ``P`` on the player and ``A`` on
+        your alliance, when it knows one
+        """
+        points = read_section(AquaPointsResponse, data, "the aqua points")
+        if points is None:
+            return
+        self.aqua_points = points.player_points
+        if "A" in data:
+            self._patch_own_alliance({"AP": points.alliance_points})
+
+    def _handle_aja(self, data: Any) -> None:
+        """Apply your new membership, then the alliance you were put in.
+
+        Client: ``AJACommand.executeCommand`` (bundle lines 121532-121534): ``parse_GAL(gal)``, then
+        ``parseAllianceInfo(A)``
+        """
+        if read_section(AutoJoinedAllianceResponse, data, "an automatic alliance join") is not None:
+            self._handle_gbd({"gal": data["gal"], "ain": {"A": data["A"]}})
+
     def _forget_own_alliance(self) -> None:
         self._own_alliance_raw = None
         self._alliance_field_order = {}
@@ -144,8 +174,8 @@ class AllianceState(StateBase):
         """Apply only an accepted service reply, while its membership context is still current.
 
         Client: ``JOACommand`` / ``AAICommand`` (bundle lines 121934 / 121203)
-        apply gal before A. The service scopes these replies so rejected or late
-        replies cannot replace a newer authoritative GAL or a new session.
+        apply gal before A, ``AASCommand`` (bundle line 121272) gal before gam. The service scopes
+        these replies so rejected or late replies cannot replace a newer authoritative GAL or a new session.
         """
         sections = {}
         gal = data.get("gal")
@@ -162,6 +192,8 @@ class AllianceState(StateBase):
                 current = self.local_player.AID if self.local_player is not None else None
                 raise ReplyMismatchError(expected, current if current is not None else -1)
             self._handle_gbd(sections)
+            if isinstance(movements := data.get("gam"), dict):
+                self._handle_gam(movements)
 
     @contextmanager
     def alliance_info_read(self, alliance_id: int) -> Iterator[None]:
@@ -364,6 +396,11 @@ class AllianceState(StateBase):
         if info is not None:
             # The row the members share, set in place: rebuilding the members would restart their protection times
             info.login_activity = int(OnlineState.ONLINE)
+
+    def get_aqua_points(self) -> int | float | None:
+        """Your aqua points, from the last ``gap``; None until one arrived."""
+        with self._lock:
+            return self.aqua_points
 
     def get_own_alliance(self) -> AllianceInfo | None:
         """Your alliance's details and members, from the last ``ain`` about it; None in no alliance or before one.

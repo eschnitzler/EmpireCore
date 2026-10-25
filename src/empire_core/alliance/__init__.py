@@ -51,6 +51,7 @@ from .models import (
     BOOKMARK_NAME_MAX_LENGTH,
     MAX_ALLIANCE_BOOKMARKS,
     MAX_PLAYER_BOOKMARKS,
+    RELIC_FORGE_MIN_LEGEND_LEVEL,
     REPAIR_HELP_COOLDOWN_SECONDS,
     AddBookmarkRequest,
     AddBookmarkResponse,
@@ -74,8 +75,14 @@ from .models import (
     AllianceHelpRequestChanged,
     AllianceHelpRequestRemoved,
     AllianceInfo,
+    AllianceLaboratoriesResponse,
     AllianceMember,
+    AllianceMemberAquaPoints,
+    AllianceMemberAquaPointsRequest,
+    AllianceMemberAquaPointsResponse,
     AllianceMemberInfo,
+    AllianceSearchListItem,
+    AllianceSearchListResponse,
     AllianceSearchResult,
     AllianceStorage,
     AllianceSubscriberCountRequest,
@@ -84,6 +91,9 @@ from .models import (
     AnswerApplicationResponse,
     AskHelpRequest,
     AskHelpResponse,
+    AutoAllianceSearchRequest,
+    AutoAllianceSearchResponse,
+    AutoJoinedAllianceResponse,
     Bookmark,
     BookmarkAttackOrder,
     BookmarkPosition,
@@ -110,10 +120,14 @@ from .models import (
     DeleteBookmarkResponse,
     DonateRequest,
     DonateResponse,
+    DonationResourcesResponse,
+    ForgeCraftRequest,
+    ForgeCraftResponse,
     GetAllianceInfoRequest,
     GetAllianceInfoResponse,
     GetBookmarksRequest,
     GetBookmarksResponse,
+    GetDonationResourcesRequest,
     HealHelpParams,
     HelpAllRequest,
     HelpMemberRequest,
@@ -136,6 +150,8 @@ from .models import (
     SendNewsletterResponse,
     SetAutoWarRequest,
     SetAutoWarResponse,
+    relic_forge_coin_cost,
+    relic_forge_ruby_cost,
 )
 from .models.forum import (
     CreateForumTopicRequest,
@@ -178,9 +194,25 @@ from .models.membership import (
 from .service import AllianceHelpUpdate, AllianceService
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import AllianceCrestColor, AllianceCrestLayout
+    from empire_core.gamedata import AllianceCrestColor, AllianceCrestLayout, Currency, Gem
 
 __all__ = [
+    "AllianceSearchListItem",
+    "AllianceSearchListResponse",
+    "AutoAllianceSearchRequest",
+    "AutoAllianceSearchResponse",
+    "AutoJoinedAllianceResponse",
+    "DonationResourcesResponse",
+    "GetDonationResourcesRequest",
+    "AllianceMemberAquaPoints",
+    "AllianceMemberAquaPointsRequest",
+    "AllianceMemberAquaPointsResponse",
+    "RELIC_FORGE_MIN_LEGEND_LEVEL",
+    "ForgeCraftRequest",
+    "ForgeCraftResponse",
+    "relic_forge_coin_cost",
+    "relic_forge_ruby_cost",
+    "AllianceLaboratoriesResponse",
     "AllianceUpgradeRequest",
     "AllianceUpgradeResponse",
     "ALLIANCE_FOUND_COINS",
@@ -343,8 +375,12 @@ __all__ = [
     "RankingType",
     "AllianceCrestColor",
     "AllianceCrestLayout",
+    "Currency",
+    "Gem",
 ]
 
 
 if not TYPE_CHECKING:
-    __getattr__ = lazy_exports(__name__, "empire_core.gamedata.ids", ("AllianceCrestColor", "AllianceCrestLayout"))
+    __getattr__ = lazy_exports(
+        __name__, "empire_core.gamedata.ids", ("AllianceCrestColor", "AllianceCrestLayout", "Currency", "Gem")
+    )
