@@ -2,6 +2,7 @@
 
 Commands:
 - csm: Send spy mission
+- cpm: Send plague monks
 - ssi: Spy screen info
 - ssu: Auto-spy, a report without sending spies
 - gms: Maximum spies, a login section and push
@@ -17,7 +18,7 @@ from pydantic import ConfigDict, Field, ValidatorFunctionWrapHandler, field_vali
 from empire_core.enums import Kingdom, SpyType
 from empire_core.map.models import KingdomProtection, MapAreaItem, MapObject, parse_area_rows
 from empire_core.messages.models import SpyReportResponse
-from empire_core.movements.models import MovementOwner, MovementSpy, MovementWrapper
+from empire_core.movements.models import MovementOwner, MovementSpy, MovementWrapper, SentMovementResponse
 from empire_core.protocol.base import (
     BasePayload,
     BaseRequest,
@@ -442,11 +443,76 @@ class PlagueMonkInfoResponse(BaseResponse):
     total_plague_monks: ClientInt = Field(validation_alias="TPM", default=0, description="All your plague monks")
 
 
+# =============================================================================
+# CPM - Send plague monks
+# =============================================================================
+
+
+class SendPlagueMonksRequest(BaseRequest):
+    """
+    Send plague monks to a target.
+
+    Command: cpm
+    Payload: {"TX": target_x, "TY": target_y, "TK": target_kingdom, "C": monks, "E": damage}
+
+    No source castle: plague monks travel a fixed time
+    (``ClientConstCastle.PLAGUEMONK_TRAVEL_TIME``). The dialog offers up to
+    ``SpyConst.MAX_DEPLOYABLE_PLAGUEMONKS`` (20) of the monks at home, and
+    the damage on the sabotage slider.
+
+    Client: ``C2SCreatePlagueMonkMovementVO`` (bundle line 72184), sent by
+    ``CastleSpyDialogPlagueState.spyCastle`` (bundle line 72160); the picker from
+    ``updateSpyVO`` (bundle line 72141); ``MAX_DEPLOYABLE_PLAGUEMONKS`` (dll line 19757)
+    """
+
+    command = "cpm"
+
+    target_x: int = Field(validation_alias="TX", description="Target map x")
+    target_y: int = Field(validation_alias="TY", description="Target map y")
+    target_kingdom: Kingdom = Field(validation_alias="TK", default=Kingdom.GREEN, description="The target's kingdom")
+    monks: int = Field(validation_alias="C", description="How many plague monks to send")
+    damage: int = Field(validation_alias="E", description="Damage percent, as for a sabotage")
+
+    def accepts_reply(self, payload: Any) -> bool:
+        """Whether a cpm reply is the movement this sent: its target area (``A.M.TA``) is ``TX``/``TY``.
+
+        Client: ``CPMCommand`` (bundle line 128572) reads the new movement from ``A``.
+        """
+        return isinstance(payload, dict) and movement_targets(payload.get("A"), self.target_x, self.target_y)
+
+
+class SendPlagueMonksResponse(SentMovementResponse):
+    """
+    The plague monks on their way.
+
+    Command: cpm
+    Payload: {"gcu": {...}, "O": [owner, ...], "A": movement, "cpi": {"APM": .., "TPM": ..}}
+
+    Client: ``CPMCommand.executeCommand`` (bundle line 128572), which also hands
+    ``cpi`` to ``CastleSpyData.parse_CPI`` (bundle line 140016), which skips a falsy one
+    """
+
+    command = "cpm"
+
+    plague_monks: PlagueMonkInfoResponse | None = Field(
+        validation_alias="cpi",
+        default=None,
+        description="Your plague monks after the send; None when the reply has none",
+    )
+
+    @field_validator("plague_monks", mode="before")
+    @classmethod
+    def _monks(cls, value: object) -> object:
+        return value if js_truthy(value) else None
+
+
 __all__ = [
     "AutoSpyRequest",
     "AutoSpyResponse",
     "MaxSpiesResponse",
     "PlagueMonkInfoResponse",
+    "SendPlagueMonksRequest",
+    "SendPlagueMonksResponse",
     "SendSpyRequest",
     "SendSpyResponse",
     "SpyScreenInfoRequest",

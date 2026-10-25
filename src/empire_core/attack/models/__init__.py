@@ -33,7 +33,16 @@ from .presets import (
     UnlockPresetRequest,
     UnlockPresetResponse,
 )
-from .send import CreateAttackRequest, CreateAttackResponse
+from .send import (
+    AllianceBattlegroundAttackRequest,
+    AllianceBattlegroundAttackResponse,
+    CreateAttackRequest,
+    CreateAttackResponse,
+    DaimyoTauntRequest,
+    DaimyoTauntResponse,
+    TreasureHuntAttackRequest,
+    TreasureHuntAttackResponse,
+)
 from .target_info import (
     GetAllianceTowerAttackInfoRequest,
     GetAllianceTowerAttackInfoResponse,
@@ -111,6 +120,12 @@ __all__ = [
     "PRESET_NAME_MAX_LENGTH",
     "CreateAttackRequest",
     "CreateAttackResponse",
+    "AllianceBattlegroundAttackRequest",
+    "AllianceBattlegroundAttackResponse",
+    "DaimyoTauntRequest",
+    "DaimyoTauntResponse",
+    "TreasureHuntAttackRequest",
+    "TreasureHuntAttackResponse",
     "GetDungeonAttackInfoRequest",
     "GetDungeonAttackInfoResponse",
     "GetBossDungeonAttackInfoRequest",

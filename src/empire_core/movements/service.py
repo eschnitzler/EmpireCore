@@ -25,6 +25,11 @@ from empire_core.movements.models import (
     MinuteSkipKingdomTransferRequest,
     MovementWrapper,
     SendSupportRequest,
+    SendSupportResponse,
+    SendTowerSupportRequest,
+    SendTowerSupportResponse,
+    SendTownshipSupportRequest,
+    SendTownshipSupportResponse,
     SendTroopsRequest,
 )
 from empire_core.movements.tracked import Movement
@@ -276,14 +281,16 @@ class MovementsService(BaseService):
         feathers: bool = False,
         slowdown: int = 0,
         *,
+        alliance_tower: bool = False,
         spend_rubies: bool = False,
         timeout: float = 5.0,
-    ) -> None:
+    ) -> SendSupportResponse:
         """
-        Send support troops from a castle to a target location.
+        Send support troops from a castle to a target location and return the server's reply.
 
         The server refuses a support to your own area with NO_SELF_DESTRUCTION
-        (92); move troops between your own areas with :meth:`send_troops`.
+        (92); move troops between your own areas with :meth:`send_troops`, and
+        support a daimyo township with :meth:`send_township_support`.
 
         A support led by the premium commander is refused before sending when it
         may cost rubies, unless ``spend_rubies`` is True; see
@@ -295,7 +302,7 @@ class MovementsService(BaseService):
                 from ``client.castle.get_all()`` or ``Castle.id`` from ``client.state.get_castles()``
             target_x: Target X coordinate
             target_y: Target Y coordinate
-            units: The units, then any tools: ``{Unit.X: 100}``, or pairs one per slot
+            units: The units: ``{Unit.X: 100}``, or pairs one per slot; the client sends no tools
             commander_id: Commander to lead the support, a ``Commander.commander_id``
                 from ``client.commanders.get_commanders()``.
                 There is no default: ``0`` is a real commander (the free starting
@@ -309,6 +316,8 @@ class MovementsService(BaseService):
                 sent as -1 whenever feathers are used, as the client does
             feathers: Pay for the movement with feathers
             slowdown: Movement slowdown modifier (0 = none, default: 0); costs rubies
+            alliance_tower: The target is an alliance battleground tower: sent as ``tde``,
+                as the client does for that target, and answered with a ``SendTowerSupportResponse``
             timeout: Timeout in seconds
             spend_rubies: Send even when the premium commander, the horse or the slowdown costs rubies
 
@@ -319,9 +328,14 @@ class MovementsService(BaseService):
             GameDataNotLoadedError: The premium commander leads, VIP time runs and
                 the game data cannot be loaded; or a horse is picked without feathers
                 before it was called
+            CommandError: The server refused the support
+
+        Client: ``CastleAttackData.sendSupport`` (bundle line 133904) sends ``tde`` when the
+        target's area type is ``AREA_TYPE_ALLIANCE_BATTLE_GROUND_TOWER``, else ``cds``
         """
         self._require_spend_rubies(spend_rubies, self._travel_ruby_cost(horse_booster_id, feathers, slowdown))
-        request = SendSupportRequest(
+        response_type = SendTowerSupportResponse if alliance_tower else SendSupportResponse
+        request = (SendTowerSupportRequest if alliance_tower else SendSupportRequest)(
             source_castle_id=source_castle_id,
             target_x=target_x,
             target_y=target_y,
@@ -333,12 +347,50 @@ class MovementsService(BaseService):
             slowdown=slowdown,
             commander_id=commander_id,
         )
-        self.client.commanders.premium_send(
+        return self.client.commanders.premium_send(
             commander_id,
             use_premium_commander,
-            lambda: self.execute(request, timeout=timeout),
+            lambda: self.request(request, response_type, timeout=timeout),
             spend_rubies=spend_rubies,
         )
+
+    def send_township_support(
+        self,
+        source_castle_id: int,
+        target_x: int,
+        target_y: int,
+        units: WodAmountMapping | Sequence[WodAmount],
+        *,
+        timeout: float = 5.0,
+    ) -> SendTownshipSupportResponse:
+        """
+        Send support troops from a castle to a daimyo township and return the server's reply.
+
+        The client sends no commander, horse, wait time or slowdown with it.
+
+        Args:
+            source_castle_id: The castle the troops leave from, one of yours: ``CastleInfo.castle_id``
+                from ``client.castle.get_all()`` or ``Castle.id`` from ``client.state.get_castles()``
+            target_x: The township's map x
+            target_y: The township's map y
+            units: The units: ``{Unit.X: 100}``, or pairs one per slot
+            timeout: Timeout in seconds
+
+        Raises:
+            ValueError: No units are given, which the client refuses
+            CommandError: The server refused the support
+
+        Client: ``CastleSupportDefenceDialog.closeScreen`` (bundle line 122483) refuses an empty
+        army and picks ``ACTION_TYPE_SUPPORTDEFENSE_TOWNSHIP`` for an ``AREA_TYPE_DAIMYO_TOWNSHIP``,
+        which ``OpenPostAttackDialogCommand.execute`` (bundle line 99685) sends as ``cdd``
+        """
+        slots = WodAmount.slots(units)
+        if not any(slot.amount > 0 for slot in slots if slot.item is not None):
+            raise ValueError("a township support needs units")
+        request = SendTownshipSupportRequest(
+            source_castle_id=source_castle_id, target_x=target_x, target_y=target_y, units=slots
+        )
+        return self.request(request, SendTownshipSupportResponse, timeout=timeout)
 
     def send_troops(
         self,

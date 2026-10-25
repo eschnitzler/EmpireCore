@@ -44,7 +44,16 @@ from empire_core.attack.models.presets import (
     SavePresetRequest,
     UnlockPresetRequest,
 )
-from empire_core.attack.models.send import CreateAttackRequest
+from empire_core.attack.models.send import (
+    AllianceBattlegroundAttackRequest,
+    AllianceBattlegroundAttackResponse,
+    CreateAttackRequest,
+    CreateAttackResponse,
+    DaimyoTauntRequest,
+    DaimyoTauntResponse,
+    TreasureHuntAttackRequest,
+    TreasureHuntAttackResponse,
+)
 from empire_core.attack.models.target_info import (
     GetCollectorAttackInfoRequest,
     GetCollectorAttackInfoResponse,
@@ -253,12 +262,14 @@ class AttackService(BaseService):
         collector_booster: Mapping[CurrencyId, int] | Mapping[int, int] | None = None,
         send_anyway: bool = False,
         min_soldiers: int | None = None,
+        collector_attack: bool = False,
         *,
+        alliance_battleground: bool = False,
         spend_rubies: bool = False,
         timeout: float = 5.0,
-    ) -> None:
+    ) -> CreateAttackResponse:
         """
-        Send an attack from a castle to a target position.
+        Send an attack from a castle to a target position and return the server's reply.
 
         Waves without units are dropped, matching the game client. Setting
         ``feathers`` forces the horse field to -1, again as the client does.
@@ -320,6 +331,12 @@ class AttackService(BaseService):
                 ``{CurrencyId.SAMURAI_MEDAL_BOOSTER: 5}``
             send_anyway: Send although one of your attacks is already on its way
                 there (``FC`` 1), as the client's confirmation dialog does
+            collector_attack: A collector event attack (``ICA`` 1), as the client sends one
+                after its collector booster dialog
+            alliance_battleground: Send it as ``abgcam``, as the client does on the alliance
+                battleground server while the event scores alliance collector points and the
+                target is a castle or capital; the reply is then an
+                ``AllianceBattlegroundAttackResponse``. Such an attack has no auto-skip cooldown
             min_soldiers: The fewest units the waves must carry together, such
                 as ``FilledAttack.min_soldiers`` or
                 ``combat.min_attack_soldiers(...)``; taken from ``capacity``
@@ -348,8 +365,10 @@ class AttackService(BaseService):
                 the castle list is at the source position
             EmpireTimeoutError / ConnectionClosedError / NetworkError: transport failures
 
-        Client: ``CastleAttackData.sendAttack`` (bundle line 133852) sends the
-        source area's ``kingdomID`` as ``KID``
+        Client: ``CastleAttackData.sendAttack`` (bundle line 133901) and
+        ``sendAttackPlayerAllianceBattleground`` (bundle line 133895) send the source
+        area's ``kingdomID`` as ``KID``; ``CastlePostAttackDialog.sendAttack`` (bundle
+        line 38381) picks between them
         """
         if isinstance(waves, FilledAttack):
             yard_wave = waves.yard if yard_wave is None else yard_wave
@@ -377,7 +396,8 @@ class AttackService(BaseService):
 
         self._require_spend_rubies(spend_rubies, self._travel_ruby_cost(horse_booster_id, feathers, slowdown))
         kingdom_id = self._own_area_kingdom(source_x, source_y, kingdom_id)
-        request = CreateAttackRequest(
+        response_type = AllianceBattlegroundAttackResponse if alliance_battleground else CreateAttackResponse
+        request = (AllianceBattlegroundAttackRequest if alliance_battleground else CreateAttackRequest)(
             source_x=source_x,
             source_y=source_y,
             target_x=target_x,
@@ -397,18 +417,121 @@ class AttackService(BaseService):
             support_tools=tuple(support_tools or ()),
             collector_booster=dict((collector_booster or {}).items()),
             send_anyway=1 if send_anyway else 0,
+            collector_attack=1 if collector_attack else 0,
         )
 
-        def send() -> None:
+        def send() -> CreateAttackResponse:
             self.pacer.wait()
             try:
-                self.execute(request, timeout=timeout)
+                return self.request(request, response_type, timeout=timeout)
             except CommandError as e:
                 if e.error is GGEError.ATTACK_IN_PROGRESS:
                     raise AttackInProgressError(e.command, e.code, e.payload) from e
                 raise
 
-        self.client.commanders.premium_send(commander_id, use_premium_commander, send, spend_rubies=spend_rubies)
+        return self.client.commanders.premium_send(commander_id, use_premium_commander, send, spend_rubies=spend_rubies)
+
+    def send_treasure_hunt_attack(
+        self,
+        map_id: int,
+        node_id: int,
+        waves: list[AttackWave],
+        commander_id: int,
+        horse_booster_id: int = -1,
+        feathers: bool = False,
+        use_premium_commander: bool = False,
+        *,
+        spend_rubies: bool = False,
+        timeout: float = 5.0,
+    ) -> TreasureHuntAttackResponse:
+        """
+        Attack a node of a treasure map and return the server's reply.
+
+        Waves without units are dropped, as the client does. Paced with ``send_attack`` by
+        ``config.attack_send_interval``. Led by the premium commander, the
+        attack is refused before sending when it may cost rubies, unless ``spend_rubies`` is True;
+        see ``client.commanders.premium_send``. So is a horse that costs rubies, unless paid with
+        feathers.
+
+        Args:
+            map_id: The treasure map's id
+            node_id: The node to attack on that map
+            waves: Attack waves, front to back
+            commander_id: Commander to lead the attack, a ``Commander.commander_id`` from
+                ``client.commanders.get_commanders()``
+            horse_booster_id: Horse type for the speed bonus (-1 = none); sent as -1 with feathers
+            feathers: Pay for the horse with feathers
+            use_premium_commander: Lead with the premium commander (``commander_id`` -14)
+            spend_rubies: Send even when the premium commander or the horse costs rubies
+            timeout: Timeout in seconds
+
+        Raises:
+            ValueError: No wave carries any units, or the horse costs rubies and ``spend_rubies``
+                is False
+            PremiumCommanderCostError: The premium commander leads, may cost rubies, and
+                ``spend_rubies`` is False
+            CommandError: The server refused the attack, ``CANT_START_NEW_ARMIES`` included,
+                which the client drops without a message
+
+        Client: ``CastleTreasureMapData.sendTreasureHuntAttack`` (bundle line 140467), from
+        ``CastlePostAttackDialog.sendTreasureHuntAttack`` (bundle line 38377); ``THMCommand``
+        (bundle line 126135)
+        """
+        filled_waves = [w for w in waves if w.is_complete()]
+        if not filled_waves:
+            raise ValueError("Attack has no units in any wave")
+        self._require_spend_rubies(spend_rubies, self._travel_ruby_cost(horse_booster_id, feathers, 0))
+        request = TreasureHuntAttackRequest(
+            commander_id=commander_id,
+            horse_booster_id=-1 if feathers else horse_booster_id,
+            use_premium_commander=1 if use_premium_commander else 0,
+            map_id=map_id,
+            node_id=node_id,
+            feathers=1 if feathers else 0,
+            waves=filled_waves,
+        )
+
+        def send() -> TreasureHuntAttackResponse:
+            self.pacer.wait()
+            return self.request(request, TreasureHuntAttackResponse, timeout=timeout)
+
+        return self.client.commanders.premium_send(commander_id, use_premium_commander, send, spend_rubies=spend_rubies)
+
+    def taunt_daimyo(
+        self,
+        township_x: int,
+        township_y: int,
+        samurai_medal_boosters: int = 0,
+        shogun_point_boosters: int = 0,
+        *,
+        timeout: float = 5.0,
+    ) -> DaimyoTauntResponse:
+        """
+        Taunt a daimyo into attacking one of your townships and return the attack it started.
+
+        Args:
+            township_x: The township's map x
+            township_y: The township's map y
+            samurai_medal_boosters: Samurai medal boosters to spend on the attack
+            shogun_point_boosters: Shogun point boosters to spend on the attack
+            timeout: Timeout in seconds
+
+        Raises:
+            ValueError: A booster amount is negative
+            CommandError: The server refused the taunt
+
+        Client: ``SamuraiDaimyoBoosterSelectDialog.onOkButton`` (bundle line 55929),
+        ``LDTCommand`` (bundle line 128324)
+        """
+        if samurai_medal_boosters < 0 or shogun_point_boosters < 0:
+            raise ValueError("booster amounts cannot be negative")
+        request = DaimyoTauntRequest(
+            township_x=township_x,
+            township_y=township_y,
+            samurai_medal_boosters=samurai_medal_boosters,
+            shogun_point_boosters=shogun_point_boosters,
+        )
+        return self.request(request, DaimyoTauntResponse, timeout=timeout)
 
     def get_attack_info(
         self,

@@ -40,6 +40,9 @@ RUBY_REQUESTS = {
     "SendSupportRequest": "cds, BPC, a ruby horse, a slowdown (getTotalCostsC2, bundle line 27330)",
     "SendTroopsRequest": "same as cds",
     "CreateAttackRequest": "cra, BPC, a ruby horse, a slowdown",
+    "AllianceBattlegroundAttackRequest": "abgcam, same as cra",
+    "SendTowerSupportRequest": "tde, same as cds",
+    "TreasureHuntAttackRequest": "thm, BPC, a ruby horse",
     "CreateMarketMovementRequest": "crm, a ruby horse, a slowdown",
     "SendSpyRequest": "csm, a ruby horse, a slowdown",
     "StartTaxRequest": "txs, tax types 5 and 6 (TAX_RUBY_COSTS)",
@@ -73,6 +76,8 @@ NOT_CONSENT = {
     "minute_skip": "a minute skip item, not rubies",
     "horse_booster_id": "picks the horse; one priced in rubies needs spend_rubies",
     "collector_booster": "collector event booster items, not rubies",
+    "samurai_medal_boosters": "samurai event booster items, not rubies",
+    "shogun_point_boosters": "samurai event booster items, not rubies",
     "yard_boost": "the courtyard capacity effect a fill sizes against, not a purchase",
     "admit_ruby_units": "whether the hospital takes in wounded ruby units, a free setting",
     "pay_with_rubies": "picks the relic forge's ruby price over its coin price; spending them needs spend_rubies",
@@ -107,6 +112,11 @@ def _called_names(node: ast.AST) -> tuple[set[str], set[str]]:
             func = func.value
         if isinstance(func, ast.Name) and func.id in RUBY_REQUESTS:
             requests.add(func.id)
+        # One of two requests picked in place: (A if flag else B)(...)
+        if isinstance(func, ast.IfExp):
+            requests |= {
+                node.id for node in (func.body, func.orelse) if isinstance(node, ast.Name)
+            } & RUBY_REQUESTS.keys()
     return requests, methods
 
 

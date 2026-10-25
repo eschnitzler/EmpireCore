@@ -7,7 +7,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, ValidatorFunctionWrapHandler, field_validator, model_validator
 
 from empire_core.commanders.models.roster import Commander
 from empire_core.enums import AttackAdvisorType, AutoSkipCooldownType, Kingdom, SpyType
@@ -18,10 +18,12 @@ from empire_core.protocol.base import (
     BasePayload,
     BaseRequest,
     BaseResponse,
+    CurrencyBlock,
     Position,
     enum_or_none,
     object_or_none,
     read_or_none,
+    readable_list,
 )
 from empire_core.protocol.js import (
     ClientInt,
@@ -506,6 +508,62 @@ class CancelMovementResponse(BaseResponse):
     movement: MovementWrapper = Field(validation_alias="A", description="The recalled movement")
 
 
+class SentMovementResponse(BaseResponse):
+    """
+    The reply to a movement you send: the new movement, its owners and your coins and rubies after.
+
+    Payload: {"gcu": {...}, "O": [owner record, ...], "A": wrapper}
+
+    ``A`` is read as one ``gam`` entry and ``O`` skips a record without an ``OID``.
+    The send replies that share this shape subclass it with their command.
+
+    Client: ``CDSCommand.executeCommand`` (bundle line 125973) and its siblings hand
+    ``i.gcu`` to ``CurrencyData.parseGCU``, ``i.O`` to
+    ``CastleOtherPlayerData.parseOwnerInfoArray`` and ``[i.A]`` to
+    ``CastleArmyData.parseMapMovementArray``
+    """
+
+    movement: MovementWrapper | None = Field(
+        validation_alias="A",
+        default=None,
+        description="The new movement; None when the reply has none",
+    )
+    owners: list[MovementOwner] = Field(
+        validation_alias="O",
+        default_factory=list,
+        description="Owner records for the movement's areas",
+    )
+    currencies: CurrencyBlock = Field(
+        validation_alias="gcu",
+        default=None,
+        description="Coins and rubies after the send; None when the reply has none",
+    )
+
+    @field_validator("movement", mode="wrap")
+    @classmethod
+    def _movement_or_none(cls, value: object, handler: ValidatorFunctionWrapHandler) -> MovementWrapper | None:
+        if not value:
+            return None
+        return read_or_none(handler, value, warn=logger, what=f"the movement in a {cls.__name__}")
+
+    @field_validator("owners", mode="before")
+    @classmethod
+    def _readable_owners(cls, value: object) -> list[MovementOwner]:
+        return readable_list(
+            MovementOwner,
+            value,
+            accept=lambda record: isinstance(record, dict),
+            keep=lambda record: js_truthy(record.get("OID")),
+            warn=logger,
+            what=f"owner records in a {cls.__name__}",
+        )
+
+    @property
+    def movement_id(self) -> int | None:
+        """The new movement's id, or None when the reply has no movement."""
+        return self.movement.movement.movement_id if self.movement else None
+
+
 __all__ = [
     "CancelMovementRequest",
     "CancelMovementResponse",
@@ -519,4 +577,5 @@ __all__ = [
     "MovementSpy",
     "MovementUnitInfo",
     "MovementWrapper",
+    "SentMovementResponse",
 ]

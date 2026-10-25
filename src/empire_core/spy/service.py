@@ -35,6 +35,8 @@ from empire_core.utils.cancel import sleep_unless_cancelled
 from .models import (
     AutoSpyRequest,
     AutoSpyResponse,
+    SendPlagueMonksRequest,
+    SendPlagueMonksResponse,
     SendSpyRequest,
     SendSpyResponse,
     SpyScreenInfoRequest,
@@ -44,6 +46,7 @@ from .pool import island_title_chain, legend_spy_bonus, research_spy_bonus, titl
 from .risk import (
     MAX_ACCURACY,
     MAX_DAMAGE,
+    MAX_DEPLOYABLE_PLAGUEMONKS,
     MAX_RISK_SABOTAGE,
     MAX_RISK_SPY,
     MIN_DAMAGE,
@@ -499,6 +502,49 @@ class SpyService(BaseService):
             slowdown=slowdown,
         )
         return self.request(request, SendSpyResponse)
+
+    def send_plague_monks(
+        self,
+        target_x: int,
+        target_y: int,
+        target_kingdom: Kingdom = Kingdom.GREEN,
+        *,
+        monks: int,
+        damage: int,
+        timeout: float = 5.0,
+    ) -> SendPlagueMonksResponse:
+        """
+        Send plague monks to a target and return the server's reply.
+
+        Args:
+            target_x: Target X coordinate
+            target_y: Target Y coordinate
+            target_kingdom: Target kingdom
+            monks: How many plague monks to send, 1 up to 20 and no more than are at home
+            damage: Damage percent, 10-50 as for a sabotage
+            timeout: Timeout in seconds
+
+        Raises:
+            ValueError: A count or damage the client's dialog would not send, or more monks
+                than :attr:`plague_monks` has at home, before anything is sent
+            CommandError: The server refused the monks
+
+        Client: ``CastleSpyDialogPlagueState.spyCastle`` (bundle line 72160) refuses when no monk
+        is at home; ``updateSpyVO`` (bundle line 72141) offers up to
+        ``min(availablePlagueMonks, MAX_DEPLOYABLE_PLAGUEMONKS)`` and a damage from
+        ``ACastleSpyDialogState.updateSliderForDamage`` (bundle line 34370)
+        """
+        if not 1 <= monks <= MAX_DEPLOYABLE_PLAGUEMONKS:
+            raise ValueError(f"send 1-{MAX_DEPLOYABLE_PLAGUEMONKS} plague monks, not {monks}")
+        if not MIN_DAMAGE <= damage <= MAX_DAMAGE:
+            raise ValueError(f"plague monk damage must be {MIN_DAMAGE}-{MAX_DAMAGE}, got {damage}")
+        known = self.plague_monks
+        if known is not None and monks > known.available_plague_monks:
+            raise ValueError(f"{known.available_plague_monks} plague monks are at home, not {monks}")
+        request = SendPlagueMonksRequest(
+            target_x=target_x, target_y=target_y, target_kingdom=target_kingdom, monks=monks, damage=damage
+        )
+        return self.request(request, SendPlagueMonksResponse, timeout=timeout)
 
     def send_instant_spy(
         self,
