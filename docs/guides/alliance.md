@@ -345,3 +345,31 @@ raising `CommandError` on refusal. Transport failures retain their exception typ
 The returned `AllianceUpgradeResponse` contains the authoritative `storage` and
 `buildings` lists. These update the alliance cache while preserving newer pushes
 and rejecting replies from a previous membership.
+
+## Joining automatically
+
+`client.alliance.auto_join("Alliance")` asks the server to put you in an
+alliance, as the game's "join alliance" button does. The reply's `membership`
+is your new one when it did, applied to state; otherwise `alliances` lists
+alliances to join (`language="de"` limits the list to one language). A pushed
+`aja` (you were put in an alliance) and `sal` (alliances to join) are read too.
+
+## Donation resources, aqua points and the forge
+
+`client.alliance.get_donation_resources(castle_id)` returns what one of your
+castles has to donate and your special currencies.
+`client.alliance.get_member_aqua_points()` lists each member's Storm Islands
+aqua points; `client.player.get_aqua_points()` asks for yours and your
+alliance's, and `client.player.aqua_points` keeps the last value.
+
+`client.alliance.forge()` crafts in the alliance forge. Below legend level 1 it
+needs the alliance's `is_able_to_forge`; from legend level 1 the relic forge
+crafts, paid in coins, or in rubies with `pay_with_rubies=True` (which needs
+`spend_rubies=True`). A crafted gem joins `client.commanders.gems`.
+
+## Laboratories
+
+Your alliance's laboratories are `client.alliance.own_alliance.laboratories`,
+replaced by every `sll` push. Your own laboratories, with the units in them,
+are `client.castle.laboratories`, and `client.castle.laboratory_reset` counts
+down to the next laboratory reset.

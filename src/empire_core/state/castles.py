@@ -9,13 +9,14 @@ from pydantic import ValidationError
 
 from empire_core.castle.models.castles import PlayerCastle
 from empire_core.castle.models.details import DetailedCastleInfo, ResourceProduction, SafeAmount, StorageCapacity
+from empire_core.castle.models.landmarks import LaboratoryListResponse, LaboratoryResetResponse
 from empire_core.castle.models.permanent import PermanentCastle, PermanentCastleDataResponse
 from empire_core.castle.models.resources import CastleResources
 from empire_core.castle.models.updates import UnitsReceived
 from empire_core.enums import Kingdom
 from empire_core.protocol.base import enum_or_none, read_or_none
 from empire_core.protocol.js import js_int, js_loose_equals, js_truthy
-from empire_core.state.base import StateBase
+from empire_core.state.base import StateBase, read_section
 from empire_core.state.models import Castle, Resources
 
 if TYPE_CHECKING:
@@ -30,7 +31,40 @@ _STOCK = ("wood", "stone", "food", "coal", "oil", "glass", "iron", "aquamarine",
 _MONDAY = 2
 
 
+LABORATORY_SECTIONS = ("gll", "lrr")
+
+
 class CastleState(StateBase):
+    def _parse_laboratories(self, data: dict[str, Any]) -> set[str]:
+        """Apply the laboratory sections of a gbd, or the one a push or an ``mir`` carries; return those not applied.
+
+        Client: ``GBDCommand.exec`` (bundle line 129430) hands ``gll`` to ``CastleLaboratoryList.parseGLL``
+        (bundle line 73521), which skips a falsy one, and a truthy ``lrr`` to ``CastleLaboratoryData.parseLRR``
+        (bundle line 134899), which ignores an ``LRS`` of 0 and keeps the countdown only for a positive one
+        """
+        applied: set[str] = set()
+        if js_truthy(gll := data.get("gll")):
+            if (laboratories := read_section(LaboratoryListResponse, gll, "your laboratories")) is not None:
+                self.laboratories = laboratories
+                applied.add("gll")
+        if js_truthy(lrr := data.get("lrr")):
+            if (reset := read_section(LaboratoryResetResponse, lrr, "the laboratory reset")) is not None:
+                if reset.seconds > 0:
+                    self.laboratory_reset = reset
+                if reset.seconds != 0:
+                    applied.add("lrr")
+        return {section for section in LABORATORY_SECTIONS if section in data} - applied
+
+    def get_laboratories(self) -> LaboratoryListResponse | None:
+        """Your laboratories, from the last ``gll``; None until one arrived."""
+        with self._lock:
+            return self.laboratories
+
+    def get_laboratory_reset(self) -> LaboratoryResetResponse | None:
+        """When the laboratories reset next, from the last ``lrr`` that counted down; None until one arrived."""
+        with self._lock:
+            return self.laboratory_reset
+
     def _parse_castles(self, data: dict[str, Any]) -> None:
         """Parse castle list from gcl sub-packet.
 

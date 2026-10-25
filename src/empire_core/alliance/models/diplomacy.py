@@ -6,6 +6,7 @@ Commands:
 - saw: Turn auto war on or off
 - anl: Send the alliance newsletter
 - ado: Donate to the alliance treasury
+- gdr: What one of your castles has to donate
 """
 
 from __future__ import annotations
@@ -14,9 +15,12 @@ from typing import Any
 
 from pydantic import Field, field_validator
 
+from empire_core.castle.models.resources import CastleResources
 from empire_core.enums import DiplomacyStatus, Kingdom
+from empire_core.gamedata import Currency
+from empire_core.gamedata.lenient import known
 from empire_core.protocol.base import BaseRequest, BaseResponse, CurrencyBlock, EmpireModel
-from empire_core.protocol.js import ClientInt, js_loose_equals
+from empire_core.protocol.js import ClientInt, js_int, js_loose_equals
 from empire_core.protocol.text import encode_json_text
 
 from .info import AllianceInfo, alliance_block, alliance_of_ain
@@ -306,7 +310,65 @@ class DonateResponse(BaseResponse):
         return alliance_of_ain(value)
 
 
+# =============================================================================
+# GDR - Donation resources
+# =============================================================================
+
+
+class GetDonationResourcesRequest(BaseRequest):
+    """
+    Ask what one of your castles has to donate.
+
+    Command: gdr
+    Payload: {"AID": castle_id, "KID": kingdom}
+
+    ``AID`` is the castle, not the alliance.
+
+    Client: ``C2SGetDonationResourcesVO`` (bundle line 70681), sent with the picked castle's
+    ``objectId`` and ``kingdomID`` by ``CastleAllianceDonateDialog.selectCastle`` (bundle line 45573)
+    """
+
+    command = "gdr"
+
+    castle_id: int = Field(validation_alias="AID", description="One of your castles, e.g. CastleInfo.castle_id")
+    kingdom: Kingdom = Field(validation_alias="KID", description="The castle's kingdom")
+
+
+class DonationResourcesResponse(BaseResponse):
+    """
+    The castle's resources and your special currencies, to donate from.
+
+    Command: gdr
+    Payload: {"grc": {...}, "sce": [[currency_key, amount], ...]}
+
+    Client: ``GDRCommand.exec`` (bundle line 123053): ``CurrencyData.parseSCE`` (bundle line 141182)
+    sets each ``int(amount)`` on the currency with that key, and ``parseGRC`` applies the castle's resources
+    """
+
+    command = "gdr"
+
+    resources: CastleResources = Field(validation_alias="grc", description="The castle's resources")
+    currencies: dict[Currency | str, int] = Field(
+        validation_alias="sce",
+        default_factory=dict,
+        description="Your special currencies; a key the game data lacks is kept as its text",
+    )
+
+    @field_validator("currencies", mode="before")
+    @classmethod
+    def _currencies(cls, value: Any) -> Any:
+        if not isinstance(value, list):
+            return value if isinstance(value, dict) else {}
+        return {
+            known(Currency, str(row[0])): js_int(row[1] if len(row) > 1 else None)
+            for row in value
+            if isinstance(row, list) and row
+        }
+
+
 __all__ = [
+    "GetDonationResourcesRequest",
+    "DonationResourcesResponse",
     "ChangeDiplomacyRequest",
     "ChangeDiplomacyResponse",
     "RefuseDiplomacyRequest",

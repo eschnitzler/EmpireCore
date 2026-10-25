@@ -15,6 +15,7 @@ from empire_core.services import BaseService
 RUBY_REQUESTS = {
     "SkipDungeonCooldownRequest": "sdc, ruby full skip (SkippableCooldownDialog.skipWithRubies, bundle28197–28199)",
     "AllianceUpgradeRequest": "aug, alliance treasury C2 (bundle 91235/70592)",
+    "ForgeCraftRequest": "frc, UPRAF 1 pays the relic forge in C2 (bundle line 69578; dll line 18809)",
     "CancelGrandTournamentQuestRequest": "caaq, quest cancelCostC2 defaults199 (current bundle111092)",
     "SkipGrandTournamentCooldownRequest": "scq, getCooldownSkipCosts returns999 (current bundle34981)",
     "FoundAllianceRequest": "afo, non-premium account base C2 price (bundle 44124; dll 18805)",
@@ -65,6 +66,7 @@ NOT_CONSENT = {
     "collector_booster": "collector event booster items, not rubies",
     "yard_boost": "the courtyard capacity effect a fill sizes against, not a purchase",
     "admit_ruby_units": "whether the hospital takes in wounded ruby units, a free setting",
+    "pay_with_rubies": "picks the relic forge's ruby price over its coin price; spending them needs spend_rubies",
     "free": "the generals hub's free spin, against a paid one that spends offerings, not rubies",
     "ruby_camp": "picks Berimond's ruby-priced camp; the rubies it costs need spend_rubies",
 }

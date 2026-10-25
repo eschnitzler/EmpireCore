@@ -19,12 +19,14 @@ from .models import (
     AchievementProgress,
     AchievementsResponse,
     AllianceCityTitle,
+    AquaPointsResponse,
     BoostedGlobalEffectsResponse,
     Booster,
     BoosterInfoResponse,
     DailyResetResponse,
     FactionPointsResponse,
     Festival,
+    GetAquaPointsRequest,
     GetLootBoxesRequest,
     GetPlayerInfoRequest,
     GetPlayerInfoResponse,
@@ -68,6 +70,8 @@ if TYPE_CHECKING:
     )
 
 __all__ = [
+    "AquaPointsResponse",
+    "GetAquaPointsRequest",
     "GetPlayerInfoRequest",
     "GetPlayerInfoResponse",
     "PlayerOwnerInfo",

@@ -91,6 +91,25 @@ class JoinOpenAllianceResponse(BaseResponse):
         return self
 
 
+class AutoJoinedAllianceResponse(BaseResponse):
+    """You were put in an alliance, pushed. Client: ``AJACommand.executeCommand`` (bundle lines 121532-121534),
+    which applies ``gal`` before ``A``; the client never sends an aja.
+    """
+
+    command = "aja"
+    membership: AllianceMembership = Field(validation_alias="gal", description="Your new membership")
+    alliance: AllianceInfo = Field(validation_alias="A", description="The alliance you are in now")
+
+    @field_validator("alliance", mode="before")
+    @classmethod
+    def _alliance(cls, value: Any) -> Any:
+        if isinstance(value, AllianceInfo):
+            return value
+        if not isinstance(value, dict) or value.get("AID") is None:
+            raise ValueError("joined alliance has no id")
+        return value
+
+
 class GetAllianceInvitationRequest(BaseRequest):
     """Read an invitation. Client: ``C2SGetAllianceInvitationVO`` (bundle line 69387)."""
 

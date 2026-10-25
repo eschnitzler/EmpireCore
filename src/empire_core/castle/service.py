@@ -86,7 +86,9 @@ from empire_core.castle.models.details import (
 from empire_core.castle.models.landmarks import (
     GetLaboratoryProgressRequest,
     GetMonumentProgressRequest,
+    LaboratoryListResponse,
     LaboratoryProgressResponse,
+    LaboratoryResetResponse,
     LandmarkProgress,
     MonumentProgressResponse,
 )
@@ -576,6 +578,16 @@ class CastleService(BaseService):
     def resource_cart(self, cart_type: ResourceCartType) -> ResourceCart | None:
         """The cart of one resource in the last ``rci``; ``None`` before any."""
         return self.client.state.get_resource_cart(cart_type)
+
+    @property
+    def laboratories(self) -> LaboratoryListResponse | None:
+        """Your laboratories, from the last ``gll``; None until one arrived."""
+        return self.client.state.get_laboratories()
+
+    @property
+    def laboratory_reset(self) -> LaboratoryResetResponse | None:
+        """When the laboratories reset next, from the last ``lrr`` that counted down; None until one arrived."""
+        return self.client.state.get_laboratory_reset()
 
     @property
     def tax(self) -> TaxInfo | None:

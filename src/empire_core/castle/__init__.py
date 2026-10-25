@@ -98,7 +98,9 @@ from .models import (
     KingdomInfoResponse,
     KingdomTransfer,
     KingdomUnlock,
+    LaboratoryListResponse,
     LaboratoryProgressResponse,
+    LaboratoryResetResponse,
     LandmarkProgress,
     MercenaryMission,
     MercenaryMissionsResponse,
@@ -108,6 +110,7 @@ from .models import (
     MonumentProgressResponse,
     MoveBuildingRequest,
     MoveBuildingResponse,
+    OwnLaboratory,
     PermanentCastle,
     PermanentCastleDataResponse,
     PlacedConstructionItem,
@@ -158,6 +161,9 @@ if TYPE_CHECKING:
     from empire_core.gamedata import Building, ConstructionItem, Currency, CurrencyId, Horse, Research, Tool, Unit
 
 __all__ = [
+    "LaboratoryListResponse",
+    "LaboratoryResetResponse",
+    "OwnLaboratory",
     "ConstructionItemPlacement",
     "EquipConstructionItemRequest",
     "EquipConstructionItemResponse",

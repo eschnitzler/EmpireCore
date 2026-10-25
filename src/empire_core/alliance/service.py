@@ -10,6 +10,7 @@ It covers:
 - Alliance help (the help list and its pushes, helping, asking for help)
 - Your alliance's chronicle and subscriber count
 - Map bookmarks, your own and your alliance's (list, add, change, delete)
+- Joining automatically, members' aqua points and the alliance forge
 """
 
 from __future__ import annotations
@@ -21,6 +22,11 @@ from typing import TYPE_CHECKING, Any, TypeVar
 
 from pydantic import ValidationError
 
+from empire_core.alliance.models.aqua import (
+    AllianceMemberAquaPoints,
+    AllianceMemberAquaPointsRequest,
+    AllianceMemberAquaPointsResponse,
+)
 from empire_core.alliance.models.bookmarks import (
     ATTACK_ORDER_MAX_SECONDS,
     ATTACK_ORDER_MIN_SECONDS,
@@ -55,11 +61,19 @@ from empire_core.alliance.models.diplomacy import (
     ChangeDiplomacyResponse,
     DonateRequest,
     DonateResponse,
+    DonationResourcesResponse,
+    GetDonationResourcesRequest,
     RefuseDiplomacyRequest,
     RefuseDiplomacyResponse,
     SendNewsletterRequest,
     SetAutoWarRequest,
     SetAutoWarResponse,
+)
+from empire_core.alliance.models.forge import (
+    RELIC_FORGE_MIN_LEGEND_LEVEL,
+    ForgeCraftRequest,
+    ForgeCraftResponse,
+    relic_forge_ruby_cost,
 )
 from empire_core.alliance.models.forum import (
     CreateForumTopicRequest,
@@ -118,7 +132,13 @@ from empire_core.alliance.models.membership import (
     SetLookingForAllianceRequest,
     SetLookingForMembersRequest,
 )
-from empire_core.alliance.models.search import AllianceSearchResult, SearchAllianceRequest, SearchAllianceResponse
+from empire_core.alliance.models.search import (
+    AllianceSearchResult,
+    AutoAllianceSearchRequest,
+    AutoAllianceSearchResponse,
+    SearchAllianceRequest,
+    SearchAllianceResponse,
+)
 from empire_core.alliance.models.settings import (
     ALLIANCE_RENAME_RUBIES,
     ChangeAllianceDescriptionRequest,
@@ -735,6 +755,36 @@ class AllianceService(BaseService):
             self.client.state.apply_membership_response(data, membership_revision=revision)
             return response.alliance
 
+    def auto_join(
+        self, name: str, *, description: str = "", language: str = "", timeout: float = 5.0
+    ) -> AutoAllianceSearchResponse:
+        """Ask the server to put you in an alliance; it either does, or lists alliances to join.
+
+        Its ``membership`` is your new one when you were put in an alliance, and is applied
+        to state with the movements beside it; else ``alliances`` lists alliances to join.
+        ``name`` and ``description`` are what the game sends: its translated default alliance
+        name and an empty text. ``language`` limits the list to one language code.
+
+        Raises:
+            ValueError: You already belong to an alliance; the client offers this only outside one
+            CommandError: The server refused
+
+        Client: ``CastleAllianceTeaserDialog.onJoinAlliance`` (bundle line 14670) and
+        ``CastleSearchAllianceDialog.setAllianceLanguage`` (bundle line 34593), ``AASCommand``
+        (bundle lines 121270-121279)
+        """
+        with self._membership_change(timeout=timeout) as revision:
+            if self.local_alliance_id is not None:
+                raise ValueError("you already belong to an alliance")
+            response, payload = self._request_membership(
+                AutoAllianceSearchRequest(name=name, description=description, language=language),
+                AutoAllianceSearchResponse,
+                timeout=timeout,
+            )
+            if response.membership is not None:
+                self.client.state.apply_membership_response(payload, membership_revision=revision)
+            return response
+
     def get_invitation(self, message_id: int, *, timeout: float = 5.0) -> AllianceInfo:
         """Read the inviting alliance using the invitation's message id."""
         return _echoed(
@@ -947,6 +997,80 @@ class AllianceService(BaseService):
         with self._own_alliance():
             return self.request(request, DonateResponse, timeout=timeout)
 
+    def get_donation_resources(self, castle_id: int, *, timeout: float = 5.0) -> DonationResourcesResponse:
+        """
+        What one of your castles has to donate: its resources, and your special currencies.
+
+        Both are applied to state as the client applies them.
+
+        Raises:
+            UnknownCastleError: ``castle_id`` is not in your castle list
+            NotInAllianceError: You are in no alliance (nothing is sent), or the server answered ``ALLI_NOT_FOUND``
+
+        Client: ``CastleAllianceDonateDialog.selectCastle`` (bundle line 45573) sends the picked castle's
+        ``objectId`` and ``kingdomID``
+        """
+        request = GetDonationResourcesRequest(
+            castle_id=castle_id, kingdom=self._require_own_castle(castle_id).kingdom_id
+        )
+        with self._own_alliance():
+            return self.request(request, DonationResourcesResponse, timeout=timeout)
+
+    def get_member_aqua_points(self, *, timeout: float = 5.0) -> list[AllianceMemberAquaPoints]:
+        """
+        Your alliance members' aqua points, in the order the server lists them.
+
+        Client: ``CastleEilandRankingDialogPlayer.requestHighscoreData`` (bundle line 98145) asks with
+        your alliance's id
+        """
+        alliance_id = self._require_local_alliance_id()
+        with self._own_alliance():
+            return self.request(
+                AllianceMemberAquaPointsRequest(alliance_id=alliance_id),
+                AllianceMemberAquaPointsResponse,
+                timeout=timeout,
+            ).members
+
+    def forge(
+        self, *, pay_with_rubies: bool = False, spend_rubies: bool = False, timeout: float = 5.0
+    ) -> ForgeCraftResponse:
+        """
+        Craft in the alliance forge: an equipment item, a gem or a relic gem.
+
+        Below legend level 1 the alliance forge crafts when your alliance's ``is_able_to_forge`` allows it.
+        From legend level 1 the relic forge crafts instead, paid in coins, or in rubies with
+        ``pay_with_rubies``; its price rises with each craft of the day (:func:`relic_forge_coin_cost`,
+        :func:`relic_forge_ruby_cost`). Your alliance and a crafted gem are applied to state.
+
+        Raises:
+            ValueError: The forge cannot craft now, rubies are asked below legend level 1, or rubies
+                are spent without ``spend_rubies``
+            NotInAllianceError: You are in no alliance (nothing is sent), or the server answered ``ALLI_NOT_FOUND``
+            CommandError: The server refused
+
+        Client: ``CastleAllianceDialog`` picks the forge by legend level (bundle line 4911);
+        ``CastleAllianceDialogForge.isAllowedToCraft`` (bundle line 45123), and
+        ``CastleAllianceDialogForgeHigh`` (bundle lines 69578-69599), which allows every craft and prices it
+        by the alliance's uses of the day
+        """
+        alliance_id = self._require_local_alliance_id()
+        alliance = self.client.state.get_own_alliance()
+        if alliance is None or alliance.alliance_id != alliance_id:
+            raise ValueError("your alliance's details have not arrived; read them with get_alliance_info first")
+        relic_forge = self.client.state.get_local_player().legendary_level >= RELIC_FORGE_MIN_LEGEND_LEVEL
+        if pay_with_rubies and not relic_forge:
+            raise ValueError(f"only the relic forge, from legend level {RELIC_FORGE_MIN_LEGEND_LEVEL}, takes rubies")
+        if not relic_forge and not alliance.is_able_to_forge:
+            raise ValueError("the alliance forge cannot craft now")
+        self._require_spend_rubies(
+            spend_rubies,
+            f"the relic forge costs {relic_forge_ruby_cost(alliance.hard_relic_forge_uses)} rubies"
+            if pay_with_rubies
+            else None,
+        )
+        with self._own_alliance():
+            return self.request(ForgeCraftRequest(pay_with_rubies=pay_with_rubies), ForgeCraftResponse, timeout=timeout)
+
     # =========================================================================
     # Search Operations
     # =========================================================================
@@ -1049,6 +1173,7 @@ class AllianceService(BaseService):
             self.client.connection.command_lock("joa", timeout=timeout),
             self.client.connection.command_lock("aai", timeout=timeout),
             self.client.connection.command_lock("afo", timeout=timeout),
+            self.client.connection.command_lock("aas", timeout=timeout),
         ):
             yield self.client.state.membership_revision
 

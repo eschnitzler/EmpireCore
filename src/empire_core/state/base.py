@@ -22,6 +22,7 @@ from empire_core.castle.models.construction_items import (
     ExpiredConstructionItemsResponse,
 )
 from empire_core.castle.models.kingdoms import KingdomInfoResponse
+from empire_core.castle.models.landmarks import LaboratoryListResponse, LaboratoryResetResponse
 from empire_core.castle.models.mercenaries import MercenaryMissionsResponse
 from empire_core.castle.models.objects import BuildingConstructionItems
 from empire_core.castle.models.permanent import PermanentCastle
@@ -217,6 +218,9 @@ class StateBase:
         self.expired_construction_items: ExpiredConstructionItemsResponse | None = None
         self.construction_item_expiry: ConstructionItemExpiryResponse | None = None
         self.resource_pool: ResourcePoolResponse | None = None
+        self.laboratories: LaboratoryListResponse | None = None
+        self.laboratory_reset: LaboratoryResetResponse | None = None
+        self.aqua_points: int | float | None = None
 
         # Freshness bookkeeping (see the GameState docstring). Wall-clock seconds.
         self._packet_times: dict[str, float] = {}
@@ -245,6 +249,10 @@ class StateBase:
     def _handle_gbd(self, data: dict[str, Any]) -> set[str]:
         """Apply login data, or one section in the same shape, and return the sections not applied;
         :class:`GameState` implements it."""
+        raise NotImplementedError
+
+    def _handle_gam(self, data: dict[str, Any]) -> None:
+        """Apply a ``gam`` block of movements; :class:`MovementState` implements it."""
         raise NotImplementedError
 
     def shutdown(self) -> None:

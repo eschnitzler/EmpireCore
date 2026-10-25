@@ -92,9 +92,12 @@ from .kingdoms import (
 from .landmarks import (
     GetLaboratoryProgressRequest,
     GetMonumentProgressRequest,
+    LaboratoryListResponse,
     LaboratoryProgressResponse,
+    LaboratoryResetResponse,
     LandmarkProgress,
     MonumentProgressResponse,
+    OwnLaboratory,
 )
 from .mercenaries import MercenaryMission, MercenaryMissionsResponse, MercenaryPackageRequest
 from .objects import (
@@ -152,6 +155,9 @@ from .upkeep import (
 from .wishing_well import WishingWellResponse
 
 __all__ = [
+    "LaboratoryListResponse",
+    "LaboratoryResetResponse",
+    "OwnLaboratory",
     "ConstructionItemPlacement",
     "EquipConstructionItemRequest",
     "EquipConstructionItemResponse",

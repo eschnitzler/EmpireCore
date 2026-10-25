@@ -19,6 +19,7 @@ from empire_core.commanders.models.skills import (
 )
 from empire_core.enums import MysteryBoxKey, TitleSystem
 from empire_core.exceptions import CommandError, EmpireTimeoutError, PacketError
+from empire_core.player.models.aqua import AquaPointsResponse, GetAquaPointsRequest
 from empire_core.player.models.economy import (
     GetLootBoxesRequest,
     LootBoxesResponse,
@@ -109,6 +110,19 @@ class PlayerService(BaseService):
     def currencies(self) -> dict[Currency | str, int]:
         """A snapshot of the special currencies (``Currency`` -> amount)."""
         return self.client.state.get_special_currencies()
+
+    @property
+    def aqua_points(self) -> int | float | None:
+        """Your aqua points, from the last ``gap``; None until one arrived (:meth:`get_aqua_points` asks)."""
+        return self.client.state.get_aqua_points()
+
+    def get_aqua_points(self, *, timeout: float = 5.0) -> AquaPointsResponse:
+        """
+        Your and your alliance's aqua points; both are applied to state.
+
+        Client: ``CastleEilandPanel`` (bundle line 56736) asks while it knows none
+        """
+        return self.request(GetAquaPointsRequest(), AquaPointsResponse, timeout=timeout)
 
     @property
     def skills(self) -> SkillList | None:

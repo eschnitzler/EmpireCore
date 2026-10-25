@@ -8,6 +8,7 @@ from .account import (
     PlayerGift,
     PlayerGiftsResponse,
 )
+from .aqua import AquaPointsResponse, GetAquaPointsRequest
 from .economy import (
     GetLootBoxesRequest,
     LootBoxAmount,
@@ -45,6 +46,8 @@ from .progress import (
 )
 
 __all__ = [
+    "AquaPointsResponse",
+    "GetAquaPointsRequest",
     "GetPlayerInfoRequest",
     "GetPlayerInfoResponse",
     "PlayerOwnerInfo",
