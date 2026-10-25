@@ -363,8 +363,10 @@ the target's storage are left to the server.
 on their way to a kingdom. As the game lists only the minute skips you hold, it
 raises `ValueError` for a currency that is no minute skip and, once the special
 currencies (`client.player.currencies`) are known, for one you
-hold none of. The full skip the game also offers costs rubies and is not in the
-library.
+hold none of. `skip_kingdom_transfer(kingdom, transfer_type, spend_rubies=True)`
+finishes the transfer at once for the kingdom's ruby price; without
+`spend_rubies` it raises `ValueError`, as it does once the kingdoms are known
+and no such transfer is on its way.
 
 **API:** [`MovementsService`](../reference/movements.md#empire_core.movements.service.MovementsService),
 [`Movement`](../reference/movements.md#empire_core.movements.tracked.Movement)

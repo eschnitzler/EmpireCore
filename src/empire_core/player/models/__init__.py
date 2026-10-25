@@ -9,7 +9,13 @@ from .account import (
     PlayerGift,
     PlayerGiftsResponse,
 )
-from .aqua import AquaPointsResponse, GetAquaPointsRequest
+from .aqua import (
+    AquaPointsResponse,
+    GetAquaPointsRequest,
+    StormIslandsInfo,
+    StormIslandsInfoRequest,
+    StormIslandsReset,
+)
 from .economy import (
     GetLootBoxesRequest,
     LootBoxAmount,
@@ -65,6 +71,9 @@ from .protection import (
 
 __all__ = [
     "AquaPointsResponse",
+    "StormIslandsInfo",
+    "StormIslandsInfoRequest",
+    "StormIslandsReset",
     "GetAquaPointsRequest",
     "CANCEL_PEACE_MODE",
     "FACTION_PROTECTION_RUBIES",

@@ -112,3 +112,13 @@ pushed on its own or inside a `kpi`, kept on the running `BerimondEvent` as
 you still take part, and which capital is open to attack.
 
 ::: empire_core.events.faction_models
+
+## Season event maps
+
+`join_season_camp(event)` enters a running season event's map (the Thornking, the Sea
+Queen, the Underworld) at your camp there. `unlock_season_camp(prebuilt_camp_id, space_id)`
+starts on the map with one of its prebuilt camps, with the same ruby consent as
+`join_berimond`. `skip_season_transfer_time(event, transfer_type, minute_skip)` spends a
+minute skip item on the units or goods on their way to the map.
+
+::: empire_core.events.season_models

@@ -19,6 +19,7 @@ from empire_core.movements.models import (
     GetTravelInfoRequest,
     GetTravelInfoResponse,
     KingdomGoodsTransferRequest,
+    KingdomSkipTransferRequest,
     KingdomUnitTransferRequest,
     MarketCastle,
     MarketInfoRequest,
@@ -624,8 +625,8 @@ class MovementsService(BaseService):
         Shorten the units or goods on their way to a kingdom with a minute skip item.
 
         Each kingdom has at most one units transfer and one goods transfer on
-        the way; ``client.state.get_kingdoms()`` lists them. The full skip the
-        client also offers (``kst``) costs rubies and is not offered here.
+        the way; ``client.state.get_kingdoms()`` lists them. :meth:`skip_kingdom_transfer`
+        finishes one at once for rubies.
 
         Args:
             kingdom_id: The kingdom the transfer goes to
@@ -771,4 +772,46 @@ class MovementsService(BaseService):
         if season is None:
             raise ValueError(f"No running season event has treasure map {map_id}")
         request = TreasureMapTransferSkipRequest(event_id=season.event_id, map_id=map_id, transfer_type=transfer_type)
+        self.execute(request, timeout=timeout)
+
+    def skip_kingdom_transfer(
+        self,
+        kingdom_id: Kingdom,
+        transfer_type: KingdomTransferType,
+        *,
+        spend_rubies: bool = False,
+        timeout: float = 5.0,
+    ) -> None:
+        """
+        Finish the units or goods on their way to a kingdom at once, for rubies.
+
+        The price is the kingdom's ``skipUnitTravelC2Cost`` or ``skipResourceTravelC2Cost`` in the
+        items ``kingdoms`` table, less any ruby discount. Once a ``kpi`` is known, the transfer must
+        be on its way there with a second left at least, as the client offers it only then.
+
+        Args:
+            kingdom_id: The kingdom the transfer goes to
+            transfer_type: ``KingdomTransferType.UNITS`` or ``GOODS``
+            spend_rubies: Allow spending the rubies
+            timeout: Timeout in seconds
+
+        Raises:
+            ValueError: ``spend_rubies`` is False, or no such transfer is on its way
+            CommandError: The server refused
+
+        Client: ``CastleHandleKingdomDialogSupport.onClick`` (bundle lines 98420, 98422) sends
+        ``C2SKingdomSkipTransferVO`` while ``remainingTimeInSeconds >= 1``, its button priced with
+        ``skipUnitTravelC2Cost`` / ``skipResourceTravelC2Cost`` (bundle line 98398); ``KSTCommand``
+        (bundle line 124755)
+        """
+        self._require_spend_rubies(spend_rubies, "a full transfer skip costs rubies")
+        kingdoms = self.client.state.get_kingdoms()
+        if kingdoms is not None:
+            transfers = (
+                kingdoms.unit_transfers if transfer_type == KingdomTransferType.UNITS else kingdoms.goods_transfers
+            )
+            if not any(t.kingdom_id == kingdom_id and t.remaining_seconds() >= 1 for t in transfers):
+                what = KingdomTransferType(transfer_type).name.lower()
+                raise ValueError(f"no {what} transfer is on its way to {Kingdom(kingdom_id).name}")
+        request = KingdomSkipTransferRequest(kingdom_id=kingdom_id, transfer_type=transfer_type)
         self.execute(request, timeout=timeout)

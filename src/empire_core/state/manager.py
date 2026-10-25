@@ -6,11 +6,12 @@ import time
 from collections.abc import Set as AbstractSet
 from typing import Any
 
+from empire_core.enums import Kingdom
 from empire_core.state.account import ACCOUNT_SECTIONS, AccountState
 from empire_core.state.alliance import AllianceState
 from empire_core.state.area import AreaState
 from empire_core.state.base import MovementEventCallback
-from empire_core.state.castles import LABORATORY_SECTIONS, CastleState
+from empire_core.state.castles import AREA_LIST_SECTIONS, CastleState
 from empire_core.state.commanders import CommanderState
 from empire_core.state.events import EventCallback, EventsCallback, EventState
 from empire_core.state.inventory import INVENTORY_SECTIONS, InventoryState
@@ -56,8 +57,8 @@ _TRACKED_SECTIONS = (
     "grc",
     *ACCOUNT_SECTIONS,
     *INVENTORY_SECTIONS,
-    *LABORATORY_SECTIONS,
     *TREASURE_MAP_SECTIONS,
+    *AREA_LIST_SECTIONS,
 )
 
 _PLAYER_SECTIONS = frozenset({"gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap", "gac", "sce"})
@@ -73,7 +74,8 @@ _SECTION_PUSHES = frozenset({"gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "u
 # BIECommand, PGLCommand, RWWCommand, NRFCommand (bundle lines 122051, 126126, 122579, 127961,
 # 126903, 124002), GGMCommand, GLSCommand, ESLCommand, KPICommand, MPECommand, TXICommand,
 # NECCommand, IRCCommand (bundle lines 123957, 124800, 123895, 124684, 125109, 128792, 123294, 123090),
-# GRCCommand (bundle line 123065), GLLCommand, LRRCommand (bundle lines 129604, 131638)
+# GRCCommand (bundle line 123065), GLLCommand, LRRCommand (bundle lines 129604, 131638), GKLCommand,
+# GMLCommand, KGVCommand, MRECommand (bundle lines 129589, 129638, 124711, 131653)
 _WHOLE_SECTIONS = {
     "gli": "gli",
     "skl": "skl",
@@ -84,8 +86,8 @@ _WHOLE_SECTIONS = {
     "grc": "grc",
     **{section: section for section in ACCOUNT_SECTIONS if section != "drt"},
     **{section: section for section in INVENTORY_SECTIONS},
-    **{section: section for section in LABORATORY_SECTIONS},
     **{section: section for section in TREASURE_MAP_SECTIONS},
+    **{section: section for section in AREA_LIST_SECTIONS},
 }
 
 # Replies that carry a gbd section under its own key, applied only on success: ARLCommand,
@@ -194,6 +196,8 @@ _SUCCESS_ONLY = frozenset(
     | {"rpr", "rce"}
     # SSICommand.executeCommand (bundle line 128591)
     | {"ssi"}
+    # SIICommand, IKRCommand, GTWARACommand (bundle lines 127742, 127728, 127296)
+    | {"sii", "ikr", "gtwara"}
 )
 
 
@@ -290,8 +294,13 @@ class GameState(
     loot boxes, key progress             ``gls`` (pushed)             re-login
     inventory space                      ``esl``, the crafting and    re-login
                                          selling replies
-    kingdoms, transfers between them     ``kpi``, the transfer        re-login
+    kingdoms, transfers between them     ``kpi``, the transfer        ``client.castle.get_kingdoms()``
                                          replies
+    kings towers, monuments, labs        ``gkl``/``gml``/``gll``,     re-login
+                                         ``mir`` (pushed)
+    monument and laboratory resets       ``mre``/``lrr`` (pushed)     re-login
+    villages                             ``kgv``                      ``client.castle.get_villages()``
+    Storm Islands standing               ``sii``, ``ikr`` (pushed)    ``client.player.get_storm_islands_info()``
     mercenary missions                   ``mpe``                      re-login
     treasure maps, treasure hunt's map   ``tmp``/``thi``, the         ``client.map.get_treasure_maps()``
                                          treasure map replies
@@ -412,9 +421,12 @@ class GameState(
         "cbx": "_handle_cbx",
         "gdb": "_handle_gdb",
         "gcb": "_handle_gcb",
-        # Any map read leaves the joined castle, refused or not
+        # Any map read leaves the joined castle, refused or not, and so does losing the joined area
         "gaa": "_handle_gaa",
         "ssi": "_handle_ssi",
+        "gtwara": "_handle_gaa",
+        "sii": "_handle_sii",
+        "ikr": "_handle_ikr",
         "gec": "_handle_gec",
         "aec": "_handle_aec",
         "qli": "_handle_qli",
@@ -511,8 +523,8 @@ class GameState(
         skipped |= self._parse_progress(data)
         skipped |= self._parse_account(data)
         skipped |= self._parse_inventory(data)
-        skipped |= self._parse_laboratories(data)
         skipped |= self._parse_treasure_maps(data)
+        skipped |= self._parse_area_lists(data)
         self._parse_castles(data)
         self._parse_permanent_castles(data)
         self._parse_max_spies(data)
@@ -581,10 +593,34 @@ class GameState(
         """Apply the castle list sent after taking a castle or outpost.
 
         Client: ``MIRCommand.executeCommand`` / ``CastleUserData.parse_MIR`` (bundle line 9884), which
-        applies a truthy ``gcl`` and ``gll``.
+        applies a truthy ``gcl``, ``gkl``, ``gml`` and ``gll``.
         """
         if isinstance(data, dict):
-            self._handle_gbd({key: data[key] for key in ("gcl", "gll") if data.get(key)})
+            self._handle_gbd({key: data[key] for key in ("gcl", "gkl", "gml", "gll") if data.get(key)})
+
+    def _handle_ikr(self, data: Any) -> None:
+        """The Storm Islands reset: lock their kingdom, zero the aqua points, drop the movements there.
+
+        Your and your alliance's aqua points go to 0. A movement is dropped as an ``mrm`` drops it, its
+        callbacks told, when it or either of its areas is in the Storm Islands.
+
+        Client: ``IKRCommand.executeCommand`` (bundle line 127728), ``CastleKingdomVO.resetUnlockData``
+        (bundle line 134800), ``CastleArmyData.removeAllMovementsByKingdomID`` (bundle line 133728)
+        """
+        if self.kingdoms is not None:
+            kingdoms = tuple(
+                kingdom.model_copy(update={"is_unlocked": False}) if kingdom.kingdom_id == Kingdom.STORM else kingdom
+                for kingdom in self.kingdoms.kingdoms
+            )
+            self.kingdoms = self.kingdoms.model_copy(update={"kingdoms": kingdoms})
+        self.aqua_points = 0
+        self._patch_own_alliance({"AP": 0})
+        for movement_id, movement in list(self.movements.items()):
+            areas = (movement.source_area, movement.target_area)
+            if movement.kingdom == Kingdom.STORM or any(
+                area is not None and area.item is not None and area.item.kingdom == Kingdom.STORM for area in areas
+            ):
+                self._handle_mrm({"MID": movement_id})
 
     def _handle_fjf(self, data: Any) -> None:
         """Apply a faction join reply's events (``sei``), then the castle list in its ``mir``.

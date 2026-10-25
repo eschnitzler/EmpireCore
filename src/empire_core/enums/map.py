@@ -46,6 +46,19 @@ _KINGDOM_NAMES = {
 }
 
 
+class KingdomDirection(IntEnum):
+    """
+    The side of a kingdom's map a new kingdom castle is placed on, picked when unlocking the kingdom.
+
+    Client: ``CastleKingdomChooseLocalizationDialog.selectCheckboxButton`` (bundle line 97954)
+    """
+
+    NORTH = 1
+    WEST = 2
+    EAST = 3
+    SOUTH = 4
+
+
 class MapItemType(IntEnum):
     """
     Area types: the first field of a map row, as in a scan's AI array.

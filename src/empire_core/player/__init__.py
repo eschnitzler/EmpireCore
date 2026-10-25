@@ -68,6 +68,9 @@ from .models import (
     StartFactionProtectionResponse,
     StartPeaceModeRequest,
     StartPeaceModeResponse,
+    StormIslandsInfo,
+    StormIslandsInfoRequest,
+    StormIslandsReset,
     TitleInfoResponse,
     TitleRanksResponse,
     TopTitleRanking,
@@ -90,6 +93,9 @@ if TYPE_CHECKING:
 
 __all__ = [
     "AquaPointsResponse",
+    "StormIslandsInfo",
+    "StormIslandsInfoRequest",
+    "StormIslandsReset",
     "GetAquaPointsRequest",
     "FactionProtectionStatus",
     "PeaceModeDuration",

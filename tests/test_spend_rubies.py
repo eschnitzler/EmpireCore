@@ -57,6 +57,10 @@ RUBY_REQUESTS = {
     "RerollAlienCampRequest": "rae with C2 (CastleRerollAlienDialog.onSendReroll, bundle line 109749)",
     "BuyTreasureMapPiecesRequest": "tbm, costPiece C2 a piece (CastleTreasureBuyPieceDialog, bundle line 67945)",
     "TreasureMapTransferSkipRequest": "tkt, the map's skipCostC2 (bundle line 99514)",
+    "KingdomSkipTransferRequest": "kst, the kingdom's skip travel C2 cost (bundle line 98398)",
+    "SelectKingdomCastleRequest": "ksc, OC2 for the ruby castle and PWR (bundle lines 55479, 35239)",
+    "SelectSeasonCampRequest": "csc, OC2 for the ruby camp and PWR (bundle lines 55482, 35238)",
+    "RelocateCastleRequest": "rst, RELOCATION_COST_C2 after the first (bundle line 109656, dll line 19674)",
 }
 
 SENT_WITHOUT_CONSENT = {
@@ -84,7 +88,8 @@ NOT_CONSENT = {
     "admit_ruby_units": "whether the hospital takes in wounded ruby units, a free setting",
     "pay_with_rubies": "picks the relic forge's ruby price over its coin price; spending them needs spend_rubies",
     "free": "the generals hub's free spin, against a paid one that spends offerings, not rubies",
-    "ruby_camp": "picks Berimond's ruby-priced camp; the rubies it costs need spend_rubies",
+    "ruby_camp": "picks a ruby-priced prebuilt camp; the rubies it costs need spend_rubies",
+    "ruby_castle": "picks a kingdom's ruby-priced prebuilt castle; the rubies it costs need spend_rubies",
 }
 
 

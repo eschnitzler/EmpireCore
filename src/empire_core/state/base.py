@@ -23,13 +23,20 @@ from empire_core.castle.models.construction_items import (
     ExpiredConstructionItemsResponse,
 )
 from empire_core.castle.models.kingdoms import KingdomInfoResponse
-from empire_core.castle.models.landmarks import LaboratoryListResponse, LaboratoryResetResponse
+from empire_core.castle.models.landmarks import (
+    KingsTowerListResponse,
+    LaboratoryListResponse,
+    LaboratoryResetResponse,
+    MonumentListResponse,
+    MonumentResetResponse,
+)
 from empire_core.castle.models.mercenaries import MercenaryMissionsResponse
 from empire_core.castle.models.objects import BuildingConstructionItems
 from empire_core.castle.models.permanent import PermanentCastle
 from empire_core.castle.models.research import ResearchInfoResponse
 from empire_core.castle.models.tax import TaxInfo
 from empire_core.castle.models.upkeep import ConstructionItemExpiryResponse, ResourcePoolResponse
+from empire_core.castle.models.villages import VillageListResponse
 from empire_core.castle.models.wishing_well import WishingWellResponse
 from empire_core.commanders.models.inventory import GemInventoryResponse, InventorySpace, NewRelicsResponse
 from empire_core.commanders.models.roster import CommanderRoster
@@ -49,6 +56,7 @@ from empire_core.player.models.account import (
     OfficerTraining,
     PlayerGiftsResponse,
 )
+from empire_core.player.models.aqua import StormIslandsInfo
 from empire_core.player.models.economy import LootBoxesResponse
 from empire_core.player.models.progress import (
     AchievementsResponse,
@@ -227,10 +235,15 @@ class StateBase:
         self.resource_pool: ResourcePoolResponse | None = None
         self.laboratories: LaboratoryListResponse | None = None
         self.laboratory_reset: LaboratoryResetResponse | None = None
+        self.kings_towers: KingsTowerListResponse | None = None
+        self.monuments: MonumentListResponse | None = None
+        self.monument_reset: MonumentResetResponse | None = None
+        self.villages: VillageListResponse | None = None
         self.aqua_points: int | float | None = None
         # Treasure maps by map id, swapped, never edited; the treasure hunt's current map
         self.treasure_maps: dict[int, TreasureMap] | None = None
         self.treasure_hunt_map_id: int | None = None
+        self.storm_islands: StormIslandsInfo | None = None
 
         # Freshness bookkeeping (see the GameState docstring). Wall-clock seconds.
         self._packet_times: dict[str, float] = {}

@@ -1,5 +1,6 @@
 """Castle tracking: the castle list (gcl), castle details (dcl), castle resources (grc), units received (rue),
-the open-gate counter reset (kik) and unlocked units and horses (gpc)."""
+the open-gate counter reset (kik), unlocked units and horses (gpc), and your kings towers, monuments,
+laboratories and villages (gkl, gml, gll, kgv) with the landmark resets (mre, lrr)."""
 
 import logging
 import time
@@ -9,10 +10,17 @@ from pydantic import ValidationError
 
 from empire_core.castle.models.castles import PlayerCastle
 from empire_core.castle.models.details import DetailedCastleInfo, ResourceProduction, SafeAmount, StorageCapacity
-from empire_core.castle.models.landmarks import LaboratoryListResponse, LaboratoryResetResponse
+from empire_core.castle.models.landmarks import (
+    KingsTowerListResponse,
+    LaboratoryListResponse,
+    LaboratoryResetResponse,
+    MonumentListResponse,
+    MonumentResetResponse,
+)
 from empire_core.castle.models.permanent import PermanentCastle, PermanentCastleDataResponse
 from empire_core.castle.models.resources import CastleResources
 from empire_core.castle.models.updates import NewDay, UnitsReceived
+from empire_core.castle.models.villages import VillageListResponse
 from empire_core.enums import Kingdom, Weekday
 from empire_core.protocol.base import enum_or_none, read_or_none
 from empire_core.protocol.js import js_int, js_truthy
@@ -28,29 +36,70 @@ logger = logging.getLogger(__name__)
 _STOCK = ("wood", "stone", "food", "coal", "oil", "glass", "iron", "aquamarine", "honey", "mead", "beef")
 
 
-LABORATORY_SECTIONS = ("gll", "lrr")
+AREA_LIST_SECTIONS = ("gkl", "gml", "gll", "kgv", "mre", "lrr")
 
 
 class CastleState(StateBase):
-    def _parse_laboratories(self, data: dict[str, Any]) -> set[str]:
-        """Apply the laboratory sections of a gbd, or the one a push or an ``mir`` carries; return those not applied.
+    def _parse_area_lists(self, data: dict[str, Any]) -> set[str]:
+        """Apply the kings tower, monument, laboratory and village lists and the landmark resets of a gbd,
+        or the one a push, a reply or an ``mir`` carries; return those not applied.
 
-        Client: ``GBDCommand.exec`` (bundle line 129430) hands ``gll`` to ``CastleLaboratoryList.parseGLL``
-        (bundle line 73521), which skips a falsy one, and a truthy ``lrr`` to ``CastleLaboratoryData.parseLRR``
-        (bundle line 134899), which ignores an ``LRS`` of 0 and keeps the countdown only for a positive one
+        Client: ``GBDCommand.exec`` (bundle line 129430) hands ``gkl``, ``gml``, ``gll`` and ``kgv`` to
+        ``CastleKingstowerList.parseGKL``, ``CastleMonumentList.parseGML``, ``CastleLaboratoryList.parseGLL``
+        and ``CastleUserData.parse_KGV`` (bundle lines 73493, 73545, 73521, 9889), which skip a falsy one, and a
+        truthy ``mre`` and ``lrr`` to ``CastleMonumentData.parseMRE`` and ``CastleLaboratoryData.parseLRR``
+        (bundle lines 46192, 134899), which ignore a time of 0 and keep the countdown only for a positive one
         """
         applied: set[str] = set()
+        if js_truthy(gkl := data.get("gkl")):
+            if (kings_towers := read_section(KingsTowerListResponse, gkl, "your kings towers")) is not None:
+                self.kings_towers = kings_towers
+                applied.add("gkl")
+        if js_truthy(gml := data.get("gml")):
+            if (monuments := read_section(MonumentListResponse, gml, "your monuments")) is not None:
+                self.monuments = monuments
+                applied.add("gml")
         if js_truthy(gll := data.get("gll")):
             if (laboratories := read_section(LaboratoryListResponse, gll, "your laboratories")) is not None:
                 self.laboratories = laboratories
                 applied.add("gll")
+        if js_truthy(kgv := data.get("kgv")):
+            if (villages := read_section(VillageListResponse, kgv, "your villages")) is not None:
+                self.villages = villages
+                applied.add("kgv")
+        if js_truthy(mre := data.get("mre")):
+            if (monument_reset := read_section(MonumentResetResponse, mre, "the monument reset")) is not None:
+                if monument_reset.seconds > 0:
+                    self.monument_reset = monument_reset
+                if monument_reset.seconds != 0:
+                    applied.add("mre")
         if js_truthy(lrr := data.get("lrr")):
             if (reset := read_section(LaboratoryResetResponse, lrr, "the laboratory reset")) is not None:
                 if reset.seconds > 0:
                     self.laboratory_reset = reset
                 if reset.seconds != 0:
                     applied.add("lrr")
-        return {section for section in LABORATORY_SECTIONS if section in data} - applied
+        return {section for section in AREA_LIST_SECTIONS if section in data} - applied
+
+    def get_kings_towers(self) -> KingsTowerListResponse | None:
+        """Your kings towers, from the last ``gkl``; None until one arrived."""
+        with self._lock:
+            return self.kings_towers
+
+    def get_monuments(self) -> MonumentListResponse | None:
+        """Your monuments, from the last ``gml``; None until one arrived."""
+        with self._lock:
+            return self.monuments
+
+    def get_monument_reset(self) -> MonumentResetResponse | None:
+        """When the monuments reset next, from the last ``mre`` that counted down; None until one arrived."""
+        with self._lock:
+            return self.monument_reset
+
+    def get_villages(self) -> VillageListResponse | None:
+        """Your villages and private resource villages, from the last ``kgv``; None until one arrived."""
+        with self._lock:
+            return self.villages
 
     def get_laboratories(self) -> LaboratoryListResponse | None:
         """Your laboratories, from the last ``gll``; None until one arrived."""

@@ -18,7 +18,7 @@ from empire_core.alliance.models.landmarks import AllianceLaboratoriesResponse
 from empire_core.alliance.models.membership import AutoJoinedAllianceResponse
 from empire_core.enums import OnlineState
 from empire_core.exceptions import ReplyMismatchError
-from empire_core.player.models.aqua import AquaPointsResponse
+from empire_core.player.models.aqua import AquaPointsResponse, StormIslandsInfo
 from empire_core.protocol.base import read_or_none
 from empire_core.protocol.js import js_int, js_truthy
 from empire_core.state.base import StateBase, read_section
@@ -136,6 +136,22 @@ class AllianceState(StateBase):
         self.aqua_points = points.player_points
         if "A" in data:
             self._patch_own_alliance({"AP": points.alliance_points})
+
+    def _handle_sii(self, data: Any) -> None:
+        """Keep your and your alliance's Storm Islands standing, and your aqua points.
+
+        Client: ``SIICommand.executeCommand`` (bundle line 127742) sets ``AP`` as your aqua points
+        """
+        info = read_section(StormIslandsInfo, data, "the Storm Islands standing")
+        if info is None:
+            return
+        self.storm_islands = info
+        self.aqua_points = info.aqua_points
+
+    def get_storm_islands(self) -> StormIslandsInfo | None:
+        """Your and your alliance's Storm Islands standing, from the last ``sii``; None until one arrived."""
+        with self._lock:
+            return self.storm_islands
 
     def _handle_aja(self, data: Any) -> None:
         """Apply your new membership, then the alliance you were put in.
