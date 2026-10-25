@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, TypeVar
 
 from pydantic import ValidationError
 
-from empire_core.enums import KingdomTransferType, RankingType
+from empire_core.enums import KingdomTransferType, RankingType, ServerType
 from empire_core.enums.events import RaidBossCardStatus
 from empire_core.events.titles import get_event_titles
 from empire_core.exceptions import (
@@ -75,6 +75,20 @@ from .models import (
     SpecialEventInfoRequest,
 )
 from .season_models import JoinSeasonCampRequest, MinuteSkipSeasonTransferRequest, SelectSeasonCampRequest
+from .special_server_models import (
+    ApplyChargeCampEffectRequest,
+    ApplyChargeCampEffectResponse,
+    ChargeCampEffects,
+    CurrentServer,
+    GetChargeCampEffectsRequest,
+    GetTemporaryServerCollectorPointsRequest,
+    RerollChargeCampEffectRequest,
+    RerollChargeCampEffectResponse,
+    SelectSpecialServerCastleRequest,
+    SelectSpecialServerCastleResponse,
+    SpecialServerCastles,
+    TemporaryServerCollectorPoints,
+)
 from .status_models import (
     AbortRaidRequest,
     AbortRaidResponse,
@@ -101,6 +115,12 @@ from .status_models import (
 )
 
 QuestActionResponse = TypeVar("QuestActionResponse", bound=BaseResponse)
+
+# The event that runs each special server
+_SPECIAL_SERVER_EVENTS = {
+    ServerType.TEMPORARY: Event.TEMP_SERVER,
+    ServerType.ALLIANCE_BATTLEGROUND: Event.ALLIANCE_BATTLE_GROUND,
+}
 
 # The part of an event's sei entry holding a board's league; other boards use the entry's own LID
 _LEAGUE_PART = {
@@ -453,6 +473,105 @@ class EventsService(BaseService):
         """
         self._require_running(Event.TEMP_SERVER)
         return self.request(GetTemporaryServerRanksRequest(), GetTemporaryServerRanksResponse, timeout=timeout)
+
+    @property
+    def current_server(self) -> CurrentServer | None:
+        """The kind of server this session is on, from the last ``tse`` push; None until one arrived."""
+        return self.client.state.get_current_server()
+
+    @property
+    def special_server_castles(self) -> SpecialServerCastles | None:
+        """Your castles on the special servers, from the last ``tcc`` push; None until one arrived."""
+        return self.client.state.get_special_server_castles()
+
+    def select_special_server_castle(
+        self,
+        castle_id: int,
+        server_type: ServerType,
+        *,
+        ruby_castle: bool = False,
+        spend_rubies: bool = False,
+        timeout: float = 5.0,
+    ) -> None:
+        """
+        Pick the pre-built castle you enter the temporary server or the alliance battleground with (tsc).
+
+        Sent on the main server while the server's event runs. Then enter the server with
+        ``client.connect_to_special_server(server_type)``, as the client connects once the pick is accepted.
+
+        Args:
+            castle_id: The pre-built castle's id, from the server's castle selection
+            server_type: ``ServerType.TEMPORARY`` or ``ServerType.ALLIANCE_BATTLEGROUND``
+            ruby_castle: The castle is priced in rubies (``OC2`` 1), as the client sends for a castle whose
+                costs hold rubies; needs ``spend_rubies``
+            spend_rubies: Consent to the rubies a ``ruby_castle`` costs
+            timeout: Timeout in seconds
+
+        Raises:
+            ValueError: ``server_type`` is the normal server, or ``ruby_castle`` without ``spend_rubies``
+            EventNotRunningError: The server's event is not running
+            CommandError: The server refused the pick
+
+        Client: ``CastleSpecialServerPreBuildCastleSelectionDialog.onConfirmed`` (bundle lines 27953-27955),
+        ``TSCCommand.executeCommand`` (bundle line 128531)
+        """
+        if server_type not in _SPECIAL_SERVER_EVENTS:
+            raise ValueError("a castle is picked for a temporary or alliance battleground server")
+        self._require_spend_rubies(spend_rubies, "the ruby castle costs rubies" if ruby_castle else None)
+        self._require_running(_SPECIAL_SERVER_EVENTS[server_type])
+        self.request(
+            SelectSpecialServerCastleRequest(
+                castle_id=castle_id, ruby_castle=1 if ruby_castle else 0, server_type=server_type
+            ),
+            SelectSpecialServerCastleResponse,
+            timeout=timeout,
+        )
+
+    def get_temporary_server_collector_points(self, player_id: int, *, timeout: float = 5.0) -> int:
+        """
+        Request a player's collector points on the temporary server (tpc).
+
+        Client: ``CastleCollectorEventData.getTempserverCollectorAmount`` (bundle line 134001),
+        ``TPCCommand.executeCommand`` (bundle line 128516)
+        """
+        return self.request(
+            GetTemporaryServerCollectorPointsRequest(player_id=player_id),
+            TemporaryServerCollectorPoints,
+            timeout=timeout,
+        ).amount
+
+    def get_charge_camp_effects(self, x: int, y: int, *, timeout: float = 5.0) -> ChargeCampEffects:
+        """
+        Request a temporary server charge camp's effect and the one a reroll offered (gce).
+
+        Client: ``CastleTempServerEffectRerollDialog.showLoaded`` (bundle line 140279),
+        ``GCECommand.executeCommand`` (bundle line 128501)
+        """
+        return self.request(GetChargeCampEffectsRequest(x=x, y=y), ChargeCampEffects, timeout=timeout)
+
+    def reroll_charge_camp_effect(self, x: int, y: int, *, spend_rubies: bool = False, timeout: float = 5.0) -> None:
+        """
+        Reroll a temporary server charge camp's effect for rubies (ccr); :meth:`get_charge_camp_effects`
+        then shows the offered effect, and :meth:`apply_charge_camp_effect` takes it.
+
+        Raises:
+            ValueError: ``spend_rubies`` is False; a reroll always costs rubies
+            CommandError: The server refused the reroll
+
+        Client: ``CastleTempServerEffectRerollDialog.onClick`` (bundle line 140282), which shows the
+        reroll's ``c2Cost`` (bundle line 140279); ``CCRCommand.executeCommand`` (bundle line 128488)
+        """
+        self._require_spend_rubies(spend_rubies, "a charge camp reroll costs rubies")
+        self.request(RerollChargeCampEffectRequest(x=x, y=y), RerollChargeCampEffectResponse, timeout=timeout)
+
+    def apply_charge_camp_effect(self, x: int, y: int, *, timeout: float = 5.0) -> None:
+        """
+        Take the rerolled effect in place of a temporary server charge camp's effect (ace).
+
+        Client: ``CastleTempServerEffectRerollDialog.onClick`` (bundle line 140284),
+        ``ACECommand.executeCommand`` (bundle line 128475)
+        """
+        self.request(ApplyChargeCampEffectRequest(x=x, y=y), ApplyChargeCampEffectResponse, timeout=timeout)
 
     def get_berimond_targets(self, *, timeout: float = 5.0) -> tuple[BerimondTarget, ...]:
         """Request special camp candidate identifiers in Battle for Berimond.

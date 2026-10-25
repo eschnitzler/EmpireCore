@@ -120,6 +120,18 @@ class WrongServerError(LoginError):
         )
 
 
+class SpecialServerUnavailableError(LoginError):
+    """
+    Raised when a temporary or alliance battleground server refuses the token login because it is closed
+    (``NO_EVENT``, 145).
+
+    Client: ``TLEPCommand.executeCommand`` (bundle line 127388) shows ``alert_tempServer_serverNotAvailable``
+    """
+
+    def __init__(self) -> None:
+        super().__init__("The special server is not available", GGEError.NO_EVENT.value)
+
+
 class ClientVersionError(LoginError):
     """
     Raised when the version check (``vck``) says the client's version is too low or too high.
@@ -463,6 +475,7 @@ __all__ = [
     "LoginCooldownError",
     "AccountBannedError",
     "WrongServerError",
+    "SpecialServerUnavailableError",
     "ClientVersionError",
     "VersionCheckStatus",
     "PacketError",

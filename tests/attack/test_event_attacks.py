@@ -1,4 +1,5 @@
-"""Attacks on event maps: the alliance battleground attack (abgcam), treasure hunts (thm) and daimyo taunts (ldt)."""
+"""Attacks on event maps: the alliance battleground attack (abgcam), the temporary server attack (cam), treasure
+hunts (thm) and daimyo taunts (ldt)."""
 
 from __future__ import annotations
 
@@ -18,6 +19,8 @@ from empire_core.protocol.models import (
     CreateAttackResponse,
     DaimyoTauntRequest,
     DaimyoTauntResponse,
+    TemporaryServerAttackRequest,
+    TemporaryServerAttackResponse,
     TreasureHuntAttackRequest,
     TreasureHuntAttackResponse,
 )
@@ -110,6 +113,69 @@ class TestAllianceBattlegroundAttack:
             )
 
         assert caught.value.payload == {"MS": 40}
+
+
+class TestTemporaryServerAttack:
+    def test_keys_follow_the_client_order(self):
+        request = TemporaryServerAttackRequest(
+            commander_id=0, source_x=1, source_y=2, target_x=3, target_y=4, waves=[AttackWave()]
+        )
+        # The VO initialises SX..ICA, CD, then sets A, BKS, AST, RW; it has no ASCT and no TCK
+        assert list(request.to_payload()) == [
+            "SX", "SY", "TX", "TY", "KID", "LID", "WT", "HBW", "BPC", "ATT", "AV",
+            "LP", "FC", "PTT", "SD", "ICA", "CD", "A", "BKS", "AST", "RW",
+        ]  # fmt: skip
+        assert request.to_payload()["CD"] == 99
+
+    def test_the_reply_is_read_as_a_cra_reply(self):
+        reply = parse_response("cam", {"AAM": wrapper(43), "O": [{"OID": ME, "N": "me"}], "gcu": {"C1": 5, "C2": 6}})
+        assert isinstance(reply, TemporaryServerAttackResponse)
+        assert reply.movement_id == 43
+        assert TemporaryServerAttackResponse.model_validate({"MS": 40}).minimum_soldiers == 40
+
+    def test_send_attack_sends_cam_on_the_temporary_server(self):
+        client = make_client({"cam": xt_packet("cam", {"AAM": wrapper(43)})}, castles=OWN)
+
+        reply = client.attack.send_attack(
+            500, 510, 700, 710, [wave(units=[[487, 1]])], commander_id=91, temporary_server=True
+        )
+
+        command, payload = conn(client).request_payloads[0]
+        assert command == "cam"
+        assert "ASCT" not in payload and "TCK" not in payload
+        assert (payload["SX"], payload["TX"], payload["LID"], payload["CD"]) == (500, 700, 91, 99)
+        assert isinstance(reply, TemporaryServerAttackResponse)
+        assert reply.movement_id == 43
+
+    def test_a_collector_attack_still_sends_ica_0(self):
+        client = make_client(castles=OWN)
+
+        client.attack.send_attack(
+            500, 510, 700, 710, [wave(units=[[487, 1]])], commander_id=91, collector_attack=True,
+            temporary_server=True,
+        )  # fmt: skip
+
+        assert conn(client).request_payloads[0][1]["ICA"] == 0
+
+    def test_both_servers_at_once_are_refused(self):
+        client = make_client(castles=OWN)
+
+        with pytest.raises(ValueError, match="not both"):
+            client.attack.send_attack(
+                500, 510, 700, 710, [wave(units=[[487, 1]])], commander_id=91, alliance_battleground=True,
+                temporary_server=True,
+            )  # fmt: skip
+        assert conn(client).request_payloads == []
+
+    def test_an_attack_already_on_its_way_raises_with_its_details(self):
+        client = make_client({"cam": xt_packet("cam", {"TS": 30, "AS": 8}, error_code=234)}, castles=OWN)
+
+        with pytest.raises(AttackInProgressError) as caught:
+            client.attack.send_attack(
+                500, 510, 700, 710, [wave(units=[[487, 1]])], commander_id=91, temporary_server=True
+            )
+
+        assert (caught.value.command, caught.value.arrival_seconds, caught.value.army_size) == ("cam", 30, 8)
 
 
 class TestTreasureHuntModels:

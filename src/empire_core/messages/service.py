@@ -28,6 +28,7 @@ from empire_core.messages.models import (
     GetBattleLogShortRequest,
     GetIgnoredPlayersRequest,
     GetTradeReportRequest,
+    GetWorldLinkRequest,
     IgnoredPlayer,
     IgnoredPlayersResponse,
     IgnorePlayerRequest,
@@ -42,6 +43,7 @@ from empire_core.messages.models import (
     ServerShutdownWarning,
     SystemNotificationEvent,
     TradeReportResponse,
+    WorldLinkResponse,
 )
 from empire_core.protocol.base import BaseResponse
 from empire_core.services.base import BaseService
@@ -323,6 +325,17 @@ class MessagesService(BaseService):
         """
         request = IgnorePlayerRequest(player_id=player_id, ignore=False)
         return self.request(request, IgnorePlayerResponse, timeout=timeout).ignore_list.players
+
+    def get_world_link(self, zone_id: int, website_id: int, *, timeout: float = 5.0) -> str:
+        """
+        Request the link to a new world a mail announces (gil): the zone and website ids are the mail's.
+
+        Client: ``CastleNewServerAnnounceDialogProperties`` (bundle line 137138), ``GILCommand.executeCommand``
+        (bundle line 128173)
+        """
+        return self.request(
+            GetWorldLinkRequest(website_id=website_id, zone_id=zone_id), WorldLinkResponse, timeout=timeout
+        ).url
 
 
 __all__ = ["BattleReportDetail", "MessagesService"]

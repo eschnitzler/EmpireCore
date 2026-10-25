@@ -25,8 +25,9 @@ from empire_core.castle.service import CastleService
 from empire_core.client.session import Session
 from empire_core.client.stream import Args, EventStream, callback_sources
 from empire_core.commanders.service import CommandersService, EquipmentService
-from empire_core.config import EmpireConfig, default_config, generate_session_id
+from empire_core.config import EmpireConfig, NetworkInstance, default_config, generate_session_id
 from empire_core.defense.service import DefenseService
+from empire_core.enums import ServerType
 from empire_core.events.service import EventsService
 from empire_core.exceptions import CommandError, EmpireError, PacketError
 from empire_core.gamedata import GameData
@@ -36,7 +37,7 @@ from empire_core.movements.models import GetMovementsRequest
 from empire_core.movements.service import MovementsService
 from empire_core.network.connection import NON_ERROR_COMMANDS, Connection
 from empire_core.player.service import PlayerService
-from empire_core.protocol.auth import LoginTokenResponse
+from empire_core.protocol.auth import GetSpecialServerTokenRequest, LoginTokenResponse, SpecialServerTokenResponse
 from empire_core.protocol.base import read_or_none
 from empire_core.protocol.models import BaseRequest, BaseResponse, parse_response
 from empire_core.protocol.packet import Packet
@@ -55,6 +56,13 @@ logger = logging.getLogger(__name__)
 # as SNECommand and AHLCommand do.
 LOGIN_SECTION_PUSHES = ("sne", "ahl", "DTS")
 
+
+# The name the client gives each special server's instance: its event's title.
+# Client: GLTCommand.buildInstanceVO (bundle line 128880)
+_SPECIAL_SERVER_NAMES = {
+    ServerType.TEMPORARY: "event_title_106",
+    ServerType.ALLIANCE_BATTLEGROUND: "event_title_113",
+}
 
 T = TypeVar("T", bound=BaseResponse)
 
@@ -135,6 +143,7 @@ class EmpireClient:
         config: EmpireConfig | None = None,
         login_token: str | None = None,
         keep_session: bool = False,
+        special_server_token: str | None = None,
     ):
         self.config = config or default_config
         self.username = username or self.config.username
@@ -142,6 +151,8 @@ class EmpireClient:
         # A persistent login's token: logs in without the password, and is
         # replaced by the one the server pushes (slt) after each login, just after gbd.
         self.login_token = login_token
+        # A special server's token from glt: login() sends it as tlep in place of lli.
+        self.special_server_token = special_server_token
         # One per client, as the game client makes one per page load.
         self.session_id = generate_session_id()
 
@@ -450,7 +461,9 @@ class EmpireClient:
         6. ``lli``, with the measured connection and round-trip times
 
         With :attr:`password` set it logs in by password; without one, by the
-        :attr:`login_token` an earlier login got. After a login the server
+        :attr:`login_token` an earlier login got. A client of a special server
+        (:meth:`connect_to_special_server`) sends ``tlep`` with its
+        :attr:`special_server_token` in place of ``lli``. After a login the server
         pushes a fresh token, kept in :attr:`login_token`; the push comes after
         ``gbd``, so it lands shortly after this method returns.
 
@@ -485,6 +498,7 @@ class EmpireClient:
             LoginCooldownError: The server is rate-limiting this account
             AccountBannedError: The account is banned or deleted
             WrongServerError: The account is on another server
+            SpecialServerUnavailableError: The special server this client logs in to is closed
             LoginError: Username and password or token missing, the live
                 client's files name no version, the version check failed, or
                 the server rejected the login
@@ -499,6 +513,63 @@ class EmpireClient:
         ``CastleLoginCommand`` (bundle line 131762)
         """
         self._session.login(recaptcha_token, retry)
+
+    def connect_to_special_server(self, server_type: ServerType, *, timeout: float = 5.0) -> EmpireClient:
+        """
+        Leave this server for the temporary server (Outer Realms) or the alliance battleground, as the client
+        does, and return a new client logged in there.
+
+        On this logged-in session it asks for a login token (``glt``), then closes this client, as the
+        client logs out before it switches servers, and logs a new client in on the server the token
+        names: the same handshake as :meth:`login`, in that server's zone, ending in ``tlep`` with the token
+        instead of ``lli``. The new client copies this one's config apart from the server, its zone and the
+        password, and has no :attr:`keep_session`; with it set, a re-login sends the same token again.
+
+        The server only lets you in with a castle there: one bought before (``castle_bought`` on the
+        running ``TempServerEvent``), or one picked first with
+        :meth:`~empire_core.events.service.EventsService.select_special_server_castle`.
+
+        To come back, close the returned client and call :meth:`login` on this one, as the client's logout
+        on a special server reconnects to the server it came from.
+
+        Raises:
+            ValueError: ``server_type`` is the normal server
+            CommandError: The server refused the token; this client stays logged in
+            SpecialServerUnavailableError: The special server is closed
+            LoginError / EmpireTimeoutError / NetworkError: The login on the special server failed, as for
+                :meth:`login`; this client is closed by then
+
+        Client: ``CastleConnectToSpecialServerCommand`` (bundle lines 58784-58800): ``connectToSpecialServer``
+        sends ``glt``, ``onTempServerInfoArrived`` runs ``doLogout`` and ``changeInstance``, and the login
+        on the new connection sends ``tlep`` (``doLogin``, reached from ``CastleChooseLoginMethodCommand.login``,
+        bundle line 101015); ``GLTCommand.buildInstanceVO`` (bundle line 128880) makes the server's instance;
+        ``CastleLogoutCommand.changeInstanceFromTempToHome`` (bundle line 110788) goes back
+        """
+        if server_type is ServerType.NORMAL:
+            raise ValueError("connect_to_special_server takes a temporary or alliance battleground server")
+        token = self.request(
+            GetSpecialServerTokenRequest(server_type=server_type), SpecialServerTokenResponse, timeout=timeout
+        )
+        instance = NetworkInstance(
+            instance_id=token.instance_id,
+            server=token.server,
+            port=token.port,
+            zone=token.zone,
+            zone_id=token.zone_id,
+            instance_number=0,
+            is_international=False,
+            is_favorite=False,
+            default_country="",
+            instance_loca_id=_SPECIAL_SERVER_NAMES[server_type],
+            countries=[],
+        )
+        config = EmpireConfig.for_instance(
+            instance, **self.config.model_dump(exclude={"game_url", "default_zone", "password"})
+        )
+        self.close()
+        special = EmpireClient(username=self.username, config=config, special_server_token=token.login_token)
+        special.login()
+        return special
 
     def remaining_login_cooldown(self) -> float:
         """Seconds until the login cooldown the server last named is over; 0 when there is none.

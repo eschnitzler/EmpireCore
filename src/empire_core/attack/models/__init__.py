@@ -40,6 +40,8 @@ from .send import (
     CreateAttackResponse,
     DaimyoTauntRequest,
     DaimyoTauntResponse,
+    TemporaryServerAttackRequest,
+    TemporaryServerAttackResponse,
     TreasureHuntAttackRequest,
     TreasureHuntAttackResponse,
 )
@@ -122,6 +124,8 @@ __all__ = [
     "CreateAttackResponse",
     "AllianceBattlegroundAttackRequest",
     "AllianceBattlegroundAttackResponse",
+    "TemporaryServerAttackRequest",
+    "TemporaryServerAttackResponse",
     "DaimyoTauntRequest",
     "DaimyoTauntResponse",
     "TreasureHuntAttackRequest",

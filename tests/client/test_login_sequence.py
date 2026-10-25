@@ -172,6 +172,7 @@ def make_client(
     client.username = "tester"
     client.password = "s3cr3t-pw"
     client.login_token = None
+    client.special_server_token = None
     client.session_id = SESSION_ID
     client.connection = connection or ScriptedConnection()  # type: ignore[assignment]
     client.state = state or StubState()  # type: ignore[assignment]

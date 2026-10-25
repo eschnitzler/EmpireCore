@@ -9,6 +9,8 @@ Commands:
 - vpn: Check a new player name
 - vln: Check a login name
 - lpp: Password recovery
+- glt: Login token for a temporary or alliance battleground server
+- tlep: Login on that server by its token
 """
 
 from __future__ import annotations
@@ -16,6 +18,8 @@ from __future__ import annotations
 from typing import Annotated, Any
 
 from pydantic import BeforeValidator, Field, model_validator
+
+from empire_core.enums import ServerType
 
 from .base import BaseRequest, BaseResponse, build_command, list_or_empty
 from .js import js_number_or_none, js_string, js_truthy
@@ -425,6 +429,67 @@ class PasswordRecoveryResponse(BaseResponse):
     command = "lpp"
 
 
+# =============================================================================
+# GLT / TLEP - Special server login
+# =============================================================================
+
+
+class GetSpecialServerTokenRequest(BaseRequest):
+    """
+    Ask the main server for a login token for a special server (``glt``).
+
+    Client: ``C2SGetTemporaryServerLoginTokenVO`` (bundle line 110749), sent by
+    ``CastleConnectToSpecialServerCommand.connectToSpecialServer`` (bundle line 58787) with the subclass's
+    ``externalServerID``: ``GlobalServerConst.TEMP_SERVER`` (bundle line 110737) or
+    ``ALLIANCE_BATTLE_GROUND_SERVER`` (bundle line 145110)
+    """
+
+    command = "glt"
+
+    server_type: ServerType = Field(validation_alias="GST", description="The server to log in to")
+
+
+class SpecialServerTokenResponse(BaseResponse):
+    """
+    The token and the address of the special server it logs in to.
+
+    Client: ``GLTCommand.executeCommand`` and ``buildInstanceVO`` (bundle lines 128875-128880)
+    """
+
+    command = "glt"
+
+    login_token: str = Field(validation_alias="TLT", repr=False, description="The token the special server takes")
+    server: str = Field(validation_alias="TSIP", description="Host name of the special server")
+    port: int = Field(validation_alias="TSP", description="Port the server names; the client connects on 443")
+    zone: str = Field(validation_alias="TSZ", description="Zone the login and every command name")
+    zone_id: int = Field(validation_alias="ZID", description="The zone's id")
+    instance_id: int = Field(validation_alias="IID", description="The server's instance id")
+
+
+class SpecialServerLoginRequest(BaseRequest):
+    """
+    Log in on a special server with the token the main server gave (``tlep``), in place of ``lli``.
+
+    Client: ``C2STemporaryServerLoginVO`` (bundle line 110758), sent by
+    ``CastleConnectToSpecialServerCommand.doLogin`` (bundle line 58794) once the version check passed
+    (``CastleChooseLoginMethodCommand.login``, bundle line 101015)
+    """
+
+    command = "tlep"
+
+    login_token: str = Field(validation_alias="TLT", repr=False, description="The token from glt")
+
+
+class SpecialServerLoginResponse(BaseResponse):
+    """
+    The reply to ``tlep``, which carries nothing the client reads; ``NO_EVENT`` (145) means the server is closed.
+
+    Client: ``TLEPCommand.executeCommand`` (bundle line 127388)
+    """
+
+    command = "tlep"
+
+
 __all__ = [
     # LLI - Login
     "LoginRequest",
@@ -447,4 +512,9 @@ __all__ = [
     # LPP - Password Recovery
     "PasswordRecoveryRequest",
     "PasswordRecoveryResponse",
+    # GLT / TLEP - Special server login
+    "GetSpecialServerTokenRequest",
+    "SpecialServerTokenResponse",
+    "SpecialServerLoginRequest",
+    "SpecialServerLoginResponse",
 ]

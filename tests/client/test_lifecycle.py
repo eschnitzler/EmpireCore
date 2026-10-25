@@ -129,6 +129,7 @@ def make_client(connection: StubConnection | None = None, state: StubState | Non
     client.username = "tester"
     client.password = "secret"
     client.login_token = None
+    client.special_server_token = None
     client.session_id = "1e+300"
     client.connection = connection or StubConnection()  # type: ignore[assignment]
     client.state = state or StubState()  # type: ignore[assignment]

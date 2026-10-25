@@ -55,6 +55,7 @@ from .models import (
     GetIgnoredPlayersRequest,
     GetSpyReportRequest,
     GetTradeReportRequest,
+    GetWorldLinkRequest,
     IgnoredPlayer,
     IgnoredPlayersResponse,
     IgnoreList,
@@ -80,6 +81,7 @@ from .models import (
     SystemNotificationEvent,
     TradeReportResponse,
     UnitsBySide,
+    WorldLinkResponse,
     repair_header,
 )
 from .service import BattleReportDetail, MessagesService
@@ -100,6 +102,8 @@ __all__ = [
     "IgnoredPlayersResponse",
     "IgnorePlayerRequest",
     "IgnorePlayerResponse",
+    "GetWorldLinkRequest",
+    "WorldLinkResponse",
     "ArchiveMessageRequest",
     "ArchiveMessageResponse",
     "DeleteMessageRequest",

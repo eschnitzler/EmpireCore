@@ -51,6 +51,8 @@ from empire_core.attack.models.send import (
     CreateAttackResponse,
     DaimyoTauntRequest,
     DaimyoTauntResponse,
+    TemporaryServerAttackRequest,
+    TemporaryServerAttackResponse,
     TreasureHuntAttackRequest,
     TreasureHuntAttackResponse,
 )
@@ -277,6 +279,7 @@ class AttackService(BaseService):
         collector_attack: bool = False,
         *,
         alliance_battleground: bool = False,
+        temporary_server: bool = False,
         spend_rubies: bool = False,
         timeout: float = 5.0,
     ) -> CreateAttackResponse:
@@ -349,6 +352,10 @@ class AttackService(BaseService):
                 battleground server while the event scores alliance collector points and the
                 target is a castle or capital; the reply is then an
                 ``AllianceBattlegroundAttackResponse``. Such an attack has no auto-skip cooldown
+            temporary_server: Send it as ``cam``, as the client does on the temporary server while
+                its event scores collector points and the target is a castle; the reply is then a
+                ``TemporaryServerAttackResponse``. Such an attack has no auto-skip cooldown, and
+                ``collector_attack`` is not sent: the client always sends ``ICA`` 0 there
             min_soldiers: The fewest units the waves must carry together, such
                 as ``FilledAttack.min_soldiers`` or
                 ``combat.min_attack_soldiers(...)``; taken from ``capacity``
@@ -368,7 +375,8 @@ class AttackService(BaseService):
             GameDataNotLoadedError: The premium commander leads, VIP time runs and
                 the game data cannot be loaded; or a horse is picked without feathers
                 before it was called
-            ValueError: Areas of yours sit at the source position in several kingdoms and no
+            ValueError: Both ``alliance_battleground`` and ``temporary_server`` are set, areas of yours sit
+                at the source position in several kingdoms and no
                 ``kingdom_id`` is given, no wave carries any units, a container is overfull, or the horse or
                 slowdown costs rubies and ``spend_rubies`` is False
             CommandError: The server refused the attack, such as with ``MOVEMENT_HAS_NO_UNITS``
@@ -378,10 +386,12 @@ class AttackService(BaseService):
             EmpireTimeoutError / ConnectionClosedError / NetworkError: transport failures
 
         Client: ``CastleAttackData.sendAttack`` (bundle line 133901) and
-        ``sendAttackPlayerAllianceBattleground`` (bundle line 133895) send the source
-        area's ``kingdomID`` as ``KID``; ``CastlePostAttackDialog.sendAttack`` (bundle
-        line 38381) picks between them
+        ``sendAttackPlayerAllianceBattleground`` (bundle line 133895) and ``sendAttackTempServer`` (bundle
+        line 133898) send the source area's ``kingdomID`` as ``KID``; ``CastlePostAttackDialog.sendAttack``
+        (bundle line 38381) picks between them
         """
+        if alliance_battleground and temporary_server:
+            raise ValueError("an attack is sent on the alliance battleground or on the temporary server, not both")
         if isinstance(waves, FilledAttack):
             yard_wave = waves.yard if yard_wave is None else yard_wave
             min_soldiers = waves.min_soldiers if min_soldiers is None else min_soldiers
@@ -408,8 +418,20 @@ class AttackService(BaseService):
 
         self._require_spend_rubies(spend_rubies, self._travel_ruby_cost(horse_booster_id, feathers, slowdown))
         kingdom_id = self._own_area_kingdom(source_x, source_y, kingdom_id)
-        response_type = AllianceBattlegroundAttackResponse if alliance_battleground else CreateAttackResponse
-        request = (AllianceBattlegroundAttackRequest if alliance_battleground else CreateAttackRequest)(
+        response_type = (
+            AllianceBattlegroundAttackResponse
+            if alliance_battleground
+            else TemporaryServerAttackResponse
+            if temporary_server
+            else CreateAttackResponse
+        )
+        request = (
+            AllianceBattlegroundAttackRequest
+            if alliance_battleground
+            else TemporaryServerAttackRequest
+            if temporary_server
+            else CreateAttackRequest
+        )(
             source_x=source_x,
             source_y=source_y,
             target_x=target_x,
@@ -429,7 +451,7 @@ class AttackService(BaseService):
             support_tools=tuple(support_tools or ()),
             collector_booster=dict((collector_booster or {}).items()),
             send_anyway=1 if send_anyway else 0,
-            collector_attack=1 if collector_attack else 0,
+            collector_attack=1 if collector_attack and not temporary_server else 0,
         )
 
         def send() -> CreateAttackResponse:

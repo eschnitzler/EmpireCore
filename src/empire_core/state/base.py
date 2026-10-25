@@ -46,6 +46,7 @@ from empire_core.commanders.models.roster import CommanderRoster
 from empire_core.commanders.models.skills import SkillList
 from empire_core.enums import Kingdom
 from empire_core.events.models import ShuttingDownEvents, SpecialEvent
+from empire_core.events.special_server_models import CurrentServer, SpecialServerCastles
 from empire_core.events.status_models import RaidBossStatus
 from empire_core.exceptions import StateNotLoadedError
 from empire_core.map.models.treasure_maps import TreasureMap
@@ -190,6 +191,8 @@ class StateBase:
         # The client keeps one set of counts for every alien invasion (CastleAlienRerollData)
         self.alien_reroll_counts: AlienRerollCountsResponse | None = None
         self.shutting_down_events: ShuttingDownEvents | None = None
+        self.current_server: CurrentServer | None = None
+        self.special_server_castles: SpecialServerCastles | None = None
 
         # Active quests by id, the quest book and the daily quests; each replaced, never edited
         self.quests: dict[int, Quest] = {}
