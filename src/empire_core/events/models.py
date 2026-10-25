@@ -1733,13 +1733,15 @@ class ShuttingDownEvents(BaseResponse):
     """
     The events that are shutting down: each one's building stays in your castles, with no time left.
 
-    Each push replaces the list before it.
+    Each push replaces the list before it. Every id is kept, though the client keys its own map by an id
+    every fake event shares and so shows only the last event's building.
 
     Command: sde
     Payload: {"SD": [event_id, ...]}
 
     Client: ``SDECommand.executeCommand`` (bundle line 127931), ``CastleSpecialEventData.parse_SDE``
-    (bundle line 139841), ``FakeEventVO`` (bundle line 139974)
+    (bundle line 139841), ``FakeEventVO.eventId`` (bundle line 139979),
+    ``IsoDataObjectGroupEvent.addSpecialEventBuildings`` (bundle line 80597)
     """
 
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)

@@ -783,6 +783,15 @@ class TestVersionCheck:
         assert "lli" not in conn.requested
         assert "disconnect" in conn.events
 
+    def test_a_refusal_still_keeps_the_servers_build(self):
+        conn = ScriptedConnection({"vck": Packet.from_bytes(b"%xt%vck%1%1%1170001%")})
+        client = make_client(conn)
+
+        with pytest.raises(ClientVersionError):
+            client.login()
+
+        assert client.server_build == "1170001"
+
     def test_another_status_is_a_login_error(self):
         conn = ScriptedConnection({"vck": xt_packet("vck", error_code=1000)})
         with pytest.raises(LoginError, match="1000"):
@@ -791,8 +800,10 @@ class TestVersionCheck:
     def test_ok_goes_on_to_the_login(self):
         conn = ScriptedConnection({"vck": Packet.from_bytes(b"%xt%vck%1%0%1169011%")})
         client = make_client(conn)
+        assert client.server_build is None
         client.login()
         assert client.is_logged_in
+        assert client.server_build == "1169011"
 
 
 class TestLoginToken:

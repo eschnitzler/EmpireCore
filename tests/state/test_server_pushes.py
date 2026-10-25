@@ -1,8 +1,6 @@
 """The server's lifecycle pushes: frozen food production (DTS), the shutdown warning (ssd), the events
 shutting down (sde), the new day (kik), the joined castle moving (ghw), and the version check reply (vck)."""
 
-import threading
-
 import pytest
 
 from empire_core.castle.models.updates import JoinedAreaMoved, NewDay
@@ -18,12 +16,6 @@ from empire_core.state.manager import GameState
 from empire_core.state.models import JoinedArea
 from tests.service_helpers import make_client, xt_packet
 from tests.state.test_castle_pushes import jaa_payload, login
-
-
-def settle(state: GameState) -> None:
-    done = threading.Event()
-    state._dispatch_callback(done.set)
-    assert done.wait(5)
 
 
 class TestFoodProduction:
@@ -121,7 +113,10 @@ class TestShuttingDownEvents:
 
 
 class TestNewDay:
-    @pytest.mark.parametrize(("value", "day"), [(2, Weekday.MONDAY), ("1", Weekday.SUNDAY), (None, None)])
+    @pytest.mark.parametrize(
+        ("value", "day"),
+        [(2, Weekday.MONDAY), (2.0, Weekday.MONDAY), ("1", Weekday.SUNDAY), (2.5, None), ("x", None), (None, None)],
+    )
     def test_the_push_names_the_day(self, value, day):
         new_day = parse_response("kik", {} if value is None else {"DOW": value})
 
@@ -138,6 +133,15 @@ class TestNewDay:
         state.update_from_packet("kik", {"DOW": Weekday.MONDAY})
         assert state.get_castles()[0].open_gate_counter == 0
 
+    def test_a_float_monday_resets_and_a_fraction_does_not(self, state):
+        login(state, entry={"OGC": 2})
+
+        state.update_from_packet("kik", {"DOW": 2.5})
+        assert state.get_castles()[0].open_gate_counter == 2
+
+        state.update_from_packet("kik", {"DOW": 2.0})
+        assert state.get_castles()[0].open_gate_counter == 0
+
 
 class TestJoinedAreaMoved:
     # GHWCommand: activeArea&&changePosOfOwnArea(new Point(X, Y))
@@ -147,35 +151,59 @@ class TestJoinedAreaMoved:
 
         assert state.get_joined_area() == JoinedArea(kingdom_id=Kingdom.GREEN, castle_id=1, x=10, y=20)
 
-    def test_ghw_moves_the_joined_area_and_calls_back(self, state):
-        seen: list[JoinedAreaMoved] = []
-        state.on_joined_area_moved(seen.append)
-        state.update_from_packet("jaa", jaa_payload())
+    def test_ghw_moves_the_joined_area_and_calls_back(self):
+        client = make_client(state=GameState())
+        seen: list[tuple[JoinedAreaMoved, JoinedArea | None]] = []
+        client.castle.on_joined_area_moved(lambda moved: seen.append((moved, client.castle.joined_area)))
+        client._on_packet(xt_packet("jaa", jaa_payload()))
 
-        state.update_from_packet("ghw", {"X": 300, "Y": "400"})
-        settle(state)
+        client._on_packet(xt_packet("ghw", {"X": 300, "Y": "400"}))
 
-        area = state.get_joined_area()
+        area = client.castle.joined_area
         assert area is not None and (area.x, area.y, area.castle_id) == (300, 400, 1)
-        assert seen == [JoinedAreaMoved(x=300, y=400)]
+        assert seen == [(JoinedAreaMoved(x=300, y=400), area)]
 
-    def test_without_a_joined_area_only_the_callback_runs(self, state):
+    def test_without_a_joined_area_only_the_callback_runs(self):
+        client = make_client(state=GameState())
         seen: list[JoinedAreaMoved] = []
-        state.on_joined_area_moved(seen.append)
+        client.castle.on_joined_area_moved(seen.append)
 
-        state.update_from_packet("ghw", {"X": 1, "Y": 2})
-        settle(state)
+        client._on_packet(xt_packet("ghw", {"X": 1, "Y": 2}))
 
-        assert state.get_joined_area() is None
+        assert client.castle.joined_area is None
         assert seen == [JoinedAreaMoved(x=1, y=2)]
 
-    def test_a_refused_push_changes_nothing(self, state):
+    def test_a_removed_callback_no_longer_fires(self):
+        client = make_client(state=GameState())
+        seen: list[JoinedAreaMoved] = []
+        client.castle.on_joined_area_moved(seen.append)
+        client.castle.on_joined_area_moved.remove(seen.append)
+
+        client._on_packet(xt_packet("ghw", {"X": 1, "Y": 2}))
+
+        assert seen == []
+
+    def test_the_castle_list_keeps_its_position(self, state):
+        # changePosOfOwnArea moves activeArea.areaInfo, a VO of its own, not the castle list's
+        login(state)
+        before = [(c.x, c.y) for c in state.get_castles()]
         state.update_from_packet("jaa", jaa_payload())
 
-        state.update_from_packet("ghw", {"X": 300, "Y": 400}, error_code=1)
+        state.update_from_packet("ghw", {"X": 300, "Y": 400})
 
-        area = state.get_joined_area()
+        assert [(c.x, c.y) for c in state.get_castles()] == before
+
+    def test_a_refused_push_changes_nothing(self):
+        client = make_client(state=GameState())
+        seen: list[JoinedAreaMoved] = []
+        client.castle.on_joined_area_moved(seen.append)
+        client._on_packet(xt_packet("jaa", jaa_payload()))
+
+        client._on_packet(xt_packet("ghw", {"X": 300, "Y": 400}, error_code=1))
+
+        area = client.castle.joined_area
         assert area is not None and (area.x, area.y) == (10, 20)
+        assert seen == []
 
 
 class TestVersionCheckReply:

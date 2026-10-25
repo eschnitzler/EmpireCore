@@ -163,9 +163,8 @@ _DECORATION_STORAGE_REPLIES = frozenset({"ebe", "ebu", "pio", "sob", "sbp", "jaa
 # CARCommand (bundle lines 129926, 123623, 125277), the section replies above;
 # a cpm error reply still reaches the movement handler, its cpi only a successful one. Also the castle
 # pushes and replies:
-# RUECommand, KIKCommand, GSMCommand, RCICommand, CMRCommand, RCCCommand, JAACommand, FBECommand,
-# CBXCommand, GDBCommand, GCBCommand, CSLCommand and GABCommand (bundle lines 125647, 123114,
-# 125752, 123196, 125737, 123181, 130190, 122880, 123345, 122998, 122968, 122715, 122923); GECCommand
+# RUECommand, KIKCommand, GSMCommand, RCICommand, CMRCommand, RCCCommand, JAACommand, CSLCommand and
+# GABCommand (bundle lines 125647, 123114, 125752, 123196, 125737, 123181, 130190, 122715, 122923); GECCommand
 # (bundle line 123927), GHWCommand and SDECommand (bundle lines 129574, 127931). And the quest ones:
 # QLICommand, QSTCommand, QPGCommand, QFICommand, MSPCommand, CQSCommand (bundle lines 126587, 126619,
 # 126603, 126566, 125438, 126495)
@@ -194,7 +193,7 @@ _SUCCESS_ONLY = frozenset(
     # GBDCommand.exec (bundle line 129376) reads the login data only on ALL_OK
     | {"gbd"}
     | (set(_NESTED_SECTIONS) - {"cpm", "crm", "gaa"})
-    | {"rue", "kik", "gsm", "rci", "cmr", "rcc", "jaa", "fbe", "cbx", "gdb", "gcb", "csl", "gab", "gec", "ghw"}
+    | {"rue", "kik", "gsm", "rci", "cmr", "rcc", "jaa", "csl", "gab", "gec", "ghw"}
     | {"sde"}
     | {"qli", "qst", "qpg", "qfi", "msp", "cqs"}
     | {"nfo", "aqs", "bse", "bbs", "saq", "caq", "caaq", "raq", "scq", "aec"}
@@ -435,10 +434,6 @@ class GameState(
         "rcc": "_handle_rcc",
         "csl": "_handle_csl",
         "gab": "_handle_gab",
-        "fbe": "_handle_fbe",
-        "cbx": "_handle_cbx",
-        "gdb": "_handle_gdb",
-        "gcb": "_handle_gcb",
         "gca": "_handle_gca",
         "sin": "_handle_sin",
         # Any map read leaves the joined castle, refused or not, and so does losing the joined area
@@ -700,7 +695,7 @@ class GameState(
         "abgcam", "cds", "csm", "cat", "crm", "css", "tde", "cdd", "cpm", "thm", "ldt"), "mcm", "mrm", "mfc", "glu",
         "mir", "fjf", "bst", "sce", "see", "tee", "pep", "acm", "aqi", "acn", "cal", "ufp", "uht", "apt", "car", "bfs",
         the officers' school's "gtp" (only a successful one), the quest pushes "qli", "qst", "qpg", "qfi", "msp" and the
-        campaign's "cqs", the castle pushes "rue", "kik", "fbe", "cbx", "gdb", "gcb", the gem push "gec", the faction
+        campaign's "cqs", the castle pushes "rue", "kik", the gem push "gec", the faction
         protection reply "ffp", the rage points push "rpr", the alien reroll counts push "rce", the joined area's "jaa",
         "cmr", "rcc", "ghw", the events shutting down "sde", the map read "gaa" (refused too), the spy screen "ssi"
         (only a successful one) — and the login sections "gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap", "gpc",
