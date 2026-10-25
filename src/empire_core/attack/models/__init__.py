@@ -21,12 +21,18 @@ from .presets import (
 )
 from .send import CreateAttackRequest, CreateAttackResponse
 from .target_info import (
+    GetAllianceTowerAttackInfoRequest,
+    GetAllianceTowerAttackInfoResponse,
     GetBossDungeonAttackInfoRequest,
     GetBossDungeonAttackInfoResponse,
     GetCapitalConquerInfoRequest,
     GetCapitalConquerInfoResponse,
+    GetCollectorAttackInfoRequest,
+    GetCollectorAttackInfoResponse,
     GetDungeonAttackInfoRequest,
     GetDungeonAttackInfoResponse,
+    GetFactionCampConquerInfoRequest,
+    GetFactionCampConquerInfoResponse,
     GetIslandAttackInfoRequest,
     GetIslandAttackInfoResponse,
     GetLandmarkAttackInfoRequest,
@@ -35,6 +41,8 @@ from .target_info import (
     GetMetropolConquerInfoResponse,
     GetOutpostConquerInfoRequest,
     GetOutpostConquerInfoResponse,
+    GetTreasureNodeAttackInfoRequest,
+    GetTreasureNodeAttackInfoResponse,
     GetVillageAttackInfoRequest,
     GetVillageAttackInfoResponse,
 )
@@ -75,5 +83,13 @@ __all__ = [
     "GetCapitalConquerInfoResponse",
     "GetMetropolConquerInfoRequest",
     "GetMetropolConquerInfoResponse",
+    "GetFactionCampConquerInfoRequest",
+    "GetFactionCampConquerInfoResponse",
+    "GetAllianceTowerAttackInfoRequest",
+    "GetAllianceTowerAttackInfoResponse",
+    "GetCollectorAttackInfoRequest",
+    "GetCollectorAttackInfoResponse",
+    "GetTreasureNodeAttackInfoRequest",
+    "GetTreasureNodeAttackInfoResponse",
     "AttackCounterResponse",
 ]

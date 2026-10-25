@@ -33,6 +33,12 @@ from empire_core.attack.models.presets import (
     SavePresetRequest,
 )
 from empire_core.attack.models.send import CreateAttackRequest
+from empire_core.attack.models.target_info import (
+    GetCollectorAttackInfoRequest,
+    GetCollectorAttackInfoResponse,
+    GetTreasureNodeAttackInfoRequest,
+    GetTreasureNodeAttackInfoResponse,
+)
 from empire_core.attack.pacing import AttackSendPacer
 from empire_core.attack.targeting import _merged, _precalculation, _read_target, _row_item, _Target
 from empire_core.combat import (
@@ -405,7 +411,7 @@ class AttackService(BaseService):
             kingdom_id: Kingdom both sit in
             area_type: The target's area type, the first field of its map row
             conquer: Ask for the conquest pre-calculation instead, for an
-                outpost, capital or metropolis
+                outpost, capital, metropolis or faction camp
             timeout: Timeout in seconds
 
         Raises:
@@ -418,6 +424,44 @@ class AttackService(BaseService):
         if "source_x" in request_type.model_fields:
             keys.update(SX=source_x, SY=source_y)
         return self.request(request_type(**keys), response_type, timeout=timeout)
+
+    def get_collector_attack_info(
+        self,
+        target_x: int,
+        target_y: int,
+        source_x: int,
+        source_y: int,
+        kingdom_id: Kingdom = Kingdom.GREEN,
+        *,
+        timeout: float = 10.0,
+    ) -> GetCollectorAttackInfoResponse:
+        """
+        Get the pre-calculation of a collector attack on a castle, with the collector currency it holds.
+
+        Raises:
+            CommandError: The server rejected the request
+
+        Client: ``ButtonAttackCollectorComponent.onClick`` (bundle line 109895),
+        ``CastleStartAttackDialog.attackCollector`` (bundle line 14836), ``ACCCommand`` (bundle line 122185).
+        """
+        request = GetCollectorAttackInfoRequest(
+            target_x=target_x, target_y=target_y, source_x=source_x, source_y=source_y, kingdom_id=kingdom_id
+        )
+        return self.request(request, GetCollectorAttackInfoResponse, timeout=timeout)
+
+    def get_treasure_node_attack_info(
+        self, map_id: int, node_id: int, *, timeout: float = 10.0
+    ) -> GetTreasureNodeAttackInfoResponse:
+        """
+        Get the attack pre-calculation for a node of a treasure map.
+
+        Raises:
+            CommandError: The server rejected the request
+
+        Client: ``C2SAttackInfoTreasureDungeonVO`` (bundle line 33261), ``TAICommand`` (bundle line 129012).
+        """
+        request = GetTreasureNodeAttackInfoRequest(map_id=map_id, node_id=node_id)
+        return self.request(request, GetTreasureNodeAttackInfoResponse, timeout=timeout)
 
     # =========================================================================
     # Presets

@@ -148,6 +148,8 @@ _SUCCESS_ONLY = frozenset(
     | {"rue", "kik", "gsm", "rci", "cmr", "rcc", "jaa", "fbe", "cbx", "gdb", "gcb", "csl", "gab", "gec"}
     | {"qli", "qst", "qpg", "qfi", "msp", "cqs"}
     | {"nfo", "aqs", "bse", "bbs", "saq", "caq", "caaq", "raq", "scq", "aec"}
+    # FKICommand.executeCommand (bundle line 127859)
+    | {"fki"}
 )
 
 
@@ -315,6 +317,7 @@ class GameState(
         "scq": "_handle_grand_tournament_action",
         "bse": "_handle_bse",
         "bbs": "_handle_raid_status",
+        "fki": "_handle_fki",
         "bst": "_handle_bst",
         "agr": "_handle_agr",
         "afa": "_handle_afa",
@@ -452,6 +455,9 @@ class GameState(
             self._handle_tei(data["tei"])
         if "sei" in data:
             self._handle_sei(data["sei"])
+        if "kpi" not in skipped and isinstance(kpi := data.get("kpi"), dict) and "fki" in kpi:
+            # GBDCommand.exec parses the kpi after the sei (bundle line 129425), so its fki finds the event
+            self._handle_fki(kpi["fki"])
         self._stamp_sections(data, skipped)
         return skipped
 

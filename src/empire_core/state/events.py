@@ -8,6 +8,7 @@ from typing import Any, Literal
 from pydantic import ValidationError
 from typing_extensions import overload
 
+from empire_core.events.faction_models import BerimondKingdomStatus
 from empire_core.events.models import (
     AlienInvasionEvent,
     AllianceBonusEvent,
@@ -278,6 +279,21 @@ class EventState(StateBase):
             slots=update.slots,
         )
         self.events = {**self.events, event.event_id: event.model_copy(update={"quest_status": status})}
+        self._events_updated_at = time.time()
+        self._fire(self.on_events_updated, dict(self.events))
+
+    def _handle_fki(self, data: Any) -> None:
+        """Handle a Berimond kingdom status, pushed on its own or inside a ``kpi``: kept on the running event.
+
+        Client: ``FKICommand.executeCommand`` (bundle line 127859) and ``CastleKingdomData.parse_KPI``
+        (bundle line 134604) hand a set one to the running faction event's ``parse_FKI`` (bundle line 7365)
+        """
+        self._expire_events()
+        event = self.events.get(Event.FACTION)
+        if not js_truthy(data) or not isinstance(event, BerimondEvent):
+            return
+        status = BerimondKingdomStatus.model_validate(data if isinstance(data, dict) else {})
+        self.events = {**self.events, event.event_id: event.model_copy(update={"kingdom_status": status})}
         self._events_updated_at = time.time()
         self._fire(self.on_events_updated, dict(self.events))
 

@@ -13,12 +13,16 @@ from typing import TYPE_CHECKING, Any
 from empire_core.army.spy_army import SpyArmy
 from empire_core.attack.models.info import AttackInfoResponse, GetAttackInfoRequest, GetAttackInfoResponse
 from empire_core.attack.models.target_info import (
+    GetAllianceTowerAttackInfoRequest,
+    GetAllianceTowerAttackInfoResponse,
     GetBossDungeonAttackInfoRequest,
     GetBossDungeonAttackInfoResponse,
     GetCapitalConquerInfoRequest,
     GetCapitalConquerInfoResponse,
     GetDungeonAttackInfoRequest,
     GetDungeonAttackInfoResponse,
+    GetFactionCampConquerInfoRequest,
+    GetFactionCampConquerInfoResponse,
     GetIslandAttackInfoRequest,
     GetIslandAttackInfoResponse,
     GetLandmarkAttackInfoRequest,
@@ -85,12 +89,15 @@ _ATTACK_PRECALCULATION: dict[int, _Precalculation] = {
     MapItemType.VILLAGE: (GetVillageAttackInfoRequest, GetVillageAttackInfoResponse),
     # ACTION_TYPE_ISLAND_ATTACK
     MapItemType.ISLE_RESOURCE: (GetIslandAttackInfoRequest, GetIslandAttackInfoResponse),
+    # ACTION_TYPE_ATTACK_ABG_TOWERS
+    MapItemType.ALLIANCE_BATTLE_GROUND_TOWER: (GetAllianceTowerAttackInfoRequest, GetAllianceTowerAttackInfoResponse),
 }
 
 _CONQUER_PRECALCULATION: dict[int, _Precalculation] = {
     MapItemType.OUTPOST: (GetOutpostConquerInfoRequest, GetOutpostConquerInfoResponse),
     MapItemType.CAPITAL: (GetCapitalConquerInfoRequest, GetCapitalConquerInfoResponse),
     MapItemType.METROPOL: (GetMetropolConquerInfoRequest, GetMetropolConquerInfoResponse),
+    MapItemType.FACTION_CAMP: (GetFactionCampConquerInfoRequest, GetFactionCampConquerInfoResponse),
 }
 
 
@@ -100,44 +107,46 @@ def _precalculation(area_type: int, conquer: bool) -> _Precalculation:
 
     An attack follows the ``attackType`` of the map object the client builds
     for the area type: ``ACTION_TYPE_ATTACK`` and ``ACTION_TYPE_OUTPOSTATTACK``
-    ask ``aci``, ``ACTION_TYPE_DUNGEONATTACK`` ``adi``, and so on. A conquest
-    asks ``cci`` for a capital, ``cti`` for a metropolis and ``coi`` for an
-    outpost.
+    ask ``aci``, ``ACTION_TYPE_DUNGEONATTACK`` ``adi``,
+    ``ACTION_TYPE_ATTACK_ABG_TOWERS`` ``gti``, and so on. A conquest asks
+    ``cci`` for a capital, ``cti`` for a metropolis, ``cfi`` for a faction
+    camp and ``coi`` for an outpost.
 
-    Not modelled, so refused before sending: the alliance battleground tower
-    (``gti``), the collector attack (``acc``), the faction camp conquest, map
-    objects that define no ``attackType`` of their own and only inherit
-    ``InteractiveMapobjectVO``'s, and area types the client builds no map
-    object for.
+    Refused before sending: map objects that define no ``attackType`` of their
+    own and only inherit ``InteractiveMapobjectVO``'s, and area types the
+    client builds no map object for. The collector attack (``acc``) is a
+    button of its own, not an area type: ``AttackService.get_collector_attack_info``.
 
-    Client: ``CastleStartAttackDialog.onClickYes`` (bundle line 14802) and its
-    senders ``attackCastle`` (14824), ``attackDungeon`` (14834),
-    ``attackBossDungeon`` (14837), ``conquerOutpost`` (14839),
-    ``conquerCapital`` (14842), ``conquerMetropol`` (14843), ``attackVillage``
-    (14844), ``attackIsland`` (14845), ``attackLandmark`` (14846);
-    ``WorldmapObjectFactory.__initialize_static_members`` (bundle line 5356).
-    The ``attackType`` getters: ``AInvasionEventMapObjectVO`` (18505),
-    ``OutpostMapobjectVO`` (18850), ``CastleMapobjectVO`` (18941),
-    ``KingstowerMapobjectVO`` (19088), ``MonumentMapobjectVO`` (21668),
-    ``DungeonMapobjectVO`` (22091), ``VillageMapobjectVO`` (22684),
-    ``FactionCapitalMapobjectVO`` (22789), ``FactionTowerMapobjectVO`` (22837),
-    ``LaboratoryMapobjectVO`` (25913), ``FactionVillageMapobjectVO`` (28515),
-    ``WolfkingCastleMapObjectVO`` (34420), ``BossdungeonMapobjectVO`` (34466),
-    ``EventdungeonMapobjectVO`` (34516), ``ResourceIsleMapobjectVO`` (34652),
-    ``AAlienInvasionMapobjectVO`` (41553), ``AllianceRaidEventPortalMapobjectVO``
-    (41611), ``DungeonIsleMapobjectVO`` (76310). Inherited ones:
-    ``CapitalMapobjectVO`` (18760) and ``MetropolMapobjectVO`` (21637) extend
-    ``OutpostMapobjectVO``; ``TreasureDungeonMapObjectVO`` (22033) extends
-    ``DungeonMapobjectVO``; ``KingdomCastleMapobjectVO`` (32706) extends
-    ``CastleMapobjectVO``; ``AlienInvasionMapobjectVO`` (65057) and
-    ``RedAlienInvasionMapobjectVO`` (76481) extend ``AAlienInvasionMapobjectVO``;
-    ``DaimyoCastleMapObjectVO`` (19689), ``FactionInvasionCampMapObjectVO``
-    (76367), ``NomadCampMapObjectVO`` (76420), ``SamuraiCampMapObjectVO``
-    (76536) and ``AAllianceInvasionCampMapObjectVO`` (47418) extend
-    ``AInvasionEventMapObjectVO``, and ``NomadKhanCampMapObjectVO`` (76447) and
-    ``ABGResourceTowerMapobjectVO`` (47447) extend
+    Client: ``CastleStartAttackDialog.onClickYes`` (bundle line 14810) and its
+    senders ``attackCastle`` (14832), ``attackABGTower`` (14834),
+    ``attackDungeon`` (14842), ``attackBossDungeon`` (14845),
+    ``conquerOutpost`` (14847), ``conquerFactionCamp`` (14848),
+    ``conquerCapital`` (14850), ``conquerMetropol`` (14851), ``attackVillage``
+    (14852), ``attackIsland`` (14853), ``attackLandmark`` (14854);
+    ``WorldmapObjectFactory.__initialize_static_members`` (bundle line 5354).
+    The ``attackType`` getters: ``AInvasionEventMapObjectVO`` (18513),
+    ``OutpostMapobjectVO`` (18858), ``CastleMapobjectVO`` (18949),
+    ``KingstowerMapobjectVO`` (19096), ``MonumentMapobjectVO`` (21676),
+    ``DungeonMapobjectVO`` (22099), ``VillageMapobjectVO`` (22694),
+    ``FactionCapitalMapobjectVO`` (22799), ``FactionTowerMapobjectVO`` (22847),
+    ``LaboratoryMapobjectVO`` (25962), ``FactionVillageMapobjectVO`` (28564),
+    ``ABGAllianceTowerMapobjectVO`` (32324), ``WolfkingCastleMapObjectVO``
+    (34430), ``BossdungeonMapobjectVO`` (34476), ``EventdungeonMapobjectVO``
+    (34526), ``ResourceIsleMapobjectVO`` (34662), ``AAlienInvasionMapobjectVO``
+    (41566), ``AllianceRaidEventPortalMapobjectVO`` (41624),
+    ``DungeonIsleMapobjectVO`` (76341). Inherited ones:
+    ``CapitalMapobjectVO`` (18725) and ``MetropolMapobjectVO`` (21605) extend
+    ``OutpostMapobjectVO``; ``TreasureDungeonMapObjectVO`` (22000) extends
+    ``DungeonMapobjectVO``; ``KingdomCastleMapobjectVO`` (32715) extends
+    ``CastleMapobjectVO``; ``AlienInvasionMapobjectVO`` (65073) and
+    ``RedAlienInvasionMapobjectVO`` (76505) extend ``AAlienInvasionMapobjectVO``;
+    ``DaimyoCastleMapObjectVO`` (19656), ``FactionInvasionCampMapObjectVO``
+    (76352), ``NomadCampMapObjectVO`` (76409), ``SamuraiCampMapObjectVO``
+    (76523) and ``AAllianceInvasionCampMapObjectVO`` (47406) extend
+    ``AInvasionEventMapObjectVO``, and ``NomadKhanCampMapObjectVO`` (76462) and
+    ``ABGResourceTowerMapobjectVO`` (47440) extend
     ``AAllianceInvasionCampMapObjectVO``. Area type values from ``WorldConst``
-    (dll line 237).
+    (dll line 20003).
     """
     table = _CONQUER_PRECALCULATION if conquer else _ATTACK_PRECALCULATION
     found = table.get(area_type)

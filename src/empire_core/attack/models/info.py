@@ -67,8 +67,8 @@ class AttackTargetArea(BasePayload):
     The target's map row and owner records, the ``gaa`` block of a pre-calculation reply.
 
     Client: ``CastleAttackInfoVO.fillFromParamObject`` (bundle line 30620) parses
-    ``AI`` with ``WorldmapObjectFactory.parseWorldMapArea``; ``ACICommand`` and
-    ``ABICommand`` pass ``OI`` to ``OtherPlayerData.parseOwnerInfoArray``
+    ``AI`` with ``WorldmapObjectFactory.parseWorldMapArea``; ``ACICommand``,
+    ``ABICommand`` and ``GTICommand`` pass ``OI`` to ``OtherPlayerData.parseOwnerInfoArray``
     """
 
     area: TargetRow = Field(validation_alias="AI", default=None, description="The target's map row")
@@ -251,8 +251,9 @@ class AttackInfoResponse(BaseResponse):
         """
         The owner records under ``gaa.OI``.
 
-        Client: ``ACICommand.executeCommand`` (bundle line 122164) and
-        ``ABICommand.executeCommand`` (bundle line 122128) pass them to
+        Client: ``ACICommand.executeCommand`` (bundle line 122202),
+        ``ABICommand.executeCommand`` (122166) and
+        ``GTICommand.executeCommand`` (122350) pass them to
         ``OtherPlayerData.parseOwnerInfoArray``; the other pre-calculation
         commands do not read them.
         """
