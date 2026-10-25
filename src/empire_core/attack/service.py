@@ -179,8 +179,12 @@ class AttackService(BaseService):
         Supply both treasure-map ids for a treasure node; omit both for ordinary camps.
         Not checked here: the client offers no skip on a Berimond invasion camp
         (``FactionInvasionCampMapObjectVO.cooldownCanBeSkipped``, bundle line 76359).
-        Client: SkippableCooldownMinuteSkipProperties.getMinuteSkipCommand (bundle line 72341),
-        C2SMinuteSkipDungeonVO (bundle lines 72354–72357), MSDCommand (bundle lines 125805–125807).
+        A treasure node can be skipped although ``TreasureDungeonMapObjectVO.cooldownCanBeSkipped`` is
+        false (bundle line 22037): that flag gates only the attack button, and the season map's
+        ``SeaQueenDungeonSeasonMapScreenItem`` and ``SeaQueenVillageSeasonMapScreenItem.onClickMapItem``
+        (bundle lines 108860, 108883) open the skip dialog for a node on cooldown, at position -1, -1.
+        Client: SkippableCooldownMinuteSkipProperties.getMinuteSkipCommand (bundle line 72351),
+        C2SMinuteSkipDungeonVO (bundle line 72364), MSDCommand (bundle line 125816).
         """
         self._check_dungeon_node(map_id, node_id)
         self._require_minute_skip(minute_skip)
@@ -211,8 +215,12 @@ class AttackService(BaseService):
         and kingdom, not the treasure node; same-position late replies cannot be distinguished.
         Not checked here: the client offers no skip on a Berimond invasion camp
         (``FactionInvasionCampMapObjectVO.cooldownCanBeSkipped``, bundle line 76359).
-        Client: SkippableCooldownDialog.skipWithRubies (bundle lines 28197–28199),
-        C2SSkipDungeonCooldownVO (bundle lines 46108–46110), SDCCommand (bundle lines 122356–122360).
+        A treasure node can be skipped although ``TreasureDungeonMapObjectVO.cooldownCanBeSkipped`` is
+        false (bundle line 22037): that flag gates only the attack button, and the season map's
+        ``SeaQueenDungeonSeasonMapScreenItem`` and ``SeaQueenVillageSeasonMapScreenItem.onClickMapItem``
+        (bundle lines 108860, 108883) open the skip dialog for a node on cooldown, at position -1, -1.
+        Client: SkippableCooldownDialog.skipWithRubies (bundle lines 28239–28241),
+        C2SSkipDungeonCooldownVO (bundle line 46116), SDCCommand (bundle line 122367).
         """
         self._check_dungeon_node(map_id, node_id)
         self._require_spend_rubies(spend_rubies, "a full dungeon cooldown skip may cost rubies")

@@ -1,6 +1,6 @@
 """
-The army movements the state tracks, and the sends that start them: support, troops, market goods
-and kingdom transfers.
+The army movements the state tracks, and the sends that start them: support, troops, market goods,
+kingdom transfers and transfers to a season's treasure map.
 """
 
 from __future__ import annotations
@@ -8,6 +8,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from empire_core.enums import Kingdom, KingdomTransferType, Resource
+from empire_core.events.models import SeasonEvent
 from empire_core.exceptions import CommandError, UnsendableGoodsError
 from empire_core.gamedata import Currency, WodAmount, WodAmountMapping
 from empire_core.movements.models import (
@@ -31,6 +32,9 @@ from empire_core.movements.models import (
     SendTownshipSupportRequest,
     SendTownshipSupportResponse,
     SendTroopsRequest,
+    TreasureMapGoodsTransferRequest,
+    TreasureMapTransferSkipRequest,
+    TreasureMapUnitTransferRequest,
 )
 from empire_core.movements.tracked import Movement
 from empire_core.services.base import BaseService
@@ -641,4 +645,130 @@ class MovementsService(BaseService):
         request = MinuteSkipKingdomTransferRequest(
             minute_skip=minute_skip, kingdom_id=kingdom_id, transfer_type=transfer_type
         )
+        self.execute(request, timeout=timeout)
+
+    def transfer_goods_to_treasure_map(
+        self,
+        map_id: int,
+        source_castle_id: int,
+        goods: dict[Resource, int],
+        *,
+        timeout: float = 5.0,
+    ) -> None:
+        """
+        Send wood, stone and food from one of your castles to a season's treasure map camp.
+
+        The goods pass the checks of :meth:`send_resources`, and only the classic goods go: the
+        client hides the other tabs, and the camp stores only those. The source castle may not
+        sit in Berimond, which the client leaves out of its castle picker. The camp's free storage,
+        the travel tax and the season's time left are left to the server. ``client.map.treasure_maps``
+        shows the goods on their way.
+
+        Args:
+            map_id: The season's treasure map
+            source_castle_id: The castle the goods leave from, one of yours
+            goods: Amount per resource, such as ``{Resource.WOOD: 1000}``
+            timeout: Timeout in seconds
+
+        Raises:
+            UnsendableGoodsError: The goods fail one of the checks of :meth:`send_resources`, or
+                hold more than wood, stone and food
+            ValueError: The source castle sits in Berimond
+            UnknownCastleError: ``source_castle_id`` is not in your castle list
+            CommandError: The server refused the transfer, ``NOT_ENOUGH_RESOURCES`` among others
+
+        Client: ``CastleTransferResToSeasonProperties`` (bundle lines 99566-99588): ``exceptingKingdomIDs``,
+        ``hideTabs``, ``getSendResourcesCommand``; ``TreasureMapVO.parseStorage`` (bundle line 140575);
+        ``TGTCommand`` (bundle line 129068)
+        """
+        amounts = self._sendable_goods(goods)
+        if extra := [resource.name for resource in amounts if resource.value not in _CLASSIC_GOODS]:
+            raise UnsendableGoodsError(f"Only wood, stone and food go to a treasure map, not {extra}", goods)
+        source_kingdom = self._require_own_castle(source_castle_id).kingdom_id
+        if source_kingdom == Kingdom.BERIMOND:
+            raise ValueError("Goods cannot be sent to a treasure map from a castle in Berimond")
+        request = TreasureMapGoodsTransferRequest(
+            map_id=map_id, source_castle_id=source_castle_id, source_kingdom_id=source_kingdom, goods=amounts
+        )
+        self.execute(request, timeout=timeout)
+
+    def transfer_units_to_treasure_map(
+        self,
+        map_id: int,
+        source_castle_id: int,
+        units: WodAmountMapping | Sequence[WodAmount],
+        *,
+        timeout: float = 5.0,
+    ) -> None:
+        """
+        Send units from one of your castles to a season's treasure map camp.
+
+        The source castle may not sit in Berimond, which the client leaves out of its castle picker.
+        The camp's free unit slots (``TreasureMapStorage.free_unit_slots``) and the season's time
+        left are left to the server. ``client.map.treasure_maps`` shows the units on their way.
+
+        Args:
+            map_id: The season's treasure map
+            source_castle_id: The castle the units leave from, one of yours
+            units: The units, ``{Unit.X: 100}``
+            timeout: Timeout in seconds
+
+        Raises:
+            ValueError: The source castle sits in Berimond
+            UnknownCastleError: ``source_castle_id`` is not in your castle list
+            CommandError: The server refused the transfer
+
+        Client: ``CastleTransferTroopsToSeasonProperties`` (bundle lines 55367-55392):
+        ``exceptingKingdomID``, ``getUnitTransferCommand``; ``TUTCommand`` (bundle line 129118)
+        """
+        source_kingdom = self._require_own_castle(source_castle_id).kingdom_id
+        if source_kingdom == Kingdom.BERIMOND:
+            raise ValueError("Units cannot be sent to a treasure map from a castle in Berimond")
+        request = TreasureMapUnitTransferRequest(
+            map_id=map_id,
+            source_castle_id=source_castle_id,
+            source_kingdom_id=source_kingdom,
+            units=WodAmount.slots(units),
+        )
+        self.execute(request, timeout=timeout)
+
+    def skip_treasure_map_transfer(
+        self,
+        map_id: int,
+        transfer_type: KingdomTransferType,
+        *,
+        spend_rubies: bool = False,
+        timeout: float = 5.0,
+    ) -> None:
+        """
+        Let the units or goods on their way to a season's treasure map arrive at once, for rubies.
+
+        The request names the season event the map belongs to, taken from the running events.
+
+        Args:
+            map_id: The season's treasure map
+            transfer_type: ``KingdomTransferType.UNITS`` or ``GOODS``
+            spend_rubies: Allow the rubies the skip costs
+            timeout: Timeout in seconds
+
+        Raises:
+            ValueError: ``spend_rubies`` is False, or no running season event has this map
+            CommandError: The server refused the skip
+
+        Client: ``CastleStartSeasonEventDialogSupport.onMouseUp`` (bundle lines 99541, 99543) sends the
+        season's ``eventId``; the skip costs the map's ``skipCostC2`` rubies (bundle line 99514);
+        ``TKTCommand`` (bundle line 129088)
+        """
+        self._require_spend_rubies(spend_rubies, "skipping a treasure map transfer costs rubies")
+        season = next(
+            (
+                event
+                for event in self.client.state.get_events().values()
+                if isinstance(event, SeasonEvent) and event.map_id == map_id
+            ),
+            None,
+        )
+        if season is None:
+            raise ValueError(f"No running season event has treasure map {map_id}")
+        request = TreasureMapTransferSkipRequest(event_id=season.event_id, map_id=map_id, transfer_type=transfer_type)
         self.execute(request, timeout=timeout)

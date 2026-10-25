@@ -45,6 +45,14 @@ from .transfers import (
     MinuteSkipKingdomTransferRequest,
     MinuteSkipKingdomTransferResponse,
 )
+from .treasure_transfers import (
+    TreasureMapGoodsTransferRequest,
+    TreasureMapGoodsTransferResponse,
+    TreasureMapTransferSkipRequest,
+    TreasureMapTransferSkipResponse,
+    TreasureMapUnitTransferRequest,
+    TreasureMapUnitTransferResponse,
+)
 
 __all__ = [
     "CancelMovementRequest",
@@ -64,6 +72,12 @@ __all__ = [
     "MarketInfoResponse",
     "MinuteSkipKingdomTransferRequest",
     "MinuteSkipKingdomTransferResponse",
+    "TreasureMapGoodsTransferRequest",
+    "TreasureMapGoodsTransferResponse",
+    "TreasureMapTransferSkipRequest",
+    "TreasureMapTransferSkipResponse",
+    "TreasureMapUnitTransferRequest",
+    "TreasureMapUnitTransferResponse",
     "MovementArea",
     "MovementArmy",
     "MovementMarket",

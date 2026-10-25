@@ -1,5 +1,5 @@
 """
-Map areas, kingdom scans, ruins and finding map objects, enemy castles and Berimond towers.
+Map areas, kingdom scans, ruins, treasure maps and finding map objects, enemy castles and Berimond towers.
 
 Reading the map moves the session off the castle it had joined: a
 castle-scoped read after a scan fails with NOT_IN_OWNED_CASTLE until the
@@ -28,6 +28,14 @@ from empire_core.map.models.areas import (
 )
 from empire_core.map.models.items import parse_area_rows
 from empire_core.map.models.ruins import RememberRuinRequest, RuinInfoRequest, RuinInfoResponse
+from empire_core.map.models.treasure_maps import (
+    BuyTreasureMapPiecesRequest,
+    FinishTreasureMapRequest,
+    FinishTreasureMapResponse,
+    GetTreasureMapsRequest,
+    TreasureMap,
+    TreasureMapsResponse,
+)
 from empire_core.map.models.world import MapSize
 from empire_core.map.pacing import MapAreaPacer
 from empire_core.map.scanner import ChunkHandler, MapScanner, ScanResult
@@ -309,6 +317,80 @@ class MapService(BaseService):
         Client: ``CastleRelocateRuinDialog.onClick`` (bundle line 60533)
         """
         self.send(RememberRuinRequest(x=x, y=y))
+
+    @property
+    def treasure_maps(self) -> dict[int, TreasureMap] | None:
+        """
+        Your treasure maps by map id, as every ``tmp`` so far left them; None until one arrived.
+
+        The login data brings them, and every treasure map reply updates them.
+        """
+        return self.client.state.get_treasure_maps()
+
+    @property
+    def treasure_hunt_map_id(self) -> int | None:
+        """The treasure hunt's current map, -1 once no map is left; None until the server named one."""
+        return self.client.state.get_treasure_hunt_map_id()
+
+    def get_treasure_maps(self, map_id: int = -1, *, timeout: float = 5.0) -> TreasureMapsResponse:
+        """
+        Ask for your treasure maps; the reply also updates :attr:`treasure_maps`.
+
+        Args:
+            map_id: A season's treasure map, as the client sends when it opens that season's
+                dialog; -1, as it sends otherwise
+            timeout: Timeout in seconds
+
+        Client: ``C2STreasureMapsVO`` (bundle line 24131), ``TMPCommand`` (bundle line 129103)
+        """
+        return self.request(GetTreasureMapsRequest(map_id=map_id), TreasureMapsResponse, timeout=timeout)
+
+    def buy_treasure_map_pieces(
+        self, map_id: int, amount: int, *, spend_rubies: bool = False, timeout: float = 5.0
+    ) -> None:
+        """
+        Buy missing pieces of a treasure map with rubies.
+
+        The server sends the map's new piece count in a ``tmp`` of its own; how many pieces a map
+        has and what one costs are in the game's ``tmaps`` data, which the library does not read.
+
+        Args:
+            map_id: The treasure map
+            amount: Pieces to buy, 1 at least
+            spend_rubies: Allow the rubies the pieces cost
+            timeout: Timeout in seconds
+
+        Raises:
+            ValueError: ``amount`` is below 1, or ``spend_rubies`` is False
+            CommandError: The server refused the purchase
+
+        Client: ``CastleTreasureBuyPieceDialog`` (bundle lines 67945-67949) charges ``costPiece`` rubies
+        a piece and picks 1 at least (``validatePickCount``); ``TBMCommand`` (bundle line 129025)
+        """
+        if amount < 1:
+            raise ValueError(f"Buy 1 piece at least, not {amount}")
+        self._require_spend_rubies(spend_rubies, "treasure map pieces cost rubies")
+        self.execute(BuyTreasureMapPiecesRequest(amount=amount, map_id=map_id), timeout=timeout)
+
+    def finish_treasure_map(self, map_id: int, *, timeout: float = 5.0) -> FinishTreasureMapResponse:
+        """
+        Close a treasure map whose end node fell, which moves the treasure hunt on to its next map.
+
+        The game client sends this itself as soon as the treasure hunt's map reports
+        ``TreasureMapProgress.DESTROYED_END_NODE``, and drops the map; the library leaves both to
+        you, so the map stays in :attr:`treasure_maps` until a full list leaves it out.
+
+        Args:
+            map_id: The treasure map
+            timeout: Timeout in seconds
+
+        Raises:
+            CommandError: The server refused it
+
+        Client: ``CastleTreasureMapData.parse_TMP`` (bundle line 140458), ``C2STreasureFinishMap``
+        (bundle line 57493), ``TFMCommand`` (bundle line 129053)
+        """
+        return self.request(FinishTreasureMapRequest(map_id=map_id), FinishTreasureMapResponse, timeout=timeout)
 
     def _find(self, request: BaseRequest, response_type: type[_F], kingdom: Kingdom, timeout: float) -> _F | None:
         """Send a find-next request; None for NO_PLAYER_FOUND, as ``FNMCommand`` reads it (bundle line 40185)."""

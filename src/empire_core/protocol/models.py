@@ -650,6 +650,17 @@ from empire_core.map.models.owners import (
     OwnerFaction,
 )
 from empire_core.map.models.ruins import RememberRuinRequest, RuinInfoRequest, RuinInfoResponse
+from empire_core.map.models.treasure_maps import (
+    BuyTreasureMapPiecesRequest,
+    BuyTreasureMapPiecesResponse,
+    FinishTreasureMapRequest,
+    FinishTreasureMapResponse,
+    GetTreasureMapsRequest,
+    TreasureHuntInfoResponse,
+    TreasureMap,
+    TreasureMapsResponse,
+    TreasureNodeClickResponse,
+)
 from empire_core.map.models.world import MapSize, ServerInfoResponse
 from empire_core.messages.models import (
     MAX_MAILBOX_ARCHIVE_SIZE,
@@ -1129,6 +1140,15 @@ __all__ = [
     "RememberRuinRequest",
     "RuinInfoRequest",
     "RuinInfoResponse",
+    "BuyTreasureMapPiecesRequest",
+    "BuyTreasureMapPiecesResponse",
+    "FinishTreasureMapRequest",
+    "FinishTreasureMapResponse",
+    "GetTreasureMapsRequest",
+    "TreasureHuntInfoResponse",
+    "TreasureMap",
+    "TreasureMapsResponse",
+    "TreasureNodeClickResponse",
     "ServerInfoResponse",
     "MapObject",
     "KingdomProtection",

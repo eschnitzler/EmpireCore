@@ -37,6 +37,7 @@ from empire_core.commanders.models.skills import SkillList
 from empire_core.events.models import ShuttingDownEvents, SpecialEvent
 from empire_core.events.status_models import RaidBossStatus
 from empire_core.exceptions import StateNotLoadedError
+from empire_core.map.models.treasure_maps import TreasureMap
 from empire_core.map.models.world import ServerInfoResponse
 from empire_core.messages.models import MessageInfo
 from empire_core.movements.models import MovementOwner
@@ -227,6 +228,9 @@ class StateBase:
         self.laboratories: LaboratoryListResponse | None = None
         self.laboratory_reset: LaboratoryResetResponse | None = None
         self.aqua_points: int | float | None = None
+        # Treasure maps by map id, swapped, never edited; the treasure hunt's current map
+        self.treasure_maps: dict[int, TreasureMap] | None = None
+        self.treasure_hunt_map_id: int | None = None
 
         # Freshness bookkeeping (see the GameState docstring). Wall-clock seconds.
         self._packet_times: dict[str, float] = {}
@@ -255,6 +259,10 @@ class StateBase:
     def _handle_gbd(self, data: dict[str, Any]) -> set[str]:
         """Apply login data, or one section in the same shape, and return the sections not applied;
         :class:`GameState` implements it."""
+        raise NotImplementedError
+
+    def _forget_treasure_map_of(self, event: SpecialEvent) -> None:
+        """Drop the treasure map of an event that ended; :class:`TreasureMapState` implements it."""
         raise NotImplementedError
 
     def _handle_gam(self, data: dict[str, Any]) -> None:

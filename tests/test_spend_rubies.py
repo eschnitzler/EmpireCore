@@ -55,6 +55,8 @@ RUBY_REQUESTS = {
     "BuyToolsRequest": "ibt, the tool's costC2 (bundle line 22493)",
     "UnlockPresetRequest": "uas, the slot's attackSetupSlots costC2 (bundle line 141850)",
     "RerollAlienCampRequest": "rae with C2 (CastleRerollAlienDialog.onSendReroll, bundle line 109749)",
+    "BuyTreasureMapPiecesRequest": "tbm, costPiece C2 a piece (CastleTreasureBuyPieceDialog, bundle line 67945)",
+    "TreasureMapTransferSkipRequest": "tkt, the map's skipCostC2 (bundle line 99514)",
 }
 
 SENT_WITHOUT_CONSENT = {

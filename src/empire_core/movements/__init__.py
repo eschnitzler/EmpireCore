@@ -53,6 +53,12 @@ from .models import (
     SiegeMovementResponse,
     TravelTargetArea,
     TravelUnits,
+    TreasureMapGoodsTransferRequest,
+    TreasureMapGoodsTransferResponse,
+    TreasureMapTransferSkipRequest,
+    TreasureMapTransferSkipResponse,
+    TreasureMapUnitTransferRequest,
+    TreasureMapUnitTransferResponse,
 )
 from .service import MovementsService
 from .tracked import Movement, MovementResources
@@ -72,6 +78,12 @@ __all__ = [
     "KingdomUnitTransferResponse",
     "MinuteSkipKingdomTransferRequest",
     "MinuteSkipKingdomTransferResponse",
+    "TreasureMapGoodsTransferRequest",
+    "TreasureMapGoodsTransferResponse",
+    "TreasureMapTransferSkipRequest",
+    "TreasureMapTransferSkipResponse",
+    "TreasureMapUnitTransferRequest",
+    "TreasureMapUnitTransferResponse",
     "GetTravelInfoRequest",
     "GetTravelInfoResponse",
     "TravelTargetArea",
