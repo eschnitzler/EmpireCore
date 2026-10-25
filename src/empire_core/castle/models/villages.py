@@ -103,7 +103,7 @@ class VillageListResponse(BaseResponse):
 
 
 _VILLAGE_TYPE = "The village type's id in the game data's privateVillages table"
-_VILLAGE = "Your village's own id, a kgv PV row's VID"
+_VILLAGE = "Your private village's id, as in PrivateVillage.village_id"
 
 
 class BuyPrivateVillageRequest(BaseRequest):

@@ -1,4 +1,4 @@
-"""Units and goods sent to a season's treasure map (tgt, tut) and the ruby skip of their transfer (tkt)."""
+"""Units and goods sent to a season's treasure map (tgt, tut) and the skips of their transfer (tkt, msm)."""
 
 from __future__ import annotations
 
@@ -108,3 +108,25 @@ class TestTransferSkip:
         assert conn(client).request_payloads == []
         client.movements.skip_treasure_map_transfer(23, KingdomTransferType.UNITS, spend_rubies=True)
         assert conn(client).request_payloads == [("tkt", {"EID": 64, "MID": 23, "TT": 1})]
+
+
+class TestMinuteSkip:
+    SEASON = {"E": [{"EID": 64, "RS": 600, "UL": {"UL": 1, "MID": 23}}]}
+
+    def test_skip_sends_the_map_of_a_running_season(self):
+        client = make_client({"msm": xt_packet("msm", {"tmp": TMP})}, state=logged_in_state(sei=self.SEASON))
+        client.movements.skip_treasure_map_transfer_time(23, KingdomTransferType.UNITS, "MS1")
+        assert conn(client).request_payloads == [("msm", {"MID": 23, "TT": 1, "MST": "MS1"})]
+
+    def test_a_map_of_no_running_season_or_a_currency_that_is_no_minute_skip_sends_nothing(self):
+        client = make_client(state=logged_in_state(sei=self.SEASON))
+        with pytest.raises(ValueError, match="No running season event"):
+            client.movements.skip_treasure_map_transfer_time(99, KingdomTransferType.UNITS, "MS1")
+        with pytest.raises(ValueError, match="no minute skip"):
+            client.movements.skip_treasure_map_transfer_time(23, KingdomTransferType.UNITS, "LT")
+        assert conn(client).request_payloads == []
+
+    def test_a_refused_skip_raises(self):
+        client = make_client({"msm": xt_packet("msm", error_code=1)}, state=logged_in_state(sei=self.SEASON))
+        with pytest.raises(CommandError):
+            client.movements.skip_treasure_map_transfer_time(23, KingdomTransferType.GOODS, "MS1")

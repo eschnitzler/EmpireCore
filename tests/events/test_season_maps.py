@@ -1,4 +1,4 @@
-"""Season event maps: entering the camp (jea), taking a prebuilt camp (csc) and minute-skipping a transfer (msm)."""
+"""Season event maps: entering the camp (jea), taking a prebuilt camp (csc) and the msm request."""
 
 import pytest
 
@@ -69,25 +69,6 @@ def test_minute_skip_sends_map_type_then_skip_key():
     payload = request.to_payload()
     assert list(payload) == ["MID", "TT", "MST"]
     assert payload == {"MID": 21, "TT": 2, "MST": "MS1"}
-
-
-def test_skip_season_transfer_time_sends_the_running_events_map():
-    client = season_client()
-    client.events.skip_season_transfer_time(Event.THORNKING, KingdomTransferType.UNITS, "MS1")
-    assert conn(client).request_payloads == [("msm", {"MID": 21, "TT": 1, "MST": "MS1"})]
-
-
-def test_a_currency_that_is_no_minute_skip_is_refused():
-    client = season_client()
-    with pytest.raises(ValueError, match="no minute skip"):
-        client.events.skip_season_transfer_time(Event.THORNKING, KingdomTransferType.UNITS, "LT")
-    assert conn(client).request_payloads == []
-
-
-def test_a_refused_minute_skip_raises():
-    client = season_client({"msm": xt_packet("msm", error_code=1)})
-    with pytest.raises(CommandError):
-        client.events.skip_season_transfer_time(Event.THORNKING, KingdomTransferType.GOODS, "MS1")
 
 
 def test_an_event_with_no_map_is_refused():

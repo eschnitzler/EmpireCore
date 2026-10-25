@@ -231,7 +231,7 @@ The minigame calls update the event they play, as the game does:
 | `buy_lucky_wheel_jackpot()`, `increase_lucky_wheel_win_class()` | `LUCKY_WHEEL` | `spend_rubies` |
 | `pull_gacha(event, pulls)` | the gacha events | `spend_rubies` (the price is in game data the library does not load) |
 | `donate_to_colossus(castle_id, wood=, stone=)`, `donate_to_coin_colossus(coins)` | the colossi | no |
-| `get_donation_progress()`, `donate_items({item_id: amount})`, `donated_points` | `DONATION_EVENT` | no |
+| `get_donation_progress()`, `donate_items({item_id: amount})`, `donated_points` | `DONATION_EVENT` | `donate_items` needs `spend_rubies` (an item can be rubies, in game data the library does not load) |
 | `give_marauder_packages(castle_id, ...)` | `BEGGING_KNIGHTS` | no; returns your points |
 | `buy_artifact_pieces(event, pieces)` | the artifact events | `spend_rubies` |
 | `validate_bounty_target()`, `skip_bounty_target()` | `BOUNTYHUNTER` | the skip needs `spend_rubies` |

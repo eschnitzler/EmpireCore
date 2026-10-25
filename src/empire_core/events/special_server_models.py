@@ -12,9 +12,9 @@ Commands:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, field_serializer, field_validator, model_validator
 
 from empire_core.enums import ServerType
 from empire_core.gamedata import EnumOrInt
@@ -37,9 +37,15 @@ class SelectSpecialServerCastleRequest(BaseRequest):
     command: ClassVar[str] = "tsc"
 
     castle_id: int = Field(validation_alias="ID", description="The pre-built castle's id")
-    ruby_castle: int = Field(validation_alias="OC2", default=0, description="1 for a castle priced in rubies")
-    reserved: int = Field(validation_alias="PWR", default=0, description="Always 0; the client never sets it")
+    ruby_castle: bool = Field(validation_alias="OC2", default=False, description="The castle is priced in rubies")
+    pay_with_rubies: Literal[0] = Field(
+        validation_alias="PWR", default=0, description="Always 0: missing resources are never paid with rubies"
+    )
     server_type: ServerType = Field(validation_alias="GST", description="The special server the castle is for")
+
+    @field_serializer("ruby_castle")
+    def _flag(self, value: bool) -> int:
+        return int(value)
 
 
 class SelectSpecialServerCastleResponse(BaseResponse):

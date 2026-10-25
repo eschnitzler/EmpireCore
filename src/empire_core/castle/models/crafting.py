@@ -23,7 +23,7 @@ from pydantic import (
 
 from empire_core.enums import BuildingState, CraftingSlotType, Kingdom
 from empire_core.gamedata import EnumOrInt, EnumOrStr
-from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse
+from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, EmpireModel
 from empire_core.protocol.js import js_int, js_parse_int, js_truthy
 
 from .objects import _building_state
@@ -49,38 +49,67 @@ _NOT_WORKING = frozenset(
 )
 
 
-class CraftingSlots(BasePayload):
+class CraftingSlot(EmpireModel):
     """
-    The slots of one kind in a crafting queue, as parallel lists in slot order.
+    One slot of a crafting queue.
 
-    A slot crafts when its recipe id is above 0 and its time is not up. The game data lists how many
-    permanent and temporary slots each queue has; only temporary slots take an unlock time.
+    The permanent slots come first, then the temporary ones, which craft only while unlocked. The game data
+    that counts each queue's slots is not loaded here, so the slots are the ones the server lists, and the
+    temporary ones are the last of them, one per unlock time sent.
 
-    Client: ``CraftingQueueVO.parseServerData`` (bundle line 29278), ``CraftingSlotVO.isFilled`` and
-    ``isLocked`` (bundle lines 17005-17006)
+    Client: ``CraftingQueueVO.parseServerData`` (bundle line 29278); ``CraftingSlotVO.isFilled`` and
+    ``isLocked`` (bundle lines 17002-17003)
     """
 
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
-    recipe_ids: tuple[int, ...] = Field(
-        validation_alias="CRID", default=(), description="The crafting recipe of each slot, from the first"
+    index: int = Field(description="The slot's place among the slots of its kind, from 0")
+    slot_type: CraftingSlotType = Field(description="Whether the slot crafts now or waits")
+    recipe_id: int | None = Field(default=None, description="The crafting recipe in the slot; None while empty")
+    remaining_seconds: int | None = Field(
+        default=None, description="Seconds until the craft is done; None when not sent, the recipe's full time"
     )
-    remaining_seconds: tuple[int, ...] = Field(
-        validation_alias="RCT", default=(), description="Seconds until each slot's craft is done"
+    unlock_seconds: int | None = Field(
+        default=None,
+        description="Seconds a temporary slot stays unlocked, locked at 0 or less; None for a permanent slot",
     )
-    unlock_seconds: tuple[int, ...] = Field(
-        validation_alias="RUT",
-        default=(),
-        description="Seconds each temporary slot stays unlocked, one per temporary slot; locked at 0 or less",
-    )
-    booster_values: tuple[int, ...] = Field(
-        validation_alias="BV", default=(), description="The booster value of each slot; 0 for a slot it omits"
-    )
+    booster_value: int = Field(default=0, description="The booster value of the slot")
 
-    @field_validator("recipe_ids", "remaining_seconds", "unlock_seconds", "booster_values", mode="before")
-    @classmethod
-    def _ints(cls, value: Any) -> Any:
-        return tuple(js_int(entry) for entry in value) if isinstance(value, list) else value
+    @property
+    def is_temporary(self) -> bool:
+        """Whether the slot must be unlocked to craft."""
+        return self.unlock_seconds is not None
+
+    @property
+    def is_locked(self) -> bool:
+        """Whether the slot is temporary and not unlocked now."""
+        return self.unlock_seconds is not None and self.unlock_seconds <= 0
+
+    @property
+    def is_filled(self) -> bool:
+        """Whether a craft runs in the slot."""
+        return self.recipe_id is not None and (self.remaining_seconds is None or self.remaining_seconds > 0)
+
+
+def _slots(value: Any, slot_type: CraftingSlotType) -> Any:
+    if not isinstance(value, dict):
+        return value if isinstance(value, (list, tuple)) else ()
+    recipes, times, unlocks, boosters = (
+        [js_int(entry) for entry in value.get(key) or []] for key in ("CRID", "RCT", "RUT", "BV")
+    )
+    count = max(len(recipes), len(times), len(boosters), len(unlocks))
+    first_temporary = count - len(unlocks)
+    return tuple(
+        {
+            "index": index,
+            "slot_type": slot_type,
+            "recipe_id": recipes[index] if index < len(recipes) and recipes[index] > 0 else None,
+            "remaining_seconds": times[index] if index < len(times) else None,
+            "unlock_seconds": unlocks[index - first_temporary] if index >= first_temporary else None,
+            "booster_value": boosters[index] if index < len(boosters) else 0,
+        }
+        for index in range(count)
+    )
 
 
 class CraftingQueue(BasePayload):
@@ -100,11 +129,11 @@ class CraftingQueue(BasePayload):
     )
     queue_id: int = Field(validation_alias="CQID", description="The crafting queue, one per kind of crafting building")
     object_id: int = Field(validation_alias="OID", description="The crafting building's object id in the castle")
-    production: CraftingSlots = Field(
-        validation_alias="PS", default_factory=CraftingSlots, description="The slots crafting now"
+    production: tuple[CraftingSlot, ...] = Field(
+        validation_alias="PS", default=(), description="The slots crafting now, from the first"
     )
-    queue: CraftingSlots = Field(
-        validation_alias="QS", default_factory=CraftingSlots, description="The slots waiting behind them"
+    queue: tuple[CraftingSlot, ...] = Field(
+        validation_alias="QS", default=(), description="The slots waiting behind them, from the first"
     )
 
     @field_validator("building_state", mode="before")
@@ -112,10 +141,15 @@ class CraftingQueue(BasePayload):
     def _state(cls, value: Any) -> BuildingState:
         return _building_state(value)
 
-    @field_validator("production", "queue", mode="before")
+    @field_validator("production", mode="before")
     @classmethod
-    def _slots(cls, value: Any) -> Any:
-        return value if js_truthy(value) else {}
+    def _production(cls, value: Any) -> Any:
+        return _slots(value, CraftingSlotType.PRODUCTION)
+
+    @field_validator("queue", mode="before")
+    @classmethod
+    def _queue(cls, value: Any) -> Any:
+        return _slots(value, CraftingSlotType.QUEUE)
 
     @property
     def is_working(self) -> bool:
@@ -125,9 +159,21 @@ class CraftingQueue(BasePayload):
         """
         return self.building_state not in _NOT_WORKING
 
-    def slots(self, slot_type: CraftingSlotType) -> CraftingSlots:
+    def slots(self, slot_type: CraftingSlotType) -> tuple[CraftingSlot, ...]:
         """The slots of one kind."""
         return self.production if slot_type is CraftingSlotType.PRODUCTION else self.queue
+
+    def unlock_indices(self, slot: CraftingSlot) -> tuple[int, ...]:
+        """The slots unlocking a slot buys: it and every locked slot right before it, first to last.
+
+        Client: ``CastleCraftingData.buySlot`` (bundle line 111430), ``CraftingSlotVO.previousSlot``
+        (bundle line 17017)
+        """
+        slots = self.slots(slot.slot_type)
+        first = slot.index
+        while first > 0 and slots[first - 1].is_locked:
+            first -= 1
+        return tuple(range(first, slot.index + 1))
 
 
 class GetCraftingInfoRequest(BaseRequest):
@@ -441,13 +487,11 @@ class SkipConstructionCraftingRequest(BaseRequest):
 
     kingdom: Kingdom = Field(validation_alias="KID", description="The castle's kingdom")
     castle_id: int = Field(validation_alias="AID", description="The castle")
-    finish_for_rubies: bool = Field(
-        validation_alias="PWR", default=False, description="Finish the craft for rubies; sent as 1 or 0"
-    )
+    finish_for_rubies: bool = Field(validation_alias="PWR", default=False, description="Finish the craft for rubies")
     minute_skip: EnumOrStr["Currency"] = Field(
         validation_alias="MST",
-        description="The minute skip used, ``Currency.SKIP_1_MINUTE`` to ``SKIP_24_HOURS``, sent as its key; "
-        '``"-"`` to finish for rubies',
+        description='The minute skip used, ``Currency.SKIP_1_MINUTE`` to ``SKIP_24_HOURS``; ``"-"`` to finish '
+        "for rubies",
     )
 
     @field_validator("minute_skip", mode="wrap")
@@ -482,7 +526,7 @@ __all__ = [
     "CraftConstructionItemResponse",
     "CraftingInfoResponse",
     "CraftingQueue",
-    "CraftingSlots",
+    "CraftingSlot",
     "GetConstructionCraftingRequest",
     "GetCraftingInfoRequest",
     "MoveCraftingSlotRequest",

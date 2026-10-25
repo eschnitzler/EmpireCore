@@ -50,7 +50,7 @@ class TreasureMapGoodsTransferRequest(BaseRequest):
     )
     goods: ResourceAmounts = Field(
         validation_alias="G",
-        description="The amount of each resource to send, sent as [key, amount] pairs such as ['W', 1000]",
+        description="The amount of each resource to send",
     )
 
 

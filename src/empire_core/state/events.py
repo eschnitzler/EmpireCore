@@ -81,8 +81,8 @@ EventsCallback = Callable[[dict[int, SpecialEvent]], Any]
 class EventState(StateBase):
     _grand_tournament_generation = 0
     _grand_tournament_action_context: tuple[int, int | None, int] | None = None
-    # The gacha event a dge was sent for: its reply names only the gacha level, which the client maps to the
-    # event through game data the library does not load
+    # The gacha event a dge was sent for: its reply names only the gachas row pulled from, which the client
+    # maps to the event through game data the library does not load
     _gacha_spin_event: int | None = None
 
     def _quest_action_context(self) -> tuple[int, int | None, int] | None:
@@ -444,6 +444,9 @@ class EventState(StateBase):
 
     def _handle_tcc(self, data: Any) -> None:
         """Keep your special server castles and mark the running temporary server event's castle bought or not.
+
+        The client also marks the alliance battleground event's ``castleBought``; with no model for that
+        event here, ``special_server_castles`` alone carries the battleground flag.
 
         Client: ``TCCCommand.executeCommand`` (bundle line 127354)
         """

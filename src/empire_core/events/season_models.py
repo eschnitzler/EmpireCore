@@ -114,7 +114,7 @@ class MinuteSkipSeasonTransferRequest(BaseRequest):
     )
     minute_skip: EnumOrStr["Currency"] = Field(
         validation_alias="MST",
-        description="The minute skip used, ``Currency.SKIP_1_MINUTE`` to ``SKIP_24_HOURS``; sent as its key",
+        description="The minute skip used, ``Currency.SKIP_1_MINUTE`` to ``SKIP_24_HOURS``",
     )
 
 
@@ -125,7 +125,7 @@ class MinuteSkipSeasonTransferResponse(BaseResponse):
     Command: msm
     Payload: {"tmp": {...}}
 
-    ``tmp``, the treasure map's progress, is not read.
+    The reply model reads nothing; its ``tmp``, the treasure maps, reaches ``client.map.treasure_maps``.
 
     Client: ``MSMCommand.executeCommand`` (bundle line 125852), which hands ``tmp`` to
     ``CastleTreasureMapData.parse_TMP``

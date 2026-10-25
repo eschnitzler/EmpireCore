@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING
 
-from empire_core.enums import EquipmentSlot, EquipmentType, Rareness, WearerType
+from empire_core.enums import EquipmentSlot, EquipmentType, PackageBuyType, Rareness, WearerType
 from empire_core.utils.lazy import lazy_exports
 
 from .models import (
@@ -98,6 +98,7 @@ if TYPE_CHECKING:
     from empire_core.gamedata import (
         Currency,
         CurrencyId,
+        Event,
         Gem,
         GemColor,
         General,
@@ -194,6 +195,7 @@ __all__ = [
     "WearerType",
     "EquipmentType",
     "Rareness",
+    "PackageBuyType",
     "CommandersService",
     "EquipmentService",
     "NewRelicsResponse",
@@ -202,6 +204,7 @@ __all__ = [
     "InventorySpace",
     "Currency",
     "CurrencyId",
+    "Event",
     "Gem",
     "GemColor",
     "General",
@@ -220,6 +223,7 @@ if not TYPE_CHECKING:
         (
             "Currency",
             "CurrencyId",
+            "Event",
             "Gem",
             "GemColor",
             "General",

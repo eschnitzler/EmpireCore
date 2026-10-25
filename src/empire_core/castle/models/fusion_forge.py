@@ -286,7 +286,7 @@ class FuseDecorationRequest(BaseRequest):
 
     catalyst_id: EnumOrInt["CurrencyId"] = Field(validation_alias="FCID", description="The catalyst, a currency")
     pay_with_rubies: bool = Field(
-        validation_alias="FFFP", default=False, description="The premium fusion, paid in rubies; sent as 1 or 0"
+        validation_alias="FFFP", default=False, description="The premium fusion, paid in rubies"
     )
     source_unique_id: int = Field(validation_alias="FSUID", description="The stored decoration's unique id")
     source_wod_id: EnumOrInt["Building"] = Field(validation_alias="FSWID", description="Its building type")

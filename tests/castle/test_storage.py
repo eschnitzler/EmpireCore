@@ -89,15 +89,15 @@ class TestState:
 
 
 class TestService:
-    def test_get_deco_storage_reads_and_keeps_the_storages(self):
+    def test_get_decoration_storages_reads_and_keeps_the_storages(self):
         client = make_client({"sin": xt_packet("sin", [MAIN])}, state=GameState())  # type: ignore[arg-type]
         conn(client).on_packet = client._on_packet
 
-        storages = client.castle.get_deco_storage()
+        storages = client.castle.get_decoration_storages()
 
         assert conn(client).request_frames[0].endswith("%sin%-1%")
         assert [storage.storage_id for storage in storages] == [DecorationStorageId.GLOBAL]
-        assert set(client.castle.deco_storages) == {DecorationStorageId.GLOBAL}
+        assert set(client.castle.decoration_storages) == {DecorationStorageId.GLOBAL}
 
     def test_store_sell_and_place(self):
         client = make_client(

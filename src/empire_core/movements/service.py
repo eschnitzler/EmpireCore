@@ -9,6 +9,7 @@ from collections.abc import Sequence
 
 from empire_core.enums import Kingdom, KingdomTransferType, Resource
 from empire_core.events.models import SeasonEvent
+from empire_core.events.season_models import MinuteSkipSeasonTransferRequest
 from empire_core.exceptions import CommandError, UnsendableGoodsError
 from empire_core.gamedata import Currency, WodAmount, WodAmountMapping
 from empire_core.movements.models import (
@@ -761,18 +762,45 @@ class MovementsService(BaseService):
         ``TKTCommand`` (bundle line 129088)
         """
         self._require_spend_rubies(spend_rubies, "skipping a treasure map transfer costs rubies")
-        season = next(
-            (
-                event
-                for event in self.client.state.get_events().values()
-                if isinstance(event, SeasonEvent) and event.map_id == map_id
-            ),
-            None,
-        )
-        if season is None:
-            raise ValueError(f"No running season event has treasure map {map_id}")
+        season = self._running_season(map_id)
         request = TreasureMapTransferSkipRequest(event_id=season.event_id, map_id=map_id, transfer_type=transfer_type)
         self.execute(request, timeout=timeout)
+
+    def skip_treasure_map_transfer_time(
+        self,
+        map_id: int,
+        transfer_type: KingdomTransferType,
+        minute_skip: Currency | str,
+        *,
+        timeout: float = 5.0,
+    ) -> None:
+        """
+        Shorten the units or goods on their way to a season's treasure map with a minute skip item.
+
+        Args:
+            map_id: The season's treasure map
+            transfer_type: ``KingdomTransferType.UNITS`` or ``GOODS``
+            minute_skip: The minute skip used, ``Currency.SKIP_1_MINUTE`` to ``SKIP_24_HOURS``
+            timeout: Timeout in seconds
+
+        Raises:
+            ValueError: No running season event has this map, or ``minute_skip`` is no minute skip you hold
+            CommandError: The server refused the skip
+
+        Client: ``SeasonTravelGoodsMinuteSkipProperties.getMinuteSkipCommand`` and
+        ``SeasonTravelUnitsMinuteSkipProperties.getMinuteSkipCommand`` (bundle lines 99612, 99644);
+        ``MSMCommand`` (bundle line 125852)
+        """
+        self._running_season(map_id)
+        self._require_minute_skip(minute_skip)
+        request = MinuteSkipSeasonTransferRequest(map_id=map_id, transfer_type=transfer_type, minute_skip=minute_skip)
+        self.execute(request, timeout=timeout)
+
+    def _running_season(self, map_id: int) -> SeasonEvent:
+        for event in self.client.state.get_events().values():
+            if isinstance(event, SeasonEvent) and event.map_id == map_id:
+                return event
+        raise ValueError(f"No running season event has treasure map {map_id}")
 
     def skip_kingdom_transfer(
         self,

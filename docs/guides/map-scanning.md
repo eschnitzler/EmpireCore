@@ -235,8 +235,9 @@ map, -1 once none is left.
 - `client.map.finish_treasure_map(map_id)` closes a map whose end node fell
   (`TreasureMapProgress.DESTROYED_END_NODE`), which the game sends by itself.
 - `client.movements.transfer_goods_to_treasure_map`,
-  `transfer_units_to_treasure_map` and `skip_treasure_map_transfer` send to a
-  season's map camp, as the season dialog does.
+  `transfer_units_to_treasure_map`, `skip_treasure_map_transfer` (rubies) and
+  `skip_treasure_map_transfer_time` (a minute skip item) send to a season's map
+  camp, as the season dialog does.
 
 ## Runnable example
 

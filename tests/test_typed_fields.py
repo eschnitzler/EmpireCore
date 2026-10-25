@@ -37,12 +37,6 @@ if TYPE_CHECKING:
 _CONTAINERS = (list, tuple, set, frozenset)
 
 ALLOWED: dict[str, str] = {
-    "castle.models.crafting.CraftingSlots.booster_values": "booster values, one per slot; not ids",
-    "castle.models.crafting.CraftingSlots.recipe_ids": (
-        "crafting recipe ids, one per slot: the trimmed items carry no craftingRecipes table for an enum"
-    ),
-    "castle.models.crafting.CraftingSlots.remaining_seconds": "seconds, one per slot; not ids",
-    "castle.models.crafting.CraftingSlots.unlock_seconds": "seconds, one per temporary slot; not ids",
     "castle.models.crafting.UnlockCraftingSlotsRequest.slot_indices": "slot positions in a queue; not ids",
     "castle.models.fusion_forge.GetFusionForgesRequest.forge_ids": (
         "fusion system ids: the trimmed items carry no fusionSystems table for an enum"

@@ -153,9 +153,15 @@ class TestDonation:
     def test_donation_sends_the_items_given(self):
         reply = {"DIS": [{"DII": 5, "DIP": 130}]}
         client = events_client([{"EID": 123}], {"ddi": xt_packet("ddi", reply)})
-        points = client.events.donate_items({5: 10, 6: 0})
+        points = client.events.donate_items({5: 10, 6: 0}, spend_rubies=True)
         assert conn(client).request_payloads == [("ddi", {"DIV": [{"DII": 5, "DIA": 10}]})]
         assert points[0].points == 130 and client.events.donated_points == points
+
+    def test_a_donation_without_consent_sends_nothing(self):
+        client = events_client([{"EID": 123}])
+        with pytest.raises(ValueError, match="spend_rubies"):
+            client.events.donate_items({5: 10})
+        assert conn(client).request_payloads == []
 
 
 def test_marauder_packages_then_points():
@@ -180,6 +186,13 @@ class TestArtifact:
         assert conn(client).request_payloads == [("sap", {"A": 3, "EID": 23, "KID": 2})]
         assert result.parts_found == 4 and result.currency is not None and result.currency.rubies == 2
         assert client.state.get_event(23).parts_found == 4
+
+    def test_an_event_without_kingdoms_sends_kingdom_0(self):
+        # parseBasicsFromXmlNode reads a missing kIDs as "0"
+        client = events_client([{"EID": 23, "PF": 1}], {"sap": xt_packet("sap", {"EID": 23, "PF": 2})})
+        client.game_data = GameData.parse("test", {"events": [{"eventID": "23"}]})
+        client.events.buy_artifact_pieces(23, 1, spend_rubies=True)
+        assert conn(client).request_payloads == [("sap", {"A": 1, "EID": 23, "KID": 0})]
 
     def test_found_push_updates_a_running_event_only(self):
         client = events_client([{"EID": 23, "PF": 1}])
