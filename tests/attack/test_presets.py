@@ -1,11 +1,11 @@
-"""client.attack preset methods: gas, sas and upan."""
+"""client.attack preset methods: gas, sas, upan and uas."""
 
 from __future__ import annotations
 
 import pytest
 
 from empire_core.exceptions import CommandError
-from empire_core.gamedata import WodAmount
+from empire_core.gamedata import GameData, WodAmount
 from empire_core.protocol.models import AttackWave, PresetArmy
 from tests.service_helpers import conn, make_client, xt_packet
 
@@ -66,3 +66,39 @@ class TestRenamePreset:
         client = make_client()
         client.attack.rename_preset(1, "x" * 15)
         assert conn(client).request_payloads == [("upan", {"S": 1, "SN": "x" * 15})]
+
+
+class TestUnlockPreset:
+    SLOTS = {"attackSetupSlots": [{"slotID": "1", "costC2": "750"}, {"slotID": "2", "costC1": "5000"}]}
+
+    def test_sends_the_slot_with_consent(self):
+        client = make_client()
+        client.game_data = GameData.parse("test", self.SLOTS)
+
+        client.attack.unlock_preset(1, spend_rubies=True)
+
+        assert conn(client).request_payloads == [("uas", {"S": 1})]
+
+    def test_a_ruby_slot_needs_consent(self):
+        client = make_client()
+        client.game_data = GameData.parse("test", self.SLOTS)
+        with pytest.raises(ValueError, match="750 rubies"):
+            client.attack.unlock_preset(1)
+        assert conn(client).request_payloads == []
+
+    def test_a_coin_slot_needs_none(self):
+        client = make_client()
+        client.game_data = GameData.parse("test", self.SLOTS)
+        client.attack.unlock_preset(2)
+        assert conn(client).request_payloads == [("uas", {"S": 2})]
+
+    def test_a_slot_the_game_data_lacks_needs_consent(self):
+        client = make_client()
+        client.game_data = GameData.parse("test", self.SLOTS)
+        with pytest.raises(ValueError, match="not in the game data"):
+            client.attack.unlock_preset(5)
+
+    def test_a_refusal_raises(self):
+        client = make_client({"uas": xt_packet("uas", error_code=1)})
+        with pytest.raises(CommandError):
+            client.attack.unlock_preset(1, spend_rubies=True)

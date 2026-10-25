@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING
 
-from empire_core.enums import Kingdom, MapItemType, NPCOwner, PeaceModeStatus
+from empire_core.enums import FactionProtectionStatus, Kingdom, MapItemType, NPCOwner, PeaceModeStatus
 from empire_core.utils.lazy import lazy_exports
 
 from .models import (
@@ -85,6 +85,7 @@ __all__ = [
     "scan_kingdom_with",
     "MapService",
     "PeaceModeStatus",
+    "FactionProtectionStatus",
     "AllianceCrestColor",
     "AllianceCrestLayout",
     "Title",

@@ -14,6 +14,7 @@ from empire_core.alliance.models.chat import ChatMessageData
 from empire_core.alliance.models.gifts import AllianceGift
 from empire_core.alliance.models.help import AllianceHelpRequest
 from empire_core.alliance.models.info import AllianceInfo
+from empire_core.attack.models.alien_camps import AlienRerollCountsResponse
 from empire_core.attack.models.counter import AttackCounterResponse
 from empire_core.castle.models.collect import MineStatus, ResourceCart
 from empire_core.castle.models.construction_items import (
@@ -172,6 +173,8 @@ class StateBase:
         self.events: dict[int, SpecialEvent] = {}
         self._events_updated_at: float | None = None
         self._raid_boss_receipt: tuple[dict[str, Any], RaidBossStatus] | None = None
+        # The client keeps one set of counts for every alien invasion (CastleAlienRerollData)
+        self.alien_reroll_counts: AlienRerollCountsResponse | None = None
 
         # Active quests by id, the quest book and the daily quests; each replaced, never edited
         self.quests: dict[int, Quest] = {}

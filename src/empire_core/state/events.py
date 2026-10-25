@@ -2,12 +2,15 @@
 
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from typing import Any, Literal
 
 from pydantic import ValidationError
 from typing_extensions import overload
 
+from empire_core.attack.models.alien_camps import AlienRerollCountsResponse
+from empire_core.attack.models.taunts import RagePointsResponse
+from empire_core.enums import Kingdom
 from empire_core.events.faction_models import BerimondKingdomStatus
 from empire_core.events.models import (
     AlienInvasionEvent,
@@ -45,8 +48,10 @@ from empire_core.events.models import (
 )
 from empire_core.events.status_models import GrandTournamentQuestStatus, GrandTournamentQuestUpdate, RaidBossStatus
 from empire_core.gamedata.ids.events import Event
+from empire_core.map.models.areas import KingdomProtection
+from empire_core.player.models.protection import StartFactionProtectionResponse
 from empire_core.protocol.js import js_int, js_truthy
-from empire_core.state.base import StateBase
+from empire_core.state.base import StateBase, read_section
 from empire_core.utils import callbacks
 
 logger = logging.getLogger(__name__)
@@ -168,6 +173,9 @@ class EventState(StateBase):
                 continue
             previous = events.get(eid)
             events[eid] = model.from_entry(eid, entry, previous, now, events)
+            if isinstance(events[eid], AlienInvasionEvent):
+                # AAlienInvasionEventVO.parseData (bundle line 58933) reads the entry with parse_RCE too
+                self._handle_rce(entry)
             if previous is None:
                 if eid == Event.GRAND_TOURNAMENT:
                     self._grand_tournament_generation += 1
@@ -338,6 +346,61 @@ class EventState(StateBase):
             self.events = {**self.events, event.event_id: event.model_copy(update={"reward_collected": True})}
             self._fire(self.on_events_updated, dict(self.events))
 
+    def _apply_faction_protection(self, blocks: Iterable[KingdomProtection]) -> None:
+        """Read a Berimond protection block over the running Berimond event.
+
+        Where the library differs: the client reads it only while it shows Berimond, as the block
+        names the kingdom it is for.
+
+        Client: ``CastleUserData.parse_UAP`` (bundle line 9906) hands it to ``FactionEventVO.parse_uap``
+        (bundle line 7364)
+        """
+        event = self.events.get(Event.FACTION)
+        berimond = [block for block in blocks if block.kingdom_id == Kingdom.BERIMOND]
+        if not (isinstance(event, BerimondEvent) and berimond):
+            return
+        for block in berimond:
+            event = event.with_protection(block, _clock())
+        self._replace_event(event)
+
+    def _handle_ffp(self, data: Any) -> None:
+        """Apply a faction protection purchase's ``FN`` to the running Berimond event; its ``gcu`` is a nested section.
+
+        Client: ``FFPCommand.executeCommand`` (bundle line 127785), ``CastleSpecialEventData.parse_FN``
+        (bundle line 139876), which does nothing without the event or the block
+        """
+        event = self.events.get(Event.FACTION)
+        reply = read_section(StartFactionProtectionResponse, data, "the faction protection")
+        if isinstance(event, BerimondEvent) and reply is not None and reply.faction is not None:
+            self._replace_event(event.with_faction(reply.faction, _clock()))
+
+    def _handle_rpr(self, data: Any) -> None:
+        """Apply a rage points push to the running alliance nomad invasion it names.
+
+        Client: ``RPRCommand.executeCommand`` (bundle line 128217), which looks the ``EID`` up as sent,
+        and ``AllianceNomadInvasionEventVO.parse_RPR`` (bundle line 114369)
+        """
+        rage = read_section(RagePointsResponse, data, "the rage points")
+        event = self._sent_event(data.get("EID") if isinstance(data, dict) else None)
+        if rage is not None and isinstance(event, NomadInvasionEvent):
+            self._replace_event(
+                event.model_copy(update={"player_rage": rage.player_rage, "player_total_rage": rage.player_total_rage})
+            )
+
+    def _handle_rce(self, data: Any) -> None:
+        """Apply an alien reroll counts push over the counts known.
+
+        Client: ``RCECommand.executeCommand`` (bundle line 127142), ``CastleAlienRerollData.parse_RCE``
+        (bundle line 133595)
+        """
+        if (counts := read_section(AlienRerollCountsResponse, data, "the alien reroll counts")) is not None:
+            self.alien_reroll_counts = counts.merged_into(self.alien_reroll_counts)
+
+    def _replace_event(self, event: SpecialEvent) -> None:
+        self.events = {**self.events, event.event_id: event}
+        self._events_updated_at = time.time()
+        self._fire(self.on_events_updated, dict(self.events))
+
     def _sent_event(self, eid: Any) -> SpecialEvent | None:
         # The id as sent, compared as the client's Map compares keys: 3.0 is 3, "3" is not
         if not isinstance(eid, (int, float)) or isinstance(eid, bool):
@@ -377,6 +440,11 @@ class EventState(StateBase):
                 if event.event_id == Event.ALLIANCE_RAIDBOSS_EVENT:
                     self._raid_boss_receipt = None
                 self._fire(self.on_event_removed, event)
+
+    def get_alien_reroll_counts(self) -> AlienRerollCountsResponse | None:
+        """How often you rerolled alien camps, from the last ``rce`` and alien invasion entries; None until one came."""
+        with self._lock:
+            return self.alien_reroll_counts
 
     def get_events(self) -> dict[int, SpecialEvent]:
         """The running events by id, in the order they started; a copy.

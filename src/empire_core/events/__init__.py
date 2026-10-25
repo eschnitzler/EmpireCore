@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING
 
-from empire_core.enums import Kingdom, RankingType
+from empire_core.enums import FactionProtectionStatus, Kingdom, RankingType
 from empire_core.enums.events import PerformanceStatistic, RaidBossCardStatus
 from empire_core.events.board_models import (
     GetBattlegroundRankRequest,
@@ -20,6 +20,7 @@ from empire_core.events.faction_models import (
     BerimondKingdomStatus,
     BerimondPoints,
     BerimondTarget,
+    FactionStanding,
     GetBerimondBalanceRequest,
     GetBerimondPointsRequest,
     GetBerimondTargetsRequest,
@@ -125,6 +126,7 @@ __all__ = [
     "GetBerimondTargetsRequest",
     "GetBerimondTargetsResponse",
     "BerimondKingdomStatus",
+    "FactionStanding",
     "BerimondPoints",
     "GetBerimondPointsRequest",
     "SelectBerimondCampRequest",
@@ -221,6 +223,7 @@ __all__ = [
     "TournamentRank",
     "EventsService",
     "get_event_titles",
+    "FactionProtectionStatus",
     "Kingdom",
     "RankingType",
     "Event",

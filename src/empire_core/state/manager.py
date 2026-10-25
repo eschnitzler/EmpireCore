@@ -99,6 +99,7 @@ _WHOLE_SECTIONS = {
 # BGMCommand, CEQCommand, CGECommand, FRCCommand and SEQCommand (bundle lines 123727, 123783,
 # 123798, 123955, 124019) bring their esl, and frc its ain; the kingdom replies KGTCommand, KSTCommand, KUTCommand,
 # MSKCommand and FJFCommand (bundle lines 124654, 124713, 124728, 125795, 127783) their kpi.
+# FFPCommand and IBTCommand (bundle lines 127785, 123574) bring their gcu.
 # RWBCommand (bundle line 124426) brings only its gcu to state; its parseRWB (bundle line 111900)
 # also reads a gui the state does not keep. A castle's resources (grc) wherever AreaDataUpdater.parseGRC
 # (bundle line 131501) gets them: RESCommand, ADOCommand, KGTCommand, KSTCommand, SBPCommand above, and
@@ -127,6 +128,7 @@ _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
     "kut": ("gcu", "kpi"),
     **dict.fromkeys(("msk", "fjf"), ("kpi",)),
     "rwb": ("gcu",),
+    **dict.fromkeys(("ffp", "ibt"), ("gcu",)),
     **dict.fromkeys(("ebu", "eup", "eud", "rbu", "ebe", "jaa", "rcc", "bup", "crm", "ccd", "cde"), ("grc",)),
     "gdr": ("grc", "sce"),
     "vfi": ("gcu", "grc"),
@@ -174,6 +176,8 @@ _SUCCESS_ONLY = frozenset(
     | {"nfo", "aqs", "bse", "bbs", "saq", "caq", "caaq", "raq", "scq", "aec"}
     # FKICommand.executeCommand (bundle line 127859)
     | {"fki"}
+    # RPRCommand, RCECommand (bundle lines 128217, 127142); ffp is a nested section reply
+    | {"rpr", "rce"}
 )
 
 
@@ -237,7 +241,7 @@ class GameState(
                                          ``rcc``
     player identity/level/XP             ``gpi``/``gxp``/``glu``      re-login
     player coins/rubies, VIP, alliance    ``gcu``/``vip``/``gal``      re-login
-    honor, beginner protection           ``gho``/``uap``              re-login
+    honor, protection                    ``gho``/``uap``              ``client.player.get_protection()``
     special currencies                   ``sce`` (pushed)             --
     spies owned, before boosts           ``gms`` (pushed)             re-login
     commanders and castellans            ``gli``, the replies that    ``client.commanders.get_all()``
@@ -276,7 +280,9 @@ class GameState(
     resource citizen                     ``irc`` (pushed)             --
     running events, scores, ends         ``sei``/``tei`` (pushed),    ``client.events.refresh()``
                                          ``see``/``tee``, ``pep``,
-                                         ``fjf``, ``bst``, ``cqs``
+                                         ``fjf``, ``bst``, ``cqs``,
+                                         ``uap``, ``ffp``, ``rpr``
+    alien reroll counts                  ``rce`` (pushed), ``sei``    --
     active quests, quest book            ``qli`` (pushed after        --
                                          login), ``qst``, ``qfi``,
                                          ``msp``
@@ -392,6 +398,9 @@ class GameState(
         "qfi": "_handle_qfi",
         "msp": "_handle_msp",
         "cqs": "_handle_cqs",
+        "ffp": "_handle_ffp",
+        "rpr": "_handle_rpr",
+        "rce": "_handle_rce",
     }
 
     def update_from_packet(self, cmd_id: str, payload: dict[str, Any], error_code: int = 0) -> None:
@@ -453,7 +462,7 @@ class GameState(
         ``GHOCommand``, ``UAPCommand``, ``GPCCommand`` and ``GMSCommand`` (bundle line 120555);
         ``GBDCommand.exec`` (bundle line 129381) applies ``gal`` before ``ain`` and ``tei`` before ``sei``.
         """
-        self._parse_player_sections(data)
+        self._apply_faction_protection(self._parse_player_sections(data))
         self._parse_special_currencies(data)
         previous_alliance_id = self.local_player.AID if self.local_player is not None else None
         self._parse_alliance_info(data)
@@ -596,7 +605,8 @@ class GameState(
         "car", "bfs",
         the officers' school's "gtp" (only a successful one),
         the quest pushes "qli", "qst", "qpg", "qfi", "msp" and the campaign's "cqs",
-        the castle pushes "rue", "kik", "fbe", "cbx", "gdb", "gcb", the gem push "gec", the joined area's "jaa",
+        the castle pushes "rue", "kik", "fbe", "cbx", "gdb", "gcb", the gem push "gec", the faction
+        protection reply "ffp", the rage points push "rpr", the alien reroll counts push "rce", the joined area's "jaa",
         "cmr", "rcc" and the map read "gaa" (refused too) — and the login sections "gpi", "gxp", "gcu", "vip",
         "gal", "gcl", "gho", "uap", "gpc", "gms", "sei", "tei", "gli", "skl", "ain", "acl", "rei", "boi", "gmu",
         "ufa", "uar", "vli", "gri", "cpi", "dql", "gai", "gatp", "bie", "pgl", "rww", "nrf", "ggm", "gls", "esl",

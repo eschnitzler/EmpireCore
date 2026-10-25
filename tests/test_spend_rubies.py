@@ -44,9 +44,15 @@ RUBY_REQUESTS = {
     "MercenaryPackageRequest": "mpe, the ruby skip of a running mission (MercenaryConst.getSkipC2Cost)",
     "ResetSkillsRequest": "skr inside the reset cooldown (LegendSkillConst.resetSkipCostC2, skipWithRubies)",
     "SelectBerimondCampRequest": "fsc, OC2 for the ruby camp and PWR (bundle lines 95197, 35237, 142354)",
+    "StartPeaceModeRequest": "mps, PlayerConst.PEACE_MODE_C2 (dll line 19560)",
+    "StartFactionProtectionRequest": "ffp, FactionConst.getPeaceC2Cost (dll line 19316)",
+    "BuyToolsRequest": "ibt, the tool's costC2 (bundle line 22493)",
+    "UnlockPresetRequest": "uas, the slot's attackSetupSlots costC2 (bundle line 141850)",
+    "RerollAlienCampRequest": "rae with C2 (CastleRerollAlienDialog.onSendReroll, bundle line 109749)",
 }
 
 SENT_WITHOUT_CONSENT = {
+    "PlayerService.cancel_peace_mode": "mps with -1 ends peace mode; cancelPeaceMode names no price",
     "CastleService.list_missions": "mpe with no mission id only lists the missions",
     "CastleService.start_mission": "sends mpe only for an open mission while none runs, which costs coins",
     "CastleService.collect_mission": "sends mpe only for a mission the client would collect for 0 rubies",

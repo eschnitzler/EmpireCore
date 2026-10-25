@@ -7,6 +7,7 @@ from pydantic import AliasChoices, ConfigDict, Field, field_validator
 from empire_core.castle.models.details import DetailedCastleInfo, ResourceProduction, SafeAmount, StorageCapacity
 from empire_core.enums import Kingdom
 from empire_core.gamedata import EnumOrStr, WodAmounts
+from empire_core.map.models.areas import KingdomProtection
 from empire_core.protocol.base import EmpireModel
 from empire_core.protocol.js import js_parse_int
 
@@ -275,6 +276,10 @@ class Player(EmpireModel):
     beginner_protection: dict[Kingdom, bool] = Field(
         default_factory=dict,
         description="Whether the player is under beginner protection, by kingdom",
+    )
+    protection: dict[Kingdom, KingdomProtection] = Field(
+        default_factory=dict,
+        description="Your beginner, peace mode and Berimond faction protection, by kingdom, as last sent",
     )
 
     PF: int = Field(

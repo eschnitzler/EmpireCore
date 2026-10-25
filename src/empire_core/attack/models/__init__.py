@@ -1,5 +1,17 @@
-"""Attacks: sending, pre-calculation, presets and dungeon cooldowns: protocol models."""
+"""Attacks: sending, pre-calculation, presets, dungeon cooldowns, taunts, the advisor and alien camps: models."""
 
+from .advisor import (
+    ActivateAttackAdvisorRequest,
+    ActivateAttackAdvisorResponse,
+    AttackAdvisorOverviewRequest,
+    AttackAdvisorOverviewResponse,
+)
+from .alien_camps import (
+    AlienRerollCountsResponse,
+    HiddenAlienCampsResponse,
+    RerollAlienCampRequest,
+    RerollAlienCampResponse,
+)
 from .counter import AttackCounterResponse
 from .dungeon_skips import (
     MinuteSkipDungeonRequest,
@@ -18,6 +30,8 @@ from .presets import (
     RenamePresetResponse,
     SavePresetRequest,
     SavePresetResponse,
+    UnlockPresetRequest,
+    UnlockPresetResponse,
 )
 from .send import CreateAttackRequest, CreateAttackResponse
 from .target_info import (
@@ -46,8 +60,38 @@ from .target_info import (
     GetVillageAttackInfoRequest,
     GetVillageAttackInfoResponse,
 )
+from .taunts import (
+    LaunchTauntAttackRequest,
+    LaunchTauntAttackResponse,
+    LaunchWolfKingTauntRequest,
+    LaunchWolfKingTauntResponse,
+    RagePointsResponse,
+)
+from .tools import (
+    BoughtTools,
+    BuyToolsRequest,
+    BuyToolsResponse,
+)
 
 __all__ = [
+    "ActivateAttackAdvisorRequest",
+    "ActivateAttackAdvisorResponse",
+    "AttackAdvisorOverviewRequest",
+    "AttackAdvisorOverviewResponse",
+    "AlienRerollCountsResponse",
+    "HiddenAlienCampsResponse",
+    "RerollAlienCampRequest",
+    "RerollAlienCampResponse",
+    "LaunchTauntAttackRequest",
+    "LaunchTauntAttackResponse",
+    "LaunchWolfKingTauntRequest",
+    "LaunchWolfKingTauntResponse",
+    "RagePointsResponse",
+    "BoughtTools",
+    "BuyToolsRequest",
+    "BuyToolsResponse",
+    "UnlockPresetRequest",
+    "UnlockPresetResponse",
     "MinuteSkipDungeonRequest",
     "MinuteSkipDungeonResponse",
     "SkipDungeonCooldownRequest",

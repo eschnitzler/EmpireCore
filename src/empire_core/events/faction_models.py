@@ -1,4 +1,4 @@
-"""Battle for Berimond: targets, faction balance and points, joining, and the kingdom status."""
+"""Battle for Berimond: targets, faction balance and points, joining, the kingdom status and your faction standing."""
 
 from __future__ import annotations
 
@@ -6,9 +6,9 @@ from typing import Any, ClassVar
 
 from pydantic import Field, field_serializer, field_validator
 
-from empire_core.enums import Kingdom
-from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse
-from empire_core.protocol.js import ClientInt, js_loose_equals
+from empire_core.enums import FactionProtectionStatus, Kingdom
+from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, enum_or_none
+from empire_core.protocol.js import ClientInt, ClientNumber, js_loose_equals
 
 
 class BerimondTarget(BasePayload):
@@ -151,3 +151,32 @@ class BerimondKingdomStatus(BaseResponse):
     @classmethod
     def _one(cls, value: Any) -> bool:
         return js_loose_equals(value, 1)
+
+
+class FactionStanding(BasePayload):
+    """
+    Your faction and its protection in Berimond: an ``FN`` block.
+
+    Client: ``FactionEventVO.loadFactionDataFromParamObject`` (bundle line 7363)
+    """
+
+    faction_id: ClientInt = Field(validation_alias="FID", default=0, description="Your faction")
+    main_camp_id: ClientInt = Field(validation_alias="MC", default=0, description="Your faction's main camp")
+    protection_seconds: ClientNumber = Field(
+        validation_alias="PMT", default=0, description="Seconds left of the faction protection stage"
+    )
+    protection_status: ClientInt = Field(
+        validation_alias="PMS",
+        default=0,
+        description="The faction protection stage, see faction_protection_status",
+    )
+    beginner_protection_seconds: ClientNumber = Field(
+        validation_alias="NS",
+        default=0,
+        description="Seconds of beginner protection left in Berimond; 0 when not sent, which leaves it as it was",
+    )
+
+    @property
+    def faction_protection_status(self) -> FactionProtectionStatus | None:
+        """``protection_status`` as a stage; None for a value the client does not define."""
+        return enum_or_none(FactionProtectionStatus, self.protection_status)

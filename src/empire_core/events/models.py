@@ -14,12 +14,12 @@ from typing import TYPE_CHECKING, Annotated, Any, ClassVar, NoReturn, TypeVar
 from pydantic import AfterValidator, ConfigDict, Field, SerializeAsAny, ValidationError
 
 from empire_core.enums import RankingType
-from empire_core.events.faction_models import BerimondKingdomStatus
+from empire_core.events.faction_models import BerimondKingdomStatus, FactionStanding
 from empire_core.events.status_models import GrandTournamentQuestStatus, RaidBossStatus
 from empire_core.exceptions import ReplyMismatchError
 from empire_core.gamedata import EnumOrInt, RewardId
 from empire_core.gamedata.ids.events import Event
-from empire_core.map.models.areas import MapObject
+from empire_core.map.models.areas import KingdomProtection, MapObject
 from empire_core.protocol.base import BaseRequest, BaseResponse, EmpireModel, GGECommand
 from empire_core.protocol.js import (
     ClientInt,
@@ -696,7 +696,8 @@ class NomadInvasionEvent(InvasionEvent):
 
 class BerimondEvent(SpecialEvent):
     """
-    Battle for Berimond. Your rank and points come only from ``pep`` pushes and start over with each entry.
+    Battle for Berimond. Your rank and points come only from ``pep`` pushes and start over with each entry;
+    your protection also from Berimond ``uap`` blocks and the ``ffp`` reply.
 
     Client: ``FactionEventVO.parseData`` (bundle line 7354) builds the league scores anew,
     ``parseParamObject`` and ``loadFactionDataFromParamObject`` (bundle lines 7364-7365), the
@@ -730,16 +731,40 @@ class BerimondEvent(SpecialEvent):
         values["reward_set_id"] = js_int(entry.get("RSID"))
         values["unlocked"] = js_truthy(entry.get("UL"))
         if js_truthy(faction := entry.get("FN")):
-            faction = _dict(faction)
-            values["faction_id"] = js_int(faction.get("FID"))
-            values["main_camp_id"] = js_int(faction.get("MC"))
-            protection = 0 if faction.get("PMT") is None else js_number_or_none(faction["PMT"])
-            values["faction_protection_end"] = None if protection is None else now + protection
-            values["faction_protection_status"] = js_int(faction.get("PMS"))
-            if js_truthy(beginner := faction.get("NS")) and (seconds := js_number_or_none(beginner)) is not None:
-                values["beginner_protection_end"] = now + seconds
+            values.update(cls._faction_update(FactionStanding.model_validate(_dict(faction)), now))
         if js_truthy(entry.get("LID")):
             values["league_id"] = js_int(entry["LID"])
+
+    def with_faction(self, faction: FactionStanding, now: float) -> BerimondEvent:
+        """This event with an ``FN`` block read over it, as a faction protection purchase sends one."""
+        return self.model_copy(update=self._faction_update(faction, now))
+
+    @staticmethod
+    def _faction_update(faction: FactionStanding, now: float) -> dict[str, Any]:
+        """Client: ``FactionEventVO.loadFactionDataFromParamObject`` (bundle line 7363)"""
+        update: dict[str, Any] = {
+            "faction_id": faction.faction_id,
+            "main_camp_id": faction.main_camp_id,
+            "faction_protection_end": now + faction.protection_seconds,
+            "faction_protection_status": faction.protection_status,
+        }
+        if faction.beginner_protection_seconds:
+            update["beginner_protection_end"] = now + faction.beginner_protection_seconds
+        return update
+
+    def with_protection(self, protection: KingdomProtection, now: float) -> BerimondEvent:
+        """
+        This event with a Berimond ``uap`` block read over it.
+
+        Client: ``FactionEventVO.parse_uap`` (bundle line 7364)
+        """
+        return self.model_copy(
+            update={
+                "faction_protection_status": protection.protection_status,
+                "faction_protection_end": now + protection.protection_seconds,
+                "beginner_protection_end": now + protection.noob_protection_seconds,
+            }
+        )
 
     def with_points(self, ranks: Any, points: Any, maxima: Any) -> SpecialEvent:
         return _with_points(self, ranks, points, None)  # type: ignore[no-any-return]
