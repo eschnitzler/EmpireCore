@@ -39,8 +39,8 @@ def _tlep_payload(conn: ScriptedConnection) -> dict[str, Any]:
 
 class TestModels:
     def test_glt_sends_the_server_type(self):
-        assert GetSpecialServerTokenRequest(server_type=ServerType.TEMPORARY).to_payload() == {"GST": 2}
-        assert GetSpecialServerTokenRequest(server_type=ServerType.ALLIANCE_BATTLEGROUND).to_payload() == {"GST": 3}
+        assert GetSpecialServerTokenRequest(server_type=ServerType.OUTER_REALMS).to_payload() == {"GST": 2}
+        assert GetSpecialServerTokenRequest(server_type=ServerType.HORIZON).to_payload() == {"GST": 3}
 
     def test_the_glt_reply_is_read(self):
         reply = parse_response("glt", TOKEN_REPLY)
@@ -136,7 +136,7 @@ class TestConnectToSpecialServer:
     def test_token_then_logout_then_token_login(self, main):
         client, calls = main
 
-        special = client.connect_to_special_server(ServerType.TEMPORARY, timeout=3.0)
+        special = client.connect_to_special_server(ServerType.OUTER_REALMS, timeout=3.0)
 
         assert calls[0] == ("request", {"GST": 2}, 3.0)
         assert calls[1] == "close"
@@ -146,7 +146,7 @@ class TestConnectToSpecialServer:
     def test_the_new_client_is_set_up_for_the_special_server(self, main):
         client, _ = main
 
-        special = client.connect_to_special_server(ServerType.ALLIANCE_BATTLEGROUND)
+        special = client.connect_to_special_server(ServerType.HORIZON)
 
         assert special.special_server_token == "token-1"
         assert special.config.game_url == "wss://special.example.invalid:443"
@@ -166,7 +166,7 @@ class TestConnectToSpecialServer:
         monkeypatch.setattr(client, "request", refuse)
 
         with pytest.raises(CommandError):
-            client.connect_to_special_server(ServerType.TEMPORARY)
+            client.connect_to_special_server(ServerType.OUTER_REALMS)
         assert calls == []
 
     def test_the_normal_server_is_refused(self, main):

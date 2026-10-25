@@ -45,8 +45,8 @@ TRAVELSPEED_SABOTAGE = 50
 DAMAGE_PER_SPY = 0.02
 SABOTAGE_PROTECTION_THRESHOLD = 12
 """``SpyConst.SABTOAGE_PROTECTION_THRESHOLD``, spelled that way in the client."""
-MAX_DEPLOYABLE_PLAGUEMONKS = 20
-MAX_OWNABLE_PLAGUEMONKS = 200
+MAX_DEPLOYABLE_PLAGUE_DOCTORS = 20
+MAX_OWNABLE_PLAGUE_DOCTORS = 200
 
 RATIO_GUARD_SPY = MAX_GUARD / MAX_SPY
 RATIO_ACCURACY = 50 - (MAX_ACCURACY + MIN_ACCURACY) / 2
@@ -147,7 +147,7 @@ def sabotage_risk(spies: int, guards: int, damage: int | float) -> int:
     """
     The percentage chance of a sabotage mission being caught, as the client shows it.
 
-    The client costs a plague monk mission with the same formula.
+    The client costs a plague doctor mission with the same formula.
 
     Args:
         spies: Spies sent, at least 1
@@ -223,7 +223,7 @@ def row_risk_flags(row: list[Any] | None) -> tuple[bool, bool] | None:
     The client's ``(isDungeon, isPlayer)`` for a target's map row, or None where its owner is not traced here.
 
     NPC dungeons and camps have fixed owners below 0 that the game does not
-    fight like players; alien and faction invasion camps and the areas whose
+    fight like players; alien and Berimond invasion camps and the areas whose
     row names the owner are read with :func:`~empire_core.combat.owner_id_from_row`. Not traced: treasure
     dungeons and camps, shadow areas (whose owner may be a collector) and any
     other type; a samurai alien camp has no map object in the client.
@@ -339,8 +339,8 @@ __all__ = [
     "DAMAGE_PER_SPY",
     "MAX_ACCURACY",
     "MAX_DAMAGE",
-    "MAX_DEPLOYABLE_PLAGUEMONKS",
-    "MAX_OWNABLE_PLAGUEMONKS",
+    "MAX_DEPLOYABLE_PLAGUE_DOCTORS",
+    "MAX_OWNABLE_PLAGUE_DOCTORS",
     "MAX_GUARD",
     "MAX_RISK_SABOTAGE",
     "MAX_RISK_SPY",

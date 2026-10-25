@@ -229,7 +229,7 @@ class TestSpyLogHeader:
         assert header is not None
         assert header.area_name == '100% "Keep"'
 
-    @pytest.mark.parametrize("subtype", [SpyLogType.SABOTAGE, SpyLogType.PLAGUE_MONK])
+    @pytest.mark.parametrize("subtype", [SpyLogType.SABOTAGE, SpyLogType.PLAGUE_DOCTOR])
     @pytest.mark.parametrize("result", [LogResult.ATTACKER_SUCCESS, LogResult.DEFENDER_FAILED])
     def test_a_sabotage_or_plague_success_names_the_area_by_name_and_id(self, subtype, result):
         header = MessageInfo.model_validate(

@@ -322,7 +322,7 @@ class TestCastleStyleRows:
         assert (item.outpost_type, item.occupier_id, item.kingdom, item.skin_id) == (0, -1, Kingdom.ICE, 77)
         assert (item.abg_tower_connection, item.has_sabotage_protection, item.is_occupied) == (None, True, False)
 
-    def test_an_alliance_battle_ground_castle_reads_its_tower_connection(self):
+    def test_an_horizon_castle_reads_its_tower_connection(self):
         row = list(CASTLE_ROW)
         row[18] = [10, "11", 1, "250"]
         item = MapAreaItem.from_list(row)
@@ -553,7 +553,7 @@ class TestCampRows:
     def test_an_alien_camp(self):
         assert _row(MapItemType.ALIEN_CAMP, 75).dungeon_level == 75
         assert _row(MapItemType.ALIEN_CAMP, 75).base_wall_bonus is None
-        short = _row(MapItemType.RED_ALIEN_CAMP, 75, 60, 1, 30, 40, 50)
+        short = _row(MapItemType.BLOODCROW_CAMP, 75, 60, 1, 30, 40, 50)
         assert (short.has_peace_mode, short.base_gate_bonus, short.already_rerolled, short.scaling_camp_id) == (
             True,
             40.0,
@@ -586,8 +586,8 @@ class TestCampRows:
             )
             assert _row(area_type).victory_count is None
 
-    def test_a_faction_invasion_camp(self):
-        item = _row(MapItemType.FACTION_INVASION_CAMP, 60, 4, 100, 0, "-2")
+    def test_a_berimond_invasion_camp(self):
+        item = _row(MapItemType.BERIMOND_INVASION_CAMP, 60, 4, 100, 0, "-2")
         assert (item.victory_count, item.attack_cooldown_seconds, item.dungeon_type) == (4, 100, -2)
         # parseAreaInfo: _ownerInfo = getOwnerInfoVO(int(e[7]))
         assert item.owner_id == -2
@@ -601,15 +601,13 @@ class TestCampRows:
 
     def test_alliance_camps(self):
         # AAllianceInvasionCampMapObjectVO.parseData: the nomad khan camp and the ABG resource tower
-        for area_type in (MapItemType.ALLIANCE_NOMAD_CAMP, MapItemType.ALLIANCE_BATTLE_GROUND_RESOURCE_TOWER):
+        for area_type in (MapItemType.ALLIANCE_NOMAD_CAMP, MapItemType.HORIZON_RESOURCE_TOWER):
             item = _row(area_type, 60, "8", 100, 500, 20, 6, "3", 10, 20, 30)
             assert (item.camp_id, item.total_cooldown_seconds, item.skip_cost, item.victory_count) == (8, 500, 20, 6)
             assert (item.scaling_camp_id, item.base_wall_bonus, item.base_moat_bonus) == (3, 10.0, 30.0)
 
-    def test_an_alliance_battle_ground_tower(self):
-        item = _row(
-            MapItemType.ALLIANCE_BATTLE_GROUND_TOWER, 900, "tower", 1, "4", "3000", "Alliance", [2, [1, 2]], [[5, 6]]
-        )
+    def test_an_horizon_tower(self):
+        item = _row(MapItemType.HORIZON_TOWER, 900, "tower", 1, "4", "3000", "Alliance", [2, [1, 2]], [[5, 6]])
         assert (item.location_id, item.name, item.is_attackable, item.victory_count) == (900, "tower", True, 4)
         assert (item.alliance_id, item.alliance_name, item.abg_connections) == (
             3000,
@@ -620,9 +618,9 @@ class TestCampRows:
         assert (item.alliance_crest.layout_id, item.alliance_crest.color_ids) == (2, [1, 2])
         assert item.owner_id is None
 
-    def test_an_alliance_battle_ground_tower_reads_its_connections(self):
+    def test_an_horizon_tower_reads_its_connections(self):
         connections = [[5, 6, "Someone", 1], [7, 8, "Other", "0"], "bad"]
-        item = _row(MapItemType.ALLIANCE_BATTLE_GROUND_TOWER, 900, "t", 1, 4, 3000, "A", [2, [1]], connections)
+        item = _row(MapItemType.HORIZON_TOWER, 900, "t", 1, 4, 3000, "A", [2, [1]], connections)
         assert item.abg_connections == (
             AbgTowerConnection(x=5, y=6, player_name="Someone", is_defeated=True),
             AbgTowerConnection(x=7, y=8, player_name="Other", is_defeated=False),

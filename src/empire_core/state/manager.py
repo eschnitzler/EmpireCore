@@ -310,7 +310,7 @@ class GameState(
     top-X ranks, Storm Islands title     ``uar`` (pushed)             re-login
     achievements                         ``vli`` (pushed)             re-login
     relocation                           ``gri`` (pushed)             re-login
-    plague monks                         ``cpi``, ``cpm``, ``sbp``    re-login
+    plague doctors                         ``cpi``, ``cpm``, ``sbp``    re-login
     daily reset                          ``drt`` (login only)         re-login
     attack counter                       ``gai`` (pushed)             re-login
     officers' school training            ``gatp``, ``gtp``            re-login
@@ -497,8 +497,8 @@ class GameState(
         "cfc": "_handle_cfc",
         "saf": "_handle_artifact_found",
         "sap": "_handle_artifact_found",
-        "gdti": "_handle_donation_progress",
-        "ddi": "_handle_donation_progress",
+        "gdti": "_handle_imperial_patronage_progress",
+        "ddi": "_handle_imperial_patronage_progress",
         "vwc": "_handle_vwc",
         "hin": "_handle_hin",
         "sjc": "_handle_sjc",
@@ -718,7 +718,7 @@ class GameState(
             self._handle_gbd({"uap": area["uap"]})
 
     def _handle_bst(self, data: Any) -> None:
-        """Apply the reply to a bounty hunter target skip: its coins and rubies, then its ``sei``.
+        """Apply the reply to a Shady Lady target skip: its coins and rubies, then its ``sei``.
 
         Client: ``BSTCommand.executeCommand`` (bundle line 127609)
         """

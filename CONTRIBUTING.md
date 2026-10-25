@@ -447,6 +447,16 @@ position in a list (a castle list row, a building row) have no key: give
 those fields no aliases, read the list in a `from_list` / `from_entry`
 classmethod, and list the positions in the class docstring.
 
+### Names players know
+
+Public names (classes, methods, properties, parameters, enum members, docs) use
+the name the game shows players, from its English language file
+(`empire_core.texts`, e.g. `event_title_<id>`), when it has one:
+`OuterRealmsEvent` for event 106, not the client's `TempServer`. Keep the
+client's code name only where the game shows none, and client class names only
+in `Client:` citations; wire keys and command codes never change. The names are
+English: `Event.X.display_name("de")` gives what players see in their language.
+
 ### Optional Fields
 
 Use `| None` with `default=None`:

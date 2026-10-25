@@ -792,7 +792,7 @@ Combat effect types actually present in each, joined `effects` → `effects` tab
 | Alliance crest layout | `AllianceCrestLayoutVO.parseEffects` (line 111025); read back via `AllianceInfoVO.getLayoutEffectsByType` (line 26153) | `allianceCoatLayouts` (19 rows, 11 carry `effects`) | 33×3, 28×1, 34×1 (plus 86, 161) |
 | Alliance buffs | `AllianceInfoVO.getTotalAllianceBuffEffectsByType`; `allianceBuffData.getAllianceBuffVoBySeriesIDAndLevel(...).getBonusVOsByType()` | `alliancebuffs` (261 rows, 213 carry `effects`) | 36×23, 44×21, 114×21, 31×6, 39×32, 13×1 |
 | Alliance temporary power boosts | `AllianceConst.TYPE_TEMP_ATTACK_POWER_BOOST` (type 36) / `TYPE_TEMP_DEFENSE_POWER_BOOST` (type 31) — applied **outside** `getUniqueBoni` as a separate multiplier | — | 36 / 31 |
-| Alliance Battleground tower buffs | `ABGAllianceTowerEffectVO` (a `RawLordEffectBonusVO`) | `allianceTowerEffects` (5 rows) → effect types **6, 7, 9, 10, 32**; every row `effectBasePrice`=100, `effectMaxLevel`=60, `effectStartValue`=1, `effectIncrease`=2, i.e. value = 1 + 2·(level−1), max 119 | 6, 7, 9, 10, 32 |
+| Beyond the Horizon tower buffs | `ABGAllianceTowerEffectVO` (a `RawLordEffectBonusVO`) | `allianceTowerEffects` (5 rows) → effect types **6, 7, 9, 10, 32**; every row `effectBasePrice`=100, `effectMaxLevel`=60, `effectStartValue`=1, `effectIncrease`=2, i.e. value = 1 + 2·(level−1), max 119 | 6, 7, 9, 10, 32 |
 | Officers school ("training program") | `OfficersSchoolData.getBonusByEffectType` — **defined but never called anywhere in the client** | `officersSchoolEffects` (5 rows, all effect type **148**) | 148 |
 | Private villages | raw lord effects | `privateVillages` (135 rows) | **none** — 92/93/80 only, economy |
 | VIP | `CastleVIPData.currentActiveVIPLevel.attackSpeedBonus`; `VIPLevelInfoVO.parseConfigXML` line 77271 | `viplevels` (10 rows: `attackSpeedBoost`, `attackFameBoost`, `magicFindBoost`, …) | march speed — see §3.5 |
@@ -1719,7 +1719,7 @@ math; they appear only in the enum block, the icon tables,
 `ToolUnitVO.createEffectMapping` and `AllianceRaidHighlightedEffectTooltip`.
 Server-side resolution is **(inferred)**.
 
-### 6.6 Alliance Battleground towers
+### 6.6 Beyond the Horizon towers
 
 ITEMS `allianceTowerEffects` (5 rows) → effect types **6 `wallBonus`,
 7 `gateBonus`, 9 `meleeBonus`, 10 `rangeBonus`, 32 `defenseBoostYard`**

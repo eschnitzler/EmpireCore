@@ -23,5 +23,5 @@ class ServerType(IntEnum):
     """
 
     NORMAL = 1
-    TEMPORARY = 2
-    ALLIANCE_BATTLEGROUND = 3
+    OUTER_REALMS = 2
+    HORIZON = 3

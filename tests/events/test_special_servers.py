@@ -1,4 +1,4 @@
-"""The temporary server and the alliance battleground: castle pick (tsc), server kind (tse), castles (tcc),
+"""The Outer Realms and Beyond the Horizon: castle pick (tsc), server kind (tse), castles (tcc),
 collector points (tpc) and the charge camp effects (gce, ccr, ace)."""
 
 from __future__ import annotations
@@ -9,9 +9,9 @@ from empire_core.enums import ServerType
 from empire_core.events import (
     ChargeCampEffects,
     CurrentServer,
+    OuterRealmsEvent,
     SelectSpecialServerCastleRequest,
     SpecialServerCastles,
-    TempServerEvent,
 )
 from empire_core.exceptions import CommandError, EventNotRunningError
 from empire_core.gamedata import Effect, Event
@@ -27,7 +27,7 @@ def _running(client, *event_ids: int) -> None:
 
 class TestSelectCastle:
     def test_keys_follow_the_client_order(self):
-        request = SelectSpecialServerCastleRequest(castle_id=34, server_type=ServerType.ALLIANCE_BATTLEGROUND)
+        request = SelectSpecialServerCastleRequest(castle_id=34, server_type=ServerType.HORIZON)
         assert request.to_payload() == {"ID": 34, "OC2": 0, "PWR": 0, "GST": 3}
         assert list(request.to_payload()) == ["ID", "OC2", "PWR", "GST"]
 
@@ -35,7 +35,7 @@ class TestSelectCastle:
         client = make_client()
         _running(client, 106)
 
-        client.events.select_special_server_castle(5, ServerType.TEMPORARY)
+        client.events.select_special_server_castle(5, ServerType.OUTER_REALMS)
 
         assert conn(client).request_payloads == [("tsc", {"ID": 5, "OC2": 0, "PWR": 0, "GST": 2})]
 
@@ -43,9 +43,7 @@ class TestSelectCastle:
         client = make_client()
         _running(client, 113)
 
-        client.events.select_special_server_castle(
-            5, ServerType.ALLIANCE_BATTLEGROUND, ruby_castle=True, spend_rubies=True
-        )
+        client.events.select_special_server_castle(5, ServerType.HORIZON, ruby_castle=True, spend_rubies=True)
 
         assert conn(client).request_payloads == [("tsc", {"ID": 5, "OC2": 1, "PWR": 0, "GST": 3})]
 
@@ -54,20 +52,18 @@ class TestSelectCastle:
         _running(client, 113)
 
         with pytest.raises(ValueError, match="spend_rubies"):
-            client.events.select_special_server_castle(5, ServerType.ALLIANCE_BATTLEGROUND, ruby_castle=True)
+            client.events.select_special_server_castle(5, ServerType.HORIZON, ruby_castle=True)
         assert conn(client).request_payloads == []
 
     def test_consent_alone_sends_no_ruby_castle(self):
         client = make_client()
         _running(client, 106)
 
-        client.events.select_special_server_castle(5, ServerType.TEMPORARY, spend_rubies=True)
+        client.events.select_special_server_castle(5, ServerType.OUTER_REALMS, spend_rubies=True)
 
         assert conn(client).request_payloads == [("tsc", {"ID": 5, "OC2": 0, "PWR": 0, "GST": 2})]
 
-    @pytest.mark.parametrize(
-        "server_type,event_id", [(ServerType.TEMPORARY, 113), (ServerType.ALLIANCE_BATTLEGROUND, 106)]
-    )
+    @pytest.mark.parametrize("server_type,event_id", [(ServerType.OUTER_REALMS, 113), (ServerType.HORIZON, 106)])
     def test_the_servers_event_must_run(self, server_type, event_id):
         client = make_client()
         _running(client, event_id)
@@ -85,25 +81,25 @@ class TestSelectCastle:
         client = make_client({"tsc": xt_packet("tsc", error_code=145)})
         _running(client, 106)
         with pytest.raises(CommandError):
-            client.events.select_special_server_castle(5, ServerType.TEMPORARY)
+            client.events.select_special_server_castle(5, ServerType.OUTER_REALMS)
 
 
 class TestServerKind:
     @pytest.mark.parametrize(
-        "payload,kind,temporary,battleground,cross_play",
+        "payload,kind,temporary,horizon,cross_play",
         [
             ({"GST": 1, "ICS": 0}, ServerType.NORMAL, False, False, False),
-            ({"GST": 2, "ICS": 1}, ServerType.TEMPORARY, True, False, True),
-            ({"GST": 3}, ServerType.ALLIANCE_BATTLEGROUND, False, True, False),
+            ({"GST": 2, "ICS": 1}, ServerType.OUTER_REALMS, True, False, True),
+            ({"GST": 3}, ServerType.HORIZON, False, True, False),
         ],
     )
-    def test_the_push_is_read(self, payload, kind, temporary, battleground, cross_play):
+    def test_the_push_is_read(self, payload, kind, temporary, horizon, cross_play):
         server = parse_response("tse", payload)
         assert isinstance(server, CurrentServer)
         assert server.server_type is kind
-        assert (server.is_temporary_server, server.is_alliance_battleground, server.is_cross_play) == (
+        assert (server.is_outer_realms, server.is_horizon, server.is_cross_play) == (
             temporary,
-            battleground,
+            horizon,
             cross_play,
         )
 
@@ -115,7 +111,7 @@ class TestServerKind:
         client._on_packet(xt_packet("tse", {"GST": 2, "ICS": 0}))
 
         assert client.events.current_server is not None
-        assert client.events.current_server.server_type is ServerType.TEMPORARY
+        assert client.events.current_server.server_type is ServerType.OUTER_REALMS
         client.state.reset()
         assert client.events.current_server is None
 
@@ -130,28 +126,28 @@ class TestSpecialServerCastles:
     def test_ids_above_zero_are_bought(self):
         castles = parse_response("tcc", {"TSCI": 7, "BGCI": 0})
         assert isinstance(castles, SpecialServerCastles)
-        assert (castles.temporary_server_castle_bought, castles.battleground_castle_bought) == (True, False)
+        assert (castles.outer_realms_castle_bought, castles.horizon_castle_bought) == (True, False)
 
     @pytest.mark.parametrize("castle_id,bought", [(7, True), (0, False), (-1, False)])
-    def test_the_push_marks_the_temporary_server_event(self, castle_id, bought):
+    def test_the_push_marks_the_outer_realms_event(self, castle_id, bought):
         client = make_client()
         client.state = GameState()
         client._on_packet(xt_packet("sei", {"E": [{"EID": 106, "RS": 60, "IPS": 0 if bought else 1}]}))
 
         client._on_packet(xt_packet("tcc", {"TSCI": castle_id, "BGCI": 0}))
 
-        event = client.state.get_event(Event.TEMP_SERVER)
-        assert isinstance(event, TempServerEvent)
+        event = client.state.get_event(Event.OUTER_REALMS)
+        assert isinstance(event, OuterRealmsEvent)
         assert event.castle_bought is bought
         assert client.events.special_server_castles is not None
-        assert client.events.special_server_castles.temporary_server_castle_id == castle_id
+        assert client.events.special_server_castles.outer_realms_castle_id == castle_id
 
     def test_the_push_without_the_event_is_kept(self):
         client = make_client()
         client.state = GameState()
         client._on_packet(xt_packet("tcc", {"TSCI": 0, "BGCI": 9}))
         assert client.events.special_server_castles == SpecialServerCastles(
-            temporary_server_castle_id=0, battleground_castle_id=9
+            outer_realms_castle_id=0, horizon_castle_id=9
         )
 
 
@@ -159,7 +155,7 @@ class TestCollectorPoints:
     def test_the_amount_is_returned(self):
         client = make_client({"tpc": xt_packet("tpc", {"PID": 78, "CCA": 1200})})
 
-        assert client.events.get_temporary_server_collector_points(78) == 1200
+        assert client.events.get_outer_realms_collector_points(78) == 1200
         assert conn(client).request_payloads == [("tpc", {"PID": 78})]
 
 

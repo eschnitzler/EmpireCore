@@ -83,33 +83,33 @@ class TestShuttingDownEvents:
     # CastleSpecialEventData.parse_SDE: a new map of the SD event ids each time
 
     def test_the_push_names_the_events(self):
-        events = parse_response("sde", {"SD": [Event.FACTION, 999999]})
+        events = parse_response("sde", {"SD": [Event.BATTLE_FOR_BERIMOND, 999999]})
 
         assert isinstance(events, ShuttingDownEvents)
-        assert events.event_ids == (Event.FACTION, 999999)
+        assert events.event_ids == (Event.BATTLE_FOR_BERIMOND, 999999)
 
     def test_each_push_replaces_the_list(self, state):
         assert state.get_shutting_down_events() is None
 
-        state.update_from_packet("sde", {"SD": [Event.FACTION, Event.POINT_EVENT]})
-        state.update_from_packet("sde", {"SD": [Event.POINT_EVENT]})
+        state.update_from_packet("sde", {"SD": [Event.BATTLE_FOR_BERIMOND, Event.NOBILITY_CONTEST]})
+        state.update_from_packet("sde", {"SD": [Event.NOBILITY_CONTEST]})
 
-        assert state.get_shutting_down_events() == ShuttingDownEvents(event_ids=(Event.POINT_EVENT,))
+        assert state.get_shutting_down_events() == ShuttingDownEvents(event_ids=(Event.NOBILITY_CONTEST,))
         assert state.get_last_packet_time("sde") is not None
 
     def test_an_unreadable_or_refused_push_changes_nothing(self, state):
-        state.update_from_packet("sde", {"SD": [Event.FACTION]})
+        state.update_from_packet("sde", {"SD": [Event.BATTLE_FOR_BERIMOND]})
 
         state.update_from_packet("sde", {"raw": "x"})
         state.update_from_packet("sde", {"SD": []}, error_code=1)
 
-        assert state.get_shutting_down_events() == ShuttingDownEvents(event_ids=(Event.FACTION,))
+        assert state.get_shutting_down_events() == ShuttingDownEvents(event_ids=(Event.BATTLE_FOR_BERIMOND,))
 
     def test_the_service_reads_it(self):
         client = make_client(state=GameState())
-        client._on_packet(xt_packet("sde", {"SD": [Event.FACTION]}))
+        client._on_packet(xt_packet("sde", {"SD": [Event.BATTLE_FOR_BERIMOND]}))
 
-        assert client.events.shutting_down == ShuttingDownEvents(event_ids=(Event.FACTION,))
+        assert client.events.shutting_down == ShuttingDownEvents(event_ids=(Event.BATTLE_FOR_BERIMOND,))
 
 
 class TestNewDay:

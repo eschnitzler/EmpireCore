@@ -2,7 +2,7 @@
 
 Commands:
 - csm: Send spy mission
-- cpm: Send plague monks
+- cpm: Send plague doctors
 - ssi: Spy screen info
 - ssu: Auto-spy, a report without sending spies
 - gms: Maximum spies, a login section and push
@@ -52,7 +52,7 @@ class SendSpyRequest(BaseRequest):
     sabotage mission and the accuracy (50-100) for any other; the client
     sends the slider's value unrounded. A horse paid with feathers goes out as
     ``HBW`` -1 with ``PTT`` 1: with ``feathers`` 1 the horse is sent as
-    -1, as the client's constructor does. Plague monks are not sent with
+    -1, as the client's constructor does. Plague doctors are not sent with
     ``csm``.
 
     Client: ``C2SCreateSpyMovementVO`` (bundle lines 100126-100127), built by
@@ -280,8 +280,8 @@ class SpyScreenInfoResponse(BaseResponse):
     Command: ssi
     Payload::
 
-        {"AS": available_spies, "GC": guards, "APM": available_plague_monks,
-         "TPM": total_plague_monks, "TX": x, "TY": y,
+        {"AS": available_spies, "GC": guards, "APM": available_plague_doctors,
+         "TPM": total_plague_doctors, "TX": x, "TY": y,
          "gaa": {"KID": kingdom, "uap": {protection}, "OI": [owner records], "AI": [map rows]}}
 
     The client reads ``gaa.uap`` without a check; a reply without ``gaa``
@@ -295,10 +295,10 @@ class SpyScreenInfoResponse(BaseResponse):
 
     available_spies: ClientInt = Field(validation_alias="AS", default=0, description="Spies free to send")
     guard_count: ClientInt = Field(validation_alias="GC", default=0, description="Guards at the target")
-    available_plague_monks: ClientInt = Field(
-        validation_alias="APM", default=0, description="Plague monks free to send"
+    available_plague_doctors: ClientInt = Field(
+        validation_alias="APM", default=0, description="Plague doctors free to send"
     )
-    total_plague_monks: ClientInt = Field(validation_alias="TPM", default=0, description="Plague monks owned")
+    total_plague_doctors: ClientInt = Field(validation_alias="TPM", default=0, description="Plague doctors owned")
     target_x: int | None = Field(
         validation_alias="TX",
         default=None,
@@ -425,9 +425,9 @@ class MaxSpiesResponse(BaseResponse):
     )
 
 
-class PlagueMonkInfoResponse(BaseResponse):
+class PlagueDoctorInfoResponse(BaseResponse):
     """
-    Your plague monks.
+    Your plague doctors.
 
     Command: cpi, as a login section of ``gbd``, a push, and inside the ``cpm`` and ``sbp`` replies.
 
@@ -439,25 +439,25 @@ class PlagueMonkInfoResponse(BaseResponse):
 
     command = "cpi"
 
-    available_plague_monks: ClientInt = Field(validation_alias="APM", default=0, description="Plague monks at home")
-    total_plague_monks: ClientInt = Field(validation_alias="TPM", default=0, description="All your plague monks")
+    available_plague_doctors: ClientInt = Field(validation_alias="APM", default=0, description="Plague doctors at home")
+    total_plague_doctors: ClientInt = Field(validation_alias="TPM", default=0, description="All your plague doctors")
 
 
 # =============================================================================
-# CPM - Send plague monks
+# CPM - Send plague doctors
 # =============================================================================
 
 
-class SendPlagueMonksRequest(BaseRequest):
+class SendPlagueDoctorsRequest(BaseRequest):
     """
-    Send plague monks to a target.
+    Send plague doctors to a target.
 
     Command: cpm
-    Payload: {"TX": target_x, "TY": target_y, "TK": target_kingdom, "C": monks, "E": damage}
+    Payload: {"TX": target_x, "TY": target_y, "TK": target_kingdom, "C": doctors, "E": damage}
 
-    No source castle: plague monks travel a fixed time
+    No source castle: plague doctors travel a fixed time
     (``ClientConstCastle.PLAGUEMONK_TRAVEL_TIME``). The dialog offers up to
-    ``SpyConst.MAX_DEPLOYABLE_PLAGUEMONKS`` (20) of the monks at home, and
+    ``SpyConst.MAX_DEPLOYABLE_PLAGUEMONKS`` (20) of the doctors at home, and
     the damage on the sabotage slider.
 
     Client: ``C2SCreatePlagueMonkMovementVO`` (bundle line 72184), sent by
@@ -470,7 +470,7 @@ class SendPlagueMonksRequest(BaseRequest):
     target_x: int = Field(validation_alias="TX", description="Target map x")
     target_y: int = Field(validation_alias="TY", description="Target map y")
     target_kingdom: Kingdom = Field(validation_alias="TK", default=Kingdom.GREEN, description="The target's kingdom")
-    monks: int = Field(validation_alias="C", description="How many plague monks to send")
+    doctors: int = Field(validation_alias="C", description="How many plague doctors to send")
     damage: int = Field(validation_alias="E", description="Damage percent, as for a sabotage")
 
     def accepts_reply(self, payload: Any) -> bool:
@@ -481,9 +481,9 @@ class SendPlagueMonksRequest(BaseRequest):
         return isinstance(payload, dict) and movement_targets(payload.get("A"), self.target_x, self.target_y)
 
 
-class SendPlagueMonksResponse(SentMovementResponse):
+class SendPlagueDoctorsResponse(SentMovementResponse):
     """
-    The plague monks on their way.
+    The plague doctors on their way.
 
     Command: cpm
     Payload: {"gcu": {...}, "O": [owner, ...], "A": movement, "cpi": {"APM": .., "TPM": ..}}
@@ -494,15 +494,15 @@ class SendPlagueMonksResponse(SentMovementResponse):
 
     command = "cpm"
 
-    plague_monks: PlagueMonkInfoResponse | None = Field(
+    plague_doctors: PlagueDoctorInfoResponse | None = Field(
         validation_alias="cpi",
         default=None,
-        description="Your plague monks after the send; None when the reply has none",
+        description="Your plague doctors after the send; None when the reply has none",
     )
 
-    @field_validator("plague_monks", mode="before")
+    @field_validator("plague_doctors", mode="before")
     @classmethod
-    def _monks(cls, value: object) -> object:
+    def _doctors(cls, value: object) -> object:
         return value if js_truthy(value) else None
 
 
@@ -510,9 +510,9 @@ __all__ = [
     "AutoSpyRequest",
     "AutoSpyResponse",
     "MaxSpiesResponse",
-    "PlagueMonkInfoResponse",
-    "SendPlagueMonksRequest",
-    "SendPlagueMonksResponse",
+    "PlagueDoctorInfoResponse",
+    "SendPlagueDoctorsRequest",
+    "SendPlagueDoctorsResponse",
     "SendSpyRequest",
     "SendSpyResponse",
     "SpyScreenInfoRequest",

@@ -19,7 +19,7 @@ def season_client(script=None):
 
 def test_join_season_camp_sends_the_running_events_map():
     client = season_client()
-    client.events.join_season_camp(Event.THORNKING)
+    client.events.join_season_camp(Event.THORN_KING)
     assert conn(client).request_payloads == [("jea", {"MID": 21})]
 
 
@@ -33,7 +33,7 @@ def test_joining_a_season_event_that_is_not_running_raises():
 def test_a_refused_join_raises():
     client = season_client({"jea": xt_packet("jea", error_code=1)})
     with pytest.raises(CommandError):
-        client.events.join_season_camp(Event.THORNKING)
+        client.events.join_season_camp(Event.THORN_KING)
 
 
 def test_select_season_camp_keeps_the_client_key_order_and_int_flags():
@@ -75,4 +75,4 @@ def test_an_event_with_no_map_is_refused():
     client = make_client(state=GameState())
     client._on_packet(xt_packet("sei", {"E": [{"EID": 3, "RS": 600, "UL": 1}]}))
     with pytest.raises(ValueError, match="no season event"):
-        client.events.join_season_camp(Event.FACTION)
+        client.events.join_season_camp(Event.BATTLE_FOR_BERIMOND)

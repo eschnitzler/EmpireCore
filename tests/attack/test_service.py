@@ -754,7 +754,7 @@ class TestTargetPrecalculation:
 
         client = make_client({"gti": xt_packet("gti", dict(LIVE_ALI, MB=40))}, castles=OWN)
 
-        info = client.attack.get_attack_info(630, 240, 5, 6, area_type=MapItemType.ALLIANCE_BATTLE_GROUND_TOWER)
+        info = client.attack.get_attack_info(630, 240, 5, 6, area_type=MapItemType.HORIZON_TOWER)
 
         assert isinstance(info, GetAllianceTowerAttackInfoResponse)
         assert info.morality == 40
@@ -764,7 +764,7 @@ class TestTargetPrecalculation:
         client = make_client({"gti": xt_packet("gti", error_code=204)}, castles=OWN)
 
         with pytest.raises(CommandError):
-            client.attack.get_attack_info(630, 240, 5, 6, area_type=MapItemType.ALLIANCE_BATTLE_GROUND_TOWER)
+            client.attack.get_attack_info(630, 240, 5, 6, area_type=MapItemType.HORIZON_TOWER)
 
     def test_a_collector_attack_sends_acc_and_reads_the_currency(self):
         client = make_client({"acc": xt_packet("acc", dict(LIVE_ALI, CCA=750, MB=20))}, castles=OWN)

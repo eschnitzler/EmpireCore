@@ -15,27 +15,27 @@ from empire_core.protocol.js import ClientInt, js_int
 logger = logging.getLogger(__name__)
 
 
-class GetBattlegroundRankRequest(BaseRequest):
+class GetHorizonRankRequest(BaseRequest):
     """Client: ``C2SAllianceBattleGroundGetOwnRanksVO`` (bundle lines 71938-71942)."""
 
     command: ClassVar[str] = "abgph"
     alliance_id: int = Field(validation_alias="AID", description="Your alliance id")
 
 
-class GetBattlegroundRankResponse(BaseResponse):
+class GetHorizonRankResponse(BaseResponse):
     """Client: ``AllianceBattleGroundEventVO.parseOwnRanks`` (bundle line 114240)."""
 
     command: ClassVar[str] = "abgph"
     alliance_rank: ClientInt = Field(validation_alias="R", description="Your alliance's rank")
 
 
-class GetBattlegroundTimersRequest(BaseRequest):
+class GetHorizonTimersRequest(BaseRequest):
     """Client: ``C2SAllianceBattleGroundGetTimersVO`` (bundle lines 54330-54334)."""
 
     command: ClassVar[str] = "trt"
 
 
-class GetBattlegroundTimersResponse(BaseResponse):
+class GetHorizonTimersResponse(BaseResponse):
     """Client: ``CastleAllianceBattleGroundData.parseTRT`` (bundle line 144811).
 
     Keys: ``CommKeys`` (dll.pretty lines 80880-80881).
@@ -83,13 +83,13 @@ class GetPlayerPerformanceResponse(BaseResponse):
         return next((item.amount for item in self.statistics if item.statistic_id == statistic), 0)
 
 
-class GetTemporaryServerRanksRequest(BaseRequest):
+class GetOuterRealmsRanksRequest(BaseRequest):
     """Client: ``C2STemporaryServerHighscoreVO`` (bundle lines 60050-60054)."""
 
     command: ClassVar[str] = "tsh"
 
 
-class GetTemporaryServerRanksResponse(BaseResponse):
+class GetOuterRealmsRanksResponse(BaseResponse):
     """Client: ``TempServerEventVO.parseOwnRanks`` (bundle line 118163)."""
 
     command: ClassVar[str] = "tsh"

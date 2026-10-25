@@ -16,7 +16,7 @@ data = client.load_game_data()
 data.units[Unit.MEAD_RANGER_L6].range_attack              # UnitStats
 data.buildings[Building.KEEP_L1].might_value              # BuildingDef
 data.researches[Research.STRENGTH_TRAINING_L1].level  # ResearchDef
-data.events[Event.NOMAD_INVASION].kingdoms                # EventDef
+data.events[Event.NOMAD_INVASION_5].kingdoms                # EventDef
 data.quests[QuestId.BUY_RUBIES].conditions                # QuestDef
 data.daily_quests[DailyQuestId.LOGIN].trigger_kingdom     # DailyQuestDef
 data.generals[General.TORIL].max_level                    # GeneralDef

@@ -51,10 +51,10 @@ from .commanders import EquipmentSlot, EquipmentType, Rareness, WearerType
 from .errors import GGEError
 from .events import (
     GachaRarity,
-    LuckyWheelType,
     PackageBuyType,
     PerformanceStatistic,
     RaidBossCardStatus,
+    WheelOfFortuneType,
     WorldCupVote,
 )
 from .gamedata import (
@@ -140,7 +140,7 @@ __all__ = [
     "RaidBossCardStatus",
     "PackageBuyType",
     "PerformanceStatistic",
-    "LuckyWheelType",
+    "WheelOfFortuneType",
     "GachaRarity",
     "WorldCupVote",
     # Map / kingdom

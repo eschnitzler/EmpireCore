@@ -880,7 +880,7 @@ class TestSendingAMissionAsGiven:
         }
         assert "ssi" not in conn(client).requested
 
-    def test_plague_monks_are_not_sent_with_csm(self):
+    def test_plague_doctors_are_not_sent_with_csm(self):
         client = make_client()
 
         with pytest.raises(ValueError):

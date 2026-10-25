@@ -37,7 +37,7 @@ class LaunchTauntAttackRequest(BaseRequest):
         validation_alias="AV", default=0, description="1 to show the attack to your alliance, else 0"
     )
     event: EnumOrInt[Event] = Field(
-        validation_alias="EID", default=Event.ALLIANCE_NOMAD_INVASION, description="The nomad invasion taunted"
+        validation_alias="EID", default=Event.NOMAD_INVASION_72, description="The nomad invasion taunted"
     )
 
 

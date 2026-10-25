@@ -82,13 +82,13 @@ class RankingService(BaseService):
         included (use :meth:`get_highscore` for those).
 
         Args:
-            list_type: The event's highscore list (LT), e.g. ``RankingType.LONG_TERM_POINT_EVENT``
+            list_type: The event's highscore list (LT), e.g. ``RankingType.GRAND_NOBILITY_PRIZE``
             rank: The first rank on the page
             max_results: Entries per page (M)
             league_type_id: The league (LID): the league of the event whose leaderboard it is, as its
                 sei entry names it (``client.events.league_id(event_id)``), or another of its
                 leagues 1 to its league count; -1 only for the donation ranking. The client pairs
-                ``RankingType.LONG_TERM_POINT_EVENT`` (53) with event 83
+                ``RankingType.GRAND_NOBILITY_PRIZE`` (53) with event 83
                 (``LongtermPointEventGlobalLeaderBoardDialog``, bundle line 100411); the other
                 dialogs are given their event
             sub_division_id: The alliance event subdivision (SDI), for an alliance event's subdivision ranking
@@ -140,7 +140,7 @@ class RankingService(BaseService):
             The entries on your page
 
         Raises:
-            CommandError: a live server refused a long-term point list's own page with
+            CommandError: a live server refused a Grand Nobility Prize list's own page with
                 league -1 (GENERAL_ERROR, 1) and answered it with the event's league
 
         Client: ``LeaderBoardDataProvider.getCurrentPlayerPage`` (bundle line 75941)

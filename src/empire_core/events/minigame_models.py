@@ -1,5 +1,5 @@
-"""The event minigames: the lucky wheels, the gachas, the colossus, imperial patronage, the marauders' contest,
-the artifact and bounty hunter events, the fortune teller, the world cup vote and the collector currency."""
+"""The event minigames: the Wheels of Fortune, the gachas, the colossus, imperial patronage, the marauders' contest,
+the Traveling Knights and Shady Lady events, the fortune teller, the world cup vote and the collector currency."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from typing import Annotated, Any, ClassVar, Literal
 from pydantic import BeforeValidator, Field
 
 from empire_core.enums import Kingdom
-from empire_core.enums.events import GachaRarity, LuckyWheelType, WorldCupVote
+from empire_core.enums.events import GachaRarity, WheelOfFortuneType, WorldCupVote
 from empire_core.gamedata import Collectable, CollectableRows, EnumOrInt, RewardId
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, CurrencyBlock
 from empire_core.protocol.js import ClientInt, js_int, js_number, js_truthy
@@ -40,13 +40,13 @@ _SetNumber = Annotated[float | None, BeforeValidator(_truthy_number)]
 
 
 # =============================================================================
-# Lucky wheel
+# Wheel of Fortune
 # =============================================================================
 
 
-class LuckyWheelSpinRequest(BaseRequest):
+class WheelOfFortuneSpinRequest(BaseRequest):
     """
-    Spin a lucky wheel, paid in lucky wheel tickets (or a free spin).
+    Spin a Wheel of Fortune, paid in Wheel of Fortune tickets (or a free spin).
 
     Client: ``C2SLuckyWheelSpinVO`` (bundle line 59783), sent by ``CastleLuckyWheelDialog.startSpin`` and
     ``CastleLuckWheelSalesDaysDialog.startSpin`` (bundle lines 116661, 117919)
@@ -54,14 +54,14 @@ class LuckyWheelSpinRequest(BaseRequest):
 
     command: ClassVar[str] = "lws"
 
-    wheel: LuckyWheelType = Field(
-        default=LuckyWheelType.LUCKY_WHEEL, validation_alias="LWET", description="The wheel to spin"
+    wheel: WheelOfFortuneType = Field(
+        default=WheelOfFortuneType.WHEEL_OF_FORTUNE, validation_alias="LWET", description="The wheel to spin"
     )
 
 
-class LuckyWheelChangeModeRequest(BaseRequest):
+class WheelOfFortuneChangeModeRequest(BaseRequest):
     """
-    Switch the lucky wheel between its normal and its pro mode.
+    Switch the Wheel of Fortune between its normal and its pro mode.
 
     Client: ``C2SLuckyWheelChangeModeVO`` (bundle line 116687), ``CastleLuckyWheelDialog.changeMode`` (bundle
     line 116666)
@@ -70,9 +70,9 @@ class LuckyWheelChangeModeRequest(BaseRequest):
     command: ClassVar[str] = "lwm"
 
 
-class LuckyWheelBuyJackpotRequest(BaseRequest):
+class WheelOfFortuneBuyJackpotRequest(BaseRequest):
     """
-    Spin the lucky wheel for a guaranteed jackpot, paid in rubies and tickets.
+    Spin the Wheel of Fortune for a guaranteed jackpot, paid in rubies and tickets.
 
     Client: ``C2SLuckyWheelBuyJackpotVO`` (bundle line 116678), ``CastleLuckyWheelDialog.clickedBuyJackpot``
     (bundle line 116659); ``LuckyWheelData.jackpotC2Price`` (bundle line 17639)
@@ -81,9 +81,9 @@ class LuckyWheelBuyJackpotRequest(BaseRequest):
     command: ClassVar[str] = "lwj"
 
 
-class LuckyWheelIncreaseWinClassRequest(BaseRequest):
+class WheelOfFortuneIncreaseWinClassRequest(BaseRequest):
     """
-    Raise the lucky wheel's win class at once, paid in rubies.
+    Raise the Wheel of Fortune's win class at once, paid in rubies.
 
     Client: ``C2SLuckyWheelIncreasePrizeClass`` (bundle line 59775),
     ``CastleLuckyWheelIncreaseWinClassDialog.clickedAccept`` (bundle line 117107);
@@ -93,9 +93,9 @@ class LuckyWheelIncreaseWinClassRequest(BaseRequest):
     command: ClassVar[str] = "lwc"
 
 
-class LuckyWheelStatus(BaseResponse):
+class WheelOfFortuneStatus(BaseResponse):
     """
-    The wheel's state as every lucky wheel reply carries it.
+    The wheel's state as every Wheel of Fortune reply carries it.
 
     Client: ``LuckyWheelData.parseBasics`` (bundle line 17570)
     """
@@ -115,7 +115,7 @@ class LuckyWheelStatus(BaseResponse):
     )
 
 
-class LuckyWheelSpinResponse(LuckyWheelStatus):
+class WheelOfFortuneSpinResponse(WheelOfFortuneStatus):
     """
     A spin's outcome and the wheel after it.
 
@@ -124,8 +124,8 @@ class LuckyWheelSpinResponse(LuckyWheelStatus):
 
     command: ClassVar[str] = "lws"
 
-    wheel: EnumOrInt[LuckyWheelType] = Field(
-        default=LuckyWheelType.LUCKY_WHEEL, validation_alias="LWET", description="The wheel that was spun"
+    wheel: EnumOrInt[WheelOfFortuneType] = Field(
+        default=WheelOfFortuneType.WHEEL_OF_FORTUNE, validation_alias="LWET", description="The wheel that was spun"
     )
     winning_category: ClientInt = Field(default=0, validation_alias="WC", description="The wheel's slice that won")
     rewards: CollectableRows = Field(default=(), validation_alias="R", description="What the spin won")
@@ -133,7 +133,7 @@ class LuckyWheelSpinResponse(LuckyWheelStatus):
     own_points: _FirstInt = Field(default=None, validation_alias="OP", description="Your points in the event")
 
 
-class LuckyWheelBuyJackpotResponse(LuckyWheelSpinResponse):
+class WheelOfFortuneBuyJackpotResponse(WheelOfFortuneSpinResponse):
     """
     A jackpot spin's outcome and the wheel after it.
 
@@ -143,7 +143,7 @@ class LuckyWheelBuyJackpotResponse(LuckyWheelSpinResponse):
     command: ClassVar[str] = "lwj"
 
 
-class LuckyWheelChangeModeResponse(BaseResponse):
+class WheelOfFortuneChangeModeResponse(BaseResponse):
     """
     The jackpot sets after a mode change; the mode itself flips.
 
@@ -158,7 +158,7 @@ class LuckyWheelChangeModeResponse(BaseResponse):
     )
 
 
-class LuckyWheelIncreaseWinClassResponse(LuckyWheelStatus):
+class WheelOfFortuneIncreaseWinClassResponse(WheelOfFortuneStatus):
     """
     The wheel after its win class was raised.
 
@@ -313,7 +313,7 @@ class ColossusCoinDepositResponse(ColossusDepositResponse):
 
 
 # =============================================================================
-# Imperial patronage (donation event)
+# Imperial Patronage
 # =============================================================================
 
 
@@ -341,7 +341,7 @@ class DonateItemsRequest(BaseRequest):
     items: tuple[DonationItemAmount, ...] = Field(validation_alias="DIV", description="The items given")
 
 
-class GetDonationProgressRequest(BaseRequest):
+class GetImperialPatronageProgressRequest(BaseRequest):
     """
     Ask for the points you have earned per donation item.
 
@@ -363,7 +363,7 @@ class DonationItemPoints(BasePayload):
     points: ClientInt = Field(default=0, validation_alias="DIP", description="The points it has earned")
 
 
-class DonationProgressResponse(BaseResponse):
+class ImperialPatronageProgressResponse(BaseResponse):
     """
     The points you have earned per donation item.
 
@@ -376,7 +376,7 @@ class DonationProgressResponse(BaseResponse):
     items: tuple[DonationItemPoints, ...] = Field(validation_alias="DIS", description="Each item's points")
 
 
-class DonateItemsResponse(DonationProgressResponse):
+class DonateItemsResponse(ImperialPatronageProgressResponse):
     """
     The points you have earned per donation item, after a donation.
 
@@ -387,11 +387,11 @@ class DonateItemsResponse(DonationProgressResponse):
 
 
 # =============================================================================
-# Marauders' contest (begging knights)
+# Marauders' contest
 # =============================================================================
 
 
-class BuyBeggingKnightsPackageRequest(BaseRequest):
+class BuyMaraudersContestPackageRequest(BaseRequest):
     """
     Hand resource packages from a castle to the marauders for contest points.
 
@@ -408,7 +408,7 @@ class BuyBeggingKnightsPackageRequest(BaseRequest):
     food_packages: int = Field(default=0, ge=0, validation_alias="FP", description="Food packages")
 
 
-class BuyBeggingKnightsPackageResponse(BaseResponse):
+class BuyMaraudersContestPackageResponse(BaseResponse):
     """
     The acknowledgement of a marauders' package; the client then asks for its points.
 
@@ -419,13 +419,13 @@ class BuyBeggingKnightsPackageResponse(BaseResponse):
 
 
 # =============================================================================
-# Artifact events
+# Traveling Knights event
 # =============================================================================
 
 
 class BuyArtifactPieceRequest(BaseRequest):
     """
-    Buy pieces of an artifact event's artifact with rubies.
+    Buy pieces of a Traveling Knights event's artifact with rubies.
 
     Client: ``C2SBuyArtifactPieceVO`` (bundle line 114775), ``CastleArtifactBuyPieceDialog`` (bundle lines
     114756, 114762), which sends the event's first kingdom
@@ -434,7 +434,7 @@ class BuyArtifactPieceRequest(BaseRequest):
     command: ClassVar[str] = "sap"
 
     pieces: int = Field(ge=1, validation_alias="A", description="How many pieces to buy")
-    event_id: int = Field(validation_alias="EID", description="The artifact event")
+    event_id: int = Field(validation_alias="EID", description="The Traveling Knights event")
     kingdom: Kingdom = Field(validation_alias="KID", description="The event's kingdom")
 
 
@@ -448,7 +448,7 @@ class ArtifactFoundResponse(BaseResponse):
 
     command: ClassVar[str] = "saf"
 
-    event_id: ClientInt = Field(validation_alias="EID", description="The artifact event")
+    event_id: ClientInt = Field(validation_alias="EID", description="The Traveling Knights event")
     parts_found: ClientInt = Field(default=0, validation_alias="PF", description="The pieces you have")
 
 
@@ -465,13 +465,13 @@ class BuyArtifactPieceResponse(ArtifactFoundResponse):
 
 
 # =============================================================================
-# Bounty hunter
+# Shady Lady
 # =============================================================================
 
 
-class ValidateBountyTargetRequest(BaseRequest):
+class ValidateShadyLadyTargetRequest(BaseRequest):
     """
-    Have the server check your bounty target, and pick a new one when it is gone.
+    Have the server check your Shady Lady target, and pick a new one when it is gone.
 
     Client: ``C2SBountyHunterValidateOrResetTargetVO`` (bundle line 115038), sent as
     ``CastleBountyhunterEventDialog`` opens (bundle line 114986)
@@ -480,7 +480,7 @@ class ValidateBountyTargetRequest(BaseRequest):
     command: ClassVar[str] = "brt"
 
 
-class ValidateBountyTargetResponse(BaseResponse):
+class ValidateShadyLadyTargetResponse(BaseResponse):
     """
     The acknowledgement of a target check; a new target comes in a ``sei``.
 
@@ -490,9 +490,9 @@ class ValidateBountyTargetResponse(BaseResponse):
     command: ClassVar[str] = "brt"
 
 
-class SkipBountyTargetRequest(BaseRequest):
+class SkipShadyLadyTargetRequest(BaseRequest):
     """
-    Skip your bounty target for another, paid in rubies.
+    Skip your Shady Lady target for another, paid in rubies.
 
     Client: ``C2SBountyHunterBuySkipTargetVO`` (bundle line 115030), ``CastleBountyhunterEventDialog.onClick``
     (bundle line 115004); ``BountyhunterEventVO.parseEventXmlNode`` reads its ``targetSkipCostC2`` (bundle line
@@ -502,7 +502,7 @@ class SkipBountyTargetRequest(BaseRequest):
     command: ClassVar[str] = "bst"
 
 
-class SkipBountyTargetResponse(BaseResponse):
+class SkipShadyLadyTargetResponse(BaseResponse):
     """
     Your rubies after a skip; the new target's ``sei`` stays in the extra fields and updates the event.
 
@@ -615,8 +615,8 @@ __all__ = [
     "ArtifactFoundResponse",
     "BuyArtifactPieceRequest",
     "BuyArtifactPieceResponse",
-    "BuyBeggingKnightsPackageRequest",
-    "BuyBeggingKnightsPackageResponse",
+    "BuyMaraudersContestPackageRequest",
+    "BuyMaraudersContestPackageResponse",
     "CollectorCurrencyResponse",
     "ColossusCoinDepositRequest",
     "ColossusCoinDepositResponse",
@@ -626,7 +626,7 @@ __all__ = [
     "DonateItemsResponse",
     "DonationItemAmount",
     "DonationItemPoints",
-    "DonationProgressResponse",
+    "ImperialPatronageProgressResponse",
     "FortuneTellerReadingRequest",
     "FortuneTellerReadingResponse",
     "GachaFreeChestResponse",
@@ -636,20 +636,20 @@ __all__ = [
     "GachaSpinResponse",
     "GachaUpdate",
     "GetCollectorCurrencyRequest",
-    "GetDonationProgressRequest",
-    "LuckyWheelBuyJackpotRequest",
-    "LuckyWheelBuyJackpotResponse",
-    "LuckyWheelChangeModeRequest",
-    "LuckyWheelChangeModeResponse",
-    "LuckyWheelIncreaseWinClassRequest",
-    "LuckyWheelIncreaseWinClassResponse",
-    "LuckyWheelSpinRequest",
-    "LuckyWheelSpinResponse",
-    "LuckyWheelStatus",
-    "SkipBountyTargetRequest",
-    "SkipBountyTargetResponse",
-    "ValidateBountyTargetRequest",
-    "ValidateBountyTargetResponse",
+    "GetImperialPatronageProgressRequest",
+    "WheelOfFortuneBuyJackpotRequest",
+    "WheelOfFortuneBuyJackpotResponse",
+    "WheelOfFortuneChangeModeRequest",
+    "WheelOfFortuneChangeModeResponse",
+    "WheelOfFortuneIncreaseWinClassRequest",
+    "WheelOfFortuneIncreaseWinClassResponse",
+    "WheelOfFortuneSpinRequest",
+    "WheelOfFortuneSpinResponse",
+    "WheelOfFortuneStatus",
+    "SkipShadyLadyTargetRequest",
+    "SkipShadyLadyTargetResponse",
+    "ValidateShadyLadyTargetRequest",
+    "ValidateShadyLadyTargetResponse",
     "VoteWorldCupRequest",
     "VoteWorldCupResponse",
 ]

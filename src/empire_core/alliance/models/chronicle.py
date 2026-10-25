@@ -198,17 +198,17 @@ class ChronicleTournamentPrize:
 @dataclass(frozen=True)
 class ChronicleText:
     """
-    ``AV[0]``, which the client puts in the text as it is: the new name of ``CHANGE_NAME``, and on an
-    alliance battle ground the tower defeated, the penalty increase in percent or the statuettes gained.
+    ``AV[0]``, which the client puts in the text as it is: the new name of ``CHANGE_NAME``, and
+    on Beyond the Horizon the tower defeated, the penalty increase in percent or the statuettes gained.
 
     Client: ``AllianceActionListItemVO.getActionText`` (bundle line 66352)
     """
 
     ACTIONS: ClassVar[tuple[AllianceChronicleAction, ...]] = (
         Action.CHANGE_NAME,
-        Action.ALLIANCE_BATTLE_GROUND_OWNED_TOWER_DEFEATED,
-        Action.ALLIANCE_BATTLE_GROUND_MALUS_INCREASED,
-        Action.ALLIANCE_BATTLE_GROUND_POINTS_GAINED,
+        Action.HORIZON_OWNED_TOWER_DEFEATED,
+        Action.HORIZON_MALUS_INCREASED,
+        Action.HORIZON_POINTS_GAINED,
     )
 
     text: str | None
@@ -493,7 +493,7 @@ class AllianceChronicleEntry(BasePayload):
         if action in _DONATIONS:
             single = "_singleDigit" if js_loose_equals(_at(values, 0), 1) else ""
             return text(key + single, *values, lang=lang)
-        if action in ChronicleText.ACTIONS or action == Action.ALLIANCE_BATTLE_GROUND_MALUS_RESET:
+        if action in ChronicleText.ACTIONS or action == Action.HORIZON_MALUS_RESET:
             return text(key, PlainText(_name(values, 0) or ""), lang=lang, grouping=False)
         if action in ChronicleDaimyoContract.ACTIONS:
             contract, level, levels = ChronicleDaimyoContract.from_values(values).series_position(

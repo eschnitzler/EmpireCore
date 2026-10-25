@@ -55,11 +55,11 @@ class TestGetOwnPoints:
         reply = {"EID": 60, "OR": [12], "OP": [3400], "PT": [9000]}
         client = _running({"pep": xt_packet("pep", reply)}, {"EID": 60, "LID": 2})
 
-        points = client.events.get_own_points(Event.POINT_EVENT)
+        points = client.events.get_own_points(Event.NOBILITY_CONTEST)
 
         assert conn(client).request_payloads == [("pep", {"EID": 60})]
         assert (points.own_ranks, points.own_points, points.max_points) == ([12], [3400], [9000])
-        event = client.state.get_event(Event.POINT_EVENT)
+        event = client.state.get_event(Event.NOBILITY_CONTEST)
         assert (event.own_rank, event.own_points, event.max_points) == (12, 3400, 9000)  # type: ignore[union-attr]
 
     def test_berimond_invasion_reads_a_value_per_part(self):
@@ -67,10 +67,10 @@ class TestGetOwnPoints:
         parts = {"FB": {"OP": 0}, "FR": {"OP": 0}, "A": {"OP": 0}}
         client = _running({"pep": xt_packet("pep", reply)}, {"EID": 85, **parts})
 
-        points = client.events.get_own_points(Event.FACTION_INVASION)
+        points = client.events.get_own_points(Event.BERIMOND_INVASION)
 
         assert points.own_points == [10, 20, 30]
-        event = client.state.get_event(Event.FACTION_INVASION)
+        event = client.state.get_event(Event.BERIMOND_INVASION)
         assert [(p.own_rank, p.own_points, p.max_points) for p in event.parts.values()] == [  # type: ignore[union-attr]
             (1, 10, 7),
             (2, 20, 8),
@@ -81,7 +81,7 @@ class TestGetOwnPoints:
         reply = {"EID": 89, "OR": [4], "OP": [15]}
         client = _running({"pep": xt_packet("pep", reply)}, {"EID": 89})
 
-        points = client.events.get_own_points(Event.SALE_DAYS_LUCKY_WHEEL)
+        points = client.events.get_own_points(Event.WHEEL_OF_UNIMAGINABLE_AFFLUENCE)
 
         assert (points.own_ranks, points.own_points) == ([4], [15])
 
@@ -103,17 +103,17 @@ class TestGetOwnPoints:
         client = _running({}, {"EID": 60})
 
         with pytest.raises(EventNotRunningError):
-            client.events.get_own_points(Event.FACTION)
+            client.events.get_own_points(Event.BATTLE_FOR_BERIMOND)
         assert conn(client).request_payloads == []
 
     def test_a_reply_for_another_event_is_left_to_its_waiter(self):
         client = _running({"pep": xt_packet("pep", {"EID": 3, "OR": [1], "OP": [5]})}, {"EID": 60})
 
         with pytest.raises(EmpireTimeoutError):
-            client.events.get_own_points(Event.POINT_EVENT)
+            client.events.get_own_points(Event.NOBILITY_CONTEST)
 
     def test_a_refusal_raises(self):
         client = _running({"pep": xt_packet("pep", {}, error_code=1)}, {"EID": 60})
 
         with pytest.raises(CommandError):
-            client.events.get_own_points(Event.POINT_EVENT)
+            client.events.get_own_points(Event.NOBILITY_CONTEST)

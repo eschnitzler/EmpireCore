@@ -17,7 +17,7 @@ from tests.service_helpers import conn, make_client, xt_packet
 
 OWN = [(12345, Kingdom.GREEN)]
 
-# 620 and 649 cost no rubies; 700 costs rubies, 702 on a temporary server, and 701 heals for them
+# 620 and 649 cost no rubies; 700 costs rubies, 702 on the Outer Realms, and 701 heals for them
 ITEMS = {
     "units": [
         {"wodID": "620", "name": "Barracks", "type": "Swordsman"},

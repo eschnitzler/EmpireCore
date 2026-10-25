@@ -5,7 +5,6 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
 
-from empire_core.alliance.models.battleground import BattlegroundMemberPerformance, BattlegroundPerformanceResponse
 from empire_core.alliance.models.chat import AllianceChatLogResponse, ChatMessageData
 from empire_core.alliance.models.gifts import AllianceGift, AllianceGiftReceived
 from empire_core.alliance.models.help import (
@@ -14,6 +13,7 @@ from empire_core.alliance.models.help import (
     AllianceHelpRequestChanged,
     AllianceHelpRequestRemoved,
 )
+from empire_core.alliance.models.horizon import HorizonMemberPerformance, HorizonPerformanceResponse
 from empire_core.alliance.models.info import AllianceInfo, alliance_of_ain
 from empire_core.alliance.models.landmarks import AllianceLaboratoriesResponse
 from empire_core.alliance.models.membership import AutoJoinedAllianceResponse
@@ -155,14 +155,14 @@ class AllianceState(StateBase):
             return self.storm_islands
 
     def _handle_gae(self, data: Any) -> None:
-        """Keep your alliance members' battleground performance.
+        """Keep your alliance members' Beyond the Horizon performance.
 
         Client: ``CastleAllianceBattleGroundData.parseAlliancePerformance`` (bundle line 144898) replaces
         ``alliancePerformanceVOs``
         """
-        performance = read_section(BattlegroundPerformanceResponse, data, "the battleground performance")
+        performance = read_section(HorizonPerformanceResponse, data, "Beyond the Horizon performance")
         if performance is not None:
-            self.battleground_performance = tuple(performance.members)
+            self.horizon_performance = tuple(performance.members)
 
     def _handle_aja(self, data: Any) -> None:
         """Apply your new membership, then the alliance you were put in.
@@ -429,12 +429,12 @@ class AllianceState(StateBase):
         with self._lock:
             return self.aqua_points
 
-    def get_battleground_performance(self) -> list[BattlegroundMemberPerformance] | None:
-        """Your alliance members' battleground performance, from the last ``gae``; None until one arrived."""
+    def get_horizon_performance(self) -> list[HorizonMemberPerformance] | None:
+        """Your alliance members' Beyond the Horizon performance, from the last ``gae``; None until one arrived."""
         with self._lock:
-            if self.battleground_performance is None:
+            if self.horizon_performance is None:
                 return None
-            return [member.model_copy(deep=True) for member in self.battleground_performance]
+            return [member.model_copy(deep=True) for member in self.horizon_performance]
 
     def get_own_alliance(self) -> AllianceInfo | None:
         """Your alliance's details and members, from the last ``ain`` about it; None in no alliance or before one.

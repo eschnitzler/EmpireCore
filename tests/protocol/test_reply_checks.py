@@ -153,9 +153,9 @@ class TestIdEchoes:
 
 
 class TestLeaderboards:
-    page = GetRankingListRequest(list_type=RankingType.LONG_TERM_POINT_EVENT, league_type_id=3, max_results=8, rank=1)
-    window = GetRankingWindowRequest(list_type=RankingType.LONG_TERM_POINT_EVENT, league_type_id=3, max_results=8)
-    search = SearchRankingListRequest(list_type=RankingType.LONG_TERM_POINT_EVENT, search_value="name")
+    page = GetRankingListRequest(list_type=RankingType.GRAND_NOBILITY_PRIZE, league_type_id=3, max_results=8, rank=1)
+    window = GetRankingWindowRequest(list_type=RankingType.GRAND_NOBILITY_PRIZE, league_type_id=3, max_results=8)
+    search = SearchRankingListRequest(list_type=RankingType.GRAND_NOBILITY_PRIZE, search_value="name")
 
     def test_a_reply_for_the_list_asked_for(self):
         for request in (self.page, self.window, self.search):
@@ -200,9 +200,7 @@ def test_a_leaderboard_page_for_another_list_does_not_take_the_waiter():
     from empire_core.protocol.packet import Packet
 
     conn = Connection("wss://example.invalid/")
-    request = GetRankingListRequest(
-        list_type=RankingType.LONG_TERM_POINT_EVENT, league_type_id=3, max_results=8, rank=1
-    )
+    request = GetRankingListRequest(list_type=RankingType.GRAND_NOBILITY_PRIZE, league_type_id=3, max_results=8, rank=1)
     waiter = conn.create_waiter("llsp", lambda reply: request.accepts_reply(reply.payload))
     conn._route_packet(Packet.from_bytes(b'%xt%llsp%1%0%{"LT":40,"LID":3,"L":[],"T":0}%'))
     assert waiter.result is None
@@ -215,9 +213,7 @@ def test_a_leaderboard_error_goes_to_the_waiter():
     from empire_core.protocol.packet import Packet
 
     conn = Connection("wss://example.invalid/")
-    request = GetRankingListRequest(
-        list_type=RankingType.LONG_TERM_POINT_EVENT, league_type_id=3, max_results=8, rank=1
-    )
+    request = GetRankingListRequest(list_type=RankingType.GRAND_NOBILITY_PRIZE, league_type_id=3, max_results=8, rank=1)
     waiter = conn.create_waiter("llsp", lambda reply: request.accepts_reply(reply.payload))
     conn._route_packet(Packet.from_bytes(b"%xt%llsp%1%145%%"))
     assert waiter.result is not None and waiter.result.error_code == 145

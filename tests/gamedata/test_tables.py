@@ -45,7 +45,7 @@ class TestBuildingDef:
 
         assert building.building_id is ids.Building.KEEP_L1
         assert (building.level, building.maximum_count, building.shop_category) == (-1, 1_000_000, "NOT_IN_SHOP")
-        assert building.destructable and building.temp_server_destructable and not building.storeable
+        assert building.destructable and building.outer_realms_destructable and not building.storeable
         assert building.sort_order == 1_000_000
         assert building.only_in_kingdoms == () and building.upgrade_building_id == 0
 
@@ -81,7 +81,7 @@ def test_a_research_keeps_only_prerequisites_above_zero():
 def test_an_event_without_kingdoms_or_areas_runs_in_the_green_kingdom_and_main_castles():
     event = EventDef.model_validate({"eventID": "5", "eventType": "NomadInvasion"})
 
-    assert event.event_id is ids.Event.NOMAD_INVASION
+    assert event.event_id is ids.Event.NOMAD_INVASION_5
     assert (event.kingdoms, event.area_types, event.max_level) == ((Kingdom.GREEN,), (MapItemType.CASTLE,), 99)
 
 
@@ -113,7 +113,7 @@ class TestQuests:
         )
 
         # Boolean(parseInt(levelCalculated)) against 1 == parseInt(isTempServerQuest)
-        assert quest.level_calculated and not quest.is_temp_server_quest
+        assert quest.level_calculated and not quest.is_outer_realms_quest
         assert quest.conditions == (QuestCondition(condition_type="login", amount=1),)
 
 
@@ -310,7 +310,7 @@ class TestReferencedIds:
         assert data.default_lords[-14].wearer_id is WearerType.CASTELLAN
         assert data.dungeons[0].kingdom_id is Kingdom.ICE
         assert data.dungeons[0].commander == data.default_lords[-14]
-        assert data.league_brackets[0].event_id is ids.Event.NOMAD_INVASION
+        assert data.league_brackets[0].event_id is ids.Event.NOMAD_INVASION_5
         assert type(data.fortifications[501].wod_id) is ids.Building
         assert data.tools[1].slot_types == (1, 9)
 

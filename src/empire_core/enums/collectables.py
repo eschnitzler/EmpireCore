@@ -60,7 +60,7 @@ class CollectableKind(str, Enum):
     KHAN_TABLET_BOOSTER = "khanTabletBooster", "KTB"
     SAMURAI_BOOSTER = "samuraiBooster", "STB"
     ALLIANCE_COIN_BOOSTER = "allianceCoinBooster", "ACB"
-    LONG_TERM_POINT_EVENT_BOOSTER = "longTermPointEventBooster", "LTB", ("longTermPointEventBooster",)
+    GRAND_NOBILITY_PRIZE_BOOSTER = "longTermPointEventBooster", "LTB", ("longTermPointEventBooster",)
     REPUTATION_BOOSTER = "reputatioPointBooster", "REPB", ("reputationPointBooster",)
     RAGE_POINT_BOOSTER = "rageBooster", "RPB"
     KHAN_MEDAL_POINT_BOOSTER = "khanMedalBooster", "KMB"
@@ -112,7 +112,7 @@ class BoosterId(IntEnum):
     KHAN_TABLET = 20
     XP = 21
     SAMURAI_TOKEN = 22
-    LONG_TERM_POINT_EVENT = 23
+    GRAND_NOBILITY_PRIZE = 23
     GALLANTRY_POINTS = 24
     XP_BUILDING = 25
     ALLIANCE_COIN = 26

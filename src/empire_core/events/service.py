@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Literal, TypeVar
 from pydantic import ValidationError
 
 from empire_core.enums import Kingdom, RankingType, ServerType
-from empire_core.enums.events import LuckyWheelType, RaidBossCardStatus, WorldCupVote
+from empire_core.enums.events import RaidBossCardStatus, WheelOfFortuneType, WorldCupVote
 from empire_core.events.titles import get_event_titles
 from empire_core.exceptions import (
     CommandError,
@@ -37,17 +37,7 @@ from empire_core.services.base import BaseService
 if TYPE_CHECKING:
     from empire_core.gamedata import RaidBoss
 
-from .board_models import (
-    GetBattlegroundRankRequest,
-    GetBattlegroundRankResponse,
-    GetBattlegroundTimersRequest,
-    GetBattlegroundTimersResponse,
-    GetPlayerPerformanceRequest,
-    GetPlayerPerformanceResponse,
-    GetTemporaryServerRanksRequest,
-    GetTemporaryServerRanksResponse,
-)
-from .faction_models import (
+from .berimond_models import (
     BerimondBalance,
     BerimondKingdomStatus,
     BerimondPoints,
@@ -58,10 +48,20 @@ from .faction_models import (
     GetBerimondTargetsResponse,
     SelectBerimondCampRequest,
 )
+from .board_models import (
+    GetHorizonRankRequest,
+    GetHorizonRankResponse,
+    GetHorizonTimersRequest,
+    GetHorizonTimersResponse,
+    GetOuterRealmsRanksRequest,
+    GetOuterRealmsRanksResponse,
+    GetPlayerPerformanceRequest,
+    GetPlayerPerformanceResponse,
+)
 from .minigame_models import (
     BuyArtifactPieceRequest,
     BuyArtifactPieceResponse,
-    BuyBeggingKnightsPackageRequest,
+    BuyMaraudersContestPackageRequest,
     CollectorCurrencyResponse,
     ColossusCoinDepositRequest,
     ColossusCoinDepositResponse,
@@ -71,31 +71,30 @@ from .minigame_models import (
     DonateItemsResponse,
     DonationItemAmount,
     DonationItemPoints,
-    DonationProgressResponse,
     FortuneTellerReadingRequest,
     FortuneTellerReadingResponse,
     GachaSpinRequest,
     GachaSpinResponse,
     GetCollectorCurrencyRequest,
-    GetDonationProgressRequest,
-    LuckyWheelBuyJackpotRequest,
-    LuckyWheelBuyJackpotResponse,
-    LuckyWheelChangeModeRequest,
-    LuckyWheelChangeModeResponse,
-    LuckyWheelIncreaseWinClassRequest,
-    LuckyWheelIncreaseWinClassResponse,
-    LuckyWheelSpinRequest,
-    LuckyWheelSpinResponse,
-    SkipBountyTargetRequest,
-    SkipBountyTargetResponse,
-    ValidateBountyTargetRequest,
+    GetImperialPatronageProgressRequest,
+    ImperialPatronageProgressResponse,
+    SkipShadyLadyTargetRequest,
+    SkipShadyLadyTargetResponse,
+    ValidateShadyLadyTargetRequest,
     VoteWorldCupRequest,
     VoteWorldCupResponse,
+    WheelOfFortuneBuyJackpotRequest,
+    WheelOfFortuneBuyJackpotResponse,
+    WheelOfFortuneChangeModeRequest,
+    WheelOfFortuneChangeModeResponse,
+    WheelOfFortuneIncreaseWinClassRequest,
+    WheelOfFortuneIncreaseWinClassResponse,
+    WheelOfFortuneSpinRequest,
+    WheelOfFortuneSpinResponse,
 )
 from .models import (
     EVENT_SCOREBOARDS,
     POINT_EVENTS,
-    ArtifactEvent,
     BerimondEvent,
     ClaimAnnouncementRewardRequest,
     EventScores,
@@ -103,13 +102,14 @@ from .models import (
     GameEvent,
     GetEventPointsRequest,
     GetEventPointsResponse,
-    RaidBossEvent,
+    RiftRaidEvent,
     Scoreboard,
     ScoredEvent,
     SeasonEvent,
     ShuttingDownEvents,
     SpecialEvent,
     SpecialEventInfoRequest,
+    TravelingKnightsEvent,
     WorldCupEvent,
 )
 from .progression_models import (
@@ -132,15 +132,15 @@ from .special_server_models import (
     ChargeCampEffects,
     CurrentServer,
     GetChargeCampEffectsRequest,
+    GetOuterRealmsCollectorPointsRequest,
     GetPreviousSpecialServerRunsRequest,
-    GetTemporaryServerCollectorPointsRequest,
+    OuterRealmsCollectorPoints,
     PreviousSpecialServerRuns,
     RerollChargeCampEffectRequest,
     RerollChargeCampEffectResponse,
     SelectSpecialServerCastleRequest,
     SelectSpecialServerCastleResponse,
     SpecialServerCastles,
-    TemporaryServerCollectorPoints,
 )
 from .status_models import (
     AbortRaidRequest,
@@ -152,13 +152,13 @@ from .status_models import (
     GetGrandTournamentContributionsRequest,
     GetGrandTournamentContributionsResponse,
     GetGrandTournamentStatusRequest,
-    GetRaidBossStatusRequest,
-    GetRaidBossStatusResponse,
+    GetRiftRaidStatusRequest,
+    GetRiftRaidStatusResponse,
     GrandTournamentContribution,
     GrandTournamentQuestStatus,
-    RaidBossStatus,
     RerollGrandTournamentQuestRequest,
     RerollGrandTournamentQuestResponse,
+    RiftRaidStatus,
     SelectRaidBossRequest,
     SelectRaidBossResponse,
     SkipGrandTournamentCooldownRequest,
@@ -171,23 +171,23 @@ QuestActionResponse = TypeVar("QuestActionResponse", bound=BaseResponse)
 
 # The event that runs each special server
 _SPECIAL_SERVER_EVENTS = {
-    ServerType.TEMPORARY: Event.TEMP_SERVER,
-    ServerType.ALLIANCE_BATTLEGROUND: Event.ALLIANCE_BATTLE_GROUND,
+    ServerType.OUTER_REALMS: Event.OUTER_REALMS,
+    ServerType.HORIZON: Event.BEYOND_THE_HORIZON,
 }
 
 _WOOD_COLOSSI = (Event.COLOSSUS_44, Event.COLOSSUS_57)
 
 # The part of an event's sei entry holding a board's league; other boards use the entry's own LID
 _LEAGUE_PART = {
-    RankingType.ALLIANCE_ALIEN_INVASION_PLAYER: "SP",
-    RankingType.ALLIANCE_ALIEN_INVASION_ALLIANCE: "A",
-    RankingType.ALLIANCE_RED_ALIEN_INVASION_PLAYER: "SP",
-    RankingType.ALLIANCE_RED_ALIEN_INVASION_ALLIANCE: "A",
+    RankingType.WAR_OF_THE_REALMS_PLAYER: "SP",
+    RankingType.WAR_OF_THE_REALMS_ALLIANCE: "A",
+    RankingType.BLOODCROW_INVASION_PLAYER: "SP",
+    RankingType.BLOODCROW_INVASION_ALLIANCE: "A",
     RankingType.ALLIANCE_NOMADINVASION_ALLIANCE: "A",
     RankingType.SAMURAI_ALLIANCE: "A",
-    RankingType.FACTION_INVASION_PLAYER_BLUE: "FB",
-    RankingType.FACTION_INVASION_PLAYER_RED: "FR",
-    RankingType.FACTION_INVASION_ALLIANCE: "A",
+    RankingType.BERIMOND_INVASION_PLAYER_BLUE: "FB",
+    RankingType.BERIMOND_INVASION_PLAYER_RED: "FR",
+    RankingType.BERIMOND_INVASION_ALLIANCE: "A",
 }
 
 
@@ -259,7 +259,7 @@ class EventsService(BaseService):
         if part is not None:
             entry = found.parts.get(part) if isinstance(found, ScoredEvent) else None
             return 1 if entry is None else entry.league_id
-        if isinstance(found, ScoredEvent | BerimondEvent | RaidBossEvent):
+        if isinstance(found, ScoredEvent | BerimondEvent | RiftRaidEvent):
             return found.league_id
         return 1
 
@@ -300,10 +300,10 @@ class EventsService(BaseService):
         client's dialogs open; ``rank=1`` is the top of the board.
 
         Args:
-            event: The event, e.g. ``Event.FACTION`` (Berimond); :data:`EVENT_SCOREBOARDS` lists those with a board
+            event: The event, e.g. ``Event.BATTLE_FOR_BERIMOND``; those with a board are in :data:`EVENT_SCOREBOARDS`
             alliance: Read the alliance board instead of the player board
             list_type: One of the event's boards by its list, for Berimond invasion's
-                player boards (``FACTION_INVASION_PLAYER_BLUE`` or ``FACTION_INVASION_PLAYER_RED``)
+                player boards (``BERIMOND_INVASION_PLAYER_BLUE`` or ``BERIMOND_INVASION_PLAYER_RED``)
             rank: The page from this rank (leaderboards), or the page around it (``hgh`` boards)
             name: The page around this name: ``hgh``'s search, or for a leaderboard its
                 search (``slse``) and the page of the first hit
@@ -394,12 +394,12 @@ class EventsService(BaseService):
         Ask the server for your rank and points in a running event.
 
         Works for the events in :data:`POINT_EVENTS`, those without a scoreboard too (the
-        gacha events, the lucky wheel, the alliance tournament). The reply is applied to the
+        gacha events, the Wheel of Fortune, the alliance tournament). The reply is applied to the
         event's state before this returns, so ``client.state.get_event(event)`` then holds
         them read the event's way (``own_rank``, ``own_points``, ``parts``, ...).
 
         Args:
-            event: The event, e.g. ``Event.POINT_EVENT``
+            event: The event, e.g. ``Event.NOBILITY_CONTEST``
             timeout: Timeout in seconds
 
         Returns:
@@ -450,7 +450,7 @@ class EventsService(BaseService):
     def _league(self, event: Event, board: RankingType) -> int:
         # DonationEventDialogRanking (bundle line 115740) shows its board with no league;
         # AScoreEventVO (bundle line 14965) and FactionEventVO (bundle line 7353) start at league 1
-        if event == 123:  # Event.DONATION_EVENT
+        if event == 123:  # Event.IMPERIAL_PATRONAGE
             return -1
         return self.league_id(event, _LEAGUE_PART.get(board))
 
@@ -483,25 +483,23 @@ class EventsService(BaseService):
             for eid, event in events.items()
         ]
 
-    def get_battleground_rank(self, alliance_id: int, *, timeout: float = 5.0) -> GetBattlegroundRankResponse:
-        """Request your alliance's current battleground rank (abgph).
+    def get_horizon_rank(self, alliance_id: int, *, timeout: float = 5.0) -> GetHorizonRankResponse:
+        """Request your alliance's current Beyond the Horizon rank (abgph).
 
-        Requires a running battleground event. Supply your alliance on the event server.
+        Requires a running Beyond the Horizon event. Supply your alliance on the event server.
         Client: ``CastleAllianceBattleGroundEventDialogScoring.show`` (bundle 71907).
         """
-        self._require_running(Event.ALLIANCE_BATTLE_GROUND)
-        return self.request(
-            GetBattlegroundRankRequest(alliance_id=alliance_id), GetBattlegroundRankResponse, timeout=timeout
-        )
+        self._require_running(Event.BEYOND_THE_HORIZON)
+        return self.request(GetHorizonRankRequest(alliance_id=alliance_id), GetHorizonRankResponse, timeout=timeout)
 
-    def get_battleground_timers(self, *, timeout: float = 5.0) -> GetBattlegroundTimersResponse:
-        """Request seconds until the next battleground tower relink and revival.
+    def get_horizon_timers(self, *, timeout: float = 5.0) -> GetHorizonTimersResponse:
+        """Request seconds until the next Beyond the Horizon tower relink and revival.
 
         The event must run; the server refuses unavailable server context. Timers are a reply snapshot.
         Client: ``C2SAllianceBattleGroundGetTimersVO`` (bundle 54330), ``parseTRT`` (144811).
         """
-        self._require_running(Event.ALLIANCE_BATTLE_GROUND)
-        return self.request(GetBattlegroundTimersRequest(), GetBattlegroundTimersResponse, timeout=timeout)
+        self._require_running(Event.BEYOND_THE_HORIZON)
+        return self.request(GetHorizonTimersRequest(), GetHorizonTimersResponse, timeout=timeout)
 
     def get_player_performance(
         self, event: Event | int, player_id: int, *, timeout: float = 5.0
@@ -519,15 +517,15 @@ class EventsService(BaseService):
             timeout=timeout,
         )
 
-    def get_temporary_server_ranks(self, *, timeout: float = 5.0) -> GetTemporaryServerRanksResponse:
-        """Request your current temporary-server daily and overall points/ranks.
+    def get_outer_realms_ranks(self, *, timeout: float = 5.0) -> GetOuterRealmsRanksResponse:
+        """Request your current Outer Realms daily and overall points/ranks.
 
-        Requires a running temporary-server event; unavailable server context raises CommandError.
+        Requires a running Outer Realms event; unavailable server context raises CommandError.
         Board pages use ranking.get_highscore; tsh has no pagination or previous-run selector.
         Client: ``TempServerEventVO.parseOwnRanks`` (bundle 118163).
         """
-        self._require_running(Event.TEMP_SERVER)
-        return self.request(GetTemporaryServerRanksRequest(), GetTemporaryServerRanksResponse, timeout=timeout)
+        self._require_running(Event.OUTER_REALMS)
+        return self.request(GetOuterRealmsRanksRequest(), GetOuterRealmsRanksResponse, timeout=timeout)
 
     @property
     def current_server(self) -> CurrentServer | None:
@@ -549,14 +547,14 @@ class EventsService(BaseService):
         timeout: float = 5.0,
     ) -> None:
         """
-        Pick the pre-built castle you enter the temporary server or the alliance battleground with (tsc).
+        Pick the pre-built castle you enter the Outer Realms or Beyond the Horizon with (tsc).
 
         Sent on the main server while the server's event runs. Then enter the server with
         ``client.connect_to_special_server(server_type)``, as the client connects once the pick is accepted.
 
         Args:
             castle_id: The pre-built castle's id, from the server's castle selection
-            server_type: ``ServerType.TEMPORARY`` or ``ServerType.ALLIANCE_BATTLEGROUND``
+            server_type: ``ServerType.OUTER_REALMS`` or ``ServerType.HORIZON``
             ruby_castle: The castle is priced in rubies (``OC2`` 1), as the client sends for a castle whose
                 costs hold rubies; needs ``spend_rubies``
             spend_rubies: Consent to the rubies a ``ruby_castle`` costs
@@ -571,7 +569,7 @@ class EventsService(BaseService):
         ``TSCCommand.executeCommand`` (bundle line 128531)
         """
         if server_type not in _SPECIAL_SERVER_EVENTS:
-            raise ValueError("a castle is picked for a temporary or alliance battleground server")
+            raise ValueError("a castle is picked for a Outer Realms or Beyond the Horizon server")
         self._require_spend_rubies(spend_rubies, "the ruby castle costs rubies" if ruby_castle else None)
         self._require_running(_SPECIAL_SERVER_EVENTS[server_type])
         self.request(
@@ -580,22 +578,22 @@ class EventsService(BaseService):
             timeout=timeout,
         )
 
-    def get_temporary_server_collector_points(self, player_id: int, *, timeout: float = 5.0) -> int:
+    def get_outer_realms_collector_points(self, player_id: int, *, timeout: float = 5.0) -> int:
         """
-        Request a player's collector points on the temporary server (tpc).
+        Request a player's collector points on the Outer Realms (tpc).
 
         Client: ``CastleCollectorEventData.getTempserverCollectorAmount`` (bundle line 134001),
         ``TPCCommand.executeCommand`` (bundle line 128516)
         """
         return self.request(
-            GetTemporaryServerCollectorPointsRequest(player_id=player_id),
-            TemporaryServerCollectorPoints,
+            GetOuterRealmsCollectorPointsRequest(player_id=player_id),
+            OuterRealmsCollectorPoints,
             timeout=timeout,
         ).amount
 
     def get_charge_camp_effects(self, x: int, y: int, *, timeout: float = 5.0) -> ChargeCampEffects:
         """
-        Request a temporary server charge camp's effect and the one a reroll offered (gce).
+        Request the Outer Realms charge camp's effect and the one a reroll offered (gce).
 
         Client: ``CastleTempServerEffectRerollDialog.showLoaded`` (bundle line 140279),
         ``GCECommand.executeCommand`` (bundle line 128501)
@@ -604,7 +602,7 @@ class EventsService(BaseService):
 
     def reroll_charge_camp_effect(self, x: int, y: int, *, spend_rubies: bool = False, timeout: float = 5.0) -> None:
         """
-        Reroll a temporary server charge camp's effect for rubies (ccr); :meth:`get_charge_camp_effects`
+        Reroll the Outer Realms charge camp's effect for rubies (ccr); :meth:`get_charge_camp_effects`
         then shows the offered effect, and :meth:`apply_charge_camp_effect` takes it.
 
         Raises:
@@ -619,7 +617,7 @@ class EventsService(BaseService):
 
     def apply_charge_camp_effect(self, x: int, y: int, *, timeout: float = 5.0) -> None:
         """
-        Take the rerolled effect in place of a temporary server charge camp's effect (ace).
+        Take the rerolled effect in place of the Outer Realms charge camp's effect (ace).
 
         Client: ``CastleTempServerEffectRerollDialog.onClick`` (bundle line 140284),
         ``ACECommand.executeCommand`` (bundle line 128475)
@@ -634,7 +632,7 @@ class EventsService(BaseService):
         Client: ``FactionCapitalMapobjectVO.parseAreaInfo`` / ``FactionTowerMapobjectVO.parseAreaInfo``
         (bundle 22772-22773, 22818-22819), ``AFDCommand`` (127742-127743).
         """
-        self._require_running(Event.FACTION)
+        self._require_running(Event.BATTLE_FOR_BERIMOND)
         return self.request(GetBerimondTargetsRequest(), GetBerimondTargetsResponse, timeout=timeout).targets
 
     def get_berimond_balance(self, *, timeout: float = 5.0) -> BerimondBalance:
@@ -643,7 +641,7 @@ class EventsService(BaseService):
         Requires the running event. This read does not require choosing or joining a faction.
         Client: ``CastleDecoShopPanel.show`` (bundle 9302), ``FGBCommand`` (127789-127791).
         """
-        self._require_running(Event.FACTION)
+        self._require_running(Event.BATTLE_FOR_BERIMOND)
         return self.request(GetBerimondBalanceRequest(), BerimondBalance, timeout=timeout)
 
     def get_berimond_points(self, *, timeout: float = 5.0) -> BerimondPoints:
@@ -652,7 +650,7 @@ class EventsService(BaseService):
         Requires the running event.
         Client: ``C2SGetFactionPointsVO`` (bundle 66177), ``GFPCommand`` (127917).
         """
-        self._require_running(Event.FACTION)
+        self._require_running(Event.BATTLE_FOR_BERIMOND)
         return self.request(GetBerimondPointsRequest(), BerimondPoints, timeout=timeout)
 
     def join_berimond(
@@ -672,7 +670,7 @@ class EventsService(BaseService):
         ``CastleResourceWaitDialogProperties.getResourceSkipCommand`` (35237),
         ``PrebuiltCastleItemVO.isPremium`` (142354), ``FSCCommand`` (127885).
         """
-        self._require_running(Event.FACTION)
+        self._require_running(Event.BATTLE_FOR_BERIMOND)
         self._require_spend_rubies(spend_rubies, "the ruby camp costs rubies" if ruby_camp else None)
         request = SelectBerimondCampRequest(
             camp_id=camp_id, pay_with_rubies=spend_rubies and not ruby_camp, ruby_camp=ruby_camp
@@ -682,7 +680,7 @@ class EventsService(BaseService):
     @property
     def berimond_kingdom_status(self) -> BerimondKingdomStatus | None:
         """Battle for Berimond's last kingdom status; None while it is not running or none has come."""
-        event = self.client.state.get_event(Event.FACTION)
+        event = self.client.state.get_event(Event.BATTLE_FOR_BERIMOND)
         return event.kingdom_status if event is not None else None
 
     def join_season_camp(self, event: Event, *, timeout: float = 5.0) -> None:
@@ -870,7 +868,7 @@ class EventsService(BaseService):
         return self.request(GetDaimyoWarEffortsRequest(), DaimyoWarEffortsResponse, timeout=timeout)
 
     def get_previous_special_server_runs(self, *, timeout: float = 5.0) -> PreviousSpecialServerRuns:
-        """Request when the temporary server and the alliance battleground last ran.
+        """Request when the Outer Realms and Beyond the Horizon last ran.
 
         Client: ``CastleHighscoreDialog.getGlobalServerInfo`` (bundle line 27707), ``GPRCommand.executeCommand``
         (bundle line 128892)
@@ -909,25 +907,25 @@ class EventsService(BaseService):
             timeout=timeout,
         ).contributions
 
-    def get_raid_boss_status(self, *, timeout: float = 5.0) -> RaidBossStatus:
+    def get_rift_raid_status(self, *, timeout: float = 5.0) -> RiftRaidStatus:
         """Request current alliance raid boss, health, cards and walls.
 
-        Requires the raid event. Successful replies and bbs broadcasts update RaidBossEvent.boss_status.
+        Requires the raid event. Successful replies and bbs broadcasts update RiftRaidEvent.boss_status.
         An inactive status clears the active boss fields; missing identity/stage/walls preserve prior values
         exactly where the client does. Replies carry no event or alliance identity, so a late reply after
         timeout cannot be correlated. Refusals/transport failures raise without changing the event.
         Client: ``C2SGetAllianceRaidBossStatus`` (bundle 47183-47187), raid parser (76190-76205).
         """
-        self._require_running(Event.ALLIANCE_RAIDBOSS_EVENT)
+        self._require_running(Event.RIFT_RAID)
         deadline = time.monotonic() + timeout
         with self.client.connection.command_lock("bse", timeout=timeout):
             packet = self.client.request_packet(
-                GetRaidBossStatusRequest(), "bse", timeout=max(0.0, deadline - time.monotonic())
+                GetRiftRaidStatusRequest(), "bse", timeout=max(0.0, deadline - time.monotonic())
             )
             if packet.error_code != 0:
                 raise CommandError("bse", packet.error_code, packet.payload)
             try:
-                GetRaidBossStatusResponse.model_validate(packet.payload)
+                GetRiftRaidStatusResponse.model_validate(packet.payload)
             except ValidationError as error:
                 raise PacketError(f"Could not parse 'bse' response: {error}") from error
             status = self.client.state._raid_status_reply(packet.payload)
@@ -1042,13 +1040,13 @@ class EventsService(BaseService):
 
         The server checks leader/co-leader permission. Known cards must be available;
         a newer boss id is supported. No ruby payment is shown by the client.
-        Status is updated by bbs broadcasts; call get_raid_boss_status for a fresh snapshot.
+        Status is updated by bbs broadcasts; call get_rift_raid_status for a fresh snapshot.
         Client: ``AllianceRaidBossCardItem.onClick`` (current bundle 75377),
         ``canManageAllianceRaid`` (current DLL 18796), ``SRBCommand`` (bundle 127571-127580).
         """
-        event = self._require_running(Event.ALLIANCE_RAIDBOSS_EVENT)
+        event = self._require_running(Event.RIFT_RAID)
         request = SelectRaidBossRequest(boss_id=boss_id)
-        if isinstance(event, RaidBossEvent) and event.boss_status is not None:
+        if isinstance(event, RiftRaidEvent) and event.boss_status is not None:
             card = next((card for card in event.boss_status.cards if card.boss_id == boss_id), None)
             if card is not None and card.status != RaidBossCardStatus.AVAILABLE:
                 raise ValueError("the raid boss card is not available")
@@ -1063,8 +1061,8 @@ class EventsService(BaseService):
         Client: ``AllianceRaidBossCardItem.handleAbort``, ``updateAbortButton`` (current bundle
         75351-75365), ``isLastPlayableBoss`` (76260-76263), ``ARBCommand`` (127528-127537).
         """
-        event = self._require_running(Event.ALLIANCE_RAIDBOSS_EVENT)
-        if isinstance(event, RaidBossEvent) and event.boss_status is not None:
+        event = self._require_running(Event.RIFT_RAID)
+        if isinstance(event, RiftRaidEvent) and event.boss_status is not None:
             status = event.boss_status
             if not status.active:
                 raise ValueError("there is no active raid to abort")
@@ -1089,11 +1087,11 @@ class EventsService(BaseService):
 
     # Event minigames
 
-    def spin_lucky_wheel(
-        self, wheel: LuckyWheelType = LuckyWheelType.LUCKY_WHEEL, *, timeout: float = 5.0
-    ) -> LuckyWheelSpinResponse:
+    def spin_wheel_of_fortune(
+        self, wheel: WheelOfFortuneType = WheelOfFortuneType.WHEEL_OF_FORTUNE, *, timeout: float = 5.0
+    ) -> WheelOfFortuneSpinResponse:
         """
-        Spin a lucky wheel, paid with lucky wheel tickets or a free spin; the wheel's event is updated.
+        Spin a Wheel of Fortune, paid with Wheel of Fortune tickets or a free spin; the wheel's event is updated.
 
         Raises:
             EventNotRunningError: The wheel's event is not running
@@ -1101,52 +1099,58 @@ class EventsService(BaseService):
 
         Client: ``C2SLuckyWheelSpinVO`` (bundle line 59783), ``LWSCommand.executeCommand`` (bundle line 128141)
         """
-        self._require_running(Event.SALE_DAYS_LUCKY_WHEEL if wheel == LuckyWheelType.SALE_DAYS else Event.LUCKY_WHEEL)
-        return self.request(LuckyWheelSpinRequest(wheel=wheel), LuckyWheelSpinResponse, timeout=timeout)
+        self._require_running(
+            Event.WHEEL_OF_UNIMAGINABLE_AFFLUENCE
+            if wheel == WheelOfFortuneType.WHEEL_OF_UNIMAGINABLE_AFFLUENCE
+            else Event.WHEEL_OF_FORTUNE
+        )
+        return self.request(WheelOfFortuneSpinRequest(wheel=wheel), WheelOfFortuneSpinResponse, timeout=timeout)
 
-    def change_lucky_wheel_mode(self, *, timeout: float = 5.0) -> LuckyWheelChangeModeResponse:
+    def change_wheel_of_fortune_mode(self, *, timeout: float = 5.0) -> WheelOfFortuneChangeModeResponse:
         """
-        Switch the lucky wheel between normal and pro mode; the client offers it to paying players only.
+        Switch the Wheel of Fortune between normal and pro mode; the client offers it to paying players only.
 
         Client: ``CastleLuckyWheelDialog.changeMode`` (bundle line 116666), ``LWMCommand.executeCommand`` (bundle
         line 128122)
         """
-        self._require_running(Event.LUCKY_WHEEL)
-        return self.request(LuckyWheelChangeModeRequest(), LuckyWheelChangeModeResponse, timeout=timeout)
+        self._require_running(Event.WHEEL_OF_FORTUNE)
+        return self.request(WheelOfFortuneChangeModeRequest(), WheelOfFortuneChangeModeResponse, timeout=timeout)
 
-    def buy_lucky_wheel_jackpot(
+    def buy_wheel_of_fortune_jackpot(
         self, *, spend_rubies: bool = False, timeout: float = 5.0
-    ) -> LuckyWheelBuyJackpotResponse:
+    ) -> WheelOfFortuneBuyJackpotResponse:
         """
-        Spin the lucky wheel for a guaranteed jackpot, paid in rubies and tickets by the wheel's mode.
+        Spin the Wheel of Fortune for a guaranteed jackpot, paid in rubies and tickets by the wheel's mode.
 
         Raises:
             ValueError: Without ``spend_rubies``
-            EventNotRunningError: The lucky wheel is not running
+            EventNotRunningError: The Wheel of Fortune is not running
 
         Client: ``CastleLuckyWheelDialog.clickedBuyJackpot`` (bundle line 116659), ``LuckyWheelData.jackpotC2Price``
         (bundle line 17639), ``LWJCommand.executeCommand`` (bundle line 128105)
         """
-        self._require_running(Event.LUCKY_WHEEL)
+        self._require_running(Event.WHEEL_OF_FORTUNE)
         self._require_spend_rubies(spend_rubies, "the jackpot costs rubies")
-        return self.request(LuckyWheelBuyJackpotRequest(), LuckyWheelBuyJackpotResponse, timeout=timeout)
+        return self.request(WheelOfFortuneBuyJackpotRequest(), WheelOfFortuneBuyJackpotResponse, timeout=timeout)
 
-    def increase_lucky_wheel_win_class(
+    def increase_wheel_of_fortune_win_class(
         self, *, spend_rubies: bool = False, timeout: float = 5.0
-    ) -> LuckyWheelIncreaseWinClassResponse:
+    ) -> WheelOfFortuneIncreaseWinClassResponse:
         """
-        Raise the lucky wheel's win class at once, paid in rubies for the spins it skips.
+        Raise the Wheel of Fortune's win class at once, paid in rubies for the spins it skips.
 
         Raises:
             ValueError: Without ``spend_rubies``
-            EventNotRunningError: The lucky wheel is not running
+            EventNotRunningError: The Wheel of Fortune is not running
 
         Client: ``CastleLuckyWheelIncreaseWinClassDialog.clickedAccept`` (bundle line 117107),
         ``LuckyWheelData.increaseWinClassC2`` (bundle line 17628), ``LWCCommand.executeCommand`` (bundle line 128090)
         """
-        self._require_running(Event.LUCKY_WHEEL)
+        self._require_running(Event.WHEEL_OF_FORTUNE)
         self._require_spend_rubies(spend_rubies, "raising the win class costs rubies")
-        return self.request(LuckyWheelIncreaseWinClassRequest(), LuckyWheelIncreaseWinClassResponse, timeout=timeout)
+        return self.request(
+            WheelOfFortuneIncreaseWinClassRequest(), WheelOfFortuneIncreaseWinClassResponse, timeout=timeout
+        )
 
     def pull_gacha(
         self, event: Event | int, pulls: int = 1, *, spend_rubies: bool = False, timeout: float = 5.0
@@ -1197,31 +1201,33 @@ class EventsService(BaseService):
         request = ColossusDepositRequest(castle_id=castle_id, kingdom=kingdom, stone=stone, wood=wood)
         return self.request(request, ColossusDepositResponse, timeout=timeout)
 
-    def donate_to_coin_colossus(self, coins: int, *, timeout: float = 5.0) -> ColossusCoinDepositResponse:
+    def donate_to_gold_colossus(self, coins: int, *, timeout: float = 5.0) -> ColossusCoinDepositResponse:
         """
         Donate coins to the running coin colossus.
 
         Client: ``CastleCoinColossusDonateDialog.onDonate`` (bundle line 59272), ``CCDCommand.executeCommand``
         (bundle line 127672)
         """
-        self._require_running(Event.COLOSSUS_69)
+        self._require_running(Event.GOLD_COLOSSUS)
         return self.request(ColossusCoinDepositRequest(coins=coins), ColossusCoinDepositResponse, timeout=timeout)
 
     @property
     def donated_points(self) -> tuple[DonationItemPoints, ...] | None:
         """The points each imperial patronage item has earned you, from the last ``gdti`` or ``ddi``; None before
         one or while the event is not running."""
-        event = self.client.state.get_event(Event.DONATION_EVENT)
+        event = self.client.state.get_event(Event.IMPERIAL_PATRONAGE)
         return event.donated_points if event is not None else None
 
-    def get_donation_progress(self, *, timeout: float = 5.0) -> tuple[DonationItemPoints, ...]:
+    def get_imperial_patronage_progress(self, *, timeout: float = 5.0) -> tuple[DonationItemPoints, ...]:
         """
         Ask for the points each imperial patronage item has earned you; kept as :attr:`donated_points`.
 
         Client: ``DonationEventDialog`` (bundle line 39780), ``GDTICommand.executeCommand`` (bundle line 123604)
         """
-        self._require_running(Event.DONATION_EVENT)
-        return self.request(GetDonationProgressRequest(), DonationProgressResponse, timeout=timeout).items
+        self._require_running(Event.IMPERIAL_PATRONAGE)
+        return self.request(
+            GetImperialPatronageProgressRequest(), ImperialPatronageProgressResponse, timeout=timeout
+        ).items
 
     def donate_items(
         self, items: Mapping[int, int], *, spend_rubies: bool = False, timeout: float = 5.0
@@ -1239,7 +1245,7 @@ class EventsService(BaseService):
         line 123589); ``DonationEventDialogDonateItem.unfilteredAmountInInventory`` (bundle line 115730) gives
         rubies for an item whose resource is ``C2``
         """
-        self._require_running(Event.DONATION_EVENT)
+        self._require_running(Event.IMPERIAL_PATRONAGE)
         given = tuple(
             DonationItemAmount(donation_item_id=item, amount=amount) for item, amount in items.items() if amount > 0
         )
@@ -1270,10 +1276,10 @@ class EventsService(BaseService):
         Client: ``C2SBuyBeggingKnightsPackageVO`` (bundle line 114933), sent with each amount divided by the
         package size (bundle line 114916); ``BKPCommand.executeCommand`` (bundle line 128233) asks for the points
         """
-        self._require_running(Event.BEGGING_KNIGHTS)
+        self._require_running(Event.MARAUDERS_CONTEST)
         if max(wood_packages, stone_packages, food_packages) <= 0:
             raise ValueError("pass a package count above 0")
-        request = BuyBeggingKnightsPackageRequest(
+        request = BuyMaraudersContestPackageRequest(
             castle_id=castle_id,
             kingdom=self._require_own_castle(castle_id).kingdom_id,
             wood_packages=wood_packages,
@@ -1281,24 +1287,24 @@ class EventsService(BaseService):
             food_packages=food_packages,
         )
         self.execute(request, timeout=timeout)
-        return self.get_own_points(Event.BEGGING_KNIGHTS, timeout=timeout)
+        return self.get_own_points(Event.MARAUDERS_CONTEST, timeout=timeout)
 
     def buy_artifact_pieces(
         self, event: Event | int, pieces: int = 1, *, spend_rubies: bool = False, timeout: float = 5.0
     ) -> BuyArtifactPieceResponse:
         """
-        Buy pieces of a running artifact event's artifact with rubies; the event's ``parts_found`` is updated.
+        Buy pieces of a running Traveling Knights event's artifact with rubies; the event's ``parts_found`` is updated.
 
         Raises:
             ValueError: Without ``spend_rubies``
-            EventNotRunningError: The event is not running, or is no artifact event
+            EventNotRunningError: The event is not running, or is no Traveling Knights event
             GameDataNotLoadedError: The game data, which names the event's kingdom, cannot be loaded
 
         Client: ``CastleArtifactBuyPieceDialog`` (bundle lines 114756, 114762) prices the pieces in rubies and sends
         the event's first kingdom (``kIDs``, ``"0"`` when missing, ``ASpecialEventVO.parseBasicsFromXmlNode``,
         bundle line 2960); ``SAPCommand.executeCommand`` (bundle line 127614)
         """
-        if not isinstance(self._require_running(event), ArtifactEvent):
+        if not isinstance(self._require_running(event), TravelingKnightsEvent):
             raise EventNotRunningError(int(event))
         self._require_spend_rubies(spend_rubies, "artifact pieces cost rubies")
         kingdoms = self._require_game_data().events[Event(int(event))].kingdoms
@@ -1306,20 +1312,22 @@ class EventsService(BaseService):
         request = BuyArtifactPieceRequest(pieces=pieces, event_id=int(event), kingdom=kingdom)
         return self.request(request, BuyArtifactPieceResponse, timeout=timeout)
 
-    def validate_bounty_target(self, *, timeout: float = 5.0) -> None:
+    def validate_shady_lady_target(self, *, timeout: float = 5.0) -> None:
         """
-        Have the server check your bounty hunter target, as the event's dialog does when it opens; a new target
+        Have the server check your Shady Lady target, as the event's dialog does when it opens; a new target
         arrives in a ``sei``.
 
         Client: ``CastleBountyhunterEventDialog.applyPropertiesLoaded`` (bundle line 114986),
         ``BRTCommand.executeCommand`` (bundle line 127629)
         """
-        self._require_running(Event.BOUNTYHUNTER)
-        self.execute(ValidateBountyTargetRequest(), timeout=timeout)
+        self._require_running(Event.SHADY_LADY)
+        self.execute(ValidateShadyLadyTargetRequest(), timeout=timeout)
 
-    def skip_bounty_target(self, *, spend_rubies: bool = False, timeout: float = 5.0) -> SkipBountyTargetResponse:
+    def skip_shady_lady_target(
+        self, *, spend_rubies: bool = False, timeout: float = 5.0
+    ) -> SkipShadyLadyTargetResponse:
         """
-        Skip your bounty hunter target for another, paid in rubies; the event's new target comes with the reply.
+        Skip your Shady Lady target for another, paid in rubies; the event's new target comes with the reply.
 
         Raises:
             ValueError: Without ``spend_rubies``
@@ -1327,9 +1335,9 @@ class EventsService(BaseService):
         Client: ``CastleBountyhunterEventDialog.onClick`` (bundle line 115004), ``targetSkipCostC2`` (bundle line
         114944), ``BSTCommand.executeCommand`` (bundle line 127642)
         """
-        self._require_running(Event.BOUNTYHUNTER)
+        self._require_running(Event.SHADY_LADY)
         self._require_spend_rubies(spend_rubies, "skipping the target costs rubies")
-        return self.request(SkipBountyTargetRequest(), SkipBountyTargetResponse, timeout=timeout)
+        return self.request(SkipShadyLadyTargetRequest(), SkipShadyLadyTargetResponse, timeout=timeout)
 
     def buy_fortune_teller_reading(
         self, *, spend_rubies: bool = False, timeout: float = 5.0

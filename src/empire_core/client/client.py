@@ -60,8 +60,8 @@ LOGIN_SECTION_PUSHES = ("sne", "ahl", "DTS")
 # The name the client gives each special server's instance: its event's title.
 # Client: GLTCommand.buildInstanceVO (bundle line 128880)
 _SPECIAL_SERVER_NAMES = {
-    ServerType.TEMPORARY: "event_title_106",
-    ServerType.ALLIANCE_BATTLEGROUND: "event_title_113",
+    ServerType.OUTER_REALMS: "event_title_106",
+    ServerType.HORIZON: "event_title_113",
 }
 
 T = TypeVar("T", bound=BaseResponse)
@@ -516,7 +516,7 @@ class EmpireClient:
 
     def connect_to_special_server(self, server_type: ServerType, *, timeout: float = 5.0) -> EmpireClient:
         """
-        Leave this server for the temporary server (Outer Realms) or the alliance battleground, as the client
+        Leave this server for the Outer Realms or Beyond the Horizon, as the client
         does, and return a new client logged in there.
 
         On this logged-in session it asks for a login token (``glt``), then closes this client, as the
@@ -526,7 +526,7 @@ class EmpireClient:
         password, and has no :attr:`keep_session`; with it set, a re-login sends the same token again.
 
         The server only lets you in with a castle there: one bought before (``castle_bought`` on the
-        running ``TempServerEvent``), or one picked first with
+        running ``OuterRealmsEvent``), or one picked first with
         :meth:`~empire_core.events.service.EventsService.select_special_server_castle`.
 
         To come back, close the returned client and call :meth:`login` on this one, as the client's logout
@@ -546,7 +546,7 @@ class EmpireClient:
         ``CastleLogoutCommand.changeInstanceFromTempToHome`` (bundle line 110788) goes back
         """
         if server_type is ServerType.NORMAL:
-            raise ValueError("connect_to_special_server takes a temporary or alliance battleground server")
+            raise ValueError("connect_to_special_server takes a Outer Realms or Beyond the Horizon server")
         token = self.request(
             GetSpecialServerTokenRequest(server_type=server_type), SpecialServerTokenResponse, timeout=timeout
         )

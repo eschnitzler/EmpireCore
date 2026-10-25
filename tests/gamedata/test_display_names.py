@@ -64,7 +64,7 @@ class TestGeneratedEnums:
             (Currency.SKIP_5_MINUTES, "currency_name_5MinSkip"),
             (CurrencyId.SKIP_5_MINUTES, "currency_name_5MinSkip"),
             (Research.MANEUVER_L1, "research_1_title"),
-            (Event.NOMAD_INVASION, "event_title_5"),
+            (Event.NOMAD_INVASION_5, "event_title_5"),
             (Gem.CORE_OF_THE_CITY, "gem_unique_1"),
             (Gem.GEM_OF_THE_RESERVES_L6, "gem_effect_name_gemDefenseSupportUnitsWeak"),
             (General.TORIL, "generals_characters_101_name"),
@@ -83,7 +83,7 @@ class TestGeneratedEnums:
         assert Unit.MEAD_RANGER_L6.display_name() == "Mead ranger"
         assert Currency.SKIP_5_MINUTES.display_name() == "Skip 5 minutes"
         assert Research.MANEUVER_L1.display_name() == "Maneuver"
-        assert Event.NOMAD_INVASION.display_name("de") == "Nomad invasion (de)"
+        assert Event.NOMAD_INVASION_5.display_name("de") == "Nomad invasion (de)"
         assert stub_texts == ["en", "de"]
 
     def test_a_gem_fills_in_its_level(self) -> None:
@@ -94,8 +94,8 @@ class TestGeneratedEnums:
         assert Title.CHEVALIER.display_name() == "playerTitle_1"
 
     def test_events_and_generals_without_a_text_have_none(self) -> None:
-        assert Event.NOMAD_INVASION.display_name() == "Nomad invasion"
-        assert Event.THORNKING.display_name() is None
+        assert Event.NOMAD_INVASION_5.display_name() == "Nomad invasion"
+        assert Event.THORN_KING.display_name() is None
         assert General.TORIL.display_name() is None
 
     def test_a_blueprint_research_is_named_by_its_blueprint(self) -> None:

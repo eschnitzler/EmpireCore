@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from empire_core.events import service as events_module
-from empire_core.events.models import PointEvent, SpecialEventInfoRequest
+from empire_core.events.models import NobilityContestEvent, SpecialEventInfoRequest
 from empire_core.exceptions import EventNotRunningError
 from empire_core.gamedata.ids.events import Event
 from empire_core.state.manager import GameState
@@ -76,8 +76,8 @@ class TestActiveEvents:
         events = client.events.get_active_events(lang="de")
 
         assert [(e.event_id, e.event, e.display_name) for e in events] == [
-            (72, Event.ALLIANCE_NOMAD_INVASION, "de"),
-            (60, Event.POINT_EVENT, "POINT_EVENT"),
+            (72, Event.NOMAD_INVASION_72, "de"),
+            (60, Event.NOBILITY_CONTEST, "NOBILITY_CONTEST"),
             (999, None, "999"),
         ]
         assert events[0].details is client.state.get_event(72)
@@ -115,7 +115,7 @@ class TestRefresh:
 
         assert conn(client).request_payloads == [("sei", {})]
         point = events[60]
-        assert isinstance(point, PointEvent) and point.league_id == 4
+        assert isinstance(point, NobilityContestEvent) and point.league_id == 4
 
 
 class TestRefusedReplies:

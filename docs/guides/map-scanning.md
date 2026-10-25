@@ -222,7 +222,7 @@ gives the row it found.
 
 ## Treasure maps
 
-The treasure hunt's map and each season's map (Thornking, Sea Queen,
+The treasure hunt's map and each season's map (Thorn King, Blade Coast,
 Underworld) come with the login and with every treasure map reply.
 `client.map.treasure_maps` holds them by map id: pieces found, progress,
 each node's state, the camp's storage and units, and the units and goods on

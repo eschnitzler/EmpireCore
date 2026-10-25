@@ -66,7 +66,7 @@ class TestLoginSections:
         assert state.get_title_ranks().island_title.held_title_id == -1
         assert state.get_achievements().achievement_points == 300
         assert state.get_relocation().relocation_count == 3
-        assert state.get_plague_monks().total_plague_monks == 2
+        assert state.get_plague_doctors().total_plague_doctors == 2
         for section in ("rei", "boi", "gmu", "ufa", "uar", "vli", "gri", "cpi"):
             assert state.get_last_packet_time(section) is not None
 
@@ -92,7 +92,7 @@ class TestPushesAndReplies:
         state.update_from_packet("cpi", {"APM": 0, "TPM": 2})
         state.update_from_packet("gri", {"RLC": 4, "RMC": 3600, "RD": 600, "JM": 0})
         assert state.get_might().might_points == 1100
-        assert state.get_plague_monks().available_plague_monks == 0
+        assert state.get_plague_doctors().available_plague_doctors == 0
         relocation = state.get_relocation()
         assert relocation.relocation_count == 4
         assert 0 < relocation.remaining_relocation_seconds() <= 600
@@ -108,7 +108,7 @@ class TestPushesAndReplies:
         state.update_from_packet("res", {"rei": {"ARID": 172, "ARRT": 300, "BR": [256, 1, 2, 171]}, "gcu": {}})
         assert state.get_research().is_research_active()
         state.update_from_packet("cpm", {"cpi": {"APM": 0, "TPM": 2}})
-        assert state.get_plague_monks().available_plague_monks == 0
+        assert state.get_plague_doctors().available_plague_doctors == 0
         state.update_from_packet("ovs", {"boi": {"BO": [{"L": 5, "ID": 19, "RT": 7200}], "PA": 0, "PT": -1}})
         assert state.get_boosts().booster(19).level == 5
 
@@ -116,7 +116,7 @@ class TestPushesAndReplies:
         state.update_from_packet("gbd", LOGIN)
         state.update_from_packet("cpm", {"cpi": {"APM": 9, "TPM": 9}}, error_code=3)
         state.update_from_packet("rei", {"ARID": 5, "ARRT": 60, "BR": []}, error_code=3)
-        assert state.get_plague_monks().available_plague_monks == 1
+        assert state.get_plague_doctors().available_plague_doctors == 1
         assert state.get_research().bought_research_ids == (256, 1, 2, 171)
 
 

@@ -187,7 +187,7 @@ class TestAllianceCamp:
 
         state.update_from_packet("aic", {"AC": [{"EID": 72, "ACID": 11, "AR": 40}, {"EID": 72, "ACID": 12, "AR": 1}]})
 
-        event = state.get_event(Event.ALLIANCE_NOMAD_INVASION)
+        event = state.get_event(Event.NOMAD_INVASION_72)
         assert isinstance(event, NomadInvasionEvent)
         assert (event.khan_camp_id, event.alliance_rage, event.player_rage) == (11, 40, 1)
         state.shutdown()
@@ -200,7 +200,7 @@ class TestAllianceCamp:
         state.update_from_packet("aic", {"AC": [{"EID": 72, "ACID": 11, "AR": 40}]}, error_code=1)
         state.update_from_packet("aic", {"AC": []})
 
-        event = state.get_event(Event.ALLIANCE_NOMAD_INVASION)
+        event = state.get_event(Event.NOMAD_INVASION_72)
         assert isinstance(event, NomadInvasionEvent) and (event.khan_camp_id, event.alliance_rage) == (9, 5)
         state.shutdown()
 
@@ -259,7 +259,7 @@ class TestSeasonMap:
         client = make_client(state=GameState())
         client._on_packet(xt_packet("sei", {"E": [{"EID": 2, "RS": 600, "UL": {"MID": 21, "UL": 1}}]}))
 
-        client.events.open_season_map(Event.THORNKING)
+        client.events.open_season_map(Event.THORN_KING)
 
         assert any("%sje%" in frame and '"MID":21' in frame for frame in conn(client).sent)
         assert conn(client).requested == []
@@ -267,7 +267,7 @@ class TestSeasonMap:
     def test_the_event_must_run(self):
         client = make_client(state=GameState())
         with pytest.raises(EventNotRunningError):
-            client.events.open_season_map(Event.THORNKING)
+            client.events.open_season_map(Event.THORN_KING)
 
 
 class TestDifficulty:
@@ -312,11 +312,11 @@ class TestPreviousRuns:
         runs = client.events.get_previous_special_server_runs()
 
         assert conn(client).request_payloads == [("gpr", {})]
-        assert runs.temporary_server is not None and runs.alliance_battleground is not None
-        assert (runs.temporary_server.setting_id, runs.alliance_battleground.setting_id) == (4, 2)
-        assert 3600 <= runs.temporary_server.ended_seconds_ago() < 3610
+        assert runs.outer_realms is not None and runs.horizon is not None
+        assert (runs.outer_realms.setting_id, runs.horizon.setting_id) == (4, 2)
+        assert 3600 <= runs.outer_realms.ended_seconds_ago() < 3610
 
     def test_a_run_not_sent_is_none(self):
         runs = parse_response("gpr", {"TS": None})
         assert isinstance(runs, PreviousSpecialServerRuns)
-        assert runs.temporary_server is None and runs.alliance_battleground is None
+        assert runs.outer_realms is None and runs.horizon is None

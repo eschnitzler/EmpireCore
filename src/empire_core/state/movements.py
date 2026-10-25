@@ -43,7 +43,7 @@ class MovementState(StateBase):
     an alliance member fires when a player the movement names sends it,
     when an alien attack or the alliance nomad camp does, or when an NPC
     that is not a dungeon owner does (an outpost, capital or metropolis
-    owner, the plague monk, or an NPC id the client does not know); robber
+    owner, the plague doctor, or an NPC id the client does not know); robber
     barons, camps, event dungeons and the other dungeon owners do not fire
     it. An alliance member's attack on someone outside the alliance does
     not fire. Each packet that carries an attack judges it again, with the

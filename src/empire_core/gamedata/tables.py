@@ -128,7 +128,7 @@ class BuildingDef(EffectSpecRow):
     hospital capacity, ...) are not read; ``fortifications`` has the walls, gates and moats. Nor are the
     collectable lists ``AShopVO.parseXmlNode`` reads with its items parsers: the ``cost*`` columns
     (``costs``) other than ``costC2``, the ``sell*`` columns other than ``sellC1`` (the sell list) and
-    ``tempServerCostWood`` and ``tempServerCostStone`` (temporary server repair costs).
+    ``tempServerCostWood`` and ``tempServerCostStone`` (Outer Realms repair costs).
 
     Client: ``AVisualVO.parseXmlNode`` (bundle line 17800), ``AShopVO.parseXmlNode`` (bundle lines
     31713-31715), ``ABasicBuildingVO.parseXmlNode``, ``parseEffects`` and
@@ -183,17 +183,17 @@ class BuildingDef(EffectSpecRow):
         description="How many a castle may have",
     )
     destructable: bool = Field(default=True, description="It can be torn down")
-    temp_server_destructable: bool = Field(
+    outer_realms_destructable: bool = Field(
         validation_alias="tempServerDestructable",
         default=True,
-        description="It can be torn down on a temporary server",
+        description="It can be torn down on the Outer Realms",
     )
-    is_battle_ground: bool = Field(
+    horizon_only: bool = Field(
         validation_alias="isBattleGround",
         default=False,
         description="Built on a battle ground only",
     )
-    is_not_battle_ground: bool = Field(
+    never_on_horizon: bool = Field(
         validation_alias="isNotBattleGround",
         default=False,
         description="Never built on a battle ground",
@@ -316,7 +316,7 @@ class BuildingDef(EffectSpecRow):
         return _parse_int_or_default(value, cls.model_fields[str(info.field_name)].default)
 
     @field_validator(
-        "storeable", "destructable", "temp_server_destructable", "is_battle_ground", "is_not_battle_ground",
+        "storeable", "destructable", "outer_realms_destructable", "horizon_only", "never_on_horizon",
         "needs_construction_expert", "effect_locked", "is_district", "is_relic_building", mode="before",
     )  # fmt: skip
     @classmethod
@@ -405,25 +405,25 @@ class BuildingDef(EffectSpecRow):
         return self.build_duration
 
 
-_TEMP_SERVER_COST_PREFIX = "globalServerCost"
-"""The prefix of a research's temporary server cost columns (``AResearchVO.fillFromParamXML``, bundle line 61509)."""
+_OUTER_REALMS_COST_PREFIX = "globalServerCost"
+"""The prefix of a research's Outer Realms cost columns (``AResearchVO.fillFromParamXML``, bundle line 61509)."""
 
 
 def is_research_cost_column(column: str) -> bool:
     """Whether a ``researches`` column is a cost: ``cost<name>`` or ``globalServerCost<name>``."""
-    return column.startswith((_XML_COST_PREFIX, _TEMP_SERVER_COST_PREFIX))
+    return column.startswith((_XML_COST_PREFIX, _OUTER_REALMS_COST_PREFIX))
 
 
 class ResearchDef(EffectSpecRow):
     """
     One level of a research.
 
-    ``costs`` and ``temp_server_costs`` read every cost column of the row (see
+    ``costs`` and ``outer_realms_costs`` read every cost column of the row (see
     :meth:`Collectable.from_columns`), a currency named by its ``Name`` (``costLegendaryToken``) by the
     currency names GameData passes in as validation context (``currency_ids``).
 
     Client: ``AResearchVO.fillFromParamXML`` (bundle lines 61502-61516); ``getBaseCosts`` (bundle line
-    61530) picks ``temp_server_costs`` on a temporary server, and ``getFinalCosts`` (bundle line 61531)
+    61530) picks ``outer_realms_costs`` on the Outer Realms, and ``getFinalCosts`` (bundle line 61531)
     applies discounts to them
     """
 
@@ -464,10 +464,10 @@ class ResearchDef(EffectSpecRow):
         default=0,
         description="Research time in seconds",
     )
-    temp_server_research_duration: int = Field(
+    outer_realms_research_duration: int = Field(
         validation_alias="globalServerResearchDuration",
         default=0,
-        description="Research time on a temporary server",
+        description="Research time on the Outer Realms",
     )
     only_with_research_expert: bool = Field(
         validation_alias="onlyWithResearchExpert",
@@ -478,7 +478,7 @@ class ResearchDef(EffectSpecRow):
     costs: tuple[Collectable, ...] = Field(
         default=(), description="What it costs, in the items' order: resources, coins, rubies, tokens, ..."
     )
-    temp_server_costs: tuple[Collectable, ...] = Field(default=(), description="What it costs on a temporary server")
+    outer_realms_costs: tuple[Collectable, ...] = Field(default=(), description="What it costs on the Outer Realms")
 
     @model_validator(mode="before")
     @classmethod
@@ -489,7 +489,7 @@ class ResearchDef(EffectSpecRow):
         return {
             **row,
             "costs": Collectable.from_columns(row, _XML_COST_PREFIX, currency_ids),
-            "temp_server_costs": Collectable.from_columns(row, _TEMP_SERVER_COST_PREFIX, currency_ids),
+            "outer_realms_costs": Collectable.from_columns(row, _OUTER_REALMS_COST_PREFIX, currency_ids),
         }
 
     @field_validator("research_id", mode="before")
@@ -499,7 +499,7 @@ class ResearchDef(EffectSpecRow):
 
     @field_validator(
         "group_id", "level", "min_research_tower_level", "required_level", "required_legend_level",
-        "research_duration", "temp_server_research_duration", "cost_rubies", mode="before",
+        "research_duration", "outer_realms_research_duration", "cost_rubies", mode="before",
     )  # fmt: skip
     @classmethod
     def _int_column(cls, value: object, info: ValidationInfo) -> int:
@@ -1046,10 +1046,10 @@ class DailyQuestDef(_Row):
         default=Kingdom.GREEN,
         description="The kingdom it counts in; -1 for any",
     )
-    is_temp_server_quest: bool = Field(
+    is_outer_realms_quest: bool = Field(
         validation_alias="isTempServerQuest",
         default=False,
-        description="It runs on temporary servers",
+        description="It runs on the Outer Realms",
     )
     daily_task_points: int = Field(
         validation_alias="addDailyDutyPoints",
@@ -1073,9 +1073,9 @@ class DailyQuestDef(_Row):
     def _int_column(cls, value: object) -> int:
         return _parse_int_or_default(value, 0)
 
-    @field_validator("is_temp_server_quest", mode="before")
+    @field_validator("is_outer_realms_quest", mode="before")
     @classmethod
-    def _temp_server(cls, value: object) -> bool:
+    def _outer_realms(cls, value: object) -> bool:
         return _is_one(value)
 
     @field_validator("level_calculated", mode="before")

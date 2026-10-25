@@ -38,7 +38,7 @@ TOOL_SLOT_TYPE_FLANK = 2
 LEVEL_CAP = 70
 """``PlayerConst.LEVEL_CAP`` (dll line 19599)."""
 
-ALIEN_INVASION_PLAYER_IDS = frozenset({NPCOwner.ALIEN_INVASION, NPCOwner.RED_ALIEN_INVASION})
+ALIEN_INVASION_PLAYER_IDS = frozenset({NPCOwner.ALIEN_INVASION, NPCOwner.BLOODCROW_INVASION})
 """``PlayerHelper.isAlienInvasion`` (bundle line 4688)."""
 
 COLLECTOR_PLAYER_IDS = frozenset(
@@ -72,7 +72,7 @@ LANDMARK_AREA_TYPES = frozenset(
 
 ALIEN_INVASION_AREA_TYPES: dict[int, int] = {
     int(MapItemType.ALIEN_CAMP): int(NPCOwner.ALIEN_INVASION),
-    int(MapItemType.RED_ALIEN_CAMP): int(NPCOwner.RED_ALIEN_INVASION),
+    int(MapItemType.BLOODCROW_CAMP): int(NPCOwner.BLOODCROW_INVASION),
 }
 """
 The area types built as an ``AAlienInvasionMapobjectVO`` (``WorldmapObjectFactory``,
@@ -94,7 +94,7 @@ OTHER_PLAYER_INFO_AREA_TYPES = frozenset(
         int(MapItemType.MONUMENT),
         int(MapItemType.LABORATORY),
         int(MapItemType.FACTION_CAMP),
-        int(MapItemType.ALLIANCE_BATTLE_GROUND_TOWER),
+        int(MapItemType.HORIZON_TOWER),
     }
 )
 """
@@ -152,7 +152,7 @@ def owner_id_from_row(row: list[Any] | None) -> int | None:
     if area_type in ALIEN_INVASION_AREA_TYPES:
         return ALIEN_INVASION_AREA_TYPES[area_type]
     # FactionInvasionCampMapObjectVO.parseAreaInfo (bundle line 76355): getOwnerInfoVO(int(e[7]))
-    if area_type == MapItemType.FACTION_INVASION_CAMP:
+    if area_type == MapItemType.BERIMOND_INVASION_CAMP:
         return int(row[7]) if len(row) > 7 else None
     # A castle row of four fields is one on the move; CastleMapobjectVO sets no owner then.
     if area_type in ROW_OWNER_AREA_TYPES and len(row) > 4:

@@ -2,7 +2,7 @@
 
 Commands:
 - cds: Send support
-- tde: Send support to an alliance battleground tower
+- tde: Send support to a Beyond the Horizon tower
 - cdd: Send support to a daimyo township
 - cat: Send troops to another of your own areas
 - sti: Travel pre-calculation for troops sent to another of your own areas
@@ -121,7 +121,7 @@ class SendSupportResponse(SentMovementResponse):
 
 class SendTowerSupportRequest(SendSupportRequest):
     """
-    Send support troops to an alliance battleground tower.
+    Send support troops to a Beyond the Horizon tower.
 
     Command: tde
     Payload: {"SID": source_castle_id, "TX": target_x, "TY": target_y, "LID": commander_id,
@@ -140,7 +140,7 @@ class SendTowerSupportRequest(SendSupportRequest):
 
 class SendTowerSupportResponse(SendSupportResponse):
     """
-    The support on its way to an alliance battleground tower.
+    The support on its way to a Beyond the Horizon tower.
 
     Command: tde
     Payload: {"gcu": {...}, "O": [owner, ...], "A": movement}

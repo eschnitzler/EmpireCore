@@ -398,8 +398,7 @@ class GetSupportDefenseResponse(BaseResponse):
 
     The client reads ``S``, ``AS``, the castellan and ``LS`` into the same
     ``CastleSpyArmyInfoVO`` a spy report and an attack pre-calculation use. It
-    takes the castellan from ``abe`` when the target is an alliance
-    battleground tower and from ``B`` otherwise.
+    takes the castellan from ``abe`` when the target is a Beyond the Horizon tower and from ``B`` otherwise.
 
     Client: ``SDICommand.executeCommand`` (bundle line 122352), which passes
     ``gli`` to ``CastleLordData.parse_GLI``;
@@ -423,7 +422,7 @@ class GetSupportDefenseResponse(BaseResponse):
     tower_castellan: Castellan | None = Field(
         validation_alias="abe",
         default=None,
-        description="The castellan of an alliance battleground tower, in place of castellan",
+        description="The castellan of a Beyond the Horizon tower, in place of castellan",
     )
     unit_inventory: UnitInventory = Field(
         validation_alias="gui",

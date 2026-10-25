@@ -3,7 +3,7 @@ The in-game titles of the server's events, from the game's language file.
 
 Usage:
     titles = get_event_titles("de")
-    titles.get(83)  # the long-term point event's title
+    titles.get(83)  # the Grand Nobility Prize's title
 
 The titles are cosmetic: a CDN outage gives the titles last fetched, or none, and is
 retried after a pause (see :func:`empire_core.texts.get_texts`).

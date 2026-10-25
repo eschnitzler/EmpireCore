@@ -651,7 +651,7 @@ class BattleLogArea(SpyReportArea):
     """
     The area fought over, a short log's ``AI`` block.
 
-    The reply's ``SSID``, ``DAR`` and, for an alliance battle ground tower, its
+    The reply's ``SSID``, ``DAR`` and, for a Beyond the Horizon tower, its
     ``AID``, ``N``, ``ACVC`` and ``E`` are read into this block, as the client
     copies them.
 
@@ -934,7 +934,7 @@ class BattleLogShortResponse(BaseResponse):
         for key in ("SSID", "DAR"):
             if js_truthy(data.get(key)):
                 area[key] = data[key]
-        if js_int(area.get("AT")) == MapItemType.ALLIANCE_BATTLE_GROUND_TOWER:
+        if js_int(area.get("AT")) == MapItemType.HORIZON_TOWER:
             for key in ("AID", "N", "ACVC", "E"):
                 area[key] = data.get(key)
         return {**data, "AI": area}

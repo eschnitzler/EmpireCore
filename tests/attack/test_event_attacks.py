@@ -1,4 +1,4 @@
-"""Attacks on event maps: the alliance battleground attack (abgcam), the temporary server attack (cam), treasure
+"""Attacks on event maps: Beyond the Horizon attack (abgcam), the Outer Realms attack (cam), treasure
 hunts (thm) and daimyo taunts (ldt)."""
 
 from __future__ import annotations
@@ -13,14 +13,14 @@ from empire_core.exceptions import CommandError, PremiumCommanderCostError
 from empire_core.gamedata import CurrencyId
 from empire_core.protocol.base import parse_response
 from empire_core.protocol.models import (
-    AllianceBattlegroundAttackRequest,
-    AllianceBattlegroundAttackResponse,
     AttackWave,
     CreateAttackResponse,
     DaimyoTauntRequest,
     DaimyoTauntResponse,
-    TemporaryServerAttackRequest,
-    TemporaryServerAttackResponse,
+    HorizonAttackRequest,
+    HorizonAttackResponse,
+    OuterRealmsAttackRequest,
+    OuterRealmsAttackResponse,
     TreasureHuntAttackRequest,
     TreasureHuntAttackResponse,
 )
@@ -35,9 +35,9 @@ def wrapper(movement_id: int, x: int = 700, y: int = 710) -> dict[str, Any]:
     return {"M": {"MID": movement_id, "T": 0, "TT": 60, "PT": 0, "OID": ME, "TA": [2, x, y, -1, 1, -211, 0]}}
 
 
-class TestAllianceBattlegroundAttackModels:
+class TestHorizonAttackModels:
     def test_keys_follow_the_client_order(self):
-        request = AllianceBattlegroundAttackRequest(
+        request = HorizonAttackRequest(
             commander_id=0, source_x=1, source_y=2, target_x=3, target_y=4, waves=[AttackWave()]
         )
         # The VO initialises SX..ICA, TCK, CD, then sets A, BKS, AST, RW; it has no ASCT
@@ -51,29 +51,27 @@ class TestAllianceBattlegroundAttackModels:
         reply = parse_response(
             "abgcam", {"AAM": wrapper(41), "O": [{"OID": ME, "N": "me"}, {}], "gcu": {"C1": 5, "C2": 6}}
         )
-        assert isinstance(reply, AllianceBattlegroundAttackResponse)
+        assert isinstance(reply, HorizonAttackResponse)
         assert isinstance(reply, CreateAttackResponse)
         assert reply.movement_id == 41
         assert [owner.player_id for owner in reply.owners] == [ME]
         assert reply.currencies is not None and (reply.currencies.coins, reply.currencies.rubies) == (5, 6)
 
     def test_a_refusal_for_too_few_units_names_the_minimum(self):
-        assert AllianceBattlegroundAttackResponse.model_validate({"MS": 40}).minimum_soldiers == 40
+        assert HorizonAttackResponse.model_validate({"MS": 40}).minimum_soldiers == 40
 
 
-class TestAllianceBattlegroundAttack:
-    def test_send_attack_sends_abgcam_on_the_battleground(self):
+class TestHorizonAttack:
+    def test_send_attack_sends_abgcam_on_the_horizon(self):
         client = make_client({"abgcam": xt_packet("abgcam", {"AAM": wrapper(41)})}, castles=OWN)
 
-        reply = client.attack.send_attack(
-            500, 510, 700, 710, [wave(units=[[487, 1]])], commander_id=91, alliance_battleground=True
-        )
+        reply = client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], commander_id=91, horizon=True)
 
         command, payload = conn(client).request_payloads[0]
         assert command == "abgcam"
         assert "ASCT" not in payload
         assert (payload["SX"], payload["TX"], payload["LID"], payload["TCK"]) == (500, 700, 91, 0)
-        assert isinstance(reply, AllianceBattlegroundAttackResponse)
+        assert isinstance(reply, HorizonAttackResponse)
         assert reply.movement_id == 41
 
     def test_send_attack_returns_the_cra_reply(self):
@@ -89,7 +87,7 @@ class TestAllianceBattlegroundAttack:
 
         client.attack.send_attack(
             500, 510, 700, 710, [wave(units=[[487, 1]])], commander_id=91, collector_attack=True,
-            alliance_battleground=True,
+            horizon=True,
         )  # fmt: skip
 
         assert conn(client).request_payloads[0][1]["ICA"] == 1
@@ -98,9 +96,7 @@ class TestAllianceBattlegroundAttack:
         client = make_client({"abgcam": xt_packet("abgcam", {"TS": 30, "AS": 8}, error_code=234)}, castles=OWN)
 
         with pytest.raises(AttackInProgressError) as caught:
-            client.attack.send_attack(
-                500, 510, 700, 710, [wave(units=[[487, 1]])], commander_id=91, alliance_battleground=True
-            )
+            client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], commander_id=91, horizon=True)
 
         assert (caught.value.command, caught.value.arrival_seconds, caught.value.army_size) == ("abgcam", 30, 8)
 
@@ -108,16 +104,14 @@ class TestAllianceBattlegroundAttack:
         client = make_client({"abgcam": xt_packet("abgcam", {"MS": 40}, error_code=100)}, castles=OWN)
 
         with pytest.raises(CommandError) as caught:
-            client.attack.send_attack(
-                500, 510, 700, 710, [wave(units=[[487, 1]])], commander_id=91, alliance_battleground=True
-            )
+            client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], commander_id=91, horizon=True)
 
         assert caught.value.payload == {"MS": 40}
 
 
-class TestTemporaryServerAttack:
+class TestOuterRealmsAttack:
     def test_keys_follow_the_client_order(self):
-        request = TemporaryServerAttackRequest(
+        request = OuterRealmsAttackRequest(
             commander_id=0, source_x=1, source_y=2, target_x=3, target_y=4, waves=[AttackWave()]
         )
         # The VO initialises SX..ICA, CD, then sets A, BKS, AST, RW; it has no ASCT and no TCK
@@ -129,22 +123,22 @@ class TestTemporaryServerAttack:
 
     def test_the_reply_is_read_as_a_cra_reply(self):
         reply = parse_response("cam", {"AAM": wrapper(43), "O": [{"OID": ME, "N": "me"}], "gcu": {"C1": 5, "C2": 6}})
-        assert isinstance(reply, TemporaryServerAttackResponse)
+        assert isinstance(reply, OuterRealmsAttackResponse)
         assert reply.movement_id == 43
-        assert TemporaryServerAttackResponse.model_validate({"MS": 40}).minimum_soldiers == 40
+        assert OuterRealmsAttackResponse.model_validate({"MS": 40}).minimum_soldiers == 40
 
-    def test_send_attack_sends_cam_on_the_temporary_server(self):
+    def test_send_attack_sends_cam_on_the_outer_realms(self):
         client = make_client({"cam": xt_packet("cam", {"AAM": wrapper(43)})}, castles=OWN)
 
         reply = client.attack.send_attack(
-            500, 510, 700, 710, [wave(units=[[487, 1]])], commander_id=91, temporary_server=True
+            500, 510, 700, 710, [wave(units=[[487, 1]])], commander_id=91, outer_realms=True
         )
 
         command, payload = conn(client).request_payloads[0]
         assert command == "cam"
         assert "ASCT" not in payload and "TCK" not in payload
         assert (payload["SX"], payload["TX"], payload["LID"], payload["CD"]) == (500, 700, 91, 99)
-        assert isinstance(reply, TemporaryServerAttackResponse)
+        assert isinstance(reply, OuterRealmsAttackResponse)
         assert reply.movement_id == 43
 
     def test_a_collector_attack_still_sends_ica_0(self):
@@ -152,7 +146,7 @@ class TestTemporaryServerAttack:
 
         client.attack.send_attack(
             500, 510, 700, 710, [wave(units=[[487, 1]])], commander_id=91, collector_attack=True,
-            temporary_server=True,
+            outer_realms=True,
         )  # fmt: skip
 
         assert conn(client).request_payloads[0][1]["ICA"] == 0
@@ -162,8 +156,8 @@ class TestTemporaryServerAttack:
 
         with pytest.raises(ValueError, match="not both"):
             client.attack.send_attack(
-                500, 510, 700, 710, [wave(units=[[487, 1]])], commander_id=91, alliance_battleground=True,
-                temporary_server=True,
+                500, 510, 700, 710, [wave(units=[[487, 1]])], commander_id=91, horizon=True,
+                outer_realms=True,
             )  # fmt: skip
         assert conn(client).request_payloads == []
 
@@ -171,9 +165,7 @@ class TestTemporaryServerAttack:
         client = make_client({"cam": xt_packet("cam", {"TS": 30, "AS": 8}, error_code=234)}, castles=OWN)
 
         with pytest.raises(AttackInProgressError) as caught:
-            client.attack.send_attack(
-                500, 510, 700, 710, [wave(units=[[487, 1]])], commander_id=91, temporary_server=True
-            )
+            client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], commander_id=91, outer_realms=True)
 
         assert (caught.value.command, caught.value.arrival_seconds, caught.value.army_size) == ("cam", 30, 8)
 
@@ -317,7 +309,7 @@ class TestDaimyoTaunt:
 
 
 def test_collector_booster_ids_are_currencies():
-    request = AllianceBattlegroundAttackRequest(
+    request = HorizonAttackRequest(
         commander_id=0, source_x=1, source_y=2, target_x=3, target_y=4,
         collector_booster={CurrencyId.SAMURAI_MEDAL_BOOSTER: 2},
     )  # fmt: skip

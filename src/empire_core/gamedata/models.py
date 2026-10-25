@@ -145,7 +145,7 @@ class _UnitRow(_Row):
 
     Client: ``AVisualVO.parseXmlNode`` (bundle line 17800), ``BasicUnitVO.parseXmlNode`` (bundle line 19211)
     reads ``sortOrder`` as ``void 0 !== t.sortOrder ? parseFloat(t.sortOrder) : Number.MAX_VALUE``;
-    ``BasicUnitVO.basicCostC2`` (bundle line 19248) takes the temporary server's ruby cost there
+    ``BasicUnitVO.basicCostC2`` (bundle line 19248) takes the Outer Realms' ruby cost there
     """
 
     wod_id: int = Field(validation_alias="wodID", description="Unit or tool id; required")
@@ -167,10 +167,10 @@ class _UnitRow(_Row):
         description="0 offensive, 1 defensive",
     )
     cost_rubies: int = Field(validation_alias="costC2", default=0, description="Rubies one costs to produce")
-    temp_server_cost_rubies: int = Field(
+    outer_realms_cost_rubies: int = Field(
         validation_alias="tempServerCostC2",
         default=0,
-        description="Rubies one costs to produce on a temporary server; the client takes cost_rubies when absent",
+        description="Rubies one costs to produce on the Outer Realms; the client takes cost_rubies when absent",
     )
     sort_order: float = Field(
         validation_alias="sortOrder",
@@ -188,7 +188,7 @@ class _UnitRow(_Row):
             raise ValueError(f"wodID {value!r} has no leading integer")
         return parsed
 
-    @field_validator("level", "speed", "fight_type", "cost_rubies", "temp_server_cost_rubies", mode="before")
+    @field_validator("level", "speed", "fight_type", "cost_rubies", "outer_realms_cost_rubies", mode="before")
     @classmethod
     def _parse_int(cls, value: object, info: ValidationInfo) -> object:
         return _parse_int_or_default(value, cls.model_fields[str(info.field_name)].default)
@@ -1645,7 +1645,7 @@ class NpcCampDefence(_Row):
     """
     An event camp's defense, shared shape across the camp tables.
 
-    Covers the nomad, samurai, faction invasion and alliance invasion camps.
+    Covers the nomad, samurai, Berimond invasion and alliance invasion camps.
 
     Client: ``CastleInvasionCampNodeVO.parseXML`` (bundle line 39701)
     """
@@ -1664,7 +1664,7 @@ class NpcCampDefence(_Row):
     faction_id: int = Field(
         validation_alias="factionID",
         default=0,
-        description="The Berimond faction a faction invasion camp row is for: 0 blue, 1 red",
+        description="The Berimond faction a Berimond invasion camp row is for: 0 blue, 1 red",
     )
 
     @property

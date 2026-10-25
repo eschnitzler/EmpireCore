@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 class AbgCastleConnection(BasePayload):
     """
-    An alliance battle ground castle's line to its tower: a castle row's ``[x, y, is_attackable, tower_points]``.
+    A Beyond the Horizon castle's line to its tower: a castle row's ``[x, y, is_attackable, tower_points]``.
 
     The client reads it only on a battle ground server that scores towers.
 
@@ -46,7 +46,7 @@ class AbgCastleConnection(BasePayload):
 
 class AbgTowerConnection(BasePayload):
     """
-    One of an alliance battle ground tower's connections: ``[x, y, player_name, status]``.
+    One of a Beyond the Horizon tower's connections: ``[x, y, player_name, status]``.
 
     ``is_defeated`` is status 1: the client sums the statuses into ``_defeatedConnections`` and draws
     status 1 in red.
@@ -357,7 +357,7 @@ def _invasion_camp(row: _Row) -> dict[str, Any]:
     }
 
 
-def _faction_invasion_camp(row: _Row) -> dict[str, Any]:
+def _berimond_invasion_camp(row: _Row) -> dict[str, Any]:
     """``FactionInvasionCampMapObjectVO.parseAreaInfo`` (bundle line 76355): the owner is ``int(e[7])``."""
     if len(row) <= 3:
         return {}
@@ -457,14 +457,14 @@ ROW_PARSERS: dict[MapItemType, Callable[[_Row], dict[str, Any]]] = {
     MapItemType.NOMAD_CAMP: _invasion_camp,
     MapItemType.LABORATORY: _laboratory,
     MapItemType.SAMURAI_CAMP: _invasion_camp,
-    MapItemType.FACTION_INVASION_CAMP: _faction_invasion_camp,
+    MapItemType.BERIMOND_INVASION_CAMP: _berimond_invasion_camp,
     MapItemType.DYNAMIC: _position_only,
-    MapItemType.RED_ALIEN_CAMP: _alien_camp,
+    MapItemType.BLOODCROW_CAMP: _alien_camp,
     MapItemType.ALLIANCE_NOMAD_CAMP: _alliance_camp,
     MapItemType.DAIMYO_CASTLE: _daimyo,
     MapItemType.DAIMYO_TOWNSHIP: _daimyo,
-    MapItemType.ALLIANCE_BATTLE_GROUND_RESOURCE_TOWER: _alliance_camp,
-    MapItemType.ALLIANCE_BATTLE_GROUND_TOWER: _abg_tower,
+    MapItemType.HORIZON_RESOURCE_TOWER: _alliance_camp,
+    MapItemType.HORIZON_TOWER: _abg_tower,
     MapItemType.WOLF_KING: _wolf_king,
     MapItemType.ARE_PORTAL: _position_only,
 }
@@ -476,7 +476,7 @@ INVASION_AREA_TYPES = frozenset(
         MapItemType.NOMAD_CAMP,
         MapItemType.DAIMYO_CASTLE,
         MapItemType.DAIMYO_TOWNSHIP,
-        MapItemType.FACTION_INVASION_CAMP,
+        MapItemType.BERIMOND_INVASION_CAMP,
     }
 )
 """Invasion event camps: their row does not carry the level they are fought at."""
@@ -534,13 +534,13 @@ class MapAreaItem(BasePayload):
     skin_id: int | None = Field(default=None, description="Unique id of the castle skin equipment it shows")
     has_sabotage_protection: bool | None = Field(default=None, description="Temporary sabotage protection is on")
     abg_tower_connection: AbgCastleConnection | None = Field(
-        default=None, description="On an alliance battle ground: the castle's tower connection"
+        default=None, description="On Beyond the Horizon: the castle's tower connection"
     )
     abg_mine_out_seconds: int | None = Field(
-        default=None, description="Alliance battle ground: seconds until the metropolis is mined out"
+        default=None, description="Beyond the Horizon: seconds until the metropolis is mined out"
     )
     abg_max_influence_points: int | None = Field(
-        default=None, description="Alliance battle ground: the metropolis's most influence points"
+        default=None, description="Beyond the Horizon: the metropolis's most influence points"
     )
     is_destroyed: bool | None = Field(default=None, description="The faction object is destroyed")
     village_type: int | None = Field(default=None, description="Village type")
@@ -635,7 +635,7 @@ class MapAreaItem(BasePayload):
         The client also takes the shorter way round the map's wrapping x edge,
         ``client.map.map_size(kingdom).width`` wide; this distance never wraps.
         Travel to some event camps (alien, nomad, samurai, daimyo, faction,
-        alliance battle ground) is a fixed distance in the client rather than this one.
+        Beyond the Horizon) is a fixed distance in the client rather than this one.
 
         Client: ``MapHelper.getShortestDistance`` (bundle line 8033), called by
         ``MapHelper.getDistanceByMapobjects`` (bundle line 8016)

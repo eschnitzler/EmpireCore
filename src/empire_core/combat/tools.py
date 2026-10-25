@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-ALIEN_INVASION_AREA_TYPES = frozenset({MapItemType.ALIEN_CAMP, MapItemType.RED_ALIEN_CAMP})
+ALIEN_INVASION_AREA_TYPES = frozenset({MapItemType.ALIEN_CAMP, MapItemType.BLOODCROW_CAMP})
 
 
 @dataclass(frozen=True)

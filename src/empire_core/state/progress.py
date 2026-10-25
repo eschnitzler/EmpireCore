@@ -1,4 +1,4 @@
-"""The player's progress: research, boosts, might, points, titles, achievements, relocation and plague monks."""
+"""The player's progress: research, boosts, might, points, titles, achievements, relocation and plague doctors."""
 
 from typing import Any
 
@@ -18,7 +18,7 @@ from empire_core.player.models.progress import (
     TitleRanksResponse,
 )
 from empire_core.protocol.js import js_int, js_truthy
-from empire_core.spy.models import PlagueMonkInfoResponse
+from empire_core.spy.models import PlagueDoctorInfoResponse
 from empire_core.state.base import StateBase, loaded, read_section
 
 _PROGRESS_SECTIONS = ("rei", "boi", "gmu", "ufa", "uar", "vli", "gri", "cpi")
@@ -55,8 +55,8 @@ class ProgressState(StateBase):
                 self.relocation = relocation
                 applied.add("gri")
         if js_truthy(cpi := data.get("cpi")):
-            if (monks := read_section(PlagueMonkInfoResponse, cpi, "the plague monks")) is not None:
-                self.plague_monks = monks
+            if (doctors := read_section(PlagueDoctorInfoResponse, cpi, "the plague doctors")) is not None:
+                self.plague_doctors = doctors
                 applied.add("cpi")
         return {section for section in _PROGRESS_SECTIONS if section in data} - applied
 
@@ -250,7 +250,7 @@ class ProgressState(StateBase):
         with self._lock:
             return self.relocation
 
-    def get_plague_monks(self) -> PlagueMonkInfoResponse | None:
-        """Your plague monks, from the last ``cpi``; None until one arrived."""
+    def get_plague_doctors(self) -> PlagueDoctorInfoResponse | None:
+        """Your plague doctors, from the last ``cpi``; None until one arrived."""
         with self._lock:
-            return self.plague_monks
+            return self.plague_doctors

@@ -156,7 +156,7 @@ def raid_payload(**updates):
 def test_raid_status_reads_current_boss_cards_health_and_walls():
     client = status_client({"bse": xt_packet("bse", raid_payload())})
     before = client.events.running[133]
-    result = client.events.get_raid_boss_status()
+    result = client.events.get_rift_raid_status()
     assert result.active and result.boss_id == 98765 and result.level_id == 7
     assert (result.health, result.revive_unit_percent, result.stage_id) == (55.01, 20, 3)
     assert (result.cards[0].boss_id, result.cards[0].status, result.cards[0].unlocked_level) == (98765, 2, 4)
@@ -183,13 +183,13 @@ def test_raid_broadcast_preserves_identity_stage_and_walls_when_omitted():
 def test_raid_request_preserves_boss_identity_in_return_value():
     client = status_client({"bse": xt_packet("bse", {"BLID": 8, "HP": 44, "RUP": 30})})
     client._on_packet(xt_packet("bbs", raid_payload()))
-    assert client.events.get_raid_boss_status().boss_id == 98765
+    assert client.events.get_rift_raid_status().boss_id == 98765
 
 
 def test_inactive_raid_clears_active_block_but_retains_walls_and_cards():
     client = status_client({"bse": xt_packet("bse", {"BCDS": [{"BID": 4, "CST": 0, "ULV": 2}]})})
     client._on_packet(xt_packet("bbs", raid_payload()))
-    result = client.events.get_raid_boss_status()
+    result = client.events.get_rift_raid_status()
     assert not result.active
     assert (result.boss_id, result.level_id, result.health, result.revive_unit_percent, result.stage_id) == (
         0,
@@ -212,7 +212,7 @@ def test_malformed_raid_preserves_event_and_raises(payload):
     client = status_client({"bse": xt_packet("bse", payload)})
     before = client.events.running[133]
     with pytest.raises(PacketError):
-        client.events.get_raid_boss_status()
+        client.events.get_rift_raid_status()
     assert client.events.running[133] is before
 
 
@@ -232,14 +232,14 @@ def test_raid_failures_propagate_without_state_change(error):
     client = status_client({"bse": xt_packet("bse", error_code=error) if isinstance(error, int) else error})
     before = client.events.running
     with pytest.raises(CommandError if isinstance(error, int) else type(error)):
-        client.events.get_raid_boss_status(timeout=0.1)
+        client.events.get_rift_raid_status(timeout=0.1)
     assert client.events.running == before
 
 
 def test_raid_without_event_does_not_send():
     client = make_client({}, state=GameState())
     with pytest.raises(EventNotRunningError):
-        client.events.get_raid_boss_status()
+        client.events.get_rift_raid_status()
     assert conn(client).request_payloads == []
 
 
@@ -247,7 +247,7 @@ def test_nonfinite_raid_health_raises_packet_error_and_keeps_event():
     client = status_client({"bse": xt_packet("bse", raid_payload(HP=float("inf")))})
     before = client.events.running[133]
     with pytest.raises(PacketError):
-        client.events.get_raid_boss_status()
+        client.events.get_rift_raid_status()
     assert client.events.running[133] is before
 
 
@@ -261,9 +261,9 @@ def test_bad_contributions_and_cards_warn_once_per_response(caplog):
     assert len(client.events.get_grand_tournament_contributions()) == 1
     messages = [r.message for r in caplog.records if "unreadable Grand Tournament contributions" in r.message]
     assert len(messages) == 1 and "2/3" in messages[0]
-    from empire_core.events import GetRaidBossStatusResponse
+    from empire_core.events import GetRiftRaidStatusResponse
 
-    result = GetRaidBossStatusResponse.model_validate(
+    result = GetRiftRaidStatusResponse.model_validate(
         raid_payload(BCDS=[None, {}, {"BID": 1, "CST": 98765, "ULV": 2}])
     ).status
     assert result.cards[0].status == 98765
@@ -283,7 +283,7 @@ def test_unparseable_raid_packet_cannot_clear_active_boss():
     client._on_packet(xt_packet("bbs", raid_payload()))
     before = client.events.running[133]
     with pytest.raises(PacketError):
-        client.events.get_raid_boss_status()
+        client.events.get_rift_raid_status()
     assert client.events.running[133] is before
 
 
@@ -305,7 +305,7 @@ def test_raid_reply_uses_its_receipt_context_not_a_pre_request_or_later_snapshot
 
     monkeypatch.setattr(connection, "_resolve", resolve_after_broadcast)
     connection.on_packet = apply_reply
-    result = client.events.get_raid_boss_status()
+    result = client.events.get_rift_raid_status()
 
     assert (result.boss_id, result.stage_id, result.level_id, result.health) == (202, 4, 8, 44)
     cached = client.events.running[133].boss_status
@@ -326,7 +326,7 @@ def test_inactive_raid_ignores_supplied_walls_even_when_they_are_malformed(walls
     client._on_packet(xt_packet("bbs", raid_payload()))
     previous = client.events.running[133].boss_status
 
-    result = client.events.get_raid_boss_status()
+    result = client.events.get_rift_raid_status()
 
     assert not result.active
     assert result.walls is previous.walls
@@ -340,7 +340,7 @@ def test_raid_falsy_optional_walls_and_cards_follow_client_branches(falsy):
     client._on_packet(xt_packet("bbs", raid_payload()))
     previous = client.events.running[133].boss_status
 
-    result = client.events.get_raid_boss_status()
+    result = client.events.get_rift_raid_status()
 
     assert result.active and result.health == 44
     assert result.walls is previous.walls
@@ -376,14 +376,14 @@ def test_raid_timeout_drains_late_reply_before_next_request_with_real_connection
     def next_request():
         started.set()
         try:
-            results.append(client.events.get_raid_boss_status(timeout=1))
+            results.append(client.events.get_rift_raid_status(timeout=1))
         except Exception as error:
             failures.append(error)
 
     caller = threading.Thread(target=next_request)
     try:
         with pytest.raises(EmpireTimeoutError):
-            client.events.get_raid_boss_status(timeout=0.3)
+            client.events.get_rift_raid_status(timeout=0.3)
         caller.start()
         assert started.wait(1)
         sent_before_late_reply = second_sent.wait(0.04)

@@ -2,8 +2,8 @@
 
 Commands:
 - cra: Create/send attack
-- abgcam: Send an attack on the alliance battleground
-- cam: Send an attack on the temporary server
+- abgcam: Send an attack on Beyond the Horizon
+- cam: Send an attack on the Outer Realms
 - thm: Send a treasure hunt attack
 - ldt: Taunt a daimyo into attacking your township
 """
@@ -144,9 +144,9 @@ class CreateAttackRequest(_ArmyAttackRequest):
     )
 
 
-class AllianceBattlegroundAttackRequest(_ArmyAttackRequest):
+class HorizonAttackRequest(_ArmyAttackRequest):
     """
-    Send an attack on the alliance battleground.
+    Send an attack on Beyond the Horizon.
 
     Command: abgcam
     Payload: {"SX": source_x, "SY": source_y, "TX": target_x, "TY": target_y, "KID": kingdom_id,
@@ -155,7 +155,7 @@ class AllianceBattlegroundAttackRequest(_ArmyAttackRequest):
               "PTT": feathers, "SD": slowdown, "ICA": collector_attack, "TCK": 0, "CD": 99, "A": waves,
               "BKS": collector_booster, "AST": support_tools, "RW": yard_wave}
 
-    The client sends it instead of ``cra`` on the alliance battleground server
+    The client sends it instead of ``cra`` on the Beyond the Horizon server
     while its event scores by alliance collector points, for an attack on a
     castle or capital. It takes the same arguments as ``cra`` but has no
     ``ASCT``; ``TCK`` is initialised to 0 and never set.
@@ -192,9 +192,9 @@ class AllianceBattlegroundAttackRequest(_ArmyAttackRequest):
     )
 
 
-class TemporaryServerAttackRequest(_ArmyAttackRequest):
+class OuterRealmsAttackRequest(_ArmyAttackRequest):
     """
-    Send an attack on the temporary server.
+    Send an attack on the Outer Realms.
 
     Command: cam
     Payload: {"SX": source_x, "SY": source_y, "TX": target_x, "TY": target_y, "KID": kingdom_id,
@@ -203,7 +203,7 @@ class TemporaryServerAttackRequest(_ArmyAttackRequest):
               "PTT": feathers, "SD": slowdown, "ICA": 0, "CD": 99, "A": waves,
               "BKS": collector_booster, "AST": support_tools, "RW": yard_wave}
 
-    The client sends it instead of ``cra`` on the temporary server while its event scores collector
+    The client sends it instead of ``cra`` on the Outer Realms while its event scores collector
     points, for an attack on a castle. It takes the same arguments as ``cra`` but has no ``ASCT``,
     and its constructor sends ``ICA`` 0 whatever it is given.
 
@@ -360,9 +360,9 @@ class CreateAttackResponse(BaseResponse):
             return None
 
 
-class AllianceBattlegroundAttackResponse(CreateAttackResponse):
+class HorizonAttackResponse(CreateAttackResponse):
     """
-    Response to an attack sent on the alliance battleground.
+    Response to an attack sent on Beyond the Horizon.
 
     Command: abgcam
     Payload: {"gcu": {...}, "O": [owner, ...], "AAM": movement}, read as a ``cra`` reply
@@ -383,9 +383,9 @@ class AllianceBattlegroundAttackResponse(CreateAttackResponse):
     )
 
 
-class TemporaryServerAttackResponse(CreateAttackResponse):
+class OuterRealmsAttackResponse(CreateAttackResponse):
     """
-    Response to an attack sent on the temporary server.
+    Response to an attack sent on the Outer Realms.
 
     Command: cam
     Payload: {"gcu": {...}, "O": [owner, ...], "AAM": movement}, read as a ``cra`` reply
@@ -534,10 +534,10 @@ class DaimyoTauntResponse(BaseResponse, MovementWrapper):
 
 
 __all__ = [
-    "AllianceBattlegroundAttackRequest",
-    "AllianceBattlegroundAttackResponse",
-    "TemporaryServerAttackRequest",
-    "TemporaryServerAttackResponse",
+    "HorizonAttackRequest",
+    "HorizonAttackResponse",
+    "OuterRealmsAttackRequest",
+    "OuterRealmsAttackResponse",
     "CreateAttackRequest",
     "CreateAttackResponse",
     "DaimyoTauntRequest",

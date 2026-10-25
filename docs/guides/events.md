@@ -10,8 +10,12 @@ does: it picks the board, the command and your league for you.
 
 ## The running events
 
-Events are named by the game data's `Event` enum, which uses the client's own
-names: Berimond is `Event.FACTION`.
+Events are named by the game data's `Event` enum, after the English title
+players see: Berimond is `Event.BATTLE_FOR_BERIMOND`, event 106
+`Event.OUTER_REALMS`. An event without a title keeps the client's name, and
+each member's docstring gives both. The names are English;
+`Event.OUTER_REALMS.display_name("de")` (any language code) gives the title
+players see in their language.
 
 ```python
 from empire_core.gamedata import Event
@@ -19,7 +23,7 @@ from empire_core.gamedata import Event
 for event_id, event in client.events.running.items():
     print(event_id, type(event).__name__, round(event.remaining_seconds()))
 
-point = client.state.get_event(Event.POINT_EVENT)       # None when it is not running
+point = client.state.get_event(Event.NOBILITY_CONTEST)       # None when it is not running
 if point is not None:
     print(point.league_id, point.own_rank, point.own_points)
 
@@ -32,28 +36,28 @@ Each event is a model of its kind, with the fields its game dialog reads, and
 | Model | Events | What it adds |
 |---|---|---|
 | `ScoredEvent` | the score events below | `league_id`, `own_rank` (-1 unranked), `own_points`, `max_points`, `difficulty_id`, `parts` |
-| `PointEvent` | `POINT_EVENT` | `point_event_type` |
-| `BeggingKnightsEvent` | `BEGGING_KNIGHTS` | `reward_set_id`, `total_hours` |
-| `LongTermPointEvent` | `LONG_TERM_POINT_EVENT` | `reward_set_id`, `upcoming_event_ids` |
+| `NobilityContestEvent` | `NOBILITY_CONTEST` | `point_event_type` |
+| `MaraudersContestEvent` | `MARAUDERS_CONTEST` | `reward_set_id`, `total_hours` |
+| `GrandNobilityPrizeEvent` | `GRAND_NOBILITY_PRIZE` | `reward_set_id`, `upcoming_event_ids` |
 | `GachaEvent` | the gacha events | `reward_set_id`, `free_chest_reset_time` |
 | `InvasionEvent` | the alien, red alien, nomad and samurai invasions, the Berimond invasion | your and your alliance's scores in `parts` (`SP` and `A`; `FB`, `FR` and `A` for the Berimond invasion; the nomads' khan camp in `AC`) |
-| `BerimondEvent` | `FACTION` | `league_id`, `unlocked`, `own_rank`, `own_points`, your faction |
-| `RaidBossEvent` | `ALLIANCE_RAIDBOSS_EVENT` | your `score`, the alliance's `league_id`, `alliance_points` and `alliance_rank`, `boss_level_points` |
-| `TempServerEvent` | `TEMP_SERVER` | `daily_reset_time`, `castle_bought` |
-| `DonationEvent` | `DONATION_EVENT` | `setting_id`, `donated_points` |
-| `KingdomsLeagueEvent` | `SEASON_LEAGUE` | `remaining_days`, `original_days`, `has_alliance_ranking` |
+| `BerimondEvent` | `BATTLE_FOR_BERIMOND` | `league_id`, `unlocked`, `own_rank`, `own_points`, your faction |
+| `RiftRaidEvent` | `RIFT_RAID` | your `score`, the alliance's `league_id`, `alliance_points` and `alliance_rank`, `boss_level_points` |
+| `OuterRealmsEvent` | `OUTER_REALMS` | `daily_reset_time`, `castle_bought` |
+| `ImperialPatronageEvent` | `IMPERIAL_PATRONAGE` | `setting_id`, `donated_points` |
+| `KingdomsLeagueEvent` | `KINGDOMS_LEAGUE` | `remaining_days`, `original_days`, `has_alliance_ranking` |
 | `GlobalEffectEvent`, `GlobalEffectBuffEvent` | `GLOBAL_EFFECT`, `GLOBAL_EFFECT_BUFF` | the effects and their ends, the boosts |
-| `AllianceTournamentEvent` | `ALLI_TOURNAMENT` | your alliance's score in `parts["A"]` |
+| `AllianceTournamentEvent` | `ALLIANCE_TOURNAMENT` | your alliance's score in `parts["A"]` |
 | `GrandTournamentEvent` | `GRAND_TOURNAMENT` | your and your alliance's scores in `parts` (`SP` and `A`), `subdivision_id`, `division_round_id` |
-| `LuckyWheelEvent` | `LUCKY_WHEEL`, `SALE_DAYS_LUCKY_WHEEL` | the point event score, `has_free_spin`, `pro_mode`, `win_class`, the jackpot sets |
-| `SeasonEvent` | `THORNKING`, `SEAQUEEN`, `UNDERWORLD` | `unlocked`, `finished`, `map_id`, `reward_id` |
-| `ArtifactEvent` | the artifact events | `parts_found`, `artifact_league_id`, `skin_id` |
+| `WheelOfFortuneEvent` | `WHEEL_OF_FORTUNE`, `WHEEL_OF_UNIMAGINABLE_AFFLUENCE` | the point event score, `has_free_spin`, `pro_mode`, `win_class`, the jackpot sets |
+| `SeasonEvent` | `THORN_KING`, `BLADE_COAST`, `UNDERWORLD` | `unlocked`, `finished`, `map_id`, `reward_id` |
+| `TravelingKnightsEvent` | the Traveling Knights event | `parts_found`, `artifact_league_id`, `skin_id` |
 | `TournamentEvent` | `TOURNAMENT` | `own_rank`, `own_fame_points`, `booby_prize_min_fame`, the `ranking` (each a `TournamentRank`) |
 | `CampaignEvent`, `CampaignQuestEvent` | `TIME_LIMITED_CAMPAIGN_EVENT`, `TIME_LIMITED_CAMPAIGN_QUEST_EVENT` | the campaign's `quests` (each a `Quest`), its reward ids; the quests (`QuestId`) the quest event times |
-| `FameBoosterEvent`, `AllianceBonusEvent` | `FAMEBOOSTER`; `PRIME_ALLI_BONUS`, `ALLI_PAYMENT_BONUS` | `bonus_percent` |
+| `BannerOfGloryEvent`, `AllianceBonusEvent` | `BANNER_OF_GLORY`; `PRIME_ALLI_BONUS`, `ALLIANCE_PRIME_DAY` | `bonus_percent` |
 | `DiscountSaleEvent` | `RELIC_ENCHANTER_PRIME_SALE`, `SEASON_PASS_PRIME_SALE` | `discount` |
 | `WorldCupEvent` | `WORLD_CUP` | the teams, `vote`, `bet_price_rubies`, `rubies_spent`, `bonus_rubies` |
-| `SkipForFreeEvent`, `GiftEvent`, `FortuneTellerEvent` | `SKIP_FOR_FREE`, `GGS_GIFT`, `FORTUNE_TELLER` | `free_skip_seconds`; `collected`; `tries`, `daily_reset_time` |
+| `SkipForFreeEvent`, `GiftEvent`, `FortuneTellerEvent` | `SKIP_FOR_FREE`, `GIFT_BOX`, `FORTUNE_TELLER` | `free_skip_seconds`; `collected`; `tries`, `daily_reset_time` |
 | `SpecialEvent` | any other | `event_id`, `event`, `end_time`, `raw` |
 
 Your points arrive in the server's `pep` pushes as you score, and
@@ -80,7 +84,7 @@ you back when an event starts, ends, or a packet updates the events.
 ## An event's scores
 
 ```python
-scores = client.events.get_scores(Event.FACTION)
+scores = client.events.get_scores(Event.BATTLE_FOR_BERIMOND)
 
 print(scores.league_id, scores.total)  # the league shown, and how many are ranked
 for row in scores.scores:
@@ -91,10 +95,10 @@ By default you get the page that holds your own score, where the game's dialogs
 open. Other pages:
 
 ```python
-client.events.get_scores(Event.FACTION, rank=1)            # the top of your league
-client.events.get_scores(Event.FACTION, name="Someone")    # around a name
-client.events.get_scores(Event.FACTION, league_id=3)       # the top of another league
-client.events.get_scores(Event.ALLIANCE_NOMAD_INVASION, alliance=True)  # the alliance board
+client.events.get_scores(Event.BATTLE_FOR_BERIMOND, rank=1)            # the top of your league
+client.events.get_scores(Event.BATTLE_FOR_BERIMOND, name="Someone")    # around a name
+client.events.get_scores(Event.BATTLE_FOR_BERIMOND, league_id=3)       # the top of another league
+client.events.get_scores(Event.NOMAD_INVASION_72, alliance=True)  # the alliance board
 ```
 
 Berimond's leagues are its lists: 1 blue, 2 red, 3 and 4 the legendary blue
@@ -105,7 +109,7 @@ Each row is an `EventScore`: `rank`, `points` and `name` always, and what the
 board gives besides. Player rows on most boards carry `player_id`, `level`,
 `alliance_id` and `alliance_name`; alliance rows carry the alliance's
 `alliance_id` and `member_count`, with its name in both `name` and
-`alliance_name`; the leaderboards (long-term points and donations) carry
+`alliance_name`; the leaderboards (Grand Nobility Prize and Imperial Patronage) carry
 `alliance_name` and the game server in `instance_id`, but no ids.
 
 ## Your own rank and points
@@ -117,15 +121,15 @@ model has a rank and points:
 
 | In the game | `Event` |
 |---|---|
-| Battle for Berimond | `FACTION` |
-| Nobility Contest, Marauders' contest, Grand Nobility Prize | `POINT_EVENT`, `BEGGING_KNIGHTS`, `LONG_TERM_POINT_EVENT` |
-| the alliance tournament | `ALLI_TOURNAMENT` |
-| the alien, red alien, nomad, samurai and Berimond invasions | `ALLIANCE_ALIEN_INVASION`, `RED_ALLIANCE_ALIEN_INVASION`, `ALLIANCE_NOMAD_INVASION`, `SAMURAI_INVASION`, `FACTION_INVASION` |
-| the alliance Grand Tournament and raid boss | `GRAND_TOURNAMENT`, `ALLIANCE_RAIDBOSS_EVENT` |
-| the lucky wheels | `LUCKY_WHEEL`, `SALE_DAYS_LUCKY_WHEEL` |
-| the gacha events | `GACHA_DECO2X2`, `CHRISTMAS_GACHA`, `EASTER_GACHA`, `SUMMER_GACHA`, `ANNIVERSARY_GACHA`, `HALLOWEEN_GACHA`, `BLACK_FRIDAY_GACHA`, `CARNIVAL_GACHA` |
+| Battle for Berimond | `BATTLE_FOR_BERIMOND` |
+| Nobility Contest, Marauders' contest, Grand Nobility Prize | `NOBILITY_CONTEST`, `MARAUDERS_CONTEST`, `GRAND_NOBILITY_PRIZE` |
+| the alliance tournament | `ALLIANCE_TOURNAMENT` |
+| the alien, red alien, nomad, samurai and Berimond invasions | `WAR_OF_THE_REALMS`, `BLOODCROW_INVASION`, `NOMAD_INVASION_72`, `SAMURAI_INVASION`, `BERIMOND_INVASION` |
+| the alliance Grand Tournament and raid boss | `GRAND_TOURNAMENT`, `RIFT_RAID` |
+| the Wheels of Fortune | `WHEEL_OF_FORTUNE`, `WHEEL_OF_UNIMAGINABLE_AFFLUENCE` |
+| the gacha events | `GACHA_DECO2X2`, `ENCHANTED_SNOWGLOBE`, `SUMMONING_OF_THE_HOLLOW_MOON`, `SANDS_OF_FORTUNE`, `KINGS_BANQUET`, `HALLOWEEN_BANQUET`, `MIDNIGHT_MARKET`, `CARNIVAL_OF_MASKS` |
 
-Any other event (the shops, sales and skins, the donation event) raises
+Any other event (the shops, sales and skins, the Imperial Patronage) raises
 `EventHasNoPointsError` without asking, as the server leaves such a request
 unanswered (seen live); one that is not running raises `EventNotRunningError`.
 
@@ -143,15 +147,15 @@ per score the event keeps (-1 is unranked):
 
 | Events | The values |
 |---|---|
-| the score events (nobility contest, marauders, long-term points, gacha) | yours |
-| Berimond, the lucky wheel | yours, in the first value only |
+| the score events (nobility contest, marauders, Grand Nobility Prize, gacha) | yours |
+| Berimond, the Wheel of Fortune | yours, in the first value only |
 | the alliance tournament | your alliance's, in the first value only |
 | the alien, red alien, nomad and samurai invasions, the alliance Grand Tournament | yours, your alliance's |
 | the Berimond invasion | the blue players', the red players', your alliance's |
-| the alliance raid boss | yours, your alliance's, and `boss_level_points` |
+| the Rift Raid | yours, your alliance's, and `boss_level_points` |
 
 The state applies the reply before the call returns, read the event's way:
-`own_rank` and `own_points` on a score event, Berimond or a lucky wheel, one per
+`own_rank` and `own_points` on a score event, Berimond or a Wheel of Fortune, one per
 part in `parts` on an invasion, the alliance Grand Tournament or the alliance
 tournament, `score` and `alliance_points` on the raid boss.
 
@@ -164,23 +168,23 @@ event without.
 
 | In the game | `Event` | Player board | Alliance board |
 |---|---|---|---|
-| Battle for Berimond | `FACTION` | list 30 | |
-| Nobility Contest | `POINT_EVENT` | list 40 | |
-| Marauders' contest | `BEGGING_KNIGHTS` | list 41 | |
-| War of the Realms (alien invasion) | `ALLIANCE_ALIEN_INVASION` | list 44 | list 45 |
-| Nomad Invasion | `ALLIANCE_NOMAD_INVASION` | | list 47 |
+| Battle for Berimond | `BATTLE_FOR_BERIMOND` | list 30 | |
+| Nobility Contest | `NOBILITY_CONTEST` | list 40 | |
+| Marauders' contest | `MARAUDERS_CONTEST` | list 41 | |
+| War of the Realms (alien invasion) | `WAR_OF_THE_REALMS` | list 44 | list 45 |
+| Nomad Invasion | `NOMAD_INVASION_72` | | list 47 |
 | Samurai Invasion | `SAMURAI_INVASION` | | list 52 |
-| Grand Nobility Prize (long-term points) | `LONG_TERM_POINT_EVENT` | leaderboard 53 | |
-| Berimond Invasion | `FACTION_INVASION` | lists 54 (blue) and 55 (red) | list 56 |
-| Bloodcrow invasion | `RED_ALLIANCE_ALIEN_INVASION` | list 58 | list 59 |
-| Imperial Patronage (donations) | `DONATION_EVENT` | leaderboard 79 | |
+| Grand Nobility Prize | `GRAND_NOBILITY_PRIZE` | leaderboard 53 | |
+| Berimond Invasion | `BERIMOND_INVASION` | lists 54 (blue) and 55 (red) | list 56 |
+| Bloodcrow invasion | `BLOODCROW_INVASION` | list 58 | list 59 |
+| Imperial Patronage (donations) | `IMPERIAL_PATRONAGE` | leaderboard 79 | |
 
 Berimond Invasion has a player board per faction; name the one you want:
 
 ```python
 from empire_core.enums import RankingType
 
-client.events.get_scores(Event.FACTION_INVASION, list_type=RankingType.FACTION_INVASION_PLAYER_RED)
+client.events.get_scores(Event.BERIMOND_INVASION, list_type=RankingType.BERIMOND_INVASION_PLAYER_RED)
 ```
 
 The top of every board of every running event:
@@ -193,10 +197,10 @@ for event in client.events.running_score_events:
 ```
 
 The nomad and samurai invasions have only an alliance board in the game. Events
-the game shows no board for are not listed: the lucky wheel and the gacha
+the game shows no board for are not listed: the Wheel of Fortune and the gacha
 events show only your own rank (`get_own_points` reads it), and the colossus uses a command of its own. The
 kingdoms league, the alliance Grand Tournament and raid boss events, the
-tournaments and the temporary-server and battle-ground boards are not covered
+tournaments and the Outer Realms and Beyond the Horizon boards are not covered
 yet; the `client.ranking` calls reach their lists directly.
 
 ## Leagues and pages
@@ -227,14 +231,14 @@ The minigame calls update the event they play, as the game does:
 
 | Call | Event | Rubies |
 |---|---|---|
-| `spin_lucky_wheel(wheel)`, `change_lucky_wheel_mode()` | the lucky wheels | no, tickets |
-| `buy_lucky_wheel_jackpot()`, `increase_lucky_wheel_win_class()` | `LUCKY_WHEEL` | `spend_rubies` |
+| `spin_wheel_of_fortune(wheel)`, `change_wheel_of_fortune_mode()` | the Wheels of Fortune | no, tickets |
+| `buy_wheel_of_fortune_jackpot()`, `increase_wheel_of_fortune_win_class()` | `WHEEL_OF_FORTUNE` | `spend_rubies` |
 | `pull_gacha(event, pulls)` | the gacha events | `spend_rubies` (the price is in game data the library does not load) |
-| `donate_to_colossus(castle_id, wood=, stone=)`, `donate_to_coin_colossus(coins)` | the colossi | no |
-| `get_donation_progress()`, `donate_items({item_id: amount})`, `donated_points` | `DONATION_EVENT` | `donate_items` needs `spend_rubies` (an item can be rubies, in game data the library does not load) |
-| `give_marauder_packages(castle_id, ...)` | `BEGGING_KNIGHTS` | no; returns your points |
-| `buy_artifact_pieces(event, pieces)` | the artifact events | `spend_rubies` |
-| `validate_bounty_target()`, `skip_bounty_target()` | `BOUNTYHUNTER` | the skip needs `spend_rubies` |
+| `donate_to_colossus(castle_id, wood=, stone=)`, `donate_to_gold_colossus(coins)` | the colossi | no |
+| `get_imperial_patronage_progress()`, `donate_items({item_id: amount})`, `donated_points` | `IMPERIAL_PATRONAGE` | `donate_items` needs `spend_rubies` (an item can be rubies, in game data the library does not load) |
+| `give_marauder_packages(castle_id, ...)` | `MARAUDERS_CONTEST` | no; returns your points |
+| `buy_artifact_pieces(event, pieces)` | the Traveling Knights event | `spend_rubies` |
+| `validate_shady_lady_target()`, `skip_shady_lady_target()` | `SHADY_LADY` | the skip needs `spend_rubies` |
 | `buy_fortune_teller_reading()` | `FORTUNE_TELLER` | `spend_rubies` |
 | `vote_world_cup(vote)` | `WORLD_CUP` | no |
 | `get_collector_currency(player_id)` | the collector events | no |

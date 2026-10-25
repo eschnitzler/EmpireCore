@@ -1,4 +1,4 @@
-"""Supports on event maps: alliance battleground towers (tde), daimyo townships (cdd), and the css reply."""
+"""Supports on event maps: Beyond the Horizon towers (tde), daimyo townships (cdd), and the css reply."""
 
 from __future__ import annotations
 

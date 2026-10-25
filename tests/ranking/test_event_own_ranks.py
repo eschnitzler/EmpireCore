@@ -1,4 +1,4 @@
-"""Client-specific own ranks, battleground timers and player statistics."""
+"""Client-specific own ranks, Beyond the Horizon timers and player statistics."""
 
 import pytest
 
@@ -13,17 +13,17 @@ def _running(client, event_id):
     client._on_packet(xt_packet("sei", {"E": [{"EID": event_id, "RS": 60}]}))
 
 
-def test_battleground_own_rank_is_alliance_rank_only():
+def test_horizon_own_rank_is_alliance_rank_only():
     client = make_client({"abgph": xt_packet("abgph", {"R": 8})})
     _running(client, 113)
-    assert client.events.get_battleground_rank(alliance_id=45).alliance_rank == 8
+    assert client.events.get_horizon_rank(alliance_id=45).alliance_rank == 8
     assert conn(client).request_payloads == [("abgph", {"AID": 45})]
 
 
-def test_battleground_timers():
+def test_horizon_timers():
     client = make_client({"trt": xt_packet("trt", {"STNL": 41, "STNR": 82})})
     _running(client, 113)
-    timers = client.events.get_battleground_timers()
+    timers = client.events.get_horizon_timers()
     assert (timers.relink_seconds, timers.revive_seconds) == (41, 82)
     assert conn(client).request_payloads == [("trt", {})]
 
@@ -40,10 +40,10 @@ def test_player_event_performance_has_typed_statistics_and_unknown_ids():
     assert conn(client).request_payloads == [("gpe", {"PID": 78, "EID": 113})]
 
 
-def test_temporary_server_own_ranks_clamp_unranked_only():
+def test_outer_realms_own_ranks_clamp_unranked_only():
     client = make_client({"tsh": xt_packet("tsh", {"DHS": 123, "DR": -1, "HS": 456, "R": 8})})
     _running(client, 106)
-    result = client.events.get_temporary_server_ranks()
+    result = client.events.get_outer_realms_ranks()
     assert (result.daily_points, result.daily_rank, result.overall_points, result.overall_rank) == (123, 0, 456, 8)
     assert conn(client).request_payloads == [("tsh", {})]
 
@@ -51,10 +51,10 @@ def test_temporary_server_own_ranks_clamp_unranked_only():
 @pytest.mark.parametrize(
     "method,args",
     [
-        ("get_battleground_rank", {"alliance_id": 45}),
-        ("get_battleground_timers", {}),
+        ("get_horizon_rank", {"alliance_id": 45}),
+        ("get_horizon_timers", {}),
         ("get_player_performance", {"event": 113, "player_id": 78}),
-        ("get_temporary_server_ranks", {}),
+        ("get_outer_realms_ranks", {}),
     ],
 )
 def test_event_specific_reads_require_event_context(method, args):
@@ -69,10 +69,10 @@ def test_event_specific_reads_require_event_context(method, args):
 @pytest.mark.parametrize(
     "command,method,args,event",
     [
-        ("abgph", "get_battleground_rank", {"alliance_id": 45}, 113),
-        ("trt", "get_battleground_timers", {}, 113),
+        ("abgph", "get_horizon_rank", {"alliance_id": 45}, 113),
+        ("trt", "get_horizon_timers", {}, 113),
         ("gpe", "get_player_performance", {"event": 113, "player_id": 78}, 113),
-        ("tsh", "get_temporary_server_ranks", {}, 106),
+        ("tsh", "get_outer_realms_ranks", {}, 106),
     ],
 )
 @pytest.mark.parametrize("error", [145, EmpireTimeoutError("late"), ConnectionClosedError("gone")])

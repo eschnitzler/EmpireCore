@@ -111,7 +111,7 @@ class AllianceStorage(BasePayload):
 
     The client reads one key per ``allianceFundsDonatables`` row of the item
     data, so a later items version can add keys; these are the rows of v786.03.
-    On an alliance battle ground server it reads the event's alliance currency
+    On a Beyond the Horizon server it reads the event's alliance currency
     instead of ``AIN``; that key stays in the model's extra fields.
 
     Client: ``AllianceInfoVO.parseStorageFromServer`` (bundle line 25940), each key from
@@ -140,7 +140,7 @@ class AllianceStorage(BasePayload):
     alliance_influence: StorageAmount = Field(
         validation_alias="AIN",
         default=0,
-        description="Alliance influence; only on alliance battle ground servers",
+        description="Alliance influence; only on Beyond the Horizon servers",
     )
 
 

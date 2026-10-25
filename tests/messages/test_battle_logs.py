@@ -170,7 +170,7 @@ class TestShortLog:
 
     def test_an_alliance_tower_takes_its_alliance_into_the_area(self):
         payload = copy.deepcopy(BLS)
-        payload["AI"]["AT"] = MapItemType.ALLIANCE_BATTLE_GROUND_TOWER
+        payload["AI"]["AT"] = MapItemType.HORIZON_TOWER
         payload.update({"AID": 77, "N": "Tower", "ACVC": 3, "DAR": 2})
 
         area = BattleLogShortResponse.model_validate(payload).area

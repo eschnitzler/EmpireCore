@@ -30,12 +30,12 @@ failures raise; missing or malformed status containers raise `PacketError`.
 
 ## Alliance raid status
 
-`get_raid_boss_status()` requests the current boss identity, level, health, revival
+`get_rift_raid_status()` requests the current boss identity, level, health, revival
 percentage, stage, cards and walls. Boss ids use the generated `RaidBoss` enum;
 unknown bosses and card statuses remain integers. Health rounds up to two decimal
 places as in the client. Wall regeneration times are seconds at receipt.
 
-The running `RaidBossEvent.boss_status` also updates from embedded `sei.BSE` and
+The running `RiftRaidEvent.boss_status` also updates from embedded `sei.BSE` and
 `bbs` broadcasts. Updates preserve prior identity, stage and walls only where the
 client does; inactive replies clear the active boss fields. These models add no
 raid selection, start, abort, claim or other mutation API.
@@ -74,7 +74,7 @@ Known boss cards must be available for selection, and the last playable boss can
 These actions have no client ruby payment path and accept keyword-only `timeout`.
 
 Both return typed acknowledgements without inventing a boss status. The existing `bbs`
-broadcast handler updates the event in receive order; use `get_raid_boss_status()` to request
+broadcast handler updates the event in receive order; use `get_rift_raid_status()` to request
 a fresh snapshot. Refusals raise `CommandError`; timeouts and malformed replies raise.
 
 ## Battle for Berimond
@@ -111,12 +111,12 @@ pushed on its own or inside a `kpi`, kept on the running `BerimondEvent` as
 `kingdom_status`. It says whether last man standing is on for either faction, whether
 you still take part, and which capital is open to attack.
 
-::: empire_core.events.faction_models
+::: empire_core.events.berimond_models
 
 ## Season event maps
 
-`join_season_camp(event)` enters a running season event's map (the Thornking, the Sea
-Queen, the Underworld) at your camp there. `unlock_season_camp(prebuilt_camp_id, space_id)`
+`join_season_camp(event)` enters a running season event's map (the Thorn King, the Blade
+Coast, the Underworld) at your camp there. `unlock_season_camp(prebuilt_camp_id, space_id)`
 starts on the map with one of its prebuilt camps, with the same ruby consent as
 `join_berimond`. The transfers to the map and their skips are on `client.movements`
 (`skip_treasure_map_transfer_time(map_id, transfer_type, minute_skip)` among them).
