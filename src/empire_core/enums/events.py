@@ -65,3 +65,22 @@ class WorldCupVote(IntEnum):
     DRAW = 0
     TEAM_A = 1
     TEAM_B = 2
+
+
+class PackageBuyType(IntEnum):
+    """
+    Where a package was bought.
+
+    Client: ``PackageConst.BUY_TYPE_*`` (dll line 19553)
+    """
+
+    EVENT = 0
+    PRIVATE_OFFER = 1
+    VIP = 2
+    SLUM = 3
+    PRIME_DAY = 4
+    CRUSADE_MAP = 5
+    GIFT = 6
+    FUSION = 7
+    OFFERINGS = 8
+    GENERAL_SKILLS_RESET_TOKEN = 9

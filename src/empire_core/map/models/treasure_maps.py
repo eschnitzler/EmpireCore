@@ -220,7 +220,7 @@ class GetTreasureMapsRequest(BaseRequest):
     command = "tmp"
 
     map_id: int = Field(
-        validation_alias="MID", default=-1, description="A season's treasure map, or -1 as the client sends otherwise"
+        validation_alias="MID", default=-1, description="A season's treasure map; -1 for none in particular"
     )
 
 

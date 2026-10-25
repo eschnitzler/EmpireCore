@@ -3,7 +3,7 @@ the artifact and bounty hunter events, the fortune teller, the world cup vote an
 
 from __future__ import annotations
 
-from typing import Annotated, Any, ClassVar
+from typing import Annotated, Any, ClassVar, Literal
 
 from pydantic import BeforeValidator, Field
 
@@ -185,9 +185,7 @@ class GachaSpinRequest(BaseRequest):
 
     event_id: int = Field(validation_alias="EID", description="The gacha event")
     pulls: int = Field(default=1, ge=1, validation_alias="AMT", description="How many pulls")
-    reserved: int = Field(
-        default=0, validation_alias="OB", description="Sent as 0, as the client always does; it names no meaning for it"
-    )
+    reserved: Literal[0] = Field(default=0, validation_alias="OB", description="Always 0")
 
 
 class GachaPull(BasePayload):
@@ -225,7 +223,9 @@ class GachaSpinResponse(GachaUpdate):
 
     command: ClassVar[str] = "dge"
 
-    gacha_id: ClientInt = Field(default=0, validation_alias="ID", description="The gacha level pulled from")
+    gacha_id: ClientInt = Field(
+        default=0, validation_alias="ID", description="The row of the game data's gachas table pulled from"
+    )
     pulls: tuple[GachaPull, ...] = Field(default=(), validation_alias="LTR", description="Each pull's rewards")
 
 

@@ -334,7 +334,7 @@ class GameState(
                                          ``btx``
     construction item expiry             ``nec`` (pushed)             re-login
     resource citizen                     ``irc`` (pushed)             --
-    decoration storages                  ``sin``, the replies that    ``client.castle.get_deco_storage()``
+    decoration storages                  ``sin``, the replies that    ``client.castle.get_decoration_storages()``
                                          carry one (``ebu``, ...)
     running events, scores, ends         ``sei``/``tei`` (pushed),    ``client.events.refresh()``
                                          ``see``/``tee``, ``pep``,

@@ -15,9 +15,10 @@ from empire_core.commanders import (
     GemStack,
     RelicGem,
 )
-from empire_core.enums import GGEError
+from empire_core.enums import GGEError, PackageBuyType
 from empire_core.exceptions import CommandError
 from empire_core.gamedata import Gem
+from empire_core.gamedata.ids.events import Event
 from empire_core.protocol.models import parse_response
 from tests.service_helpers import conn, logged_in_state, make_client, xt_packet
 
@@ -153,9 +154,10 @@ class TestGems:
 
 class TestMerchantPushes:
     def test_beq_reads_the_items(self):
-        push = parse_response("beq", {"I": [ITEM], "PID": "17", "TID": 117, "BT": 1})
+        push = parse_response("beq", {"I": [ITEM], "PID": "17", "TID": "117", "BT": 1})
         assert isinstance(push, BoughtEquipmentResponse)
-        assert push.items[0].equipment_id == 6515211559 and (push.package_id, push.event_id) == (17, 117)
+        assert push.items[0].equipment_id == 6515211559 and (push.package_id, push.event_id) == (17, Event(117))
+        assert push.buy_type is PackageBuyType.PRIVATE_OFFER
 
     def test_bri_reads_relic_items_and_gems(self):
         push = parse_response("bri", {"I": [[0, {"EQ": RELIC_ITEM}], [0, {"GEM": RELIC_GEM}]], "PID": 3})

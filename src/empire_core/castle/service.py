@@ -99,6 +99,7 @@ from empire_core.castle.models.crafting import (
     CraftConstructionItemResponse,
     CraftingInfoResponse,
     CraftingQueue,
+    CraftingSlot,
     GetConstructionCraftingRequest,
     GetCraftingInfoRequest,
     MoveCraftingSlotRequest,
@@ -240,7 +241,6 @@ from empire_core.enums import (
     CatalystConversion,
     CollectableKind,
     ConstructionItemMode,
-    CraftingSlotType,
     CurrencyId,
     DecorationStorageId,
     ExpansionType,
@@ -1703,13 +1703,13 @@ class CastleService(BaseService):
     # =========================================================================
 
     @property
-    def deco_storages(self) -> dict[int, DecorationStorage]:
+    def decoration_storages(self) -> dict[int, DecorationStorage]:
         """The decoration storages by storage id, from the last ``sin`` that named each; empty until one arrived."""
         return self.client.state.get_decoration_storages()
 
-    def get_deco_storage(self, *, timeout: float = 5.0) -> list[DecorationStorage]:
+    def get_decoration_storages(self, *, timeout: float = 5.0) -> list[DecorationStorage]:
         """
-        Read the decoration storages; they also reach :attr:`deco_storages`.
+        Read the decoration storages; they also reach :attr:`decoration_storages`.
 
         Client: ``CastleDecoShopPanel.show`` (bundle line 9302) sends ``C2SShowInventoryVO`` with no
         parameter; ``SINCommand.exec`` (bundle line 124638)
@@ -1733,7 +1733,7 @@ class CastleService(BaseService):
         Put a decoration of the joined castle into the storage.
 
         Returns:
-            The stored object's id and the storages after, which also reach :attr:`deco_storages`
+            The stored object's id and the storages after, which also reach :attr:`decoration_storages`
 
         Client: ``IsoServerCommands.storeBuildingToLocalInventory`` (bundle line 63795) sends
         ``C2SIsoStoreObjectVO``; ``SOBCommand.executeCommand`` (bundle line 124651)
@@ -1752,7 +1752,7 @@ class CastleService(BaseService):
             unique_id: A unique decoration's ``unique_id``, -1 for regular ones
 
         Returns:
-            Coins and rubies, and the storages after, which also reach :attr:`deco_storages`
+            Coins and rubies, and the storages after, which also reach :attr:`decoration_storages`
 
         Raises:
             ValueError: ``amount`` is below 1
@@ -1777,7 +1777,7 @@ class CastleService(BaseService):
             decoration_id: A stored ``custom_id`` or ``unique_id``
 
         Returns:
-            The placed decoration and the storages after, which also reach :attr:`deco_storages`
+            The placed decoration and the storages after, which also reach :attr:`decoration_storages`
 
         Client: ``IsoServerCommands.placeCustomInventoryObject`` (bundle line 63790), sent for a decoration
         with a ``uniqueBuildingId`` (bundle line 64041); ``PIOCommand.executeCommand`` (bundle line 123181)
@@ -1884,7 +1884,7 @@ class CastleService(BaseService):
 
         Args:
             village_type_id: The type of the village's current level, in the game data's ``privateVillages``
-            village_id: Your village's own id, a ``kgv`` ``PV`` row's ``VID``
+            village_id: Your private village's id, ``PrivateVillage.village_id``
 
         Client: ``PrivateResourceVillageUpgradeDialog.onConfirm`` (bundle line 81600) sends
         ``C2SUpgradePrivateResourceVillageVO``; ``UPVCommand.exec`` (bundle line 126489)
@@ -1897,7 +1897,7 @@ class CastleService(BaseService):
         Remove one of your private resource villages; it is gone for good, its tokens are not returned.
 
         Args:
-            village_id: Your village's own id, a ``kgv`` ``PV`` row's ``VID``
+            village_id: Your private village's id, ``PrivateVillage.village_id``
 
         Client: ``PrivateResourceVillageDestroyDialog.onConfirm`` (bundle line 81568) sends
         ``C2SRemovePrivateResourceVillageVO``; ``RPVCommand.exec`` (bundle line 126474)
@@ -2300,11 +2300,14 @@ class CastleService(BaseService):
         )
         return self.request(request, StartCraftingResponse, timeout=timeout)
 
-    def cancel_crafting(
-        self, queue: CraftingQueue, slot_index: int, slot_type: CraftingSlotType, *, timeout: float = 5.0
-    ) -> CraftingQueue:
+    def cancel_crafting(self, queue: CraftingQueue, slot: CraftingSlot, *, timeout: float = 5.0) -> CraftingQueue:
         """
         Cancel the craft in one slot of a crafting queue.
+
+        Args:
+            queue: A queue of :attr:`crafting_queues`
+            slot: One of its ``production`` or ``queue`` slots
+            timeout: Timeout in seconds
 
         Raises:
             ValueError: The building is not working (``CraftingQueue.is_working``)
@@ -2316,16 +2319,22 @@ class CastleService(BaseService):
             kingdom=queue.kingdom,
             castle_id=queue.castle_id,
             object_id=queue.object_id,
-            slot_index=slot_index,
-            slot_type=slot_type,
+            slot_index=slot.index,
+            slot_type=slot.slot_type,
         )
         return self.request(request, CancelCraftingResponse, timeout=timeout)
 
     def move_crafting_slot(
-        self, queue: CraftingQueue, from_index: int, to_index: int, *, timeout: float = 5.0
+        self, queue: CraftingQueue, slot: CraftingSlot, to_index: int, *, timeout: float = 5.0
     ) -> CraftingQueue:
         """
         Move a waiting craft to another waiting slot.
+
+        Args:
+            queue: A queue of :attr:`crafting_queues`
+            slot: One of its ``queue`` slots
+            to_index: Where the craft goes, from 0
+            timeout: Timeout in seconds
 
         Raises:
             ValueError: The building is not working (``CraftingQueue.is_working``)
@@ -2337,7 +2346,7 @@ class CastleService(BaseService):
             kingdom=queue.kingdom,
             castle_id=queue.castle_id,
             object_id=queue.object_id,
-            from_index=from_index,
+            from_index=slot.index,
             to_index=to_index,
         )
         return self.request(request, MoveCraftingSlotResponse, timeout=timeout)
@@ -2345,8 +2354,7 @@ class CastleService(BaseService):
     def skip_crafting(
         self,
         queue: CraftingQueue,
-        slot_index: int,
-        slot_type: CraftingSlotType,
+        slot: CraftingSlot,
         price: int,
         *,
         spend_rubies: bool = False,
@@ -2360,8 +2368,7 @@ class CastleService(BaseService):
 
         Args:
             queue: A queue of :attr:`crafting_queues`
-            slot_index: The slot, from 0
-            slot_type: Whether the slot crafts or waits
+            slot: One of its ``production`` or ``queue`` slots
             price: The rubies the skip costs
             spend_rubies: Allow spending them
             timeout: Timeout in seconds
@@ -2378,20 +2385,23 @@ class CastleService(BaseService):
             kingdom=queue.kingdom,
             castle_id=queue.castle_id,
             object_id=queue.object_id,
-            slot_index=slot_index,
-            slot_type=slot_type,
+            slot_index=slot.index,
+            slot_type=slot.slot_type,
             price=price,
         )
         return self.request(request, SkipCraftingResponse, timeout=timeout)
 
-    def unlock_crafting_slots(
-        self, queue: CraftingQueue, slot_indices: Sequence[int], slot_type: CraftingSlotType, *, timeout: float = 5.0
-    ) -> CraftingQueue:
+    def unlock_crafting_slot(self, queue: CraftingQueue, slot: CraftingSlot, *, timeout: float = 5.0) -> CraftingQueue:
         """
-        Unlock temporary slots of a crafting queue for coins.
+        Unlock a temporary slot of a crafting queue for coins.
 
-        The client unlocks the slot bought together with every locked slot before it, and sends them first
-        to last; pass them the same way.
+        Every locked slot right before it is unlocked with it, as the client buys them
+        (``CraftingQueue.unlock_indices``).
+
+        Args:
+            queue: A queue of :attr:`crafting_queues`
+            slot: One of its locked temporary slots
+            timeout: Timeout in seconds
 
         Raises:
             ValueError: The building is not working (``CraftingQueue.is_working``)
@@ -2404,8 +2414,8 @@ class CastleService(BaseService):
             kingdom=queue.kingdom,
             castle_id=queue.castle_id,
             object_id=queue.object_id,
-            slot_indices=tuple(slot_indices),
-            slot_type=slot_type,
+            slot_indices=queue.unlock_indices(slot),
+            slot_type=slot.slot_type,
         )
         return self.request(request, UnlockCraftingSlotsResponse, timeout=timeout)
 

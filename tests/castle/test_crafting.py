@@ -11,6 +11,7 @@ from empire_core.castle import (
     ConstructionCraftingResponse,
     CraftingInfoResponse,
     CraftingQueue,
+    CraftingSlot,
     CraftingSlotType,
     StartCraftingResponse,
 )
@@ -56,15 +57,40 @@ class TestReplies:
         (bare,) = CraftingInfoResponse.model_validate(QUEUE).queues
         assert bare.object_id == 77
 
-    def test_a_queue_reads_its_slots_as_parallel_lists(self):
+    def test_a_queue_reads_one_slot_per_position(self):
+        # parseServerData: CRID, RCT and BV per slot, RUT per temporary slot, which come last
         reply = parse_response("crst", QUEUE)
         assert isinstance(reply, StartCraftingResponse)
         assert reply.kingdom is Kingdom.GREEN and reply.building_state is BuildingState.BUILD_COMPLETED
-        assert reply.production.recipe_ids == (12, -1) and reply.production.unlock_seconds == (3600,)
-        assert reply.queue.remaining_seconds == (600,) and reply.queue.booster_values == ()
+        assert reply.production == (
+            CraftingSlot(
+                index=0,
+                slot_type=CraftingSlotType.PRODUCTION,
+                recipe_id=12,
+                remaining_seconds=300,
+                booster_value=5,
+            ),
+            CraftingSlot(
+                index=1,
+                slot_type=CraftingSlotType.PRODUCTION,
+                recipe_id=None,
+                remaining_seconds=0,
+                unlock_seconds=3600,
+            ),
+        )
+        (waiting,) = reply.queue
+        assert (waiting.index, waiting.slot_type, waiting.recipe_id) == (0, CraftingSlotType.QUEUE, 13)
+        assert (waiting.remaining_seconds, waiting.unlock_seconds, waiting.booster_value) == (600, None, 0)
+
+    def test_a_slot_is_filled_while_its_recipe_runs_and_locked_when_its_unlock_ran_out(self):
+        crafting, filled, empty = queue(PS={"CRID": [12, 14, 0], "RCT": [300], "RUT": [0, 60]}).production
+        assert crafting.is_filled and not crafting.is_temporary and not crafting.is_locked
+        # getRemainingProductionTime falls back to the recipe's time when RCT has none for the slot
+        assert filled.is_filled and filled.remaining_seconds is None and filled.is_locked
+        assert not empty.is_filled and empty.is_temporary and not empty.is_locked
 
     def test_a_missing_slot_block_is_empty(self):
-        assert queue(QS=None).queue.recipe_ids == ()
+        assert queue(QS=None).queue == ()
 
     @pytest.mark.parametrize(
         ("state", "working"), [(4, True), (13, True), (2, False), (0, False), (6, False), (99, False)]
@@ -92,9 +118,9 @@ class TestCraftingQueue:
         started = client.castle.start_crafting(known, 14)
 
         assert conn(client).request_payloads[-1] == ("crst", {"KID": 0, "AID": 5001, "OID": 77, "PWR": 0, "CRID": 14})
-        assert started.queue.recipe_ids == (13, 14)
+        assert [slot.recipe_id for slot in started.queue] == [13, 14]
         kept = client.castle.crafting_queues
-        assert kept is not None and kept[0].queue.recipe_ids == (13, 14)
+        assert kept is not None and kept[0].queue == started.queue
 
     def test_a_full_queue_raises(self):
         client = make_client({"crst": xt_packet("crst", error_code=63)})
@@ -104,40 +130,42 @@ class TestCraftingQueue:
     def test_a_building_not_working_sends_nothing(self):
         client = make_client()
         with pytest.raises(ValueError, match="not working"):
-            client.castle.cancel_crafting(queue(S=2), 0, CraftingSlotType.PRODUCTION)
+            client.castle.cancel_crafting(queue(S=2), queue().production[0])
         assert conn(client).request_payloads == []
 
     def test_cancel_sends_the_slot_type_as_text(self):
         client = make_client({"crca": xt_packet("crca", QUEUE)})
-        client.castle.cancel_crafting(queue(), 1, CraftingSlotType.QUEUE)
+        client.castle.cancel_crafting(queue(), queue(QS={"CRID": [13, 14]}).queue[1])
         assert conn(client).request_payloads == [("crca", {"KID": 0, "AID": 5001, "OID": 77, "S": 1, "ST": "queue"})]
 
     def test_move_sends_old_and_new_place(self):
         client = make_client({"crqm": xt_packet("crqm", QUEUE)})
-        client.castle.move_crafting_slot(queue(), 2, 0)
+        client.castle.move_crafting_slot(queue(), queue(QS={"CRID": [13, 14, 15]}).queue[2], 0)
         assert conn(client).request_payloads == [("crqm", {"KID": 0, "AID": 5001, "OID": 77, "OS": 2, "NS": 0})]
 
     def test_skip_needs_consent_and_sends_its_price(self):
         client = make_client({"crsk": xt_packet("crsk", QUEUE)})
         with pytest.raises(ValueError, match="spend_rubies"):
-            client.castle.skip_crafting(queue(), 0, CraftingSlotType.PRODUCTION, 35)
-        client.castle.skip_crafting(queue(), 0, CraftingSlotType.PRODUCTION, 35, spend_rubies=True)
+            client.castle.skip_crafting(queue(), queue().production[0], 35)
+        client.castle.skip_crafting(queue(), queue().production[0], 35, spend_rubies=True)
         assert conn(client).request_payloads == [
             ("crsk", {"KID": 0, "AID": 5001, "OID": 77, "S": 0, "ST": "production", "PC2": 35})
         ]
 
-    def test_unlock_sends_every_slot_first_to_last(self):
+    def test_unlock_sends_the_slot_and_the_locked_slots_before_it_first_to_last(self):
+        # buySlot walks previousSlot while it is locked
+        locked = queue(PS={"CRID": [12, 0, 0, 0], "RUT": [60, 0, 0]})
         client = make_client({"crun": xt_packet("crun", QUEUE)})
-        client.castle.unlock_crafting_slots(queue(), [1, 2], CraftingSlotType.PRODUCTION)
+        client.castle.unlock_crafting_slot(locked, locked.production[3])
         assert conn(client).request_payloads == [
-            ("crun", {"KID": 0, "AID": 5001, "OID": 77, "S": [1, 2], "ST": "production"})
+            ("crun", {"KID": 0, "AID": 5001, "OID": 77, "S": [2, 3], "ST": "production"})
         ]
 
     def test_a_refused_action_leaves_the_queues(self):
         client = state_client({"crin": xt_packet("crin", QUEUE), "crca": xt_packet("crca", error_code=1)})
         (known,) = client.castle.get_crafting_queues()
         with pytest.raises(CommandError):
-            client.castle.cancel_crafting(known, 0, CraftingSlotType.PRODUCTION)
+            client.castle.cancel_crafting(known, known.production[0])
         assert client.castle.crafting_queues == (known,)
 
     def test_a_castle_join_brings_its_crafting_queues(self):

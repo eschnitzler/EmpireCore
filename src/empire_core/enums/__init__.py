@@ -48,7 +48,14 @@ from .combat import (
 )
 from .commanders import EquipmentSlot, EquipmentType, Rareness, WearerType
 from .errors import GGEError
-from .events import GachaRarity, LuckyWheelType, PerformanceStatistic, RaidBossCardStatus, WorldCupVote
+from .events import (
+    GachaRarity,
+    LuckyWheelType,
+    PackageBuyType,
+    PerformanceStatistic,
+    RaidBossCardStatus,
+    WorldCupVote,
+)
 from .gamedata import (
     BuildingGroundType,
     BuildingGroup,
@@ -120,6 +127,7 @@ if TYPE_CHECKING:
 __all__ = [
     "ConstructionItemMode",
     "RaidBossCardStatus",
+    "PackageBuyType",
     "PerformanceStatistic",
     "LuckyWheelType",
     "GachaRarity",

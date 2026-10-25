@@ -910,7 +910,7 @@ class DonationEvent(SpecialEvent):
     )
     donated_points: tuple[DonationItemPoints, ...] | None = Field(
         default=None,
-        description="The points each donation item has earned you, from the last gdti or ddi; None before one",
+        description="The points each donation item has earned you; None until they were read or donated to",
     )
 
     @classmethod

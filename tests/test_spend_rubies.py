@@ -83,6 +83,7 @@ RUBY_REQUESTS = {
     "BuyArtifactPieceRequest": "sap, artifactPartCosts in C2 (CastleArtifactBuyPieceDialog.setAmount, bundle 114756)",
     "SkipBountyTargetRequest": "bst, targetSkipCostC2 (bundle line 114944)",
     "FortuneTellerReadingRequest": "ftl, the reading's c2Cost (FortuneTellerClassVO.parseXML, bundle line 145167)",
+    "DonateItemsRequest": "ddi, an item whose resource is C2 (unfilteredAmountInInventory, bundle line 115730)",
 }
 
 SENT_WITHOUT_CONSENT = {

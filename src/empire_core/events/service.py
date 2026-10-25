@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, TypeVar
 
 from pydantic import ValidationError
 
-from empire_core.enums import Kingdom, KingdomTransferType, RankingType, ServerType
+from empire_core.enums import Kingdom, RankingType, ServerType
 from empire_core.enums.events import LuckyWheelType, RaidBossCardStatus, WorldCupVote
 from empire_core.events.titles import get_event_titles
 from empire_core.exceptions import (
@@ -35,7 +35,7 @@ from empire_core.ranking.models import (
 from empire_core.services.base import BaseService
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import Currency, RaidBoss
+    from empire_core.gamedata import RaidBoss
 
 from .board_models import (
     GetBattlegroundRankRequest,
@@ -112,7 +112,7 @@ from .models import (
     SpecialEventInfoRequest,
     WorldCupEvent,
 )
-from .season_models import JoinSeasonCampRequest, MinuteSkipSeasonTransferRequest, SelectSeasonCampRequest
+from .season_models import JoinSeasonCampRequest, SelectSeasonCampRequest
 from .special_server_models import (
     ApplyChargeCampEffectRequest,
     ApplyChargeCampEffectResponse,
@@ -560,9 +560,7 @@ class EventsService(BaseService):
         self._require_spend_rubies(spend_rubies, "the ruby castle costs rubies" if ruby_castle else None)
         self._require_running(_SPECIAL_SERVER_EVENTS[server_type])
         self.request(
-            SelectSpecialServerCastleRequest(
-                castle_id=castle_id, ruby_castle=1 if ruby_castle else 0, server_type=server_type
-            ),
+            SelectSpecialServerCastleRequest(castle_id=castle_id, ruby_castle=ruby_castle, server_type=server_type),
             SelectSpecialServerCastleResponse,
             timeout=timeout,
         )
@@ -715,30 +713,6 @@ class EventsService(BaseService):
             ruby_camp=ruby_camp,
             space_id=space_id,
         )
-        self.execute(request, timeout=timeout)
-
-    def skip_season_transfer_time(
-        self,
-        event: Event,
-        transfer_type: KingdomTransferType,
-        minute_skip: Currency | str,
-        *,
-        timeout: float = 5.0,
-    ) -> None:
-        """Shorten the units or goods on their way to a running season event's map with a minute skip item.
-
-        Raises:
-            EventNotRunningError: The event is not running
-            ValueError: It is no season event or names no map, or ``minute_skip`` is no minute skip you hold
-            CommandError: The server refused
-
-        Client: ``SeasonTravelGoodsMinuteSkipProperties.getMinuteSkipCommand`` and
-        ``SeasonTravelUnitsMinuteSkipProperties.getMinuteSkipCommand`` (bundle lines 99612, 99644),
-        ``MSMCommand`` (bundle line 125852).
-        """
-        map_id = self._season_map(event)
-        self._require_minute_skip(minute_skip)
-        request = MinuteSkipSeasonTransferRequest(map_id=map_id, transfer_type=transfer_type, minute_skip=minute_skip)
         self.execute(request, timeout=timeout)
 
     def _season_map(self, event: Event) -> int:
@@ -1093,15 +1067,21 @@ class EventsService(BaseService):
         self._require_running(Event.DONATION_EVENT)
         return self.request(GetDonationProgressRequest(), DonationProgressResponse, timeout=timeout).items
 
-    def donate_items(self, items: Mapping[int, int], *, timeout: float = 5.0) -> tuple[DonationItemPoints, ...]:
+    def donate_items(
+        self, items: Mapping[int, int], *, spend_rubies: bool = False, timeout: float = 5.0
+    ) -> tuple[DonationItemPoints, ...]:
         """
         Give imperial patronage items, by donation item id and amount; returns the points each has earned.
 
+        A donation item is a resource or a currency of the game data's donationItems table, which the library
+        does not load, so it may be rubies: the call needs ``spend_rubies``.
+
         Raises:
-            ValueError: No amount is above 0
+            ValueError: No amount is above 0, or ``spend_rubies`` is False
 
         Client: ``DonationEventDialogDonate.onDonate`` (bundle line 115642), ``DDICommand.executeCommand`` (bundle
-        line 123589)
+        line 123589); ``DonationEventDialogDonateItem.unfilteredAmountInInventory`` (bundle line 115730) gives
+        rubies for an item whose resource is ``C2``
         """
         self._require_running(Event.DONATION_EVENT)
         given = tuple(
@@ -1109,6 +1089,7 @@ class EventsService(BaseService):
         )
         if not given:
             raise ValueError("a donation needs an amount above 0")
+        self._require_spend_rubies(spend_rubies, "a donation item can be rubies")
         return self.request(DonateItemsRequest(items=given), DonateItemsResponse, timeout=timeout).items
 
     def give_marauder_packages(
@@ -1158,13 +1139,14 @@ class EventsService(BaseService):
             GameDataNotLoadedError: The game data, which names the event's kingdom, cannot be loaded
 
         Client: ``CastleArtifactBuyPieceDialog`` (bundle lines 114756, 114762) prices the pieces in rubies and sends
-        the event's first kingdom (``kIDs``, ``ASpecialEventVO.parseBasicsFromXmlNode``, bundle line 2960);
-        ``SAPCommand.executeCommand`` (bundle line 127614)
+        the event's first kingdom (``kIDs``, ``"0"`` when missing, ``ASpecialEventVO.parseBasicsFromXmlNode``,
+        bundle line 2960); ``SAPCommand.executeCommand`` (bundle line 127614)
         """
         if not isinstance(self._require_running(event), ArtifactEvent):
             raise EventNotRunningError(int(event))
         self._require_spend_rubies(spend_rubies, "artifact pieces cost rubies")
-        kingdom = Kingdom(self._require_game_data().events[Event(int(event))].kingdoms[0])
+        kingdoms = self._require_game_data().events[Event(int(event))].kingdoms
+        kingdom = Kingdom(kingdoms[0]) if kingdoms else Kingdom.GREEN
         request = BuyArtifactPieceRequest(pieces=pieces, event_id=int(event), kingdom=kingdom)
         return self.request(request, BuyArtifactPieceResponse, timeout=timeout)
 

@@ -17,7 +17,9 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 from pydantic import ConfigDict, Field, field_serializer, field_validator, model_validator
 
+from empire_core.enums import PackageBuyType
 from empire_core.gamedata import EnumOrInt
+from empire_core.gamedata.ids.events import Event
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, readable_list
 from empire_core.protocol.js import ClientInt, js_int, js_loose_equals, js_parse_int_or_zero, js_truthy
 
@@ -50,9 +52,7 @@ class CraftEquipmentRequest(BaseRequest):
 
     command = "ceq"
 
-    extract_gems: bool = Field(
-        validation_alias="EX", default=False, description="Take the items' gems back first; sent as 1 or 0"
-    )
+    extract_gems: bool = Field(validation_alias="EX", default=False, description="Take the items' gems back first")
     equipment_ids: tuple[int, ...] = Field(validation_alias="I", description="The items used up")
 
     @field_serializer("extract_gems")
@@ -97,7 +97,7 @@ class EnchantEquipmentRequest(BaseRequest):
 
     command = "eqe"
 
-    pay_with_rubies: bool = Field(validation_alias="C2", default=False, description="Pay in rubies; sent as 1 or 0")
+    pay_with_rubies: bool = Field(validation_alias="C2", default=False, description="Pay in rubies")
     equipment_id: int = Field(validation_alias="EID", description="The item")
 
     @field_serializer("pay_with_rubies")
@@ -136,11 +136,11 @@ class EnchantRelicRequest(BaseRequest):
 
     command = "ere"
 
-    pay_with_rubies: bool = Field(validation_alias="C2", default=False, description="Pay in rubies; sent as 1 or 0")
+    pay_with_rubies: bool = Field(validation_alias="C2", default=False, description="Pay in rubies")
     relic_id: int = Field(
         validation_alias="RIID", description="The relic item's equipment_id, or the relic gem's gem_id"
     )
-    is_equipment: bool = Field(validation_alias="EQ", description="A relic item, not a relic gem; sent as 1 or 0")
+    is_equipment: bool = Field(validation_alias="EQ", description="A relic item, not a relic gem")
 
     @field_serializer("pay_with_rubies", "is_equipment")
     def _flag(self, value: bool) -> int:
@@ -191,7 +191,7 @@ class CraftGemRequest(BaseRequest):
     command = "cge"
 
     gem_id: EnumOrInt["Gem"] = Field(validation_alias="MID", description="The centre gem, crafted a level up")
-    pay_with_rubies: bool = Field(validation_alias="C2", default=False, description="The ruby craft; sent as 1 or 0")
+    pay_with_rubies: bool = Field(validation_alias="C2", default=False, description="The ruby craft")
     used_gem_ids: tuple[EnumOrInt["Gem"], ...] = Field(validation_alias="UG", description="The outer gems used up")
 
     @field_serializer("pay_with_rubies")
@@ -305,9 +305,21 @@ class NewRelicItemsResponse(BaseResponse):
 
 
 class _MerchantPurchase(BaseResponse):
+    """Client: ``BEQCommand``, ``BGMCommand`` and ``BRICommand`` (bundle lines 123711, 123772, 123798) read
+    ``PID``, ``TID`` and ``BT`` with ``parseInt``."""
+
     package_id: ClientInt = Field(validation_alias="PID", default=0, description="The merchant package bought")
-    event_id: ClientInt = Field(validation_alias="TID", default=0, description="The event whose merchant sold it")
-    buy_type: ClientInt = Field(validation_alias="BT", default=0, description="How it was bought")
+    event_id: EnumOrInt[Event] = Field(
+        validation_alias="TID", default=0, description="The event whose merchant sold it"
+    )
+    buy_type: EnumOrInt[PackageBuyType] = Field(
+        validation_alias="BT", default=PackageBuyType.EVENT, description="Where the package was bought"
+    )
+
+    @field_validator("event_id", "buy_type", mode="before")
+    @classmethod
+    def _parse_int(cls, value: Any) -> int:
+        return js_parse_int_or_zero(value)
 
 
 class BoughtEquipmentResponse(_MerchantPurchase):
