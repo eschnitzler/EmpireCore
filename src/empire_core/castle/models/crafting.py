@@ -1,0 +1,498 @@
+"""The crafting queues of the refinery and toolsmith buildings, and the construction item crafting.
+
+Commands:
+- crin: the crafting queues of every castle
+- crst, crca, crqm, crsk, crun: start, cancel, reorder, skip and unlock in a crafting queue
+- gcc: the running construction item craft
+- cic: craft a construction item
+- sci: shorten the running construction item craft
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, ClassVar
+
+from pydantic import (
+    ConfigDict,
+    Field,
+    ValidatorFunctionWrapHandler,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
+
+from empire_core.enums import BuildingState, CraftingSlotType, Kingdom
+from empire_core.gamedata import EnumOrInt, EnumOrStr
+from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse
+from empire_core.protocol.js import js_int, js_parse_int, js_truthy
+
+from .objects import _building_state
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import ConstructionItem, Currency
+
+FULL_SKIP = "-"
+"""The ``MST`` of a construction item craft finished for rubies rather than shortened by a minute skip.
+
+Client: ``CastleConstructionItemsCraftingSublayerProgress.onClick`` (bundle line 79930)
+"""
+
+
+_NOT_WORKING = frozenset(
+    {
+        BuildingState.INITIAL,
+        BuildingState.BUILD_IN_PROGRESS,
+        BuildingState.BUILD_STOPPED,
+        BuildingState.DISASSEMBLE_IN_PROGRESS,
+        BuildingState.DISASSEMBLE_STOPPED,
+    }
+)
+
+
+class CraftingSlots(BasePayload):
+    """
+    The slots of one kind in a crafting queue, as parallel lists in slot order.
+
+    A slot crafts when its recipe id is above 0 and its time is not up. The game data lists how many
+    permanent and temporary slots each queue has; only temporary slots take an unlock time.
+
+    Client: ``CraftingQueueVO.parseServerData`` (bundle line 29278), ``CraftingSlotVO.isFilled`` and
+    ``isLocked`` (bundle lines 17005-17006)
+    """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    recipe_ids: tuple[int, ...] = Field(
+        validation_alias="CRID", default=(), description="The crafting recipe of each slot, from the first"
+    )
+    remaining_seconds: tuple[int, ...] = Field(
+        validation_alias="RCT", default=(), description="Seconds until each slot's craft is done"
+    )
+    unlock_seconds: tuple[int, ...] = Field(
+        validation_alias="RUT",
+        default=(),
+        description="Seconds each temporary slot stays unlocked, one per temporary slot; locked at 0 or less",
+    )
+    booster_values: tuple[int, ...] = Field(
+        validation_alias="BV", default=(), description="The booster value of each slot; 0 for a slot it omits"
+    )
+
+    @field_validator("recipe_ids", "remaining_seconds", "unlock_seconds", "booster_values", mode="before")
+    @classmethod
+    def _ints(cls, value: Any) -> Any:
+        return tuple(js_int(entry) for entry in value) if isinstance(value, list) else value
+
+
+class CraftingQueue(BasePayload):
+    """
+    One crafting building's queue in one castle.
+
+    Client: ``CastleCraftingData.parseBuildingQueueData`` (bundle line 111405), which keeps one queue per
+    queue id, kingdom and castle
+    """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    kingdom: Kingdom = Field(validation_alias="KID", description="The castle's kingdom")
+    castle_id: int = Field(validation_alias="AID", description="The castle")
+    building_state: BuildingState = Field(
+        validation_alias="S", default=BuildingState.INITIAL, description="What the crafting building is doing"
+    )
+    queue_id: int = Field(validation_alias="CQID", description="The crafting queue, one per kind of crafting building")
+    object_id: int = Field(validation_alias="OID", description="The crafting building's object id in the castle")
+    production: CraftingSlots = Field(
+        validation_alias="PS", default_factory=CraftingSlots, description="The slots crafting now"
+    )
+    queue: CraftingSlots = Field(
+        validation_alias="QS", default_factory=CraftingSlots, description="The slots waiting behind them"
+    )
+
+    @field_validator("building_state", mode="before")
+    @classmethod
+    def _state(cls, value: Any) -> BuildingState:
+        return _building_state(value)
+
+    @field_validator("production", "queue", mode="before")
+    @classmethod
+    def _slots(cls, value: Any) -> Any:
+        return value if js_truthy(value) else {}
+
+    @property
+    def is_working(self) -> bool:
+        """Whether the building is built and not being taken down, so that the client lets it craft.
+
+        Client: ``IsoBuildingStateEnum.isFunctionally`` (bundle line 3432)
+        """
+        return self.building_state not in _NOT_WORKING
+
+    def slots(self, slot_type: CraftingSlotType) -> CraftingSlots:
+        """The slots of one kind."""
+        return self.production if slot_type is CraftingSlotType.PRODUCTION else self.queue
+
+
+class GetCraftingInfoRequest(BaseRequest):
+    """
+    Ask for the crafting queues of every castle.
+
+    Command: crin
+    Payload: {}
+
+    Client: ``C2SCraftingInfoVO`` (bundle line 111480), sent by ``CastleCraftingData.getCraftingInfo``
+    (bundle line 111423) when the refinery or toolsmith dialog opens (bundle line 29337)
+    """
+
+    command = "crin"
+
+
+class CraftingInfoResponse(BaseResponse):
+    """
+    Crafting queues: every castle's, or one building's.
+
+    Command: crin
+    Payload: {"CAI": [{"CE": [...], "CBI": [queue, ...]}, ...]}, or one queue
+
+    The ``CE`` crafting effects are not read.
+
+    Client: ``CRINCommand.executeCommand`` (bundle line 123443) reads ``CAI``, an area or a list of areas,
+    with ``CastleCraftingData.parseAllQueueData`` and ``parseAreaQueueData`` (bundle lines 111397-111404),
+    else the payload as one queue
+    """
+
+    command = "crin"
+
+    queues: tuple[CraftingQueue, ...] = Field(default=(), description="The queues sent")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _queues(cls, value: Any) -> Any:
+        if not isinstance(value, dict) or "queues" in value:
+            return value
+        areas = value.get("CAI")
+        if not js_truthy(areas):
+            return {"queues": [value]}
+        rows = [
+            row
+            for area in (areas if isinstance(areas, list) else [areas])
+            if js_truthy(area) and isinstance(area, dict)
+            for row in area.get("CBI") or []
+        ]
+        return {"queues": rows}
+
+
+class _CraftingQueueReply(CraftingQueue, BaseResponse):
+    """A crafting action's reply: the building's queue after it."""
+
+
+class StartCraftingRequest(BaseRequest):
+    """
+    Start a recipe in a crafting queue.
+
+    Command: crst
+    Payload: {"KID": kingdom, "AID": castle_id, "OID": object_id, "PWR": 0, "CRID": recipe_id}
+
+    ``PWR`` is 0: the client never sends 1.
+
+    Client: ``C2CraftingStartVO`` (bundle line 47683), sent by ``CastleCraftingData.startCrafting``
+    (bundle line 111424) after ``CostHelper.validateCostBuyCommand`` checks the recipe's costs
+    """
+
+    command = "crst"
+
+    kingdom: Kingdom = Field(validation_alias="KID", description="The castle's kingdom")
+    castle_id: int = Field(validation_alias="AID", description="The castle")
+    object_id: int = Field(validation_alias="OID", description="The crafting building")
+    pay_with_rubies: int = Field(validation_alias="PWR", default=0, description="Always 0")
+    recipe_id: int = Field(validation_alias="CRID", description="The crafting recipe")
+
+
+class StartCraftingResponse(_CraftingQueueReply):
+    """
+    The queue after a recipe started.
+
+    Command: crst
+
+    Client: ``CRSTCommand.executeCommand`` (bundle line 123488); a ``NO_FREE_CONSTRUCTION_SLOT`` refusal the
+    client ignores
+    """
+
+    command = "crst"
+
+
+class _SlotRequest(BaseRequest):
+    kingdom: Kingdom = Field(validation_alias="KID", description="The castle's kingdom")
+    castle_id: int = Field(validation_alias="AID", description="The castle")
+    object_id: int = Field(validation_alias="OID", description="The crafting building")
+
+
+class CancelCraftingRequest(_SlotRequest):
+    """
+    Cancel the craft in one slot.
+
+    Command: crca
+    Payload: {"KID": kingdom, "AID": castle_id, "OID": object_id, "S": slot_index, "ST": slot_type}
+
+    Client: ``C2SCraftingCancelVO`` (bundle line 111471), sent by ``CastleCraftingData.cancelCrafting``
+    (bundle line 111426)
+    """
+
+    command = "crca"
+
+    slot_index: int = Field(validation_alias="S", description="The slot, from 0")
+    slot_type: CraftingSlotType = Field(validation_alias="ST", description="Whether it crafts or waits")
+
+
+class CancelCraftingResponse(_CraftingQueueReply):
+    """
+    The queue after a craft was cancelled.
+
+    Command: crca
+
+    Client: ``CRCACommand.executeCommand`` (bundle line 123428)
+    """
+
+    command = "crca"
+
+
+class MoveCraftingSlotRequest(_SlotRequest):
+    """
+    Move a waiting craft to another place in the queue.
+
+    Command: crqm
+    Payload: {"KID": kingdom, "AID": castle_id, "OID": object_id, "OS": from_index, "NS": to_index}
+
+    Client: ``C2SCraftingQueueMoveVO`` (bundle line 111488), sent by ``CastleCraftingData.moveQueueSlot``
+    (bundle line 111433) for a waiting slot dragged in the toolsmith dialog (bundle line 29418)
+    """
+
+    command = "crqm"
+
+    from_index: int = Field(validation_alias="OS", description="The waiting slot moved, from 0")
+    to_index: int = Field(validation_alias="NS", description="Where it goes, from 0")
+
+
+class MoveCraftingSlotResponse(_CraftingQueueReply):
+    """
+    The queue after a waiting craft moved.
+
+    Command: crqm
+
+    Client: ``CRQMCommand.executeCommand`` (bundle line 123458)
+    """
+
+    command = "crqm"
+
+
+class SkipCraftingRequest(_SlotRequest):
+    """
+    Finish the craft in one slot for rubies.
+
+    Command: crsk
+    Payload: {"KID": kingdom, "AID": castle_id, "OID": object_id, "S": slot_index, "ST": slot_type, "PC2": price}
+
+    Client: ``C2SCraftingSkipVO`` (bundle line 111453), sent by ``CastleCraftingData.skipCrafting``
+    (bundle line 111428) with ``CraftingSlotVO.getAdjustedSkipCostC2`` (bundle line 17012): the recipe's
+    ``skipCostC2`` times the share of its time left, rounded up
+    """
+
+    command = "crsk"
+
+    slot_index: int = Field(validation_alias="S", description="The slot, from 0")
+    slot_type: CraftingSlotType = Field(validation_alias="ST", description="Whether it crafts or waits")
+    price: int = Field(validation_alias="PC2", description="The rubies the skip costs, as the client prices it")
+
+
+class SkipCraftingResponse(_CraftingQueueReply):
+    """
+    The queue after a craft was finished for rubies.
+
+    Command: crsk
+
+    Client: ``CRSKCommand.executeCommand`` (bundle line 123473)
+    """
+
+    command = "crsk"
+
+
+class UnlockCraftingSlotsRequest(_SlotRequest):
+    """
+    Unlock temporary slots of a crafting queue for coins.
+
+    Command: crun
+    Payload: {"KID": kingdom, "AID": castle_id, "OID": object_id, "S": [slot_index, ...], "ST": slot_type}
+
+    Client: ``C2SCraftingUnlockVO`` (bundle line 111462), sent by ``CastleCraftingData.buySlot``
+    (bundle line 111430) with the slot bought and every locked slot before it, first to last
+    """
+
+    command = "crun"
+
+    slot_indices: tuple[int, ...] = Field(validation_alias="S", description="The slots, from 0, first to last")
+    slot_type: CraftingSlotType = Field(validation_alias="ST", description="Whether they craft or wait")
+
+
+class UnlockCraftingSlotsResponse(_CraftingQueueReply):
+    """
+    The queue after slots were unlocked.
+
+    Command: crun
+
+    Client: ``CRUNCommand.executeCommand`` (bundle line 123504)
+    """
+
+    command = "crun"
+
+
+class GetConstructionCraftingRequest(BaseRequest):
+    """
+    Ask for the running construction item craft.
+
+    Command: gcc
+    Payload: {}
+
+    Client: ``C2SGetConstructionCraftingInfoVO`` (bundle line 49099), sent when the running craft's timer
+    runs out (``CastleConstructionItemsCraftingSublayerProgress.craftingTimer``, bundle line 79907)
+    """
+
+    command = "gcc"
+
+
+class ConstructionCraftingResponse(BaseResponse):
+    """
+    The construction item being crafted, and the time left.
+
+    Command: gcc
+    Payload: {"CID": construction_item_id, "RS": seconds}, or {} while nothing is crafted
+
+    Client: ``GCCCommand`` (bundle line 123017) dispatches ``GCC_ARRIVED``;
+    ``CastleConstructionItemsCraftingSublayer.onGCCArrived`` (bundle lines 79577-79581) reads ``CID``
+    through ``parseInt`` and ``RS``, -1 when either is missing
+    """
+
+    command = "gcc"
+
+    construction_item_id: EnumOrInt["ConstructionItem"] | None = Field(
+        validation_alias="CID", default=None, description="The construction item being crafted; None for none"
+    )
+    remaining_seconds: int | None = Field(
+        validation_alias="RS", default=None, description="Seconds until the craft is done; None while none runs"
+    )
+
+    @field_validator("construction_item_id", mode="before")
+    @classmethod
+    def _item(cls, value: Any) -> Any:
+        item = None if value is None else js_parse_int(value)
+        return None if item is None or item < 0 else item
+
+    @field_validator("remaining_seconds", mode="before")
+    @classmethod
+    def _seconds(cls, value: Any) -> Any:
+        return None if value is None or js_int(value) < 0 else js_int(value)
+
+
+class CraftConstructionItemRequest(BaseRequest):
+    """
+    Craft a construction item from a recipe.
+
+    Command: cic
+    Payload: {"RID": recipe_id, "KID": kingdom, "AID": castle_id}
+
+    Client: ``C2SCraftConstructionItemVO`` (bundle line 79943), sent by
+    ``CastleConstructionItemsCraftingSublayerProgress.onClick`` (bundle line 79926) for the joined castle
+    when it is yours, else the main castle of the kingdom
+    """
+
+    command = "cic"
+
+    recipe_id: int = Field(
+        validation_alias="RID", description="The recipe, a ``ConstructionItemRecipeDef.recipe_id`` of the game data"
+    )
+    kingdom: Kingdom = Field(validation_alias="KID", description="The castle's kingdom")
+    castle_id: int = Field(validation_alias="AID", description="The castle")
+
+
+class CraftConstructionItemResponse(BaseResponse):
+    """
+    The server accepted a construction item craft.
+
+    Command: cic
+
+    Client: ``CICCommand`` (bundle line 122736) dispatches ``CIC_ARRIVED``;
+    ``CastleConstructionItemsCraftingSublayerProgress.onCICArrived`` (bundle line 79925) reads only the
+    status and asks for the construction inventory again
+    """
+
+    command = "cic"
+
+
+class SkipConstructionCraftingRequest(BaseRequest):
+    """
+    Shorten the running construction item craft with a minute skip, or finish it for rubies.
+
+    Command: sci
+    Payload: {"KID": kingdom, "AID": castle_id, "PWR": 0 or 1, "MST": minute_skip}
+
+    A minute skip goes with ``PWR`` 0; ``MST`` ``"-"`` with ``PWR`` 1 finishes the craft for rubies.
+
+    Client: ``C2SMinuteSkipCraftingVO`` (bundle line 49274), built by
+    ``ConstructionItemCraftingMinuteSkipProperties`` (bundle lines 79954-79955) for the joined castle
+    """
+
+    command = "sci"
+
+    kingdom: Kingdom = Field(validation_alias="KID", description="The castle's kingdom")
+    castle_id: int = Field(validation_alias="AID", description="The castle")
+    finish_for_rubies: bool = Field(
+        validation_alias="PWR", default=False, description="Finish the craft for rubies; sent as 1 or 0"
+    )
+    minute_skip: EnumOrStr["Currency"] = Field(
+        validation_alias="MST",
+        description="The minute skip used, ``Currency.SKIP_1_MINUTE`` to ``SKIP_24_HOURS``, sent as its key; "
+        '``"-"`` to finish for rubies',
+    )
+
+    @field_validator("minute_skip", mode="wrap")
+    @classmethod
+    def _full_skip(cls, value: Any, handler: ValidatorFunctionWrapHandler) -> Any:
+        return FULL_SKIP if value == FULL_SKIP else handler(value)
+
+    @field_serializer("finish_for_rubies")
+    def _flag(self, value: bool) -> int:
+        return int(value)
+
+
+class SkipConstructionCraftingResponse(BaseResponse):
+    """
+    The server accepted a construction item craft skip.
+
+    Command: sci
+
+    Client: ``SCICommand.executeCommand`` (bundle line 123264) reads only the status; the crafting dialog
+    then asks for the construction inventory again (bundle line 79532)
+    """
+
+    command = "sci"
+
+
+__all__ = [
+    "FULL_SKIP",
+    "CancelCraftingRequest",
+    "CancelCraftingResponse",
+    "ConstructionCraftingResponse",
+    "CraftConstructionItemRequest",
+    "CraftConstructionItemResponse",
+    "CraftingInfoResponse",
+    "CraftingQueue",
+    "CraftingSlots",
+    "GetConstructionCraftingRequest",
+    "GetCraftingInfoRequest",
+    "MoveCraftingSlotRequest",
+    "MoveCraftingSlotResponse",
+    "SkipConstructionCraftingRequest",
+    "SkipConstructionCraftingResponse",
+    "SkipCraftingRequest",
+    "SkipCraftingResponse",
+    "StartCraftingRequest",
+    "StartCraftingResponse",
+    "UnlockCraftingSlotsRequest",
+    "UnlockCraftingSlotsResponse",
+]

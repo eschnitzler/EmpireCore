@@ -8,6 +8,7 @@ It covers:
 - Buildings and the construction queue
 - Tax collection
 - Research and the mercenary camp's missions
+- The refinery and toolsmith crafting queues, construction item crafting and the decoration fusion forge
 - A monument's or laboratory's upgrade progress
 
 Sending goods, support and troops from a castle is on ``client.movements``.
@@ -29,6 +30,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, TypeVar
 
 from pydantic import ValidationError
@@ -88,6 +90,28 @@ from empire_core.castle.models.construction_items import (
     RemoveConstructionItemRequest,
     RemoveConstructionItemResponse,
 )
+from empire_core.castle.models.crafting import (
+    FULL_SKIP,
+    CancelCraftingRequest,
+    CancelCraftingResponse,
+    ConstructionCraftingResponse,
+    CraftConstructionItemRequest,
+    CraftConstructionItemResponse,
+    CraftingInfoResponse,
+    CraftingQueue,
+    GetConstructionCraftingRequest,
+    GetCraftingInfoRequest,
+    MoveCraftingSlotRequest,
+    MoveCraftingSlotResponse,
+    SkipConstructionCraftingRequest,
+    SkipConstructionCraftingResponse,
+    SkipCraftingRequest,
+    SkipCraftingResponse,
+    StartCraftingRequest,
+    StartCraftingResponse,
+    UnlockCraftingSlotsRequest,
+    UnlockCraftingSlotsResponse,
+)
 from empire_core.castle.models.details import (
     CastleProductionArea,
     DetailedCastleInfo,
@@ -99,6 +123,24 @@ from empire_core.castle.models.districts import (
     MoveToDistrictResponse,
     RemoveFromDistrictRequest,
     RemoveFromDistrictResponse,
+)
+from empire_core.castle.models.fusion_forge import (
+    DECORATION_FORGE_ID,
+    ConvertCatalystRequest,
+    ConvertCatalystResponse,
+    FuseDecorationRequest,
+    FuseDecorationResponse,
+    FusionDecoration,
+    FusionForge,
+    FusionForgesResponse,
+    FusionTargetArea,
+    FusionTargetsResponse,
+    GetFusionForgesRequest,
+    GetFusionTargetsRequest,
+    LevelUpFusionForgeRequest,
+    LevelUpFusionForgeResponse,
+    RefillFusionForgeRequest,
+    RefillFusionForgeResponse,
 )
 from empire_core.castle.models.kingdoms import KingdomInfoRequest, KingdomInfoResponse, SelectKingdomCastleRequest
 from empire_core.castle.models.landmarks import (
@@ -188,8 +230,10 @@ from empire_core.castle.models.villages import (
 )
 from empire_core.enums import (
     BuildingState,
+    CatalystConversion,
     CollectableKind,
     ConstructionItemMode,
+    CraftingSlotType,
     CurrencyId,
     DecorationStorageId,
     ExpansionType,
@@ -2127,6 +2171,361 @@ class CastleService(BaseService):
         if mission is None:
             raise ValueError(f"no mercenary mission {mission_id}")
         return mission
+
+    # =========================================================================
+    # Crafting
+    # =========================================================================
+
+    @property
+    def crafting_queues(self) -> tuple[CraftingQueue, ...] | None:
+        """Every crafting queue known, as the last ``crin`` or crafting action left it; None until one arrived."""
+        return self.client.state.get_crafting_queues()
+
+    def get_crafting_queues(self, *, timeout: float = 5.0) -> tuple[CraftingQueue, ...]:
+        """
+        The crafting queues of the refinery and toolsmith in every castle, as the crafting dialog asks for them.
+
+        The reply also reaches :attr:`crafting_queues`.
+
+        Client: ``CastleCraftingData.getCraftingInfo`` (bundle line 111423), from
+        ``CastleRefineryToolsmithDialog.showLoaded`` (bundle line 29337)
+        """
+        return self.request(GetCraftingInfoRequest(), CraftingInfoResponse, timeout=timeout).queues
+
+    def start_crafting(self, queue: CraftingQueue, recipe_id: int, *, timeout: float = 5.0) -> CraftingQueue:
+        """
+        Start a recipe in a crafting queue, paying its costs.
+
+        The recipe must be one the queue's building crafts, with a free unlocked slot; the queue after
+        reaches :attr:`crafting_queues`.
+
+        Args:
+            queue: A queue of :attr:`crafting_queues` or :meth:`get_crafting_queues`
+            recipe_id: The crafting recipe
+            timeout: Timeout in seconds
+
+        Raises:
+            ValueError: The building is not working (``CraftingQueue.is_working``)
+            CommandError: The server refused, ``NO_FREE_CONSTRUCTION_SLOT`` for a full queue
+
+        Client: ``CastleCraftingData.startCrafting`` (bundle line 111424)
+        """
+        self._require_working(queue)
+        request = StartCraftingRequest(
+            kingdom=queue.kingdom, castle_id=queue.castle_id, object_id=queue.object_id, recipe_id=recipe_id
+        )
+        return self.request(request, StartCraftingResponse, timeout=timeout)
+
+    def cancel_crafting(
+        self, queue: CraftingQueue, slot_index: int, slot_type: CraftingSlotType, *, timeout: float = 5.0
+    ) -> CraftingQueue:
+        """
+        Cancel the craft in one slot of a crafting queue.
+
+        Raises:
+            ValueError: The building is not working (``CraftingQueue.is_working``)
+
+        Client: ``CastleCraftingData.cancelCrafting`` (bundle line 111426)
+        """
+        self._require_working(queue)
+        request = CancelCraftingRequest(
+            kingdom=queue.kingdom,
+            castle_id=queue.castle_id,
+            object_id=queue.object_id,
+            slot_index=slot_index,
+            slot_type=slot_type,
+        )
+        return self.request(request, CancelCraftingResponse, timeout=timeout)
+
+    def move_crafting_slot(
+        self, queue: CraftingQueue, from_index: int, to_index: int, *, timeout: float = 5.0
+    ) -> CraftingQueue:
+        """
+        Move a waiting craft to another waiting slot.
+
+        Raises:
+            ValueError: The building is not working (``CraftingQueue.is_working``)
+
+        Client: ``CastleCraftingData.moveQueueSlot`` (bundle line 111433)
+        """
+        self._require_working(queue)
+        request = MoveCraftingSlotRequest(
+            kingdom=queue.kingdom,
+            castle_id=queue.castle_id,
+            object_id=queue.object_id,
+            from_index=from_index,
+            to_index=to_index,
+        )
+        return self.request(request, MoveCraftingSlotResponse, timeout=timeout)
+
+    def skip_crafting(
+        self,
+        queue: CraftingQueue,
+        slot_index: int,
+        slot_type: CraftingSlotType,
+        price: int,
+        *,
+        spend_rubies: bool = False,
+        timeout: float = 5.0,
+    ) -> CraftingQueue:
+        """
+        Finish the craft in one slot for rubies.
+
+        The client prices the skip as the recipe's ``skipCostC2`` times the share of its time left, rounded
+        up, and sends that price; the game data here has no crafting recipes to price it.
+
+        Args:
+            queue: A queue of :attr:`crafting_queues`
+            slot_index: The slot, from 0
+            slot_type: Whether the slot crafts or waits
+            price: The rubies the skip costs
+            spend_rubies: Allow spending them
+            timeout: Timeout in seconds
+
+        Raises:
+            ValueError: The building is not working, or ``spend_rubies`` is False
+
+        Client: ``CastleCraftingData.skipCrafting`` (bundle line 111428), ``CraftingSlotVO.getAdjustedSkipCostC2``
+        (bundle line 17012)
+        """
+        self._require_working(queue)
+        self._require_spend_rubies(spend_rubies, f"skipping the craft costs {price} rubies")
+        request = SkipCraftingRequest(
+            kingdom=queue.kingdom,
+            castle_id=queue.castle_id,
+            object_id=queue.object_id,
+            slot_index=slot_index,
+            slot_type=slot_type,
+            price=price,
+        )
+        return self.request(request, SkipCraftingResponse, timeout=timeout)
+
+    def unlock_crafting_slots(
+        self, queue: CraftingQueue, slot_indices: Sequence[int], slot_type: CraftingSlotType, *, timeout: float = 5.0
+    ) -> CraftingQueue:
+        """
+        Unlock temporary slots of a crafting queue for coins.
+
+        The client unlocks the slot bought together with every locked slot before it, and sends them first
+        to last; pass them the same way.
+
+        Raises:
+            ValueError: The building is not working (``CraftingQueue.is_working``)
+
+        Client: ``CastleCraftingData.buySlot`` (bundle line 111430), ``CraftingSlotVO.getUnlockCostC1``
+        (bundle line 17009)
+        """
+        self._require_working(queue)
+        request = UnlockCraftingSlotsRequest(
+            kingdom=queue.kingdom,
+            castle_id=queue.castle_id,
+            object_id=queue.object_id,
+            slot_indices=tuple(slot_indices),
+            slot_type=slot_type,
+        )
+        return self.request(request, UnlockCraftingSlotsResponse, timeout=timeout)
+
+    @staticmethod
+    def _require_working(queue: CraftingQueue) -> None:
+        if not queue.is_working:
+            raise ValueError(f"crafting building {queue.object_id} is {queue.building_state.name}, not working")
+
+    def get_construction_crafting(self, *, timeout: float = 5.0) -> ConstructionCraftingResponse:
+        """
+        The construction item being crafted and the time left; both None while nothing is crafted.
+
+        Client: ``CastleConstructionItemsCraftingSublayer.onGCCArrived`` (bundle line 79577)
+        """
+        return self.request(GetConstructionCraftingRequest(), ConstructionCraftingResponse, timeout=timeout)
+
+    def craft_construction_item(self, castle_id: int, recipe_id: int, *, timeout: float = 5.0) -> None:
+        """
+        Craft a construction item from a recipe, paying its costs; one craft runs at a time.
+
+        Args:
+            castle_id: One of your castles; the client crafts in the joined castle, else the kingdom's main castle
+            recipe_id: A ``ConstructionItemRecipeDef.recipe_id`` of the game data
+            timeout: Timeout in seconds
+
+        Raises:
+            UnknownCastleError: ``castle_id`` is not one of your castles
+            CommandError: The server refused
+
+        Client: ``CastleConstructionItemsCraftingSublayerProgress.onClick`` (bundle line 79926)
+        """
+        castle = self._require_own_castle(castle_id)
+        request = CraftConstructionItemRequest(recipe_id=recipe_id, kingdom=castle.kingdom_id, castle_id=castle_id)
+        self.request(request, CraftConstructionItemResponse, timeout=timeout)
+
+    def skip_construction_crafting_time(
+        self, castle_id: int, minute_skip: Currency | str, *, timeout: float = 5.0
+    ) -> None:
+        """
+        Shorten the running construction item craft with a minute skip.
+
+        Args:
+            castle_id: The castle the craft runs in
+            minute_skip: The minute skip to use, ``Currency.SKIP_1_MINUTE`` to ``SKIP_24_HOURS``;
+                its key (``"MS1"``) also works, for a skip newer than the generated enum
+            timeout: Timeout in seconds
+
+        Raises:
+            ValueError: ``minute_skip`` is no minute skip, or the special currencies hold none of it
+            UnknownCastleError: ``castle_id`` is not one of your castles
+
+        Client: ``ConstructionItemCraftingMinuteSkipProperties.getMinuteSkipCommand`` (bundle line 79954)
+        """
+        castle = self._require_own_castle(castle_id)
+        self._require_minute_skip(minute_skip)
+        request = SkipConstructionCraftingRequest(
+            kingdom=castle.kingdom_id, castle_id=castle_id, minute_skip=minute_skip
+        )
+        self.request(request, SkipConstructionCraftingResponse, timeout=timeout)
+
+    def finish_construction_crafting(self, castle_id: int, *, spend_rubies: bool = False, timeout: float = 5.0) -> None:
+        """
+        Finish the running construction item craft for rubies.
+
+        The price falls with the time left (``ConstructionConst.getFastCompleteCostC2``) and is not checked
+        here, so the call always needs ``spend_rubies``.
+
+        Raises:
+            ValueError: ``spend_rubies`` is False
+            UnknownCastleError: ``castle_id`` is not one of your castles
+
+        Client: ``CastleConstructionItemsCraftingSublayerProgress.onClick`` (bundle line 79930),
+        ``craftingTimer`` (bundle line 79907)
+        """
+        castle = self._require_own_castle(castle_id)
+        self._require_spend_rubies(spend_rubies, "finishing the construction item craft costs rubies")
+        request = SkipConstructionCraftingRequest(
+            kingdom=castle.kingdom_id, castle_id=castle_id, finish_for_rubies=True, minute_skip=FULL_SKIP
+        )
+        self.request(request, SkipConstructionCraftingResponse, timeout=timeout)
+
+    # =========================================================================
+    # Fusion forge
+    # =========================================================================
+
+    @property
+    def fusion_forges(self) -> dict[int, FusionForge] | None:
+        """The fusion forges by id, as the last ``ffi`` left them; None until one arrived."""
+        return self.client.state.get_fusion_forges()
+
+    def get_fusion_forges(
+        self, forge_ids: Sequence[int] = (DECORATION_FORGE_ID,), *, timeout: float = 5.0
+    ) -> tuple[FusionForge, ...]:
+        """
+        Fusion forges' level and energy; the reply also reaches :attr:`fusion_forges`.
+
+        Client: ``FusionForgeData.onGbdArrived`` (bundle line 142012), ``FusionForgeVO.requestDataFromServer``
+        (bundle line 142199)
+        """
+        request = GetFusionForgesRequest(forge_ids=tuple(forge_ids))
+        return self.request(request, FusionForgesResponse, timeout=timeout).forges
+
+    def level_up_fusion_forge(self, forge_id: int = DECORATION_FORGE_ID, *, timeout: float = 5.0) -> int:
+        """
+        Level a fusion forge up for decoration dust, and return its new level.
+
+        Client: ``DecorationForgeUpgradeDialog.onLevelUpButtonClicked`` (bundle line 78274),
+        ``FusionForgeVO.getCostForForgeLevelUp`` (bundle line 142209)
+        """
+        request = LevelUpFusionForgeRequest(forge_id=forge_id)
+        return self.request(request, LevelUpFusionForgeResponse, timeout=timeout).level
+
+    def refill_fusion_forge(
+        self, forge_id: int = DECORATION_FORGE_ID, *, spend_rubies: bool = False, timeout: float = 5.0
+    ) -> int:
+        """
+        Refill a fusion forge's energy for rubies, and return the energy added.
+
+        The price rises with each refill (``FusionForge.used_ruby_refills``) by the game data's fusion
+        system, which the library does not load.
+
+        Raises:
+            ValueError: ``spend_rubies`` is False
+
+        Client: ``DecorationForgeRechargeEnergyDialog`` (bundle line 35619),
+        ``FusionForgeVO.getC2PriceForEnergyPremiumSkip`` (bundle line 142206)
+        """
+        self._require_spend_rubies(spend_rubies, "refilling the fusion forge's energy costs rubies")
+        request = RefillFusionForgeRequest(forge_id=forge_id)
+        return self.request(request, RefillFusionForgeResponse, timeout=timeout).energy
+
+    def convert_catalysts(
+        self,
+        catalyst_id: CurrencyId | int,
+        amount: int,
+        direction: CatalystConversion,
+        forge_id: int = DECORATION_FORGE_ID,
+        *,
+        timeout: float = 5.0,
+    ) -> ConvertCatalystResponse:
+        """
+        Assemble fusion catalysts, or disassemble them into decoration dust.
+
+        Client: ``ADecorationForgeCatalystConversionDialogInfoBox.onConfirmButtonClicked`` (bundle line 48367)
+        """
+        request = ConvertCatalystRequest(forge_id=forge_id, direction=direction, catalyst_id=catalyst_id, amount=amount)
+        return self.request(request, ConvertCatalystResponse, timeout=timeout)
+
+    def get_fusion_targets(self, *, timeout: float = 5.0) -> tuple[FusionTargetArea, ...]:
+        """
+        Your areas with the placed decorations a fusion can target.
+
+        Client: ``DecoStorageData.requestGTD`` (bundle line 141447)
+        """
+        return self.request(GetFusionTargetsRequest(), FusionTargetsResponse, timeout=timeout).areas
+
+    def fuse_decoration(
+        self,
+        source_wod_id: int,
+        source_unique_id: int,
+        target_area: FusionTargetArea,
+        target: FusionDecoration,
+        catalyst_id: CurrencyId | int,
+        *,
+        pay_with_rubies: bool = False,
+        spend_rubies: bool = False,
+        timeout: float = 5.0,
+    ) -> FuseDecorationResponse:
+        """
+        Fuse a stored decoration into a placed one. The stored decoration is used up.
+
+        The fusion spends the forge's energy and the catalyst, and the fusion currency, or rubies with
+        ``pay_with_rubies`` (the premium fusion).
+
+        Args:
+            source_wod_id: The stored decoration's building type
+            source_unique_id: The stored decoration's unique id
+            target_area: The area of :meth:`get_fusion_targets` the target stands in
+            target: One of ``target_area.decorations``
+            catalyst_id: The catalyst used, a currency
+            pay_with_rubies: The premium fusion
+            spend_rubies: Allow the premium fusion's rubies
+            timeout: Timeout in seconds
+
+        Raises:
+            ValueError: ``target`` is not in ``target_area``, or rubies are spent without ``spend_rubies``
+
+        Client: ``DecorationForgeMainDialog.onFuseButtonClicked`` (bundle line 35455)
+        """
+        if target not in target_area.decorations:
+            raise ValueError(f"decoration {target.object_id} is not in area {target_area.castle_id}")
+        self._require_spend_rubies(spend_rubies, "the premium fusion costs rubies" if pay_with_rubies else None)
+        request = FuseDecorationRequest(
+            catalyst_id=catalyst_id,
+            pay_with_rubies=pay_with_rubies,
+            source_unique_id=source_unique_id,
+            source_wod_id=source_wod_id,
+            target_object_id=target.object_id,
+            target_kingdom=target_area.kingdom,
+            target_castle_id=target_area.castle_id,
+            target_unique_id=target.unique_id,
+            target_wod_id=target.wod_id,
+        )
+        return self.request(request, FuseDecorationResponse, timeout=timeout)
 
 
 __all__ = ["CastleService"]

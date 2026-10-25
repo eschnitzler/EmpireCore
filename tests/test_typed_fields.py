@@ -37,6 +37,19 @@ if TYPE_CHECKING:
 _CONTAINERS = (list, tuple, set, frozenset)
 
 ALLOWED: dict[str, str] = {
+    "castle.models.crafting.CraftingSlots.booster_values": "booster values, one per slot; not ids",
+    "castle.models.crafting.CraftingSlots.recipe_ids": (
+        "crafting recipe ids, one per slot: the trimmed items carry no craftingRecipes table for an enum"
+    ),
+    "castle.models.crafting.CraftingSlots.remaining_seconds": "seconds, one per slot; not ids",
+    "castle.models.crafting.CraftingSlots.unlock_seconds": "seconds, one per temporary slot; not ids",
+    "castle.models.crafting.UnlockCraftingSlotsRequest.slot_indices": "slot positions in a queue; not ids",
+    "castle.models.fusion_forge.GetFusionForgesRequest.forge_ids": (
+        "fusion system ids: the trimmed items carry no fusionSystems table for an enum"
+    ),
+    "commanders.models.crafting.CraftEquipmentRequest.equipment_ids": "item instance ids, as Equipment.equipment_id",
+    "commanders.models.crafting.NewRelicItemsResponse.equipment_ids": "item instance ids, as Equipment.equipment_id",
+    "commanders.models.crafting.NewRelicItemsResponse.relic_gem_ids": "relic gem instance ids, as RelicGem.gem_id",
     "events.status_models.GrandTournamentQuestProgress.counters": (
         "condition counters, not ids; CastleQuestVO.fillFromParams (bundle 52463)"
     ),

@@ -7,12 +7,14 @@ from collections.abc import Set as AbstractSet
 from typing import Any
 
 from empire_core.enums import Kingdom
+from empire_core.protocol.js import js_truthy
 from empire_core.state.account import ACCOUNT_SECTIONS, AccountState
 from empire_core.state.alliance import AllianceState
 from empire_core.state.area import AreaState
 from empire_core.state.base import MovementEventCallback
 from empire_core.state.castles import AREA_LIST_SECTIONS, CastleState
 from empire_core.state.commanders import CommanderState
+from empire_core.state.crafting import CRAFTING_QUEUE_REPLIES, CraftingState
 from empire_core.state.events import EventCallback, EventsCallback, EventState
 from empire_core.state.inventory import INVENTORY_SECTIONS, InventoryState
 from empire_core.state.messages import MailboxState
@@ -116,6 +118,7 @@ _WHOLE_SECTIONS = {
 # 125982, 121164, 123053, 127640, 127658), gdr also its sce; a refused crm still reaches the movement handler.
 # VFICommand also parses its gcu, and SOUCommand (bundle line 125699) its gcu beside the spl the state does not keep.
 # The protection (uap) of a map read and a joined area: GAACommand, JAACommand (bundle lines 130164, 130243)
+# JAACommand also brings its crai crafting queues (bundle line 130249)
 _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
     **dict.fromkeys(("arl", "gla", "sdi", "sti"), ("gli",)),
     "seq": ("gli", "gcu", "esl"),
@@ -138,7 +141,7 @@ _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
     "rwb": ("gcu",),
     **dict.fromkeys(("ffp", "ibt"), ("gcu",)),
     **dict.fromkeys(("ebu", "eup", "eud", "rbu", "ebe", "rcc", "bup", "crm", "ccd", "cde"), ("grc",)),
-    "jaa": ("grc", "uap"),
+    "jaa": ("grc", "uap", "crai"),
     "gaa": ("uap",),
     "gdr": ("grc", "sce"),
     "vfi": ("gcu", "grc"),
@@ -205,6 +208,8 @@ _SUCCESS_ONLY = frozenset(
     | {"sii", "ikr", "gtwara"}
     # SINCommand.exec, GCACommand.executeCommand (bundle lines 124638, 122991)
     | {"sin", "gca"}
+    # CRINCommand, the crafting action replies and FFICommand (bundle lines 123443, 123428-123504, 124120)
+    | {"crin", *CRAFTING_QUEUE_REPLIES, "ffi"}
 )
 
 
@@ -223,6 +228,7 @@ class GameState(
     MailboxState,
     RewardsState,
     TreasureMapState,
+    CraftingState,
 ):
     """
     Manages game state parsed from server packets.
@@ -297,9 +303,9 @@ class GameState(
     ruby wishing well                    ``rww``                      re-login
     new relics flag                      ``nrf`` (pushed)             re-login
     frozen food production               ``DTS`` (pushed)             re-login
-    gems and relic gems                  ``ggm``, ``gec`` (pushed)    re-login
+    gems and relic gems                  ``ggm``, ``gec`` (pushed)    ``client.equipment.get_gems()``
     loot boxes, key progress             ``gls`` (pushed)             re-login
-    inventory space                      ``esl``, the crafting and    re-login
+    inventory space                      ``esl``, the crafting and    ``client.equipment.get_inventory_space()``
                                          selling replies
     kingdoms, transfers between them     ``kpi``, the transfer        ``client.castle.get_kingdoms()``
                                          replies
@@ -311,6 +317,9 @@ class GameState(
     mercenary missions                   ``mpe``                      re-login
     treasure maps, treasure hunt's map   ``tmp``/``thi``, the         ``client.map.get_treasure_maps()``
                                          treasure map replies
+    crafting queues                      ``crin``, ``jaa``, the       ``client.castle.get_crafting_queues()``
+                                         crafting action replies
+    fusion forges                        ``ffi``                      ``client.castle.get_fusion_forges()``
     tax collection                       ``txi``, ``txs``, ``txc``,   ``client.castle.get_tax_info()``
                                          ``btx``
     construction item expiry             ``nec`` (pushed)             re-login
@@ -449,6 +458,9 @@ class GameState(
         "ffp": "_handle_ffp",
         "rpr": "_handle_rpr",
         "rce": "_handle_rce",
+        "crin": "_handle_crin",
+        **dict.fromkeys(CRAFTING_QUEUE_REPLIES, "_handle_crafting_queue"),
+        "ffi": "_handle_ffi",
     }
 
     def update_from_packet(self, cmd_id: str, payload: dict[str, Any], error_code: int = 0) -> None:
@@ -541,6 +553,8 @@ class GameState(
         self._parse_castles(data)
         self._parse_permanent_castles(data)
         self._parse_max_spies(data)
+        if isinstance(crai := data.get("crai"), dict) and js_truthy(crai.get("CAI")):
+            self._handle_crin(crai)
         if dcl := data.get("dcl"):
             self._handle_dcl(dcl)
         if "tei" in data:
