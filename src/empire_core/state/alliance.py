@@ -5,6 +5,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
 
+from empire_core.alliance.models.battleground import BattlegroundMemberPerformance, BattlegroundPerformanceResponse
 from empire_core.alliance.models.chat import AllianceChatLogResponse, ChatMessageData
 from empire_core.alliance.models.gifts import AllianceGift, AllianceGiftReceived
 from empire_core.alliance.models.help import (
@@ -152,6 +153,16 @@ class AllianceState(StateBase):
         """Your and your alliance's Storm Islands standing, from the last ``sii``; None until one arrived."""
         with self._lock:
             return self.storm_islands
+
+    def _handle_gae(self, data: Any) -> None:
+        """Keep your alliance members' battleground performance.
+
+        Client: ``CastleAllianceBattleGroundData.parseAlliancePerformance`` (bundle line 144898) replaces
+        ``alliancePerformanceVOs``
+        """
+        performance = read_section(BattlegroundPerformanceResponse, data, "the battleground performance")
+        if performance is not None:
+            self.battleground_performance = tuple(performance.members)
 
     def _handle_aja(self, data: Any) -> None:
         """Apply your new membership, then the alliance you were put in.
@@ -417,6 +428,13 @@ class AllianceState(StateBase):
         """Your aqua points, from the last ``gap``; None until one arrived."""
         with self._lock:
             return self.aqua_points
+
+    def get_battleground_performance(self) -> list[BattlegroundMemberPerformance] | None:
+        """Your alliance members' battleground performance, from the last ``gae``; None until one arrived."""
+        with self._lock:
+            if self.battleground_performance is None:
+                return None
+            return [member.model_copy(deep=True) for member in self.battleground_performance]
 
     def get_own_alliance(self) -> AllianceInfo | None:
         """Your alliance's details and members, from the last ``ain`` about it; None in no alliance or before one.

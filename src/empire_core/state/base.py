@@ -10,6 +10,7 @@ from typing import Any, TypeVar
 
 from pydantic import BaseModel
 
+from empire_core.alliance.models.battleground import BattlegroundMemberPerformance
 from empire_core.alliance.models.chat import ChatMessageData
 from empire_core.alliance.models.gifts import AllianceGift
 from empire_core.alliance.models.help import AllianceHelpRequest
@@ -256,6 +257,7 @@ class StateBase:
         # The crafting queues by queue id, kingdom and castle, and the fusion forges by id; swapped, never edited
         self.crafting_queues: dict[tuple[int, Kingdom, int], CraftingQueue] | None = None
         self.fusion_forges: dict[int, FusionForge] | None = None
+        self.battleground_performance: tuple[BattlegroundMemberPerformance, ...] | None = None
 
         # Freshness bookkeeping (see the GameState docstring). Wall-clock seconds.
         self._packet_times: dict[str, float] = {}
