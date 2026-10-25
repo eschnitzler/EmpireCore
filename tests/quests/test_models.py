@@ -4,6 +4,7 @@ import pytest
 
 from empire_core.enums import CollectableKind
 from empire_core.gamedata import DailyQuestId, MainQuest
+from empire_core.protocol.models import parse_response
 from empire_core.quests import DailyQuest, DailyQuests, Quest, QuestBook
 
 
@@ -92,3 +93,15 @@ class TestDailyQuests:
 
         assert again.threshold_rewards == first.threshold_rewards and again.level == 2
         assert again.quests == (DailyQuest(quest_id=3, progress=(2,)),)
+
+    def test_the_dql_push_parses_as_its_section(self):
+        # DQLCommand.exec hands the push to parse_DQL, as the login data's dql
+        section = {"PQL": "3", "FDQ": [30], "RDQ": [{"QID": 20, "P": [1]}], "RS": [[["C1", 500]]]}
+
+        pushed = parse_response("dql", section)
+
+        assert isinstance(pushed, DailyQuests)
+        assert pushed.level == 3
+        assert pushed.quests == DailyQuests.from_section(section).quests
+        assert pushed.threshold_rewards == DailyQuests.from_section(section).threshold_rewards
+        assert "FDQ" not in (pushed.model_extra or {}) and "RDQ" not in (pushed.model_extra or {})

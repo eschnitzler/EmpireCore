@@ -4,6 +4,7 @@ Other players' details, player search and your legend skills.
 
 from __future__ import annotations
 
+import logging
 import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
@@ -18,7 +19,7 @@ from empire_core.commanders.models.skills import (
     SkillList,
 )
 from empire_core.enums import MysteryBoxKey, TitleSystem
-from empire_core.exceptions import CommandError, EmpireTimeoutError, PacketError
+from empire_core.exceptions import CommandError, EmpireError, EmpireTimeoutError, PacketError
 from empire_core.player.models.aqua import AquaPointsResponse, GetAquaPointsRequest
 from empire_core.player.models.economy import (
     GetLootBoxesRequest,
@@ -33,7 +34,17 @@ from empire_core.player.models.info import (
     SearchPlayerRequest,
     SearchPlayerResponse,
 )
-from empire_core.player.models.progress import SelectTitleRequest, SelectTitleResponse
+from empire_core.player.models.progress import (
+    AchievementFinishedResponse,
+    AchievementsResponse,
+    AssignTitleRequest,
+    AssignTitleResponse,
+    GetAchievementsRequest,
+    GetTitleRanksRequest,
+    SelectTitleRequest,
+    SelectTitleResponse,
+    TitleRanksResponse,
+)
 from empire_core.player.titles import player_title_ids
 from empire_core.protocol.base import BaseResponse
 from empire_core.services.base import BaseService
@@ -49,16 +60,15 @@ if TYPE_CHECKING:
         PlayerGiftsResponse,
     )
     from empire_core.player.models.progress import (
-        AchievementsResponse,
         BoosterInfoResponse,
         FactionPointsResponse,
         GloryPointsResponse,
         MightPointsResponse,
         RelocationInfoResponse,
-        TitleRanksResponse,
     )
     from empire_core.state.models import Player
 
+logger = logging.getLogger(__name__)
 
 # LegendSkillConst.BASE_COST, EXPONENT, BASE_SKILL_POINTS, POINTS_FACTOR (dll line 19477)
 _RESET_BASE_RUBIES = 20
@@ -96,6 +106,8 @@ class PlayerService(BaseService):
         super().__init__(client)
         self.on_response("skl", self._handle_skill_list)
         self.on_response("ego", self._handle_skill_list)
+        self.on_response("vfi", self._handle_achievement_finished)
+        self.on_response("apt", self._request_title_ranks)
 
     @property
     def local_player(self) -> Player:
@@ -194,6 +206,60 @@ class PlayerService(BaseService):
         """
         return self.client.state.get_title_ranks()
 
+    def get_title_ranks(self, *, timeout: float = 5.0) -> TitleRanksResponse:
+        """
+        Request your top-X ranks, Storm Islands title and displayed title systems, as the client does when
+        the Storm Islands title ranking opens; the reply is also kept in :attr:`title_ranks`.
+
+        Client: ``CastleEilandRankingDialogTitle.show`` (bundle line 98292) sends ``C2SUserAchievedRanksVO``
+
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+        """
+        return self.request(GetTitleRanksRequest(), TitleRanksResponse, timeout=timeout)
+
+    def assign_title(self, title: Title | int, player_name: str, *, timeout: float = 5.0) -> AssignTitleResponse:
+        """
+        Give a Storm Islands title to a player, as the island's king does.
+
+        The client asks for the title ranks after every title given (:attr:`title_ranks`), and so does
+        the library, without waiting for them.
+
+        Client: ``CastleEilandAssignTitleDialog.onConfirmAssignment`` (bundle line 98376),
+        ``APTCommand.executeCommand`` (bundle line 123623)
+
+        Args:
+            title: The title to give
+            player_name: The player to give it to
+            timeout: Timeout in seconds
+
+        Returns:
+            The title and the player given it
+
+        Raises:
+            ValueError: ``player_name`` is empty, which takes the title back (:meth:`revoke_title`)
+            CommandError: The server refused: ``IS_NOT_KING``, ``LEVEL_TOO_HIGH_OR_LOW``,
+                ``NOT_IN_SAME_ALLIANCE``, ``PLAYER_NOT_FOUND``, ``CANNOT_ASSIGN_TO_SELF`` or ``ALREADY_HAS_TITLE``
+            EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+        """
+        if not player_name:
+            raise ValueError("a title is given to a named player; revoke_title() takes it back")
+        request = AssignTitleRequest(title_id=title, player_name=player_name)
+        return self.request(request, AssignTitleResponse, timeout=timeout)
+
+    def revoke_title(self, title: Title | int, *, timeout: float = 5.0) -> None:
+        """
+        Take a Storm Islands title back from the player holding it.
+
+        Client: ``CastleEilandAssignTitleDialog.onConfirmAssignment`` (bundle line 98376) sends the title with
+        an empty name; ``APTCommand.executeCommand`` (bundle line 123623)
+
+        Raises:
+            CommandError: The server refused, e.g. ``IS_NOT_KING``
+            EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+        """
+        self.execute(AssignTitleRequest(title_id=title), timeout=timeout)
+
     @property
     def achievements(self) -> AchievementsResponse:
         """Your achievement points, finished achievements and progress.
@@ -202,6 +268,19 @@ class PlayerService(BaseService):
             StateNotLoadedError: No login has brought it
         """
         return self.client.state.get_achievements()
+
+    def get_achievements(self, *, timeout: float = 5.0) -> AchievementsResponse:
+        """
+        Request your achievements, as the client does when the achievements dialog opens.
+
+        The reply is what the server sent; :attr:`achievements` holds it merged over what was known.
+
+        Client: ``CastleAchievementDialog.showLoaded`` (bundle line 106960) sends ``C2SAchievementListVO``
+
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+        """
+        return self.request(GetAchievementsRequest(), AchievementsResponse, timeout=timeout)
 
     @property
     def relocation(self) -> RelocationInfoResponse | None:
@@ -490,6 +569,26 @@ class PlayerService(BaseService):
 
     Removing a callback not registered is a no-op.
     """
+
+    on_achievement_finished = Event[AchievementFinishedResponse]()
+    """
+    Register a callback for every achievement you finish, called with the ``vfi`` push.
+
+    Client: ``VFICommand.exec`` (bundle line 121164) shows the level-up dialog or the achievement popup.
+    """
+
+    def _handle_achievement_finished(self, response: BaseResponse) -> None:
+        if isinstance(response, AchievementFinishedResponse):
+            self._fire(self.on_achievement_finished, response)
+
+    def _request_title_ranks(self, response: BaseResponse) -> None:
+        # APTCommand.executeCommand (bundle line 123625) asks for a uar after every apt, pushed or answered
+        try:
+            self.client.connection.send_and_drop_reply(
+                self.client.frame(GetTitleRanksRequest()), "uar", window=self.client.config.request_timeout
+            )
+        except EmpireError:
+            logger.warning("Could not ask for the title ranks after a title was assigned", exc_info=True)
 
     def _handle_skill_list(self, response: BaseResponse) -> None:
         if isinstance(response, GetSkillsResponse):

@@ -11,6 +11,7 @@ from empire_core.quests import (
     QuestConditionType,
     QuestDonateCurrencyRequest,
     QuestDonateResourcesRequest,
+    QuestStarterClickRequest,
 )
 from tests.service_helpers import conn, make_client, request_payload
 
@@ -106,4 +107,17 @@ def test_finish_condition_sends_without_waiting(args, payload):
     client.quests.finish_condition(*args)
 
     assert [request_payload(p) for p in conn(client).sent] == [payload]
+    assert conn(client).requested == []
+
+
+def test_the_quest_starter_request():
+    assert QuestStarterClickRequest(quest_id=QUEST_ID).to_payload() == {"QID": QUEST_ID}
+
+
+def test_finish_starter_sends_without_waiting():
+    client = make_client()
+
+    client.quests.finish_starter(QUEST_ID)
+
+    assert [request_payload(p) for p in conn(client).sent] == [{"QID": QUEST_ID}]
     assert conn(client).requested == []

@@ -61,6 +61,7 @@ from .models import (
     EVENT_SCOREBOARDS,
     POINT_EVENTS,
     BerimondEvent,
+    ClaimAnnouncementRewardRequest,
     EventScores,
     GameEvent,
     GetEventPointsRequest,
@@ -698,3 +699,17 @@ class EventsService(BaseService):
             if sum(card.status not in locked for card in status.cards) <= 1:
                 raise ValueError("the last playable raid boss cannot be aborted")
         return self.request(AbortRaidRequest(), AbortRaidResponse, timeout=timeout)
+
+    def claim_announcement_reward(self, *, timeout: float = 5.0) -> None:
+        """
+        Claim the reward of the running event announcement, the teaser for an event to come; the
+        announcement's ``reward_collected`` turns True in :attr:`running`.
+
+        Client: ``CastleEventTeaserDialog.claimRewards`` (bundle line 91443), ``CARCommand.executeCommand``
+        (bundle line 125277)
+
+        Raises:
+            CommandError: The server refused the claim
+            EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+        """
+        self.execute(ClaimAnnouncementRewardRequest(), timeout=timeout)

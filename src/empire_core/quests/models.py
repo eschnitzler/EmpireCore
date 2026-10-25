@@ -1,7 +1,7 @@
 """
 Your quests as ``client.state`` keeps them: the active quests (``qli``), the quest book's main
 quests, and the daily quests (``dql``); and the requests that donate for a quest (``qdr``, ``qdc``)
-and finish a condition the client counts itself (``fcq``).
+and finish a condition the client counts itself (``fcq``) or a quest starter (``qsc``).
 
 The state has no game data, so a quest is its id (a ``QuestId`` or ``DailyQuestId``) and the
 progress the server sent; its conditions, rewards and texts are in the items' ``quests`` and
@@ -13,7 +13,7 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from empire_core.enums import QuestConditionType
 from empire_core.gamedata import Collectable, CurrencyId, EnumOrInt
@@ -141,15 +141,23 @@ class DailyQuest(EmpireModel):
     finished: bool = Field(default=False, description="Whether you finished it today (listed in FDQ)")
 
 
-class DailyQuests(EmpireModel):
+class DailyQuests(BaseResponse):
     """
     Your daily quests: your daily quest level, today's quests and the reward thresholds.
 
-    Client: ``CastleDailyQuestData.parse_DQL`` (bundle line 134062), ``parse_RDQ`` and ``parse_FDQ``
-    (bundle lines 134063, 134070)
+    Command: dql, as a login section of ``gbd`` and a push; the client has no request for it.
+    Payload: {"PQL": level, "FDQ": [finished quest id, ...], "RDQ": [{"QID": id, "P": [counter, ...]}, ...],
+    "RS": [threshold rewards, ...]}
+
+    The client drops the ids its items lack; the library keeps every one.
+
+    Client: ``DQLCommand.exec`` (bundle line 126550), ``CastleDailyQuestData.parse_DQL`` (bundle line 134062),
+    ``parse_RDQ`` and ``parse_FDQ`` (bundle lines 134063, 134070)
     """
 
-    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True, populate_by_name=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    command = "dql"
 
     level: int = Field(default=0, validation_alias="PQL", description="Your daily quest level")
     quests: tuple[DailyQuest, ...] = Field(
@@ -158,17 +166,16 @@ class DailyQuests(EmpireModel):
     threshold_rewards: tuple[tuple[Collectable, ...], ...] = Field(
         default=(),
         validation_alias="RS",
-        description="Each reward threshold's rewards, in threshold order",
+        description="Each reward threshold's rewards, in threshold order; empty when none were sent",
     )
 
+    @model_validator(mode="before")
     @classmethod
-    def from_section(cls, section: dict[str, Any], previous: DailyQuests | None = None) -> DailyQuests:
-        """
-        The daily quests a ``dql`` makes; a falsy ``RS`` keeps the thresholds of ``previous``.
-
-        The client drops the ids its items lack; the library keeps every one.
-        """
-        finished, running = section.get("FDQ"), section.get("RDQ")
+    def _quest_lists(cls, data: Any) -> Any:
+        if not isinstance(data, dict) or not ("FDQ" in data or "RDQ" in data):
+            return data
+        values = {key: value for key, value in data.items() if key not in ("FDQ", "RDQ")}
+        finished, running = data.get("FDQ"), data.get("RDQ")
         quests = [
             DailyQuest(quest_id=js_int(qid), finished=True) for qid in (finished if isinstance(finished, list) else ())
         ]
@@ -181,16 +188,30 @@ class DailyQuests(EmpireModel):
                         progress=tuple(map(js_int, progress)) if isinstance(progress, list) else (),
                     )
                 )
-        thresholds = section.get("RS")
-        if js_truthy(thresholds) and isinstance(thresholds, list):
-            rewards = tuple(Collectable.from_rows(rows) for rows in thresholds)
-        else:
-            rewards = previous.threshold_rewards if previous is not None else ()
-        return cls(
-            level=js_int(section.get("PQL")),
-            quests=tuple(sorted(quests, key=lambda quest: quest.quest_id)),
-            threshold_rewards=rewards,
-        )
+        values["quests"] = tuple(sorted(quests, key=lambda quest: quest.quest_id))
+        return values
+
+    @field_validator("level", mode="before")
+    @classmethod
+    def _level(cls, value: Any) -> int:
+        return js_int(value)
+
+    @field_validator("threshold_rewards", mode="before")
+    @classmethod
+    def _thresholds(cls, value: Any) -> Any:
+        if isinstance(value, tuple):
+            return value
+        if js_truthy(value) and isinstance(value, list):
+            return tuple(Collectable.from_rows(rows) for rows in value)
+        return ()
+
+    @classmethod
+    def from_section(cls, section: dict[str, Any], previous: DailyQuests | None = None) -> DailyQuests:
+        """The daily quests a ``dql`` makes; a falsy ``RS`` keeps the thresholds of ``previous``."""
+        daily, rows = cls.model_validate(section), section.get("RS")
+        if previous is not None and not (js_truthy(rows) and isinstance(rows, list)):
+            daily = daily.model_copy(update={"threshold_rewards": previous.threshold_rewards})
+        return daily
 
 
 class QuestDonateResourcesRequest(BaseRequest):
@@ -282,3 +303,22 @@ class FinishQuestConditionRequest(BaseRequest):
 
     condition_type: QuestConditionType = Field(validation_alias="QC", description="The condition done")
     target_id: int = Field(validation_alias="QTID", default=-1, description="The condition's target; -1 for none")
+
+
+class QuestStarterClickRequest(BaseRequest):
+    """
+    Report a quest starter seen through: the dialog or tutorial step that introduces a quest is done.
+
+    Command: qsc
+    Payload: {"QID": quest_id}
+
+    The client has no handler for an answer.
+
+    Client: ``C2SQuestStarterClickVO`` (bundle line 37187), sent by ``CastleStartQuestDialog.finishQuestStarter``
+    (bundle line 17052), ``TutorialBasicActionCommand.finishTriggerQuest`` (bundle line 9024) and
+    ``TutorialAttackRobberBaronCommand.onPlayernameSelected`` (bundle line 143104)
+    """
+
+    command = "qsc"
+
+    quest_id: EnumOrInt["QuestId"] = Field(validation_alias="QID", description="The quest the starter introduces")

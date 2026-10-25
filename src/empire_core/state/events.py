@@ -20,6 +20,7 @@ from empire_core.events.models import (
     CampaignQuestEvent,
     DiscountSaleEvent,
     DonationEvent,
+    EventAnnouncementEvent,
     FactionInvasionEvent,
     FameBoosterEvent,
     FortuneTellerEvent,
@@ -326,6 +327,17 @@ class EventState(StateBase):
         self._fire(self.on_events_updated, dict(self.events))
         return status
 
+    def _handle_car(self, data: Any) -> None:
+        """Handle the answer to an announcement reward claim: the running announcement's reward is collected.
+
+        Client: ``CARCommand.executeCommand`` (bundle line 125277), ``EventAnnouncementData.parseCAR``
+        (bundle line 53117), which fails without the announcement running
+        """
+        event = self.events.get(Event.EVENT_ANNOUNCEMENT)
+        if isinstance(event, EventAnnouncementEvent):
+            self.events = {**self.events, event.event_id: event.model_copy(update={"reward_collected": True})}
+            self._fire(self.on_events_updated, dict(self.events))
+
     def _sent_event(self, eid: Any) -> SpecialEvent | None:
         # The id as sent, compared as the client's Map compares keys: 3.0 is 3, "3" is not
         if not isinstance(eid, (int, float)) or isinstance(eid, bool):
@@ -448,6 +460,8 @@ class EventState(StateBase):
     def get_event(self, event: Literal[Event.SKIP_FOR_FREE]) -> SkipForFreeEvent | None: ...
     @overload
     def get_event(self, event: Literal[Event.GGS_GIFT]) -> GiftEvent | None: ...
+    @overload
+    def get_event(self, event: Literal[Event.EVENT_ANNOUNCEMENT]) -> EventAnnouncementEvent | None: ...
     @overload
     def get_event(self, event: Literal[Event.FORTUNE_TELLER]) -> FortuneTellerEvent | None: ...
     @overload
