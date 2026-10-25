@@ -560,6 +560,15 @@ from empire_core.castle.models.construction_items import (
     RemoveConstructionItemRequest,
     RemoveConstructionItemResponse,
 )
+from empire_core.castle.models.hunter import (
+    HunterInfo,
+    SetHunterRequest,
+)
+from empire_core.castle.models.judgement import (
+    JudgeCitizenRequest,
+    JudgeCitizenResponse,
+    JudgementStarted,
+)
 from empire_core.castle.models.kingdoms import KingdomInfoResponse
 from empire_core.castle.models.landmarks import (
     GetLaboratoryProgressRequest,
@@ -770,6 +779,23 @@ from empire_core.events.minigame_models import (
     VoteWorldCupRequest,
     VoteWorldCupResponse,
 )
+from empire_core.events.progression_models import (
+    AllianceCampInfo,
+    AllianceCampInfoResponse,
+    DaimyoArea,
+    DaimyoAreasResponse,
+    DaimyoContractProgress,
+    DaimyoContractsResponse,
+    DaimyoWarEffortsResponse,
+    GetDaimyoAreasRequest,
+    GetDaimyoContractsRequest,
+    GetDaimyoWarEffortsRequest,
+    SeasonJoinEventRequest,
+    SelectEventDifficultyRequest,
+    SelectEventDifficultyResponse,
+    UnlockEventRequest,
+    UnlockEventResponse,
+)
 from empire_core.events.special_server_models import (
     ApplyChargeCampEffectRequest,
     ApplyChargeCampEffectResponse,
@@ -777,7 +803,10 @@ from empire_core.events.special_server_models import (
     ChargeCampEffects,
     CurrentServer,
     GetChargeCampEffectsRequest,
+    GetPreviousSpecialServerRunsRequest,
     GetTemporaryServerCollectorPointsRequest,
+    PreviousSpecialServerRun,
+    PreviousSpecialServerRuns,
     RerollChargeCampEffectRequest,
     RerollChargeCampEffectResponse,
     SelectSpecialServerCastleRequest,
@@ -943,6 +972,10 @@ from empire_core.player.models.economy import (
     OpenLootBoxRequest,
     OpenLootBoxResponse,
 )
+from empire_core.player.models.hero import (
+    HeroDecisionRequest,
+    HeroDecisionResponse,
+)
 from empire_core.player.models.info import (
     GetPlayerInfoRequest,
     GetPlayerInfoResponse,
@@ -950,6 +983,17 @@ from empire_core.player.models.info import (
     PlayerOwnerInfo,
     SearchPlayerRequest,
     SearchPlayerResponse,
+)
+from empire_core.player.models.officers_school import (
+    ActivateTrainingProgramRequest,
+    ActivateTrainingProgramResponse,
+    GetTrainingProgramsRequest,
+    ProlongTrainingProgramRequest,
+    ProlongTrainingProgramResponse,
+    RerollTrainingProgramsRequest,
+    RerollTrainingProgramsResponse,
+    TrainingProgram,
+    TrainingProgramsResponse,
 )
 from empire_core.player.models.progress import (
     AchievementFinishedResponse,
@@ -1089,6 +1133,40 @@ from empire_core.spy.models import (
 )
 
 __all__ = [
+    "ActivateTrainingProgramRequest",
+    "ActivateTrainingProgramResponse",
+    "GetTrainingProgramsRequest",
+    "ProlongTrainingProgramRequest",
+    "ProlongTrainingProgramResponse",
+    "RerollTrainingProgramsRequest",
+    "RerollTrainingProgramsResponse",
+    "TrainingProgram",
+    "TrainingProgramsResponse",
+    "HeroDecisionRequest",
+    "HeroDecisionResponse",
+    "HunterInfo",
+    "SetHunterRequest",
+    "JudgeCitizenRequest",
+    "JudgeCitizenResponse",
+    "JudgementStarted",
+    "AllianceCampInfo",
+    "AllianceCampInfoResponse",
+    "DaimyoArea",
+    "DaimyoAreasResponse",
+    "DaimyoContractProgress",
+    "DaimyoContractsResponse",
+    "DaimyoWarEffortsResponse",
+    "GetDaimyoAreasRequest",
+    "GetDaimyoContractsRequest",
+    "GetDaimyoWarEffortsRequest",
+    "SeasonJoinEventRequest",
+    "SelectEventDifficultyRequest",
+    "SelectEventDifficultyResponse",
+    "UnlockEventRequest",
+    "UnlockEventResponse",
+    "GetPreviousSpecialServerRunsRequest",
+    "PreviousSpecialServerRun",
+    "PreviousSpecialServerRuns",
     "FULL_SKIP",
     "CancelCraftingRequest",
     "CancelCraftingResponse",

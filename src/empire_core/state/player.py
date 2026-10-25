@@ -1,4 +1,5 @@
-"""Local player tracking: gpi/gxp/gcu/vip/gho/uap, alliance (gal), special currencies (sce) and spies."""
+"""Local player tracking: gpi/gxp/gcu/vip/gho/uap, alliance (gal), special currencies (sce), spies and your
+hero (hdc)."""
 
 import logging
 import math
@@ -7,9 +8,11 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from empire_core.enums import Hero
 from empire_core.gamedata import Currency
 from empire_core.gamedata.lenient import known
 from empire_core.map.models.areas import KingdomProtection
+from empire_core.player.models.hero import HeroDecisionResponse
 from empire_core.protocol.js import js_int, js_truthy
 from empire_core.spy.models import MaxSpiesResponse
 from empire_core.state.base import StateBase, loaded, read_section
@@ -278,6 +281,19 @@ class PlayerState(StateBase):
             self._apply_special_currencies(entries)
             self._player_updated_at = time.time()
             logger.debug(f"Updated {len(entries)} special currencies from sce")
+
+    def _handle_hdc(self, data: Any) -> None:
+        """Keep which hero you picked, or that you have yet to pick one.
+
+        Client: ``HDCommand.executeCommand`` (bundle line 124371), ``CastleUserData.parse_HDC`` (bundle line 10101)
+        """
+        if (hero := read_section(HeroDecisionResponse, data, "the hero")) is not None:
+            self.hero = hero
+
+    def get_hero(self) -> Hero | int | None:
+        """Your hero, from the last ``hdc``; None until one arrived or while you have yet to pick one."""
+        with self._lock:
+            return self.hero.hero if self.hero is not None else None
 
     def get_local_player(self) -> Player:
         """Get a snapshot of the local player, which the login data brings.

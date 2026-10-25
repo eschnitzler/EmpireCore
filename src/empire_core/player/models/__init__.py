@@ -24,6 +24,10 @@ from .economy import (
     OpenLootBoxRequest,
     OpenLootBoxResponse,
 )
+from .hero import (
+    HeroDecisionRequest,
+    HeroDecisionResponse,
+)
 from .info import (
     GetPlayerInfoRequest,
     GetPlayerInfoResponse,
@@ -31,6 +35,17 @@ from .info import (
     PlayerOwnerInfo,
     SearchPlayerRequest,
     SearchPlayerResponse,
+)
+from .officers_school import (
+    ActivateTrainingProgramRequest,
+    ActivateTrainingProgramResponse,
+    GetTrainingProgramsRequest,
+    ProlongTrainingProgramRequest,
+    ProlongTrainingProgramResponse,
+    RerollTrainingProgramsRequest,
+    RerollTrainingProgramsResponse,
+    TrainingProgram,
+    TrainingProgramsResponse,
 )
 from .profile import PlayerProfileBase
 from .progress import (
@@ -70,6 +85,17 @@ from .protection import (
 )
 
 __all__ = [
+    "ActivateTrainingProgramRequest",
+    "ActivateTrainingProgramResponse",
+    "GetTrainingProgramsRequest",
+    "ProlongTrainingProgramRequest",
+    "ProlongTrainingProgramResponse",
+    "RerollTrainingProgramsRequest",
+    "RerollTrainingProgramsResponse",
+    "TrainingProgram",
+    "TrainingProgramsResponse",
+    "HeroDecisionRequest",
+    "HeroDecisionResponse",
     "AquaPointsResponse",
     "StormIslandsInfo",
     "StormIslandsInfoRequest",

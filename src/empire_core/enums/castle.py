@@ -177,3 +177,14 @@ class CatalystConversion(IntEnum):
 
     ASSEMBLE = 0
     DISASSEMBLE = 1
+
+
+class JudgementOption(IntEnum):
+    """
+    The verdict picked in a citizen judgement, the ``CO`` of ``jjc``.
+
+    Client: ``CastleJudgementChooseOptionDialog.onClick`` (bundle line 95550)
+    """
+
+    A = 0
+    B = 1

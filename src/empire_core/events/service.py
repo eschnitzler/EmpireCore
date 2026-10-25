@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING, Literal, TypeVar
 
 from pydantic import ValidationError
 
@@ -112,6 +112,19 @@ from .models import (
     SpecialEventInfoRequest,
     WorldCupEvent,
 )
+from .progression_models import (
+    DaimyoAreasResponse,
+    DaimyoContractsResponse,
+    DaimyoWarEffortsResponse,
+    GetDaimyoAreasRequest,
+    GetDaimyoContractsRequest,
+    GetDaimyoWarEffortsRequest,
+    SeasonJoinEventRequest,
+    SelectEventDifficultyRequest,
+    SelectEventDifficultyResponse,
+    UnlockEventRequest,
+    UnlockEventResponse,
+)
 from .season_models import JoinSeasonCampRequest, SelectSeasonCampRequest
 from .special_server_models import (
     ApplyChargeCampEffectRequest,
@@ -119,7 +132,9 @@ from .special_server_models import (
     ChargeCampEffects,
     CurrentServer,
     GetChargeCampEffectsRequest,
+    GetPreviousSpecialServerRunsRequest,
     GetTemporaryServerCollectorPointsRequest,
+    PreviousSpecialServerRuns,
     RerollChargeCampEffectRequest,
     RerollChargeCampEffectResponse,
     SelectSpecialServerCastleRequest,
@@ -715,11 +730,152 @@ class EventsService(BaseService):
         )
         self.execute(request, timeout=timeout)
 
+    def open_season_map(self, event: Event) -> None:
+        """Tell the server you opened a running season event's map, as the client does each time it shows it.
+
+        The client reads no answer, so none is waited for.
+
+        Raises:
+            EventNotRunningError: The event is not running
+            ValueError: It is no season event, or names no map
+
+        Client: ``CastleSeasonMapScreen.show`` (bundle line 108619) sends ``C2SSeasonJoinEventVO`` with the map
+        """
+        self.send(SeasonJoinEventRequest(map_id=self._season_map(event)))
+
     def _season_map(self, event: Event) -> int:
         found = self._require_running(event)
         if not isinstance(found, SeasonEvent) or found.map_id is None:
             raise ValueError(f"{Event(event).name} is no season event with a map")
         return found.map_id
+
+    def pay_toward_unlock(
+        self,
+        part_price_id: int,
+        *,
+        wood: int = 0,
+        stone: int = 0,
+        coins: int = 0,
+        castle_id: int = -1,
+        kingdom: Kingdom = Kingdom.GREEN,
+        ruby_payment: Literal["wood", "stone", "coins"] | None = None,
+        spend_rubies: bool = False,
+        timeout: float = 5.0,
+    ) -> None:
+        """Pay towards something priced in parts: a season map's obstacle, a treasure map node or a slum level.
+
+        ``part_price_id`` is the price's row in the part pay prices table, which the obstacle, node or slum
+        level names. Goods come from ``castle_id`` in ``kingdom``: the client pays a slum level from the joined
+        castle, a treasure hunt node from your main castle in the hunt's kingdom, and a season obstacle from
+        no castle (-1) in the green kingdom. ``ruby_payment`` instead pays that resource's missing amount in
+        rubies, and needs ``spend_rubies``.
+
+        Raises:
+            ValueError: ``ruby_payment`` without ``spend_rubies``, or with goods; no goods and no ``ruby_payment``
+            CommandError: The server refused; the client shows nothing for ``ALREADY_UNLOCKED`` and ``NO_EVENT``
+
+        Client: ``CastleSlumDonateDialog.onClick`` (bundle line 87707), ``CastleTreasureMapDonateDialog.onClick``
+        (bundle line 67887), ``CastleSeasonBaseRepairDialog.onClick`` (bundle line 37624),
+        ``CastleTreasureMapUnlockObstacleDialog.onClick`` (bundle line 67849), ``ULECommand.executeCommand``
+        (bundle line 129307)
+        """
+        if ruby_payment is not None:
+            if wood or stone or coins:
+                raise ValueError("pay either goods or one resource's missing amount in rubies")
+            self._require_spend_rubies(spend_rubies, f"paying the missing {ruby_payment} costs rubies")
+            wood, stone, coins = (int(ruby_payment == name) for name in ("wood", "stone", "coins"))
+        elif not (wood > 0 or stone > 0 or coins > 0):
+            raise ValueError("nothing to pay")
+        request = UnlockEventRequest(
+            castle_id=castle_id,
+            kingdom=kingdom,
+            wood=wood,
+            stone=stone,
+            coins=coins,
+            part_price_id=part_price_id,
+            pay_with_rubies=ruby_payment is not None,
+        )
+        self.request(request, UnlockEventResponse, timeout=timeout)
+
+    def select_difficulty(
+        self,
+        event: Event | int,
+        difficulty_id: int,
+        *,
+        unlock_with_rubies: bool = False,
+        spend_rubies: bool = False,
+        timeout: float = 5.0,
+    ) -> None:
+        """Choose a running event's difficulty.
+
+        ``difficulty_id`` is the difficulty's row in the event auto scaling difficulties table, or 0 for the
+        event without difficulty scaling. A locked difficulty is opened with ``unlock_with_rubies`` for its
+        ruby price, which needs ``spend_rubies``. The event's ``difficulty_id`` changes with its next update.
+
+        Raises:
+            EventNotRunningError: The event is not running
+            ValueError: ``unlock_with_rubies`` without ``spend_rubies``
+            CommandError: The server refused
+
+        Client: ``EventDifficultyConfirmDialog.onClick`` (bundle line 98770),
+        ``EventDifficultyConfirmRewardsDialog.onClick`` (bundle line 98787), ``DifficultyScalingSelectDialog.onClick``
+        (bundle line 30389), ``SEDECommand.executeCommand`` (bundle line 128462)
+        """
+        self._require_running(event)
+        self._require_spend_rubies(
+            spend_rubies, "unlocking a difficulty costs its ruby price" if unlock_with_rubies else None
+        )
+        request = SelectEventDifficultyRequest(
+            event_id=int(event), difficulty_id=difficulty_id, unlock_with_rubies=unlock_with_rubies
+        )
+        self.request(request, SelectEventDifficultyResponse, timeout=timeout)
+
+    def get_daimyo_areas(self, *, timeout: float = 5.0) -> DaimyoAreasResponse:
+        """Request the samurai invasion's daimyo castles and townships; the running event keeps them too.
+
+        Raises:
+            EventNotRunningError: The samurai invasion is not running
+            CommandError: The server refused
+
+        Client: ``CastleAllianceSamuraiInvasionDialogDaimyoSublayer.show`` (bundle line 99060),
+        ``GDACommand.executeCommand`` (bundle line 128283)
+        """
+        self._require_running(Event.SAMURAI_INVASION)
+        return self.request(GetDaimyoAreasRequest(), DaimyoAreasResponse, timeout=timeout)
+
+    def get_daimyo_contracts(self, *, timeout: float = 5.0) -> DaimyoContractsResponse:
+        """Request your alliance's daimyo contracts; the running samurai invasion keeps them too.
+
+        Raises:
+            EventNotRunningError: The samurai invasion is not running
+            CommandError: The server refused
+
+        Client: ``CastleAllianceSamuraiInvasionDialogDaimyoSublayer.show`` (bundle line 99060),
+        ``GDCCommand.executeCommand`` (bundle line 128298)
+        """
+        self._require_running(Event.SAMURAI_INVASION)
+        return self.request(GetDaimyoContractsRequest(), DaimyoContractsResponse, timeout=timeout)
+
+    def get_daimyo_war_efforts(self, *, timeout: float = 5.0) -> DaimyoWarEffortsResponse:
+        """Request your war efforts against the daimyo; the running samurai invasion keeps them too.
+
+        Raises:
+            EventNotRunningError: The samurai invasion is not running
+            CommandError: The server refused
+
+        Client: ``CastleAllianceSamuraiInvasionDialogDaimyoSublayer.show`` (bundle line 99060),
+        ``GDWCommand.executeCommand`` (bundle line 128313)
+        """
+        self._require_running(Event.SAMURAI_INVASION)
+        return self.request(GetDaimyoWarEffortsRequest(), DaimyoWarEffortsResponse, timeout=timeout)
+
+    def get_previous_special_server_runs(self, *, timeout: float = 5.0) -> PreviousSpecialServerRuns:
+        """Request when the temporary server and the alliance battleground last ran.
+
+        Client: ``CastleHighscoreDialog.getGlobalServerInfo`` (bundle line 27707), ``GPRCommand.executeCommand``
+        (bundle line 128892)
+        """
+        return self.request(GetPreviousSpecialServerRunsRequest(), PreviousSpecialServerRuns, timeout=timeout)
 
     def _require_running(self, event: Event | int) -> SpecialEvent:
         found = self.client.state.get_event(event)

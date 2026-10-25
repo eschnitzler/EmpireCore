@@ -28,6 +28,7 @@ from .castle import (
     CraftingSlotType,
     DecorationStorageId,
     ExpansionType,
+    JudgementOption,
     KingdomTransferType,
     MarketScope,
     Resource,
@@ -82,7 +83,14 @@ from .map import (
 )
 from .messages import BattleLogAttackType, LogResult, MessageType
 from .movements import MovementType
-from .player import MercenaryMissionRarity, MercenaryMissionState, MysteryBoxKey, PremiumAccountType, TitleSystem
+from .player import (
+    Hero,
+    MercenaryMissionRarity,
+    MercenaryMissionState,
+    MysteryBoxKey,
+    PremiumAccountType,
+    TitleSystem,
+)
 from .ranking import RankingType
 from .rewards import LoginBonusSpecial
 from .spy import SpyArmySection, SpyLogType, SpyOutcome, SpyStep, SpyType
@@ -175,6 +183,7 @@ __all__ = [
     "MarketScope",
     "Resource",
     "ResourceCartType",
+    "JudgementOption",
     "TaxStatus",
     "Weekday",
     "KingdomTransferType",
@@ -204,6 +213,7 @@ __all__ = [
     "TitleSystem",
     "MysteryBoxKey",
     "PremiumAccountType",
+    "Hero",
     "MercenaryMissionRarity",
     "MercenaryMissionState",
     # Ranking

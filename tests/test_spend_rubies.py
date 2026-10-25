@@ -84,6 +84,11 @@ RUBY_REQUESTS = {
     "SkipBountyTargetRequest": "bst, targetSkipCostC2 (bundle line 114944)",
     "FortuneTellerReadingRequest": "ftl, the reading's c2Cost (FortuneTellerClassVO.parseXML, bundle line 145167)",
     "DonateItemsRequest": "ddi, an item whose resource is C2 (unfilteredAmountInInventory, bundle line 115730)",
+    "ActivateTrainingProgramRequest": "atp, slot 3's program costs c2Cost (OfficersSchoolEffectVO.getCost, 144773)",
+    "ProlongTrainingProgramRequest": "ptp, always rubies (OfficersSchoolData.getC2ProlongCosts, bundle line 144743)",
+    "RerollTrainingProgramsRequest": "rtp, P 1 is the ruby reroll (hardRerollCosts, bundle line 85714)",
+    "UnlockEventRequest": "ule, SC 1 pays the missing resource in rubies (bundle lines 37628, 67853)",
+    "SelectEventDifficultyRequest": "sede, C2U 1 rents a locked difficulty for its rentC2Cost (bundle line 145390)",
 }
 
 SENT_WITHOUT_CONSENT = {
@@ -114,6 +119,10 @@ NOT_CONSENT = {
     "free": "the generals hub's free spin, against a paid one that spends offerings, not rubies",
     "ruby_camp": "picks a ruby-priced Berimond or season camp; the rubies it costs need spend_rubies",
     "ruby_castle": "picks a ruby-priced kingdom or special server castle; the rubies it costs need spend_rubies",
+    "premium": "picks the officers' school's ruby reroll; the rubies it costs need spend_rubies",
+    "ruby_payment": "picks the resource an unlock pays in rubies; the rubies it costs need spend_rubies",
+    "unlock_with_rubies": "picks a locked difficulty's ruby rent; the rubies it costs need spend_rubies",
+    "food_boost": "the hunter's food production setting, not a purchase",
 }
 
 

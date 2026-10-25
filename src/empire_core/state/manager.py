@@ -220,6 +220,9 @@ _SUCCESS_ONLY = frozenset(
     # CFCCommand, SAFCommand, GDTICommand, DDICommand, VWCCommand (bundle lines 128141, 128105, 128090, 128122,
     # 124175, 124161, 127599, 123604, 123589, 128541)
     | {"lws", "lwj", "lwc", "lwm", "dge", "cfc", "saf", "sap", "gdti", "ddi", "vwc"}
+    # HINCommand, SJCCommand, JJCCommand, HDCommand, AICCommand, GDACommand, GDCCommand, GDWCommand (bundle
+    # lines 124591, 124681, 124666, 124371, 128188, 128283, 128298, 128313)
+    | {"hin", "sjc", "jjc", "hdc", "aic", "gda", "gdc", "gdw"}
 )
 
 
@@ -308,6 +311,11 @@ class GameState(
     daily reset                          ``drt`` (login only)         re-login
     attack counter                       ``gai`` (pushed)             re-login
     officers' school training            ``gatp``, ``gtp``            re-login
+    officers' school programs            ``gtp``                      ``client.player.get_training_programs()``
+    hunter                               ``hin``, ``jaa``             ``client.castle.join(...)``
+    open citizen judgement               ``sjc`` (pushed), ``jjc``    --
+    your hero                            ``hdc``                      --
+    daimyo areas, contracts, efforts     ``gda``, ``gdc``, ``gdw``    ``client.events.get_daimyo_areas()``, ...
     boosted global effects               ``bie`` (pushed)             re-login
     gift packages                        ``pgl``                      re-login
     ruby wishing well                    ``rww``                      re-login
@@ -483,6 +491,14 @@ class GameState(
         "gdti": "_handle_donation_progress",
         "ddi": "_handle_donation_progress",
         "vwc": "_handle_vwc",
+        "hin": "_handle_hin",
+        "sjc": "_handle_sjc",
+        "jjc": "_handle_jjc",
+        "hdc": "_handle_hdc",
+        "aic": "_handle_aic",
+        "gda": "_handle_gda",
+        "gdc": "_handle_gdc",
+        "gdw": "_handle_gdw",
     }
 
     def update_from_packet(self, cmd_id: str, payload: dict[str, Any], error_code: int = 0) -> None:
@@ -722,6 +738,8 @@ class GameState(
         "abgcam", "cds", "csm", "cat", "crm", "css", "tde", "cdd", "cpm", "thm", "ldt"), "mcm", "mrm", "mfc", "glu",
         "mir", "fjf", "bst", "sce", "see", "tee", "pep", "acm", "aqi", "acn", "cal", "ufp", "uht", "apt", "car", "bfs",
         the event minigames' "lws", "lwj", "lwc", "lwm", "dge", "cfc", "saf", "sap", "gdti", "ddi" and "vwc",
+        the hunter's "hin", the judgement's "sjc" and "jjc", the hero's "hdc", the alliance camp push "aic", the
+        daimyo's "gda", "gdc" and "gdw" (each only a successful one),
         the officers' school's "gtp" (only a successful one), the quest pushes "qli", "qst", "qpg", "qfi", "msp" and the
         campaign's "cqs", the castle pushes "rue", "kik", the gem push "gec", the faction protection reply "ffp", the
         rage points push "rpr", the alien reroll counts push "rce", the server kind "tse", the special server castles

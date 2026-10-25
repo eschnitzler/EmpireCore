@@ -143,6 +143,8 @@ from empire_core.castle.models.fusion_forge import (
     RefillFusionForgeRequest,
     RefillFusionForgeResponse,
 )
+from empire_core.castle.models.hunter import HunterInfo, SetHunterRequest
+from empire_core.castle.models.judgement import JudgeCitizenRequest, JudgeCitizenResponse
 from empire_core.castle.models.kingdoms import KingdomInfoRequest, KingdomInfoResponse, SelectKingdomCastleRequest
 from empire_core.castle.models.landmarks import (
     GetLaboratoryProgressRequest,
@@ -244,6 +246,7 @@ from empire_core.enums import (
     CurrencyId,
     DecorationStorageId,
     ExpansionType,
+    JudgementOption,
     Kingdom,
     KingdomDirection,
     MapItemType,
@@ -776,6 +779,40 @@ class CastleService(BaseService):
     def unlocks(self, castle_id: int) -> PermanentCastle | None:
         """One of your castles' unlocked units and horses, from the last gpc that named it."""
         return self.client.state.get_permanent_castle(castle_id)
+
+    @property
+    def hunter(self) -> HunterInfo | None:
+        """The hunter's food boost, from the last ``hin`` or castle join that carried it; None until one did."""
+        return self.client.state.get_hunter()
+
+    def set_hunter(self, food_boost: int, *, timeout: float = 5.0) -> HunterInfo:
+        """
+        Set the joined castle's hunter to turn wood and stone production into ``food_boost`` more food.
+
+        Raises:
+            CommandError: The server refused, e.g. a boost above the hunter's maximum
+
+        Client: ``CastleHunterDialog.onClick`` (bundle line 51530) sends ``C2SHunterInfoVO`` with a value from 0 to
+        the hunter building's ``hunterMax``; ``HINCommand.executeCommand`` (bundle line 124591)
+        """
+        return self.request(SetHunterRequest(food_boost=food_boost), HunterInfo, timeout=timeout)
+
+    @property
+    def judgement_id(self) -> int | None:
+        """The open citizen judgement's row in the judgements table, from the last ``sjc``; None while none is open."""
+        return self.client.state.get_judgement_id()
+
+    def judge_citizen(self, option: JudgementOption, *, timeout: float = 5.0) -> None:
+        """
+        Give your verdict on the open citizen judgement, which ends it.
+
+        Raises:
+            CommandError: The server refused, e.g. no judgement is open or the verdict's requirements are unmet
+
+        Client: ``CastleJudgementChooseOptionDialog.onClick`` (bundle lines 95550-95552),
+        ``JJCCommand.executeCommand`` (bundle line 124666)
+        """
+        self.request(JudgeCitizenRequest(option=option), JudgeCitizenResponse, timeout=timeout)
 
     @property
     def joined_area(self) -> JoinedArea | None:

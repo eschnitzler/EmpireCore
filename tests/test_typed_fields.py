@@ -37,6 +37,9 @@ if TYPE_CHECKING:
 _CONTAINERS = (list, tuple, set, frozenset)
 
 ALLOWED: dict[str, str] = {
+    "player.models.officers_school.RerollTrainingProgramsRequest.kept_slot_ids": "offer slot positions; not ids",
+    "events.progression_models.DaimyoWarEffortsResponse.castle_efforts": "efforts keyed by a daimyo area's rank",
+    "events.progression_models.DaimyoWarEffortsResponse.township_efforts": "efforts keyed by a township's rank",
     "castle.models.crafting.UnlockCraftingSlotsRequest.slot_indices": "slot positions in a queue; not ids",
     "castle.models.fusion_forge.GetFusionForgesRequest.forge_ids": (
         "fusion system ids: the trimmed items carry no fusionSystems table for an enum"

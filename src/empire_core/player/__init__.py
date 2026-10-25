@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from empire_core.enums import (
     AllianceRank,
     FactionProtectionStatus,
+    Hero,
     Kingdom,
     MapItemType,
     MercenaryMissionRarity,
@@ -24,6 +25,8 @@ from .models import (
     AchievementFinishedResponse,
     AchievementProgress,
     AchievementsResponse,
+    ActivateTrainingProgramRequest,
+    ActivateTrainingProgramResponse,
     AllianceCityTitle,
     AquaPointsResponse,
     AssignTitleRequest,
@@ -42,8 +45,11 @@ from .models import (
     GetPlayerInfoResponse,
     GetProtectionRequest,
     GetTitleRanksRequest,
+    GetTrainingProgramsRequest,
     GloryPointsResponse,
     GloryTitleResetResponse,
+    HeroDecisionRequest,
+    HeroDecisionResponse,
     IslandTitle,
     LocationCapture,
     LootBoxAmount,
@@ -58,8 +64,12 @@ from .models import (
     PlayerGiftsResponse,
     PlayerOwnerInfo,
     PlayerProfileBase,
+    ProlongTrainingProgramRequest,
+    ProlongTrainingProgramResponse,
     ProtectionResponse,
     RelocationInfoResponse,
+    RerollTrainingProgramsRequest,
+    RerollTrainingProgramsResponse,
     SearchPlayerRequest,
     SearchPlayerResponse,
     SelectTitleRequest,
@@ -74,6 +84,8 @@ from .models import (
     TitleInfoResponse,
     TitleRanksResponse,
     TopTitleRanking,
+    TrainingProgram,
+    TrainingProgramsResponse,
 )
 from .service import PlayerDetailsBulkResult, PlayerService
 from .titles import held_titles, player_title_ids, titles_in_order
@@ -82,6 +94,7 @@ if TYPE_CHECKING:
     from empire_core.gamedata import (
         Achievement,
         Currency,
+        CurrencyId,
         Effect,
         GlobalEffect,
         LegendSkill,
@@ -92,6 +105,18 @@ if TYPE_CHECKING:
     )
 
 __all__ = [
+    "ActivateTrainingProgramRequest",
+    "ActivateTrainingProgramResponse",
+    "GetTrainingProgramsRequest",
+    "ProlongTrainingProgramRequest",
+    "ProlongTrainingProgramResponse",
+    "RerollTrainingProgramsRequest",
+    "RerollTrainingProgramsResponse",
+    "TrainingProgram",
+    "TrainingProgramsResponse",
+    "HeroDecisionRequest",
+    "HeroDecisionResponse",
+    "Hero",
     "AquaPointsResponse",
     "StormIslandsInfo",
     "StormIslandsInfoRequest",
@@ -166,6 +191,7 @@ __all__ = [
     "MapItemType",
     "Achievement",
     "Currency",
+    "CurrencyId",
     "Effect",
     "GlobalEffect",
     "LegendSkill",
@@ -183,6 +209,7 @@ if not TYPE_CHECKING:
         (
             "Achievement",
             "Currency",
+            "CurrencyId",
             "Effect",
             "GlobalEffect",
             "LegendSkill",

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -18,7 +19,7 @@ from empire_core.commanders.models.skills import (
     ResetSkillsRequest,
     SkillList,
 )
-from empire_core.enums import Kingdom, MysteryBoxKey, PeaceModeDuration, TitleSystem
+from empire_core.enums import Hero, Kingdom, MysteryBoxKey, PeaceModeDuration, TitleSystem
 from empire_core.exceptions import CommandError, EmpireError, EmpireTimeoutError, PacketError
 from empire_core.player.models.account import FoodProductionStatus
 from empire_core.player.models.aqua import (
@@ -34,11 +35,22 @@ from empire_core.player.models.economy import (
     OpenLootBoxRequest,
     OpenLootBoxResponse,
 )
+from empire_core.player.models.hero import HeroDecisionRequest, HeroDecisionResponse
 from empire_core.player.models.info import (
     GetPlayerInfoRequest,
     GetPlayerInfoResponse,
     SearchPlayerRequest,
     SearchPlayerResponse,
+)
+from empire_core.player.models.officers_school import (
+    ActivateTrainingProgramRequest,
+    ActivateTrainingProgramResponse,
+    GetTrainingProgramsRequest,
+    ProlongTrainingProgramRequest,
+    ProlongTrainingProgramResponse,
+    RerollTrainingProgramsRequest,
+    RerollTrainingProgramsResponse,
+    TrainingProgramsResponse,
 )
 from empire_core.player.models.progress import (
     AchievementFinishedResponse,
@@ -91,6 +103,9 @@ _RESET_BASE_RUBIES = 20
 _RESET_EXPONENT = 5
 _RESET_BASE_POINTS = 50
 _RESET_RUBIES_PER_POINT = 30
+
+# OfficersSchoolEffectVO.getCost (bundle line 144773) prices the program in this slot in rubies
+_RUBY_TRAINING_SLOT = 3
 
 
 @dataclass
@@ -331,6 +346,96 @@ class PlayerService(BaseService):
     def officer_training(self) -> OfficerTraining | None:
         """The officers' school training program running, from the last ``gatp`` and the ``gtp`` since."""
         return self.client.state.get_officer_training()
+
+    @property
+    def training_programs(self) -> TrainingProgramsResponse | None:
+        """The officers' school's training programs, from the last ``gtp``; None until one arrived."""
+        return self.client.state.get_training_programs()
+
+    def get_training_programs(self, *, timeout: float = 5.0) -> TrainingProgramsResponse:
+        """
+        Request the officers' school's training programs: those on offer, the one running and today's counts.
+
+        Client: ``OfficersSchoolDialogList.show`` (bundle line 85651) sends ``C2SGetTrainingProgramInfoVO``;
+        ``GTPCommand.executeCommand`` (bundle line 126183)
+        """
+        return self.request(GetTrainingProgramsRequest(), TrainingProgramsResponse, timeout=timeout)
+
+    def activate_training_program(self, slot_id: int, *, spend_rubies: bool = False, timeout: float = 5.0) -> None:
+        """
+        Start the training program on offer in ``slot_id``.
+
+        Slot 1's program costs coins, slot 2's the day's event currency and slot 3's rubies, so slot 3
+        needs ``spend_rubies``.
+
+        Raises:
+            ValueError: Slot 3 without ``spend_rubies``
+            CommandError: The server refused
+
+        Client: ``OfficersSchoolEffectItem.onConfirmBuy`` (bundle line 85774), ``OfficersSchoolEffectVO.getCost``
+        (bundle line 144773), ``ATPCommand.executeCommand`` (bundle line 126155)
+        """
+        self._require_spend_rubies(
+            spend_rubies, "the slot 3 training program costs rubies" if slot_id == _RUBY_TRAINING_SLOT else None
+        )
+        self.request(ActivateTrainingProgramRequest(slot_id=slot_id), ActivateTrainingProgramResponse, timeout=timeout)
+
+    def prolong_training_program(self, *, spend_rubies: bool = False, timeout: float = 5.0) -> None:
+        """
+        Prolong the training program running, for rubies.
+
+        Raises:
+            ValueError: Without ``spend_rubies``
+            CommandError: The server refused
+
+        Client: ``OfficersSchoolDialogList.onBuyProlong`` (bundle line 85691),
+        ``OfficersSchoolData.getC2ProlongCosts`` (bundle line 144743), ``PTPCommand.executeCommand``
+        (bundle line 126198)
+        """
+        self._require_spend_rubies(spend_rubies, "prolonging a training program costs rubies")
+        self.request(ProlongTrainingProgramRequest(), ProlongTrainingProgramResponse, timeout=timeout)
+
+    def reroll_training_programs(
+        self,
+        kept_slot_ids: Sequence[int] = (),
+        *,
+        premium: bool = False,
+        spend_rubies: bool = False,
+        timeout: float = 5.0,
+    ) -> None:
+        """
+        Replace the training programs on offer, except those in ``kept_slot_ids``.
+
+        The reroll costs the day's event currency; a ``premium`` one costs rubies and needs ``spend_rubies``.
+
+        Raises:
+            ValueError: ``premium`` without ``spend_rubies``
+            CommandError: The server refused
+
+        Client: ``OfficersSchoolDialogList.onConfirmSoftReroll`` and ``onConfirmHardReroll`` (bundle lines
+        85689-85690), ``OfficersSchoolData.sendReroll`` (bundle line 144706), ``RTPCommand.executeCommand``
+        (bundle line 126211)
+        """
+        self._require_spend_rubies(spend_rubies, "a premium reroll costs rubies" if premium else None)
+        request = RerollTrainingProgramsRequest(premium=premium, kept_slot_ids=list(kept_slot_ids))
+        self.request(request, RerollTrainingProgramsResponse, timeout=timeout)
+
+    @property
+    def hero(self) -> Hero | int | None:
+        """Your hero, from the last ``hdc``; None until one arrived or while you have yet to pick one."""
+        return self.client.state.get_hero()
+
+    def choose_hero(self, hero: Hero, *, timeout: float = 5.0) -> HeroDecisionResponse:
+        """
+        Pick your hero, the tutorial's quest character.
+
+        Raises:
+            CommandError: The server refused
+
+        Client: ``CastleChooseHeroDialog.sendHeroIdToServer`` (bundle line 42429), ``HDCommand.executeCommand``
+        (bundle line 124371)
+        """
+        return self.request(HeroDecisionRequest(hero=hero), HeroDecisionResponse, timeout=timeout)
 
     @property
     def boosted_global_effects(self) -> BoostedGlobalEffectsResponse | None:
