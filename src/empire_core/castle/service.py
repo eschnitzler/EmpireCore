@@ -44,6 +44,14 @@ from empire_core.castle.models.actions import (
     SelectCastleRequest,
     SelectCastleResponse,
 )
+from empire_core.castle.models.brewery import (
+    BreweryProductionResponse,
+    BreweryStops,
+    GetBreweryProductionRequest,
+    MeadShare,
+    SetBreweryProductionRequest,
+    SetMeadPriorityRequest,
+)
 from empire_core.castle.models.buildings import (
     BuildRequest,
     BuyExtensionRequest,
@@ -65,6 +73,7 @@ from empire_core.castle.models.construction_items import (
     BoostConstructionItemResponse,
     ConstructionItemInventory,
     ConstructionItemSpace,
+    ConstructionItemSpaceRequest,
     DisassembleConstructionItemRequest,
     DisassembleConstructionItemResponse,
     EquipConstructionItemRequest,
@@ -85,6 +94,12 @@ from empire_core.castle.models.details import (
     GetDetailedCastleRequest,
     GetDetailedCastleResponse,
 )
+from empire_core.castle.models.districts import (
+    MoveToDistrictRequest,
+    MoveToDistrictResponse,
+    RemoveFromDistrictRequest,
+    RemoveFromDistrictResponse,
+)
 from empire_core.castle.models.kingdoms import KingdomInfoRequest, KingdomInfoResponse, SelectKingdomCastleRequest
 from empire_core.castle.models.landmarks import (
     GetLaboratoryProgressRequest,
@@ -98,7 +113,21 @@ from empire_core.castle.models.landmarks import (
     MonumentProgressResponse,
     MonumentResetResponse,
 )
-from empire_core.castle.models.mercenaries import MercenaryMission, MercenaryMissionsResponse, MercenaryPackageRequest
+from empire_core.castle.models.lookups import (
+    FeastCostReductionResponse,
+    GetFeastCostReductionRequest,
+    GetTransportationBuildingsRequest,
+    ShowUpgradableBuildingsRequest,
+    ShowUpgradableBuildingsResponse,
+    TransportationBuilding,
+    TransportationBuildingsResponse,
+)
+from empire_core.castle.models.mercenaries import (
+    MercenaryMission,
+    MercenaryMissionsResponse,
+    MercenaryPackageRequest,
+    RefreshMercenaryMissionRequest,
+)
 from empire_core.castle.models.objects import (
     BuildingConstructionItems,
     BuildingRow,
@@ -106,7 +135,12 @@ from empire_core.castle.models.objects import (
     ShowConstructionListRequest,
     ShowConstructionListResponse,
 )
-from empire_core.castle.models.research import SkipResearchRequest, StartResearchRequest
+from empire_core.castle.models.research import (
+    ResearchInfoRequest,
+    ResearchInfoResponse,
+    SkipResearchRequest,
+    StartResearchRequest,
+)
 from empire_core.castle.models.resources import (
     CastleResources,
     GetProductionRequest,
@@ -114,9 +148,23 @@ from empire_core.castle.models.resources import (
     GetResourcesRequest,
     GetResourcesResponse,
 )
+from empire_core.castle.models.storage import (
+    DecorationStorage,
+    DecorationStorageResponse,
+    MarkStorageSeenRequest,
+    PlaceStoredDecorationRequest,
+    PlaceStoredDecorationResponse,
+    SellStoredDecorationRequest,
+    SellStoredDecorationResponse,
+    ShowInventoryRequest,
+    StoreBuildingRequest,
+    StoreBuildingResponse,
+)
 from empire_core.castle.models.tax import (
     TAX_DURATIONS,
     TAX_RUBY_COSTS,
+    BribeTaxCollectorRequest,
+    BribeTaxCollectorResponse,
     CollectTaxRequest,
     CollectTaxResponse,
     GetTaxInfoRequest,
@@ -125,12 +173,25 @@ from empire_core.castle.models.tax import (
     TaxInfo,
     TaxInfoResponse,
 )
-from empire_core.castle.models.villages import GetVillageListRequest, VillageListResponse
+from empire_core.castle.models.upkeep import (
+    CollectResourceCitizenRequest,
+    ConstructionItemExpiryResponse,
+    GetConstructionItemExpiryRequest,
+    ResourcePoolResponse,
+)
+from empire_core.castle.models.villages import (
+    BuyPrivateVillageRequest,
+    GetVillageListRequest,
+    RemovePrivateVillageRequest,
+    UpgradePrivateVillageRequest,
+    VillageListResponse,
+)
 from empire_core.enums import (
     BuildingState,
     CollectableKind,
     ConstructionItemMode,
     CurrencyId,
+    DecorationStorageId,
     ExpansionType,
     Kingdom,
     KingdomDirection,
@@ -148,10 +209,8 @@ from empire_core.services.base import BaseService
 if TYPE_CHECKING:
     from empire_core.castle.models.collect import MineStatus, ResourceCart
     from empire_core.castle.models.permanent import PermanentCastle
-    from empire_core.castle.models.research import ResearchInfoResponse
-    from empire_core.castle.models.upkeep import ConstructionItemExpiryResponse, ResourcePoolResponse
     from empire_core.castle.models.wishing_well import WishingWellResponse
-    from empire_core.gamedata import ConstructionItem
+    from empire_core.gamedata import Building, ConstructionItem
     from empire_core.state.models import Castle, JoinedArea
 
 _ConstructionResponse = TypeVar("_ConstructionResponse", bound=BaseResponse)
@@ -173,6 +232,9 @@ _LANDMARK_PROGRESS: dict[
     MapItemType.MONUMENT: (GetMonumentProgressRequest, MonumentProgressResponse),
 }
 
+
+# MercenaryConst.REFRESH_MISSION_COST (dll line 19511)
+_REFRESH_MISSION_RUBIES = 240
 
 # a started mission's RD is rounded, and a collect sent while time remains is a ruby skip
 _COLLECT_MARGIN_SECONDS = 2
@@ -400,6 +462,24 @@ class CastleService(BaseService):
     def construction_item_space(self) -> ConstructionItemSpace | None:
         """Free construction storage capacity, from the last inventory or capacity push."""
         return self.client.state.get_construction_item_space()
+
+    def get_construction_item_space(self, *, timeout: float = 5.0) -> ConstructionItemSpace:
+        """
+        Ask how many more construction items fit in storage; the reply also reaches the state.
+
+        Client: ``C2SConstructionItemInventorySpaceLeftVO`` (bundle line 41293), ``CSPCommand.exec``
+        (bundle line 123855)
+        """
+        return self.request(ConstructionItemSpaceRequest(), ConstructionItemSpace, timeout=timeout)
+
+    def get_construction_item_expiry(self, *, timeout: float = 5.0) -> ConstructionItemExpiryResponse:
+        """
+        Ask when the next of your construction items expires; the reply also reaches the state.
+
+        Client: ``ConstructionItemData.onCIExpiration`` (bundle line 22993) sends
+        ``C2SGetNextExpiringConstructionItemVO``; ``NECCommand.executeCommand`` (bundle line 123336)
+        """
+        return self.request(GetConstructionItemExpiryRequest(), ConstructionItemExpiryResponse, timeout=timeout)
 
     @property
     def expired_construction_items(self) -> ExpiredConstructionItemsResponse | None:
@@ -1259,6 +1339,35 @@ class CastleService(BaseService):
         """Move a building in the joined castle."""
         self.execute(MoveBuildingRequest(object_id=object_id, x=x, y=y, rotation=rotation), timeout=timeout)
 
+    def move_to_district(self, object_id: int, district_object_id: int, *, timeout: float = 5.0) -> BuildingRow | None:
+        """
+        Move a building of the joined castle into a district, such as a decoration district.
+
+        Returns:
+            The building's row as it now stands; None when the reply has none
+
+        Client: ``C2SMoveToDistrictVO`` (bundle line 41105), ``MDECommand.executeCommand`` (bundle line 123166)
+        """
+        request = MoveToDistrictRequest(object_id=object_id, district_object_id=district_object_id)
+        return self.request(request, MoveToDistrictResponse, timeout=timeout).building
+
+    def remove_from_district(
+        self, object_id: int, x: int, y: int, rotation: int = 0, *, timeout: float = 5.0
+    ) -> BuildingRow | None:
+        """
+        Move a building out of its district onto the joined castle's grounds.
+
+        :meth:`move_building` moves a building that is in no district.
+
+        Returns:
+            The building's row as it now stands; None when the reply has none
+
+        Client: ``IsoServerCommands.moveObject`` (bundle line 63799) sends ``C2SRemoveFromDistrictVO`` for a
+        building in a district; ``RDECommand.executeCommand`` (bundle line 123249)
+        """
+        request = RemoveFromDistrictRequest(object_id=object_id, x=x, y=y, rotation=rotation)
+        return self.request(request, RemoveFromDistrictResponse, timeout=timeout).building
+
     def sell_decoration(self, object_id: int, *, timeout: float = 5.0) -> None:
         """Sell a decoration placed in the joined castle."""
         self.execute(SellBuildingRequest(object_id=object_id), timeout=timeout)
@@ -1449,6 +1558,265 @@ class CastleService(BaseService):
         """Collect the joined castle's resource cart of one resource."""
         self.execute(CollectResourceCartRequest(cart_type=cart_type), timeout=timeout)
 
+    def collect_resource_citizen(self, *, timeout: float = 5.0) -> ResourcePoolResponse:
+        """
+        Collect what the citizen walking in the joined castle carries.
+
+        Returns:
+            The ``irc`` reply, which also reaches :attr:`resource_pool`
+
+        Client: ``IsoServerCommands.collectResourcePool`` (bundle line 63801) sends ``C2SIsoResourceCitizenVO``;
+        ``IRCCommand.executeCommand`` (bundle line 123132)
+        """
+        return self.request(CollectResourceCitizenRequest(), ResourcePoolResponse, timeout=timeout)
+
+    # =========================================================================
+    # Decoration storage
+    # =========================================================================
+
+    @property
+    def deco_storages(self) -> dict[int, DecorationStorage]:
+        """The decoration storages by storage id, from the last ``sin`` that named each; empty until one arrived."""
+        return self.client.state.get_decoration_storages()
+
+    def get_deco_storage(self, *, timeout: float = 5.0) -> list[DecorationStorage]:
+        """
+        Read the decoration storages; they also reach :attr:`deco_storages`.
+
+        Client: ``CastleDecoShopPanel.show`` (bundle line 9302) sends ``C2SShowInventoryVO`` with no
+        parameter; ``SINCommand.exec`` (bundle line 124638)
+        """
+        return self.request(ShowInventoryRequest(), DecorationStorageResponse, timeout=timeout).storages
+
+    def mark_storage_seen(self, storage_id: DecorationStorageId | int, *, timeout: float = 5.0) -> None:
+        """
+        Mark a storage's new decorations as seen.
+
+        Args:
+            storage_id: A ``DecorationStorage.storage_id``
+
+        Client: ``SendMarkedBuildingsInStorage.execute`` (bundle line 101099) sends
+        ``C2SMarkBuildingInStorageVO`` for each storage shown
+        """
+        self.execute(MarkStorageSeenRequest(storage_id=storage_id), timeout=timeout)
+
+    def store_decoration(self, object_id: int, *, timeout: float = 5.0) -> StoreBuildingResponse:
+        """
+        Put a decoration of the joined castle into the storage.
+
+        Returns:
+            The stored object's id and the storages after, which also reach :attr:`deco_storages`
+
+        Client: ``IsoServerCommands.storeBuildingToLocalInventory`` (bundle line 63795) sends
+        ``C2SIsoStoreObjectVO``; ``SOBCommand.executeCommand`` (bundle line 124651)
+        """
+        return self.request(StoreBuildingRequest(object_id=object_id), StoreBuildingResponse, timeout=timeout)
+
+    def sell_stored_decoration(
+        self, wod_id: Building | int, amount: int = 1, *, unique_id: int = -1, timeout: float = 5.0
+    ) -> SellStoredDecorationResponse:
+        """
+        Sell decorations from the storage for coins; they are gone for good.
+
+        Args:
+            wod_id: The decoration's type, a stored decoration's ``wod_id``
+            amount: How many to sell
+            unique_id: A unique decoration's ``unique_id``, -1 for regular ones
+
+        Returns:
+            Coins and rubies, and the storages after, which also reach :attr:`deco_storages`
+
+        Raises:
+            ValueError: ``amount`` is below 1
+
+        Client: ``CastleConstructionSellDialog.onClick`` (bundle line 28636) sends ``C2SellStoredDeco``;
+        ``SDSCommand.executeCommand`` (bundle line 131786)
+        """
+        if amount < 1:
+            raise ValueError(f"amount must be at least 1, got {amount}")
+        request = SellStoredDecorationRequest(wod_id=wod_id, amount=amount, unique_id=unique_id)
+        return self.request(request, SellStoredDecorationResponse, timeout=timeout)
+
+    def place_stored_decoration(
+        self, decoration_id: int, x: int, y: int, rotation: int = 0, *, timeout: float = 5.0
+    ) -> PlaceStoredDecorationResponse:
+        """
+        Place a custom or unique decoration from the storage in the joined castle.
+
+        A regular stored decoration is placed with :meth:`build` of its type, as the client does.
+
+        Args:
+            decoration_id: A stored ``custom_id`` or ``unique_id``
+
+        Returns:
+            The placed decoration and the storages after, which also reach :attr:`deco_storages`
+
+        Client: ``IsoServerCommands.placeCustomInventoryObject`` (bundle line 63790), sent for a decoration
+        with a ``uniqueBuildingId`` (bundle line 64041); ``PIOCommand.executeCommand`` (bundle line 123181)
+        """
+        request = PlaceStoredDecorationRequest(decoration_id=decoration_id, x=x, y=y, rotation=rotation)
+        return self.request(request, PlaceStoredDecorationResponse, timeout=timeout)
+
+    # =========================================================================
+    # Brewery
+    # =========================================================================
+
+    def get_brewery_production(
+        self, castle_id: int, brewery: BuildingRow, *, timeout: float = 5.0
+    ) -> BreweryProductionResponse:
+        """
+        Read one of your castles' brewery production.
+
+        Args:
+            castle_id: One of your castles, a ``Castle.id`` from ``client.state.get_castles()``
+            brewery: The brewery's row, from ``join(castle_id).buildings``
+
+        Raises:
+            UnknownCastleError: ``castle_id`` is not in your castle list
+
+        Client: ``CastleBreweryShortageDialog.showLoaded`` (bundle line 138227) sends
+        ``C2SGetAreaBuildingProductionVO``; ``ABPICommand.executeCommand`` (bundle line 122711)
+        """
+        kingdom = self._require_own_castle(castle_id).kingdom_id
+        request = GetBreweryProductionRequest(
+            kingdom_id=kingdom, castle_id=castle_id, wod_id=brewery.wod_id, object_id=brewery.object_id
+        )
+        return self.request(request, BreweryProductionResponse, timeout=timeout)
+
+    def set_brewery_production(
+        self,
+        castle_id: int,
+        brewery: BuildingRow,
+        mead_percent: int,
+        *,
+        stop_at_food: int = 0,
+        stop_at_honey: int = 0,
+        timeout: float = 5.0,
+    ) -> BreweryProductionResponse:
+        """
+        Set how much of one of your castles' brewery makes mead, and the stocks at which it stops.
+
+        Args:
+            castle_id: One of your castles, a ``Castle.id`` from ``client.state.get_castles()``
+            brewery: The brewery's row, from ``join(castle_id).buildings``
+            mead_percent: The share of the brewery producing mead, in percent
+            stop_at_food: Food left at which production stops
+            stop_at_honey: Honey left at which production stops
+
+        Raises:
+            UnknownCastleError: ``castle_id`` is not in your castle list
+
+        Client: the brewery dialog's save button (bundle line 36458) sends ``C2SSetBreweryProductionVO``;
+        ``ABPICommand.executeCommand`` (bundle line 122711)
+        """
+        kingdom = self._require_own_castle(castle_id).kingdom_id
+        request = SetBreweryProductionRequest(
+            kingdom_id=kingdom,
+            castle_id=castle_id,
+            wod_id=brewery.wod_id,
+            object_id=brewery.object_id,
+            share=MeadShare(mead_percent=mead_percent),
+            stops=BreweryStops(food=stop_at_food, honey=stop_at_honey),
+        )
+        return self.request(request, BreweryProductionResponse, timeout=timeout)
+
+    def set_mead_priority(self, castle_id: int, enabled: bool, *, timeout: float = 5.0) -> None:
+        """
+        Give one of your castles' mead production priority, or take it away.
+
+        Raises:
+            UnknownCastleError: ``castle_id`` is not in your castle list
+
+        Client: the brewery dialog's priority checkbox (bundle line 36462) sends ``C2SSetMeadPrioVO``
+        for the active castle; ``BFLCommand.executeCommand`` (bundle line 122726)
+        """
+        kingdom = self._require_own_castle(castle_id).kingdom_id
+        self.execute(SetMeadPriorityRequest(kingdom_id=kingdom, castle_id=castle_id, enabled=enabled), timeout=timeout)
+
+    # =========================================================================
+    # Private resource villages
+    # =========================================================================
+
+    def buy_private_village(self, village_type_id: int, *, timeout: float = 5.0) -> None:
+        """
+        Buy a private resource village with resource village tokens.
+
+        Args:
+            village_type_id: The village type's id in the game data's ``privateVillages`` table
+
+        Client: ``PrivateResourceVillageBuyDialog.onConfirm`` (bundle line 81673) sends
+        ``C2SBuyPrivateResourceVillageVO`` once ``APrivateResourceVillageActionDialog.onClick`` (bundle line
+        36219) found the tokens; ``BPVCommand.exec`` (bundle line 126459)
+        """
+        self.execute(BuyPrivateVillageRequest(village_type_id=village_type_id), timeout=timeout)
+
+    def upgrade_private_village(self, village_type_id: int, village_id: int, *, timeout: float = 5.0) -> None:
+        """
+        Upgrade one of your private resource villages to the next level, with resource village tokens.
+
+        Args:
+            village_type_id: The type of the village's current level, in the game data's ``privateVillages``
+            village_id: Your village's own id, a ``kgv`` ``PV`` row's ``VID``
+
+        Client: ``PrivateResourceVillageUpgradeDialog.onConfirm`` (bundle line 81600) sends
+        ``C2SUpgradePrivateResourceVillageVO``; ``UPVCommand.exec`` (bundle line 126489)
+        """
+        request = UpgradePrivateVillageRequest(village_type_id=village_type_id, village_id=village_id)
+        self.execute(request, timeout=timeout)
+
+    def remove_private_village(self, village_id: int, *, timeout: float = 5.0) -> None:
+        """
+        Remove one of your private resource villages; it is gone for good, its tokens are not returned.
+
+        Args:
+            village_id: Your village's own id, a ``kgv`` ``PV`` row's ``VID``
+
+        Client: ``PrivateResourceVillageDestroyDialog.onConfirm`` (bundle line 81568) sends
+        ``C2SRemovePrivateResourceVillageVO``; ``RPVCommand.exec`` (bundle line 126474)
+        """
+        self.execute(RemovePrivateVillageRequest(village_id=village_id), timeout=timeout)
+
+    # =========================================================================
+    # Lookups
+    # =========================================================================
+
+    def get_upgradable_buildings(
+        self, wod_id: Building | int, *, prime_sale_upgrade: bool = True, timeout: float = 5.0
+    ) -> ShowUpgradableBuildingsResponse:
+        """
+        Find your castles holding a building of one type that a prime sale can upgrade.
+
+        Args:
+            wod_id: The building type the sale is for
+            prime_sale_upgrade: The sale discounts the upgrade of every level, as the client sends by default
+
+        Client: ``CastlePrimeSaleDialog.onOkButton`` (bundle line 37771) sends ``C2SShowMeUpgradeBuildingsVO``;
+        ``SUBCommand.executeCommand`` (bundle line 129862)
+        """
+        request = ShowUpgradableBuildingsRequest(wod_id=wod_id, prime_sale_upgrade=prime_sale_upgrade)
+        return self.request(request, ShowUpgradableBuildingsResponse, timeout=timeout)
+
+    def get_transportation_buildings(self, *, timeout: float = 5.0) -> list[TransportationBuilding]:
+        """
+        The main castle's buildings a castle transport to a temporary server takes along.
+
+        Client: ``CastleSpecialServerPreBuildCastleSelectionDialog.showLoaded`` (bundle line 27960) sends
+        ``C2SGetCastleTransportationBuildingsVO``; ``GCTBCommand.executeCommand`` (bundle line 128860)
+        """
+        request = GetTransportationBuildingsRequest()
+        return self.request(request, TransportationBuildingsResponse, timeout=timeout).buildings
+
+    def get_feast_cost_reduction(self, *, timeout: float = 5.0) -> int | float:
+        """
+        The discount on feasts, in percent.
+
+        Client: ``CastleFestivalDialog.showLoaded`` (bundle line 65030) sends ``C2SGetFeastCostReductionVO``;
+        ``CastleFestivalDialog.onFCEArrived`` (bundle line 65044) reads ``FRM``
+        """
+        return self.request(
+            GetFeastCostReductionRequest(), FeastCostReductionResponse, timeout=timeout
+        ).reduction_percent
+
     # =========================================================================
     # Tax
     # =========================================================================
@@ -1520,6 +1888,31 @@ class CastleService(BaseService):
         """
         return self.request(CollectTaxRequest(), CollectTaxResponse, timeout=timeout)
 
+    def bribe_tax_collector(
+        self, *, spend_rubies: bool = False, private_offer_id: int = -1, timeout: float = 5.0
+    ) -> BribeTaxCollectorResponse:
+        """
+        Bribe the tax collector, a tax booster bought with rubies; see "Spending rubies" in the guides.
+
+        Its price comes with the boosters and is not worked out here, so this always needs ``spend_rubies``.
+
+        Args:
+            spend_rubies: Allow the rubies it costs; without it nothing is sent
+            private_offer_id: The booster sale the bribe uses, -1 for none
+
+        Returns:
+            Coins and rubies, and the tax status after; the booster reaches ``client.state.get_boosts()``
+
+        Raises:
+            ValueError: ``spend_rubies`` is False
+
+        Client: ``CastleBribeDialog.onClick`` (bundle line 90878) sends it once the rubies are there, with
+        ``CastleBoosterSaleData.getOfferId`` (bundle line 9696); ``BTXCommand.executeCommand`` (bundle line 128770)
+        """
+        self._require_spend_rubies(spend_rubies, "bribing the tax collector costs rubies")
+        request = BribeTaxCollectorRequest(private_offer_id=private_offer_id)
+        return self.request(request, BribeTaxCollectorResponse, timeout=timeout)
+
     # =========================================================================
     # Horses
     # =========================================================================
@@ -1559,6 +1952,15 @@ class CastleService(BaseService):
     # =========================================================================
     # Research
     # =========================================================================
+
+    def get_research(self, *, timeout: float = 5.0) -> ResearchInfoResponse:
+        """
+        Read your research; the reply also reaches :attr:`research`.
+
+        Client: ``CastleResearchDialog.showLoaded`` (bundle line 16731) sends ``C2SResearchInfoVO``;
+        ``REICommand.executeCommand`` (bundle line 126899)
+        """
+        return self.request(ResearchInfoRequest(), ResearchInfoResponse, timeout=timeout)
 
     def start_research(self, research: Research | int, *, spend_rubies: bool = False, timeout: float = 5.0) -> None:
         """
@@ -1688,6 +2090,36 @@ class CastleService(BaseService):
         if mission.state != MercenaryMissionState.COLLECTABLE and not finished:
             raise ValueError(f"mercenary mission {mission_id} is not collectable")
         self.execute(MercenaryPackageRequest(mission_id=mission_id), timeout=timeout)
+
+    def refresh_mission(self, mission_id: int, *, spend_rubies: bool = False, timeout: float = 5.0) -> None:
+        """
+        Swap an open mercenary mission for another, for ``REFRESH_MISSION_COST`` (240) rubies; see
+        "Spending rubies" in the guides.
+
+        Lists the missions first and decides from that reply, as the client decides from its mission
+        state: only an open mission is swapped, and only while no mission waits to be collected.
+
+        Args:
+            mission_id: A ``MercenaryMission.mission_id`` from :meth:`list_missions`
+            spend_rubies: Allow the rubies it costs; without it nothing is sent
+            timeout: Timeout in seconds, for each request
+
+        Raises:
+            ValueError: ``spend_rubies`` is False, the missions list no such mission, it is not open, or a
+                mission waits to be collected
+
+        Client: ``CastleMercenaryMissionItem.updateButtons`` and ``showStartAndRefreshButton`` (bundle lines
+        87390, 87396), ``refreshMissionCallback`` (bundle line 87416); ``RMMCommand.executeCommand`` (bundle
+        line 125166); ``MercenaryConst.REFRESH_MISSION_COST`` (dll line 19511)
+        """
+        self._require_spend_rubies(spend_rubies, f"refreshing a mission costs {_REFRESH_MISSION_RUBIES} rubies")
+        missions = self.list_missions(timeout=timeout)
+        mission = self._mission(missions, mission_id)
+        if mission.current_state() != MercenaryMissionState.OPEN:
+            raise ValueError(f"mercenary mission {mission_id} is not open")
+        if missions.current_mission_state() >= MercenaryMissionState.COLLECTABLE:
+            raise ValueError("a mercenary mission waits to be collected")
+        self.execute(RefreshMercenaryMissionRequest(mission_id=mission_id), timeout=timeout)
 
     @staticmethod
     def _mission(missions: MercenaryMissionsResponse, mission_id: int) -> MercenaryMission:

@@ -27,6 +27,7 @@ from empire_core.messages.models import (
     GetBattleLogMiddleRequest,
     GetBattleLogShortRequest,
     GetIgnoredPlayersRequest,
+    GetTradeReportRequest,
     IgnoredPlayer,
     IgnoredPlayersResponse,
     IgnorePlayerRequest,
@@ -40,6 +41,7 @@ from empire_core.messages.models import (
     ServerMessage,
     ServerShutdownWarning,
     SystemNotificationEvent,
+    TradeReportResponse,
 )
 from empire_core.protocol.base import BaseResponse
 from empire_core.services.base import BaseService
@@ -238,6 +240,18 @@ class MessagesService(BaseService):
             return BattleReport(short, middle)
         full = self.request(GetBattleLogDetailRequest(log_id=short.log_id), BattleLogDetailResponse, timeout=timeout)
         return BattleReport(short, middle, full)
+
+    def get_trade_report(self, message_id: int, *, timeout: float = 5.0) -> TradeReportResponse:
+        """
+        Read a market carriage's report from the mailbox: its two areas and the goods.
+
+        Args:
+            message_id: A trade message's ``MessageInfo.message_id``
+
+        Client: ``CastleTradeMessageDialog.requestTradeData`` (bundle line 136636) sends
+        ``C2SMarketCarriageNotifyVO``; ``MMNCommand.executeCommand`` (bundle line 125460)
+        """
+        return self.request(GetTradeReportRequest(message_id=message_id), TradeReportResponse, timeout=timeout)
 
     def forward_battle_report(self, message_id: int, player_ids: list[int], *, timeout: float = 5.0) -> None:
         """

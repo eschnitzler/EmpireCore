@@ -67,6 +67,7 @@ from .mailbox import (
     SystemNotificationEvent,
     repair_header,
 )
+from .trade import GetTradeReportRequest, TradeReportResponse
 
 __all__ = [
     "ATTACKER_FRONT",
@@ -132,4 +133,6 @@ __all__ = [
     "ServerMessage",
     "ServerShutdownWarning",
     "SystemNotificationEvent",
+    "GetTradeReportRequest",
+    "TradeReportResponse",
 ]

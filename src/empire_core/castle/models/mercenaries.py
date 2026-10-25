@@ -14,7 +14,7 @@ from pydantic import Field, field_validator
 
 from empire_core.enums import MercenaryMissionRarity, MercenaryMissionState
 from empire_core.gamedata import CollectableRows, EnumOrInt
-from empire_core.protocol.base import BaseRequest, TimedPayload, TimedResponse, readable_list
+from empire_core.protocol.base import BaseRequest, BaseResponse, TimedPayload, TimedResponse, readable_list
 from empire_core.protocol.js import ClientInt, ClientNumber, js_truthy
 
 NEXT_MISSIONS_DELAY = 1
@@ -145,4 +145,39 @@ class MercenaryPackageRequest(BaseRequest):
     )
 
 
-__all__ = ["MercenaryMission", "MercenaryMissionsResponse", "MercenaryPackageRequest"]
+class RefreshMercenaryMissionRequest(BaseRequest):
+    """
+    Swap an open mercenary mission for another, for ``MercenaryConst.REFRESH_MISSION_COST`` (240) rubies.
+
+    Command: rmm
+    Payload: {"MID": mission_id}
+
+    Client: ``C2SRefreshMercenaryMissionVO`` (bundle line 87437), sent by
+    ``CastleMercenaryMissionItem.refreshMissionCallback`` (bundle line 87416) after
+    ``CastleMercenaryRefreshMissionDialog`` (bundle line 87464); ``REFRESH_MISSION_COST`` (dll line 19511)
+    """
+
+    command = "rmm"
+
+    mission_id: int = Field(validation_alias="MID", description="The open mission to swap")
+
+
+class RefreshMercenaryMissionResponse(BaseResponse):
+    """
+    The mission was swapped; the client reads nothing from the reply.
+
+    Command: rmm
+
+    Client: ``RMMCommand.executeCommand`` (bundle line 125166)
+    """
+
+    command = "rmm"
+
+
+__all__ = [
+    "MercenaryMission",
+    "MercenaryMissionsResponse",
+    "MercenaryPackageRequest",
+    "RefreshMercenaryMissionRequest",
+    "RefreshMercenaryMissionResponse",
+]

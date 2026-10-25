@@ -1,8 +1,13 @@
 """
-Your villages: the resource villages and islands you hold, and your private resource villages.
+Your villages: the resource villages and islands you hold, and your private resource villages,
+villages bought with resource village tokens and held off the world map. A private village type
+is named by its id in the game data's ``privateVillages`` table.
 
 Commands:
 - kgv: Your villages, a login section of ``gbd`` and a reply
+- bpv: buy a private resource village
+- upv: upgrade one to the next level
+- rpv: remove one
 """
 
 from __future__ import annotations
@@ -97,4 +102,106 @@ class VillageListResponse(BaseResponse):
         )
 
 
-__all__ = ["GetVillageListRequest", "OwnVillage", "PrivateVillage", "VillageListResponse"]
+_VILLAGE_TYPE = "The village type's id in the game data's privateVillages table"
+_VILLAGE = "Your village's own id, a kgv PV row's VID"
+
+
+class BuyPrivateVillageRequest(BaseRequest):
+    """
+    Buy a private resource village.
+
+    Command: bpv
+    Payload: {"XID": village_type_id}
+
+    Client: ``C2SBuyPrivateResourceVillageVO`` (bundle line 81682), sent by
+    ``PrivateResourceVillageBuyDialog.onConfirm`` (bundle line 81673)
+    """
+
+    command = "bpv"
+
+    village_type_id: int = Field(validation_alias="XID", description=_VILLAGE_TYPE)
+
+
+class BuyPrivateVillageResponse(BaseResponse):
+    """
+    The village was bought; the client reads nothing from the reply.
+
+    Command: bpv
+
+    Client: ``BPVCommand.exec`` (bundle line 126459)
+    """
+
+    command = "bpv"
+
+
+class UpgradePrivateVillageRequest(BaseRequest):
+    """
+    Upgrade a private resource village to the next level.
+
+    Command: upv
+    Payload: {"XID": village_type_id, "VID": village_id}
+
+    The client sends the type of the village's current level, not of the next.
+
+    Client: ``C2SUpgradePrivateResourceVillageVO`` (bundle line 81609), sent by
+    ``PrivateResourceVillageUpgradeDialog.onConfirm`` (bundle line 81600)
+    """
+
+    command = "upv"
+
+    village_type_id: int = Field(validation_alias="XID", description=f"{_VILLAGE_TYPE}, of its current level")
+    village_id: int = Field(validation_alias="VID", description=_VILLAGE)
+
+
+class UpgradePrivateVillageResponse(BaseResponse):
+    """
+    The village was upgraded; the client reads nothing from the reply.
+
+    Command: upv
+
+    Client: ``UPVCommand.exec`` (bundle line 126489)
+    """
+
+    command = "upv"
+
+
+class RemovePrivateVillageRequest(BaseRequest):
+    """
+    Remove a private resource village.
+
+    Command: rpv
+    Payload: {"VID": village_id}
+
+    Client: ``C2SRemovePrivateResourceVillageVO`` (bundle line 81575), sent by
+    ``PrivateResourceVillageDestroyDialog.onConfirm`` (bundle line 81568)
+    """
+
+    command = "rpv"
+
+    village_id: int = Field(validation_alias="VID", description=_VILLAGE)
+
+
+class RemovePrivateVillageResponse(BaseResponse):
+    """
+    The village was removed; the client reads nothing from the reply.
+
+    Command: rpv
+
+    Client: ``RPVCommand.exec`` (bundle line 126474)
+    """
+
+    command = "rpv"
+
+
+__all__ = [
+    "BuyPrivateVillageRequest",
+    "BuyPrivateVillageResponse",
+    "GetVillageListRequest",
+    "OwnVillage",
+    "PrivateVillage",
+    "RemovePrivateVillageRequest",
+    "RemovePrivateVillageResponse",
+    "UpgradePrivateVillageRequest",
+    "UpgradePrivateVillageResponse",
+    "VillageListResponse",
+]

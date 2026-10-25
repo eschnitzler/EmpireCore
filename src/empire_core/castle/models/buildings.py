@@ -34,6 +34,7 @@ from empire_core.protocol.js import ClientInt, js_int
 from .details import CastleProductionArea
 from .objects import BuildingRow, CastleBuildings, ConstructionList, block_or_none, building_or_none, building_rows
 from .resources import CastleResources
+from .storage import DecorationStorages
 
 if TYPE_CHECKING:
     from empire_core.gamedata import Currency
@@ -121,9 +122,9 @@ class BuildResponse(_BuildingReply):
     The new building.
 
     Command: ebu
-    Payload: {"NO": row, "grc": {..}, "scl": {..}, "gcu": {..}, "sin": .., "fbe": ..}
+    Payload: {"NO": row, "grc": {..}, "scl": {..}, "gcu": {..}, "sin": [..], "fbe": ..}
 
-    ``sin`` and ``fbe`` are kept as sent.
+    ``fbe`` is kept as sent.
 
     Client: ``EBUCommand.executeCommand`` (bundle line 122760),
     ``AreaDataUpdater.parseEBU`` (bundle line 131512)
@@ -139,6 +140,9 @@ class BuildResponse(_BuildingReply):
         validation_alias="scl", default=None, description="The construction slots after"
     )
     currencies: CurrencyBlock = Field(validation_alias="gcu", default=None, description="Coins and rubies after")
+    storages: DecorationStorages = Field(
+        validation_alias="sin", default_factory=list, description="The decoration storages after"
+    )
 
 
 # =============================================================================
@@ -586,9 +590,7 @@ class BuyExtensionResponse(_BuildingReply):
     The castle after the expansion.
 
     Command: ebe
-    Payload: {"gca": {..}, "grc": {..}, "scl": {..}, "gcu": {..}, "sin": ..}
-
-    ``sin`` is kept as sent.
+    Payload: {"gca": {..}, "grc": {..}, "scl": {..}, "gcu": {..}, "sin": [..]}
 
     Client: ``EBECommand.executeCommand`` (bundle line 122743),
     ``AreaDataUpdater.parseEBE`` (bundle line 131511)
@@ -606,6 +608,9 @@ class BuyExtensionResponse(_BuildingReply):
         validation_alias="scl", default=None, description="The construction slots after"
     )
     currencies: CurrencyBlock = Field(validation_alias="gcu", default=None, description="Coins and rubies after")
+    storages: DecorationStorages = Field(
+        validation_alias="sin", default_factory=list, description="The decoration storages after"
+    )
 
 
 # =============================================================================

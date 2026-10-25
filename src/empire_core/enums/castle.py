@@ -141,3 +141,15 @@ class Weekday(IntEnum):
     THURSDAY = 5
     FRIDAY = 6
     SATURDAY = 7
+
+
+class DecorationStorageId(IntEnum):
+    """
+    A decoration storage, a ``sin`` storage's ``SID``; an event kingdom's own storage is its kingdom or map id.
+
+    Client: ``DecorationConst.GLOBAL_DECORATION_STORAGE_ID`` and ``AREA_INVENTORY_STORAGE_ID``,
+    ``getStorageID`` (dll lines 19001-19016)
+    """
+
+    GLOBAL = 1
+    AREA_INVENTORY = 2

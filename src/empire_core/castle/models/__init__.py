@@ -6,6 +6,7 @@ from empire_core.castle.models.construction_items import (
     ConstructionItemInventory,
     ConstructionItemPlacement,
     ConstructionItemSpace,
+    ConstructionItemSpaceRequest,
     ConstructionItemStack,
     DisassembleConstructionItemRequest,
     DisassembleConstructionItemResponse,
@@ -38,6 +39,16 @@ from .actions import (
     RenameCastleResponse,
     SelectCastleRequest,
     SelectCastleResponse,
+)
+from .brewery import (
+    BreweryProductionResponse,
+    BreweryStops,
+    GetBreweryProductionRequest,
+    MeadPriority,
+    MeadShare,
+    SetBreweryProductionRequest,
+    SetMeadPriorityRequest,
+    SetMeadPriorityResponse,
 )
 from .buildings import (
     BuildRequest,
@@ -86,6 +97,12 @@ from .details import (
     SafeAmount,
     StorageCapacity,
 )
+from .districts import (
+    MoveToDistrictRequest,
+    MoveToDistrictResponse,
+    RemoveFromDistrictRequest,
+    RemoveFromDistrictResponse,
+)
 from .kingdoms import (
     KingdomInfoRequest,
     KingdomInfoResponse,
@@ -110,7 +127,23 @@ from .landmarks import (
     OwnLaboratory,
     OwnMonument,
 )
-from .mercenaries import MercenaryMission, MercenaryMissionsResponse, MercenaryPackageRequest
+from .lookups import (
+    FeastCostReductionResponse,
+    GetFeastCostReductionRequest,
+    GetTransportationBuildingsRequest,
+    ShowUpgradableBuildingsRequest,
+    ShowUpgradableBuildingsResponse,
+    TransportationBuilding,
+    TransportationBuildingsResponse,
+    UpgradableBuilding,
+)
+from .mercenaries import (
+    MercenaryMission,
+    MercenaryMissionsResponse,
+    MercenaryPackageRequest,
+    RefreshMercenaryMissionRequest,
+    RefreshMercenaryMissionResponse,
+)
 from .objects import (
     FREE_SLOT,
     LOCKED_SLOT,
@@ -126,6 +159,7 @@ from .objects import (
 )
 from .permanent import CastleUnitUnlocks, PermanentCastle, PermanentCastleDataResponse
 from .research import (
+    ResearchInfoRequest,
     ResearchInfoResponse,
     SkipResearchRequest,
     SkipResearchResponse,
@@ -139,9 +173,27 @@ from .resources import (
     GetResourcesRequest,
     GetResourcesResponse,
 )
+from .storage import (
+    DecorationStorage,
+    DecorationStorageResponse,
+    MarkStorageSeenRequest,
+    MarkStorageSeenResponse,
+    PlaceStoredDecorationRequest,
+    PlaceStoredDecorationResponse,
+    SellStoredDecorationRequest,
+    SellStoredDecorationResponse,
+    ShowInventoryRequest,
+    StoreBuildingRequest,
+    StoreBuildingResponse,
+    StoredCustomDecoration,
+    StoredDecoration,
+    StoredUniqueDecoration,
+)
 from .tax import (
     TAX_DURATIONS,
     TAX_RUBY_COSTS,
+    BribeTaxCollectorRequest,
+    BribeTaxCollectorResponse,
     CollectTaxRequest,
     CollectTaxResponse,
     GetTaxInfoRequest,
@@ -155,6 +207,7 @@ from .updates import (
     BuildingEfficiencyChanged,
     BuildingFinished,
     BuildingXP,
+    CastleBuildingsPushed,
     DamagedBuildings,
     JoinedAreaMoved,
     NewDay,
@@ -162,13 +215,21 @@ from .updates import (
     UnitsReceived,
 )
 from .upkeep import (
+    CollectResourceCitizenRequest,
     ConstructionItemExpiryResponse,
+    GetConstructionItemExpiryRequest,
     ResourcePoolResponse,
 )
 from .villages import (
+    BuyPrivateVillageRequest,
+    BuyPrivateVillageResponse,
     GetVillageListRequest,
     OwnVillage,
     PrivateVillage,
+    RemovePrivateVillageRequest,
+    RemovePrivateVillageResponse,
+    UpgradePrivateVillageRequest,
+    UpgradePrivateVillageResponse,
     VillageListResponse,
 )
 from .wishing_well import WishingWellResponse
@@ -324,4 +385,53 @@ __all__ = [
     "SelectKingdomCastleResponse",
     "ConstructionItemExpiryResponse",
     "ResourcePoolResponse",
+    "BreweryProductionResponse",
+    "BreweryStops",
+    "GetBreweryProductionRequest",
+    "MeadPriority",
+    "MeadShare",
+    "SetBreweryProductionRequest",
+    "SetMeadPriorityRequest",
+    "SetMeadPriorityResponse",
+    "MoveToDistrictRequest",
+    "MoveToDistrictResponse",
+    "RemoveFromDistrictRequest",
+    "RemoveFromDistrictResponse",
+    "FeastCostReductionResponse",
+    "GetFeastCostReductionRequest",
+    "GetTransportationBuildingsRequest",
+    "ShowUpgradableBuildingsRequest",
+    "ShowUpgradableBuildingsResponse",
+    "TransportationBuilding",
+    "TransportationBuildingsResponse",
+    "UpgradableBuilding",
+    "DecorationStorage",
+    "DecorationStorageResponse",
+    "MarkStorageSeenRequest",
+    "MarkStorageSeenResponse",
+    "PlaceStoredDecorationRequest",
+    "PlaceStoredDecorationResponse",
+    "SellStoredDecorationRequest",
+    "SellStoredDecorationResponse",
+    "ShowInventoryRequest",
+    "StoreBuildingRequest",
+    "StoreBuildingResponse",
+    "StoredCustomDecoration",
+    "StoredDecoration",
+    "StoredUniqueDecoration",
+    "BuyPrivateVillageRequest",
+    "BuyPrivateVillageResponse",
+    "RemovePrivateVillageRequest",
+    "RemovePrivateVillageResponse",
+    "UpgradePrivateVillageRequest",
+    "UpgradePrivateVillageResponse",
+    "ConstructionItemSpaceRequest",
+    "CollectResourceCitizenRequest",
+    "GetConstructionItemExpiryRequest",
+    "ResearchInfoRequest",
+    "RefreshMercenaryMissionRequest",
+    "RefreshMercenaryMissionResponse",
+    "BribeTaxCollectorRequest",
+    "BribeTaxCollectorResponse",
+    "CastleBuildingsPushed",
 ]

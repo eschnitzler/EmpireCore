@@ -22,10 +22,12 @@ from empire_core.protocol.base import BaseRequest, BaseResponse, enum_or_none
 from empire_core.protocol.js import js_int, js_same_number, row_is_at
 from empire_core.protocol.text import encode_json_text
 
+from .brewery import BreweryProductionResponse
 from .collect import MineStatusList, ResourceCartInfo
 from .details import CastleProductionArea
 from .objects import CastleBuildings, block_or_none
 from .resources import CastleResources
+from .storage import DecorationStorages
 from .updates import AreaBooster, SlumLevel
 
 # =============================================================================
@@ -129,8 +131,7 @@ class SelectCastleResponse(BaseResponse):
     Payload: {"KID": kingdom_id, "T": area_type, "gca": {...}, "grc": {...}, "gpa": {...}, ...}
 
     A block that cannot be read is None, so it does not cost the rest. The
-    other blocks (``spl0`` to ``spl3``, ``gui``, ``uap``, ``hin``, ``sin``,
-    ``abpi``, ``crai``) are kept as sent.
+    other blocks (``spl0`` to ``spl3``, ``gui``, ``uap``, ``hin``, ``crai``) are kept as sent.
 
     Client: ``JAACommand.executeCommand`` (bundle line 130190),
     ``AreaDataUpdater.parseJAA`` (bundle line 131496)
@@ -179,6 +180,14 @@ class SelectCastleResponse(BaseResponse):
         default=None,
         description="The area's resource carts; None when the reply has none",
     )
+    brewery: BreweryProductionResponse | None = Field(
+        validation_alias="abpi",
+        default=None,
+        description="The castle's brewery production; None when the reply has none",
+    )
+    storages: DecorationStorages = Field(
+        validation_alias="sin", default_factory=list, description="The decoration storages the reply names"
+    )
 
     @field_validator("area_type", mode="before")
     @classmethod
@@ -223,6 +232,12 @@ class SelectCastleResponse(BaseResponse):
     @classmethod
     def _resource_carts(cls, value: Any) -> ResourceCartInfo | None:
         return block_or_none(ResourceCartInfo, value)
+
+    @field_validator("brewery", mode="before")
+    @classmethod
+    def _brewery(cls, value: Any) -> BreweryProductionResponse | None:
+        # JAACommand (bundle line 130249) parses the first entry
+        return block_or_none(BreweryProductionResponse, value[0]) if isinstance(value, list) and value else None
 
 
 # =============================================================================

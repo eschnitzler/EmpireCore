@@ -4,6 +4,7 @@ Commands:
 - txi: Read the tax collection status
 - txs: Start a tax collection
 - txc: Collect the tax
+- btx: Bribe the tax collector
 """
 
 from __future__ import annotations
@@ -239,9 +240,56 @@ class CollectTaxResponse(BaseResponse):
     _collected = field_validator("collected", mode="before")(js_int)
 
 
+# =============================================================================
+# BTX - Bribe the tax collector
+# =============================================================================
+
+
+class BribeTaxCollectorRequest(BaseRequest):
+    """
+    Bribe the tax collector: a tax booster, bought with rubies.
+
+    Command: btx
+    Payload: {"PO": offer_id}
+
+    Client: ``CastleBribeDialog.onClick`` (bundle line 90878) and the booster shop (bundle line 90236)
+    send ``C2S_BRIBE_TAX_COLLECTOR`` with ``CastleBoosterSaleData.getOfferId`` (bundle line 9696)
+    """
+
+    command = "btx"
+
+    private_offer_id: int = Field(validation_alias="PO", default=-1, description="The sale the bribe uses, -1 for none")
+
+
+class BribeTaxCollectorResponse(BaseResponse):
+    """
+    The tax status after the bribe; its booster (``boi``) reaches ``client.state``.
+
+    Command: btx
+    Payload: {"gcu": {...}, "boi": {...}, "txi": {"TX": {...}}}
+
+    Client: ``BTXCommand.executeCommand`` (bundle line 128770)
+    """
+
+    command = "btx"
+
+    currencies: CurrencyBlock = Field(
+        validation_alias="gcu", default=None, description="Coins and rubies after the bribe"
+    )
+    tax_info: TaxInfoResponse | None = Field(
+        validation_alias="txi",
+        default=None,
+        description="The tax status after the bribe; None when the reply has none",
+    )
+
+    _block = field_validator("tax_info", mode="before")(_tax_block)
+
+
 __all__ = [
     "TAX_DURATIONS",
     "TAX_RUBY_COSTS",
+    "BribeTaxCollectorRequest",
+    "BribeTaxCollectorResponse",
     "CollectTaxRequest",
     "CollectTaxResponse",
     "GetTaxInfoRequest",

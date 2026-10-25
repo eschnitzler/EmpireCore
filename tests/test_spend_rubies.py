@@ -48,6 +48,8 @@ RUBY_REQUESTS = {
     "StartTaxRequest": "txs, tax types 5 and 6 (TAX_RUBY_COSTS)",
     "StartResearchRequest": "res, a research priced in C2",
     "MercenaryPackageRequest": "mpe, the ruby skip of a running mission (MercenaryConst.getSkipC2Cost)",
+    "RefreshMercenaryMissionRequest": "rmm, MercenaryConst.REFRESH_MISSION_COST (dll line 19511)",
+    "BribeTaxCollectorRequest": "btx, taxBribeVO.finalCostsC2 (CastleBribeDialog.onClick, bundle line 90878)",
     "ResetSkillsRequest": "skr inside the reset cooldown (LegendSkillConst.resetSkipCostC2, skipWithRubies)",
     "SelectBerimondCampRequest": "fsc, OC2 for the ruby camp and PWR (bundle lines 95197, 35237, 142354)",
     "StartPeaceModeRequest": "mps, PlayerConst.PEACE_MODE_C2 (dll line 19560)",

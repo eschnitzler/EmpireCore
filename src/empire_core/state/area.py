@@ -1,5 +1,5 @@
 """The joined area: the jaa reply, its mines (gsm) and resource carts (rci), slum level (csl),
-builder discount (gab) and position (ghw), and the building pushes (fbe, cbx, gdb, gcb) as callbacks; and
+builder discount (gab) and position (ghw), and the building pushes (fbe, cbx, gdb, gcb, gca) as callbacks; and
 the world map's size (nfo)."""
 
 import logging
@@ -14,6 +14,7 @@ from empire_core.castle.models.updates import (
     BuildingEfficiencyChanged,
     BuildingFinished,
     BuildingXP,
+    CastleBuildingsPushed,
     DamagedBuildings,
     JoinedAreaMoved,
     SlumLevel,
@@ -240,6 +241,29 @@ class AreaState(StateBase):
             changed = read_or_none(BuildingEfficiencyChanged.model_validate, data, warn=logger, what="a gcb push")
             if changed is not None:
                 self._fire(self.on_buildings_changed, changed)
+
+    on_castle_buildings = Event[CastleBuildingsPushed]()
+    """Register a callback for the joined castle's buildings sent whole (``gca``).
+
+    Called after :meth:`get_placed_construction_items` has the construction items they carry.
+
+    Client: ``GCACommand.executeCommand`` (bundle line 122991)
+    """
+
+    def _handle_gca(self, data: Any) -> None:
+        """Apply a ``gca`` push to the joined castle: the construction items on its buildings.
+
+        Client: ``GCACommand.executeCommand`` (bundle line 122991) hands the block to the active area,
+        ``AreaDataUpdater.parseGCA`` (bundle line 131546)
+        """
+        if not isinstance(data, dict) or self.joined_area is None:
+            return
+        pushed = read_or_none(CastleBuildingsPushed.model_validate, data, warn=logger, what="a gca push")
+        if pushed is None or pushed.buildings is None:
+            return
+        self._placed_construction_item_sequence = self._packet_sequence
+        self.placed_construction_items = pushed.buildings.construction_items
+        self._fire(self.on_castle_buildings, pushed)
 
     def _handle_nfo(self, data: Any) -> None:
         """Keep the server info pushed when the connection opens: the world map's size in sectors.
