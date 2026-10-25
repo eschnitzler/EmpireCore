@@ -37,3 +37,31 @@ class RaidBossCardStatus(IntEnum):
     ONGOING = 2
     LOCKED_FINAL_DEFEATED = 3
     LOCKED_ABORTED = 4
+
+
+class LuckyWheelType(IntEnum):
+    """
+    Which lucky wheel a spin turns.
+
+    Client: ``C2SLuckyWheelSpinVO`` (bundle line 59784) spins the sale days wheel for 1, the lucky wheel otherwise
+    """
+
+    LUCKY_WHEEL = 0
+    SALE_DAYS = 1
+
+
+class GachaRarity(IntEnum):
+    """Client: ``GachaComponentRewards.addRarityAnimation`` (bundle lines 57184-57192)."""
+
+    COMMON = 1
+    RARE = 2
+    EPIC = 3
+    LEGENDARY = 4
+
+
+class WorldCupVote(IntEnum):
+    """Client: ``WorldCupEventVO.VOTE_VALUE_*`` (bundle line 24601); -1 means no vote yet."""
+
+    DRAW = 0
+    TEAM_A = 1
+    TEAM_B = 2

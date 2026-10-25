@@ -12,7 +12,19 @@ from typing_extensions import overload
 from empire_core.attack.models.alien_camps import AlienRerollCountsResponse
 from empire_core.attack.models.taunts import RagePointsResponse
 from empire_core.enums import Kingdom
+from empire_core.enums.events import LuckyWheelType
 from empire_core.events.faction_models import BerimondKingdomStatus
+from empire_core.events.minigame_models import (
+    ArtifactFoundResponse,
+    DonationProgressResponse,
+    GachaFreeChestResponse,
+    GachaSpinResponse,
+    LuckyWheelBuyJackpotResponse,
+    LuckyWheelChangeModeResponse,
+    LuckyWheelIncreaseWinClassResponse,
+    LuckyWheelSpinResponse,
+    VoteWorldCupResponse,
+)
 from empire_core.events.models import (
     AlienInvasionEvent,
     AllianceBonusEvent,
@@ -46,6 +58,7 @@ from empire_core.events.models import (
     SpecialEvent,
     TempServerEvent,
     TournamentEvent,
+    WorldCupEvent,
     event_class,
 )
 from empire_core.events.special_server_models import CurrentServer, SpecialServerCastles
@@ -68,6 +81,9 @@ EventsCallback = Callable[[dict[int, SpecialEvent]], Any]
 class EventState(StateBase):
     _grand_tournament_generation = 0
     _grand_tournament_action_context: tuple[int, int | None, int] | None = None
+    # The gacha event a dge was sent for: its reply names only the gacha level, which the client maps to the
+    # event through game data the library does not load
+    _gacha_spin_event: int | None = None
 
     def _quest_action_context(self) -> tuple[int, int | None, int] | None:
         with self._lock:
@@ -81,6 +97,14 @@ class EventState(StateBase):
                 if event
                 else None
             )
+
+    def _begin_gacha_spin(self, eid: int) -> None:
+        with self._lock:
+            self._gacha_spin_event = eid
+
+    def _end_gacha_spin(self) -> None:
+        with self._lock:
+            self._gacha_spin_event = None
 
     def _begin_quest_action(self) -> tuple[int, int | None, int] | None:
         with self._lock:
@@ -440,6 +464,88 @@ class EventState(StateBase):
         with self._lock:
             return self.special_server_castles
 
+    def _handle_lws(self, data: Any) -> None:
+        """Apply a spin to the wheel it turned: the sale days wheel for an ``LWET`` of 1, else the lucky wheel.
+
+        Client: ``LWSCommand.executeCommand`` (bundle line 128141)
+        """
+        reply = read_section(LuckyWheelSpinResponse, data, "a lucky wheel spin")
+        if reply is not None:
+            sale_days = reply.wheel == LuckyWheelType.SALE_DAYS
+            self._apply_lucky_wheel(Event.SALE_DAYS_LUCKY_WHEEL if sale_days else Event.LUCKY_WHEEL, reply)
+
+    def _handle_lwj(self, data: Any) -> None:
+        """Apply a jackpot spin to the lucky wheel. Client: ``LWJCommand.executeCommand`` (bundle line 128105)"""
+        if (reply := read_section(LuckyWheelBuyJackpotResponse, data, "a lucky wheel jackpot")) is not None:
+            self._apply_lucky_wheel(Event.LUCKY_WHEEL, reply)
+
+    def _handle_lwc(self, data: Any) -> None:
+        """Apply a win class raise to the lucky wheel. Client: ``LWCCommand.executeCommand`` (bundle line 128090)"""
+        if (reply := read_section(LuckyWheelIncreaseWinClassResponse, data, "a lucky wheel win class")) is not None:
+            self._apply_lucky_wheel(Event.LUCKY_WHEEL, reply)
+
+    def _handle_lwm(self, data: Any) -> None:
+        """Apply a mode change to the lucky wheel. Client: ``LWMCommand.executeCommand`` (bundle line 128122)"""
+        if (reply := read_section(LuckyWheelChangeModeResponse, data, "a lucky wheel mode change")) is not None:
+            self._apply_lucky_wheel(Event.LUCKY_WHEEL, reply)
+
+    def _apply_lucky_wheel(
+        self,
+        eid: Event,
+        reply: LuckyWheelSpinResponse | LuckyWheelIncreaseWinClassResponse | LuckyWheelChangeModeResponse,
+    ) -> None:
+        if isinstance(event := self.events.get(eid), LuckyWheelEvent):
+            self._replace_event(event.with_reply(reply))
+
+    def _handle_dge(self, data: Any) -> None:
+        """Apply a gacha pull to the event it was sent for.
+
+        Client: ``DGECommand.executeCommand`` (bundle line 124175), ``AGachaEventVO.parseGachaEvent`` (bundle line
+        15379)
+        """
+        reply = read_section(GachaSpinResponse, data, "a gacha pull")
+        event = self.events.get(self._gacha_spin_event) if self._gacha_spin_event is not None else None
+        if reply is not None and isinstance(event, GachaEvent):
+            self._replace_event(event.with_gacha_update(reply, _clock()))
+
+    def _handle_cfc(self, data: Any) -> None:
+        """Apply a free gacha chest to the event it names.
+
+        Client: ``CFCCommand.executeCommand`` (bundle line 124161), which looks the ``EID`` up as sent
+        """
+        reply = read_section(GachaFreeChestResponse, data, "a gacha free chest")
+        event = self._sent_event(data.get("EID") if isinstance(data, dict) else None)
+        if reply is not None and isinstance(event, GachaEvent):
+            self._replace_event(event.with_gacha_update(reply, _clock()))
+
+    def _handle_artifact_found(self, data: Any) -> None:
+        """Apply the pieces of an artifact found (``saf``) or bought (``sap``) to its running event.
+
+        Client: ``CastleSpecialEventData.handleArtifactPartFound`` (bundle line 139892), which keeps no event it
+        does not run
+        """
+        reply = read_section(ArtifactFoundResponse, data, "the artifact pieces")
+        if reply is not None and isinstance(event := self.events.get(reply.event_id), ArtifactEvent):
+            self._replace_event(event.model_copy(update={"parts_found": reply.parts_found}))
+
+    def _handle_donation_progress(self, data: Any) -> None:
+        """Keep the points per donation item (``gdti``, ``ddi``) on the running imperial patronage.
+
+        Client: ``CastleDonationEventData.parseGDTI`` (bundle line 58869)
+        """
+        reply = read_section(DonationProgressResponse, data, "the donation progress")
+        if reply is not None and isinstance(event := self.events.get(Event.DONATION_EVENT), DonationEvent):
+            self._replace_event(event.model_copy(update={"donated_points": reply.items}))
+
+    def _handle_vwc(self, data: Any) -> None:
+        """Apply a world cup bet to the running world cup.
+
+        Client: ``VWCCommand.executeCommand`` (bundle line 128541), ``WorldCupEventVO.parse_VWC`` (bundle line 24586)
+        """
+        reply = read_section(VoteWorldCupResponse, data, "a world cup vote")
+        if reply is not None and isinstance(event := self.events.get(Event.WORLD_CUP), WorldCupEvent):
+            self._replace_event(event.model_copy(update={"vote": reply.vote, "rubies_spent": reply.rubies_spent}))
+
     def _replace_event(self, event: SpecialEvent) -> None:
         self.events = {**self.events, event.event_id: event}
         self._events_updated_at = time.time()
@@ -578,6 +684,8 @@ class EventState(StateBase):
     def get_event(self, event: Literal[Event.EVENT_ANNOUNCEMENT]) -> EventAnnouncementEvent | None: ...
     @overload
     def get_event(self, event: Literal[Event.FORTUNE_TELLER]) -> FortuneTellerEvent | None: ...
+    @overload
+    def get_event(self, event: Literal[Event.WORLD_CUP]) -> WorldCupEvent | None: ...
     @overload
     def get_event(self, event: Literal[Event.TOURNAMENT]) -> TournamentEvent | None: ...
     @overload

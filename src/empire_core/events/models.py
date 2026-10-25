@@ -14,7 +14,15 @@ from typing import TYPE_CHECKING, Annotated, Any, ClassVar, NoReturn, TypeVar
 from pydantic import AfterValidator, ConfigDict, Field, SerializeAsAny, ValidationError
 
 from empire_core.enums import NPCOwner, RankingType
+from empire_core.enums.events import WorldCupVote
 from empire_core.events.faction_models import BerimondKingdomStatus, FactionStanding
+from empire_core.events.minigame_models import (
+    DonationItemPoints,
+    GachaUpdate,
+    LuckyWheelChangeModeResponse,
+    LuckyWheelSpinResponse,
+    LuckyWheelStatus,
+)
 from empire_core.events.status_models import GrandTournamentQuestStatus, RaidBossStatus
 from empire_core.exceptions import ReplyMismatchError
 from empire_core.gamedata import EnumOrInt, RewardId
@@ -564,6 +572,17 @@ class GachaEvent(LeagueScoredEvent):
         if js_truthy(reset := entry.get("FCRT")) and (seconds := js_number_or_none(reset)) is not None:
             values["free_chest_reset_time"] = now + seconds
 
+    def with_gacha_update(self, update: GachaUpdate, now: float) -> GachaEvent:
+        """The event after a pull or a free chest: the values the reply sets, the others kept."""
+        values: dict[str, Any] = {}
+        if update.free_chest_seconds is not None:
+            values["free_chest_reset_time"] = now + update.free_chest_seconds
+        if update.own_points is not None:
+            values["own_points"] = update.own_points
+        if update.own_rank is not None:
+            values["own_rank"] = update.own_rank
+        return self.model_copy(update=values)
+
 
 class InvasionEvent(ScoredEvent):
     """
@@ -889,6 +908,10 @@ class DonationEvent(SpecialEvent):
     leaderboard_reward_set_id: int | None = Field(
         default=None, validation_alias="LRSI", description="The leaderboard's reward set"
     )
+    donated_points: tuple[DonationItemPoints, ...] | None = Field(
+        default=None,
+        description="The points each donation item has earned you, from the last gdti or ddi; None before one",
+    )
 
     @classmethod
     def _read(
@@ -1192,6 +1215,34 @@ class LuckyWheelEvent(PointEvent):
     def with_points(self, ranks: Any, points: Any, maxima: Any) -> SpecialEvent:
         return _with_points(self, ranks, points, None)  # type: ignore[no-any-return]
 
+    def with_reply(self, reply: LuckyWheelStatus | LuckyWheelChangeModeResponse) -> LuckyWheelEvent:
+        """
+        The wheel after a spin, a jackpot, a win class raise or a mode change.
+
+        Client: ``LuckyWheelData.parseBasics``, ``parseLWS`` and ``parseLWM`` (bundle lines 17570, 17566, 17564);
+        a mode change flips the mode rather than reading it
+        """
+        values: dict[str, Any] = {
+            "jackpot_set_id": reply.jackpot_set_id,
+            "jackpot_spin_set_id": reply.jackpot_spin_set_id,
+        }
+        if isinstance(reply, LuckyWheelChangeModeResponse):
+            values["pro_mode"] = not self.pro_mode
+            return self.model_copy(update=values)
+        values.update(
+            has_visited_pro_mode=reply.has_visited_pro_mode,
+            has_free_spin=reply.has_free_spin,
+            pro_mode=reply.pro_mode,
+            win_class=reply.win_class,
+            win_class_progress=reply.win_class_progress,
+        )
+        if isinstance(reply, LuckyWheelSpinResponse):
+            if reply.own_rank is not None:
+                values["own_rank"] = reply.own_rank
+            if reply.own_points is not None:
+                values["own_points"] = reply.own_points
+        return self.model_copy(update=values)
+
 
 class ArtifactEvent(SpecialEvent):
     """
@@ -1365,6 +1416,49 @@ class FortuneTellerEvent(SpecialEvent):
         values["tries"] = js_int(entry.get("FTDC"))
         seconds = js_number_or_none(entry.get("STR"))
         values["daily_reset_time"] = None if seconds is None else now + seconds
+
+
+class WorldCupEvent(SpecialEvent):
+    """
+    The world cup: a bet on one match, open once the rubies you spent in the event reach its price.
+
+    Client: ``WorldCupEventVO.parseParamObject`` and ``bonusRubies`` (bundle lines 24585, 24597),
+    ``CastleWorldCupDialog.updateState`` (bundle line 104658)
+    """
+
+    _reads_kl = False
+
+    team_a: int = Field(default=-1, validation_alias="TA", description="The first team")
+    team_b: int = Field(default=-1, validation_alias="TB", description="The second team")
+    bet_price_rubies: int = Field(
+        default=-1, validation_alias="PC2", description="The rubies to spend in the event before you may bet"
+    )
+    bonus_percent: int = Field(
+        default=-1, validation_alias="BC2", description="The share of the price a right bet pays back, in percent"
+    )
+    vote: EnumOrInt[WorldCupVote] = Field(
+        default=-1, validation_alias="V", description="The outcome you bet on; -1 before you bet"
+    )
+    rubies_spent: int = Field(default=-1, validation_alias="CC2", description="The rubies you spent in the event")
+
+    @classmethod
+    def _read(
+        cls, values: dict[str, Any], entry: dict[str, Any], now: float, events: Mapping[int, SpecialEvent]
+    ) -> None:
+        super()._read(values, entry, now, events)
+        values.update(
+            team_a=js_int(entry.get("TA")),
+            team_b=js_int(entry.get("TB")),
+            bet_price_rubies=js_int(entry.get("PC2")),
+            bonus_percent=js_int(entry.get("BC2")),
+            vote=js_int(entry.get("V")),
+            rubies_spent=js_int(entry.get("CC2")),
+        )
+
+    @property
+    def bonus_rubies(self) -> float:
+        """The rubies a right bet pays."""
+        return self.bet_price_rubies * self.bonus_percent / 100
 
 
 class TournamentRank(EmpireModel):
@@ -1588,6 +1682,7 @@ EVENT_CLASSES: dict[Event, type[SpecialEvent]] = {
     Event.GGS_GIFT: GiftEvent,
     Event.EVENT_ANNOUNCEMENT: EventAnnouncementEvent,
     Event.FORTUNE_TELLER: FortuneTellerEvent,
+    Event.WORLD_CUP: WorldCupEvent,
     Event.TOURNAMENT: TournamentEvent,
     Event.TIME_LIMITED_CAMPAIGN_EVENT: CampaignEvent,
     Event.TIME_LIMITED_CAMPAIGN_QUEST_EVENT: CampaignQuestEvent,

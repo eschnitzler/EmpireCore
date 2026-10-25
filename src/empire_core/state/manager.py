@@ -119,6 +119,7 @@ _WHOLE_SECTIONS = {
 # VFICommand also parses its gcu, and SOUCommand (bundle line 125699) its gcu beside the spl the state does not keep.
 # The protection (uap) of a map read and a joined area: GAACommand, JAACommand (bundle lines 130164, 130243)
 # JAACommand also brings its crai crafting queues (bundle line 130249)
+# CCDCommand and SAPCommand (bundle lines 127678, 127618) parse their gcu
 _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
     **dict.fromkeys(("arl", "gla", "sdi", "sti"), ("gli",)),
     "seq": ("gli", "gcu", "esl"),
@@ -140,9 +141,11 @@ _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
     **dict.fromkeys(("msk", "fjf"), ("kpi",)),
     "rwb": ("gcu",),
     **dict.fromkeys(("ffp", "ibt"), ("gcu",)),
-    **dict.fromkeys(("ebu", "eup", "eud", "rbu", "ebe", "rcc", "bup", "crm", "ccd", "cde"), ("grc",)),
+    **dict.fromkeys(("ebu", "eup", "eud", "rbu", "ebe", "rcc", "bup", "crm", "cde"), ("grc",)),
     "jaa": ("grc", "uap", "crai"),
     "gaa": ("uap",),
+    "ccd": ("gcu", "grc"),
+    "sap": ("gcu",),
     "gdr": ("grc", "sce"),
     "vfi": ("gcu", "grc"),
     "sou": ("gcu",),
@@ -213,6 +216,10 @@ _SUCCESS_ONLY = frozenset(
     | {"tse", "tcc"}
     # GAECommand.executeCommand (bundle line 127262)
     | {"gae"}
+    # The event minigames' replies and pushes: LWSCommand, LWJCommand, LWCCommand, LWMCommand, DGECommand,
+    # CFCCommand, SAFCommand, GDTICommand, DDICommand, VWCCommand (bundle lines 128141, 128105, 128090, 128122,
+    # 124175, 124161, 127599, 123604, 123589, 128541)
+    | {"lws", "lwj", "lwc", "lwm", "dge", "cfc", "saf", "sap", "gdti", "ddi", "vwc"}
 )
 
 
@@ -332,7 +339,9 @@ class GameState(
     running events, scores, ends         ``sei``/``tei`` (pushed),    ``client.events.refresh()``
                                          ``see``/``tee``, ``pep``,
                                          ``fjf``, ``bst``, ``cqs``,
-                                         ``uap``, ``ffp``, ``rpr``
+                                         ``uap``, ``ffp``, ``rpr``,
+                                         the minigame replies
+                                         (``lws``, ``dge``, ...)
     alien reroll counts                  ``rce`` (pushed), ``sei``    --
     events shutting down                 ``sde`` (pushed)             --
     active quests, quest book            ``qli`` (pushed after        --
@@ -463,6 +472,17 @@ class GameState(
         "ffi": "_handle_ffi",
         "tse": "_handle_tse",
         "tcc": "_handle_tcc",
+        "lws": "_handle_lws",
+        "lwj": "_handle_lwj",
+        "lwc": "_handle_lwc",
+        "lwm": "_handle_lwm",
+        "dge": "_handle_dge",
+        "cfc": "_handle_cfc",
+        "saf": "_handle_artifact_found",
+        "sap": "_handle_artifact_found",
+        "gdti": "_handle_donation_progress",
+        "ddi": "_handle_donation_progress",
+        "vwc": "_handle_vwc",
     }
 
     def update_from_packet(self, cmd_id: str, payload: dict[str, Any], error_code: int = 0) -> None:
@@ -701,6 +721,7 @@ class GameState(
         Accepts the wire ids this manager tracks — "gbd", "gam", "dcl", "abr", "asr", the send replies ("cra", "cam",
         "abgcam", "cds", "csm", "cat", "crm", "css", "tde", "cdd", "cpm", "thm", "ldt"), "mcm", "mrm", "mfc", "glu",
         "mir", "fjf", "bst", "sce", "see", "tee", "pep", "acm", "aqi", "acn", "cal", "ufp", "uht", "apt", "car", "bfs",
+        the event minigames' "lws", "lwj", "lwc", "lwm", "dge", "cfc", "saf", "sap", "gdti", "ddi" and "vwc",
         the officers' school's "gtp" (only a successful one), the quest pushes "qli", "qst", "qpg", "qfi", "msp" and the
         campaign's "cqs", the castle pushes "rue", "kik", the gem push "gec", the faction protection reply "ffp", the
         rage points push "rpr", the alien reroll counts push "rce", the server kind "tse", the special server castles

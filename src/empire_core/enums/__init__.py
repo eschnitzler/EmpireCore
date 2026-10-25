@@ -48,7 +48,7 @@ from .combat import (
 )
 from .commanders import EquipmentSlot, EquipmentType, Rareness, WearerType
 from .errors import GGEError
-from .events import PerformanceStatistic, RaidBossCardStatus
+from .events import GachaRarity, LuckyWheelType, PerformanceStatistic, RaidBossCardStatus, WorldCupVote
 from .gamedata import (
     BuildingGroundType,
     BuildingGroup,
@@ -121,6 +121,9 @@ __all__ = [
     "ConstructionItemMode",
     "RaidBossCardStatus",
     "PerformanceStatistic",
+    "LuckyWheelType",
+    "GachaRarity",
+    "WorldCupVote",
     # Map / kingdom
     "Kingdom",
     "KingdomDirection",
