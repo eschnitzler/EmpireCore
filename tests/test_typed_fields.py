@@ -100,11 +100,13 @@ ALLOWED: dict[str, str] = {
     "messages.models.mailbox.DeleteMessagesResponse.message_ids": "message ids",
     "messages.models.mailbox.ForwardSpyLogRequest.player_ids": "player ids",
     "player.models.economy.OpenLootBoxResponse.raw_rewards": "LTR as sent: rows or reward ids, not yet seen live",
+    "messages.models.mailbox.MessagesSentToday.sent": "counts keyed by MessageType; the values are amounts",
     "player.models.progress.TopTitleRanking.thresholds": "points, one per top-X title of the system; not ids",
 }
 
 
 GAME_DATA_SCALAR_IDS: dict[str, str] = {
+    "gamedata.tables.PlayerNameChangeDef.name_change_id": "the number of a name change, not a named id",
     "gamedata.models.AllianceBuffDef.required_buff_id": (
         "alliancebuffs row reference; series has an enum, individual levels do not"
     ),

@@ -43,10 +43,13 @@ from .models import (
     GetStartupBonusResponse,
     GetWeeklyHonorRequest,
     GetWeeklyHonorResponse,
+    GoodgamesGiftRequest,
+    GoodgamesGiftResponse,
     LoginBonus,
     LostAndFoundItem,
     OpenActivityChestRequest,
     PendingRewardsInfo,
+    RedeemVoucherRequest,
     RedeemWeeklyHonorRequest,
     RedeemWeeklyHonorResponse,
 )
@@ -58,7 +61,7 @@ if TYPE_CHECKING:
 class RewardsService(BaseService):
     """
     The daily login bonus, the startup bonus, lost and found, the activity chest, the weekly honour
-    reward, the patch note rewards, and the pending rewards count.
+    reward, the patch note rewards, the pending rewards count, the Goodgames gift and voucher codes.
 
     Reached as client.rewards.
     """
@@ -339,6 +342,47 @@ class RewardsService(BaseService):
         ``CastleWeeklyHighscoreRewardDialog.collect`` (bundle line 45392); ``RWBCommand`` (bundle line 124426)
         """
         return self.request(RedeemWeeklyHonorRequest(), RedeemWeeklyHonorResponse, timeout=timeout)
+
+    # =========================================================================
+    # Goodgames gift and voucher codes
+    # =========================================================================
+
+    def get_goodgames_gift(self, *, timeout: float = 5.0) -> tuple[Collectable, ...]:
+        """
+        Get the Goodgames gift event's rewards, as its status icon does before the gift dialog opens.
+
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+
+        Client: ``StatusIconGoodgamesGift.onClick`` (bundle line 104504), ``RGGCommand.executeCommand``
+        (bundle line 128014)
+        """
+        return self.request(GoodgamesGiftRequest(), GoodgamesGiftResponse, timeout=timeout).rewards
+
+    def collect_goodgames_gift(self, *, timeout: float = 5.0) -> tuple[Collectable, ...]:
+        """
+        Collect the Goodgames gift event's rewards.
+
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+
+        Client: ``CastleGGSGiftDialog.onClick`` (bundle line 128053), ``RGGCommand.executeCommand``
+        (bundle line 128014)
+        """
+        return self.request(GoodgamesGiftRequest(collect=True), GoodgamesGiftResponse, timeout=timeout).rewards
+
+    def redeem_voucher(self, code: str, *, timeout: float = 5.0) -> None:
+        """
+        Redeem a voucher code.
+
+        Raises:
+            CommandError: The code was refused
+            EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+
+        Client: ``CastlePrivatePrimeDayOfferDynamicDialog.redeemVoucherCode`` (bundle line 55202),
+        ``RVECommand.executeCommand`` (bundle line 126433)
+        """
+        self.execute(RedeemVoucherRequest(code=code), timeout=timeout)
 
     # =========================================================================
     # Patch note rewards

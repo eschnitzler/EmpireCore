@@ -10,7 +10,9 @@ from typing import TYPE_CHECKING, Annotated, Any, NamedTuple
 
 from pydantic import BeforeValidator, Field, TypeAdapter, ValidationError, field_validator
 
-from empire_core.gamedata import EnumOrInt
+from empire_core.enums import CoatOfArmsBackground, SymbolLayout
+from empire_core.gamedata import CoatOfArmsSymbolId, EnumOrInt
+from empire_core.gamedata.lenient import known
 from empire_core.protocol.base import BasePayload, list_or_empty, object_or_none
 from empire_core.protocol.js import ClientInt, ParseInt, js_int, js_parse_int, js_truthy
 
@@ -18,10 +20,16 @@ if TYPE_CHECKING:
     from empire_core.gamedata import AllianceCrestColor, AllianceCrestLayout, Title
 
 
-class OwnerCrest(BasePayload):
-    """A player's crest: an owner record's ``E``.
+_SymbolId = Annotated[CoatOfArmsSymbolId, BeforeValidator(js_int)]
 
-    Client: ``CrestVO.loadFromParamObject`` (bundle line 10587).
+
+class OwnerCrest(BasePayload):
+    """A player's crest: an owner record's ``E``, and your own crest.
+
+    A layout past the last the client knows stays a plain int; the client draws it as the last one
+    (``setSymbols`` and ``setBackground``, bundle lines 10589-10590).
+
+    Client: ``CrestVO.loadFromParamObject`` (bundle line 10594)
     """
 
     is_set: bool = Field(
@@ -35,14 +43,36 @@ class OwnerCrest(BasePayload):
     def _truthy(cls, value: Any) -> bool:
         return js_truthy(value)
 
-    symbol_type: ClientInt = Field(validation_alias="SPT", default=0, description="Symbol layout type")
-    symbol1: ClientInt = Field(validation_alias="S1", default=0, description="First symbol id")
+    symbol_type: SymbolLayout | int = Field(
+        validation_alias="SPT", default=SymbolLayout.NONE, description="Where the symbols show"
+    )
+    symbol1: _SymbolId = Field(
+        validation_alias="S1", default=CoatOfArmsSymbolId(0), description="The first symbol, -1 for none"
+    )
     symbol1_color: ClientInt = Field(validation_alias="SC1", default=0, description="First symbol's colour")
-    symbol2: ClientInt = Field(validation_alias="S2", default=0, description="Second symbol id")
+    symbol2: _SymbolId = Field(
+        validation_alias="S2", default=CoatOfArmsSymbolId(0), description="The second symbol, -1 for none"
+    )
     symbol2_color: ClientInt = Field(validation_alias="SC2", default=0, description="Second symbol's colour")
-    background_type: ClientInt = Field(validation_alias="BGT", default=0, description="Background layout type")
+    background_type: CoatOfArmsBackground | int = Field(
+        validation_alias="BGT", default=CoatOfArmsBackground.PLAIN, description="How the background splits its colours"
+    )
     background_color1: ClientInt = Field(validation_alias="BGC1", default=0, description="First background colour")
     background_color2: ClientInt = Field(validation_alias="BGC2", default=0, description="Second background colour")
+
+    @field_validator("symbol_type", mode="before")
+    @classmethod
+    def _symbol_layout(cls, value: Any) -> SymbolLayout | int:
+        return _layout(SymbolLayout, value)
+
+    @field_validator("background_type", mode="before")
+    @classmethod
+    def _background(cls, value: Any) -> CoatOfArmsBackground | int:
+        return _layout(CoatOfArmsBackground, value)
+
+
+def _layout(layouts: type[SymbolLayout] | type[CoatOfArmsBackground], value: Any) -> Any:
+    return known(layouts, js_int(value), warn=False)
 
 
 class OwnerFaction(BasePayload):

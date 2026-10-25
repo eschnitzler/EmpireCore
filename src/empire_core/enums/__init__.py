@@ -84,12 +84,15 @@ from .map import (
 from .messages import BattleLogAttackType, LogResult, MessageType
 from .movements import MovementType
 from .player import (
+    CoatOfArmsBackground,
     Hero,
     MercenaryMissionRarity,
     MercenaryMissionState,
     MysteryBoxKey,
     PremiumAccountType,
+    SymbolLayout,
     TitleSystem,
+    VerificationLink,
 )
 from .ranking import RankingType
 from .rewards import LoginBonusSpecial
@@ -214,6 +217,9 @@ __all__ = [
     "MysteryBoxKey",
     "PremiumAccountType",
     "Hero",
+    "CoatOfArmsBackground",
+    "SymbolLayout",
+    "VerificationLink",
     "MercenaryMissionRarity",
     "MercenaryMissionState",
     # Ranking

@@ -55,6 +55,7 @@ from .mailbox import (
     IgnorePlayerResponse,
     MarkMessageReadRequest,
     MessageInfo,
+    MessagesSentToday,
     PatchNoteHeader,
     ReadMessageRequest,
     ReadMessageResponse,
@@ -72,6 +73,7 @@ from .mailbox import (
 from .trade import GetTradeReportRequest, TradeReportResponse
 
 __all__ = [
+    "MessagesSentToday",
     "ATTACKER_FRONT",
     "DEFENDER_FRONT",
     "AbilityWaveValue",

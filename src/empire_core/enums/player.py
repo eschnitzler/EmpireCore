@@ -84,3 +84,45 @@ class Hero(IntEnum):
     YOUNG_KNIGHT = 801
     OLD_KNIGHT = 802
     FEMALE_WARRIOR = 803
+
+
+class CoatOfArmsBackground(IntEnum):
+    """
+    How a coat of arms splits its background into its two colours, its ``BGT``.
+
+    Client: ``ClientConstCrest.BACKGROUND_TYPE_*`` (bundle line 12240)
+    """
+
+    PLAIN = 0
+    TWO_HORIZONTAL = 1
+    TWO_VERTICAL = 2
+    FOUR_X = 3
+
+
+class SymbolLayout(IntEnum):
+    """
+    Where a coat of arms shows its symbols, its ``SPT``.
+
+    ``NONE`` shows no symbol and ``ONE_CENTERED`` only the first.
+
+    Client: ``ClientConstCrest.SYMBOL_POSITION_*`` (bundle line 12240)
+    """
+
+    NONE = 0
+    ONE_CENTERED = 1
+    TWO_HORIZONTAL = 2
+    TWO_VERTICAL = 3
+    FOUR_X = 4
+
+
+class VerificationLink(IntEnum):
+    """
+    Which verification link ``rsm`` sends again, its ``T``.
+
+    Client: ``PlayerConst.RESEND_MAIL_ACCOUNT_VERIFICATION`` (dll line 19599);
+    ``OptionsDialogAccountDetails.onSendAgainEmail`` (bundle line 72747) sends it while the email address is
+    unverified and 1 otherwise, while an email change waits for verification
+    """
+
+    ACCOUNT_VERIFICATION = 0
+    EMAIL_CHANGE = 1

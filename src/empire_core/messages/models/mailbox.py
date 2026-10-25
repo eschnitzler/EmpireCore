@@ -15,10 +15,11 @@ import logging
 import re
 import time
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar
 
 from pydantic import (
     BeforeValidator,
+    ConfigDict,
     Field,
     ValidatorFunctionWrapHandler,
     field_serializer,
@@ -40,6 +41,7 @@ from empire_core.protocol.base import (
     BaseResponse,
     enum_or_none,
     int_entries,
+    list_or_empty,
     object_or_none,
     read_or_none,
     readable_list,
@@ -1094,7 +1096,36 @@ class WorldLinkResponse(BaseResponse):
     url: str = Field(validation_alias="L", description="The world's link")
 
 
+class MessagesSentToday(BaseResponse):
+    """
+    How many messages of each limited type you have sent today; the game data's ``messageRestrictions`` sets
+    each type's daily limit.
+
+    Command: mcd, as a login section of ``gbd`` and a push.
+
+    Client: ``MCDCommand.executeCommand`` (bundle line 125415), ``CastleMessageData.parse_MCD`` (bundle line 135013),
+    which reads ``MTC`` only when set
+    """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    command = "mcd"
+
+    sent: dict[MessageType | int, int] = Field(
+        validation_alias="MTC", default_factory=dict, description="Messages sent today, by message type"
+    )
+
+    @field_validator("sent", mode="before")
+    @classmethod
+    def _rows(cls, value: Any) -> Any:
+        if isinstance(value, dict):
+            return value
+        rows = [row for row in list_or_empty(value) if isinstance(row, list) and len(row) > 1]
+        return {known(MessageType, js_int(row[0])): js_int(row[1]) for row in rows}
+
+
 __all__ = [
+    "MessagesSentToday",
     "GetWorldLinkRequest",
     "WorldLinkResponse",
     "GetIgnoredPlayersRequest",

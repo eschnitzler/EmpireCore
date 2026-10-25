@@ -35,6 +35,7 @@ from empire_core.messages.models import (
     IgnorePlayerResponse,
     MarkMessageReadRequest,
     MessageInfo,
+    MessagesSentToday,
     ReadMessageRequest,
     ReadMessageResponse,
     SendMessageRequest,
@@ -80,6 +81,11 @@ class MessagesService(BaseService):
         Emptied when the session drops, as the client empties it; the next login's ``sne`` refills it.
         """
         return self.client.state.get_mailbox()
+
+    @property
+    def sent_today(self) -> MessagesSentToday | None:
+        """How many messages of each limited type you have sent today, from the last ``mcd``; None until one arrived."""
+        return self.client.state.get_messages_sent_today()
 
     on_new_messages = Event[SystemNotificationEvent]()
     """Call ``callback`` with the login data's sne section and each sne push, after :attr:`mailbox` is updated.

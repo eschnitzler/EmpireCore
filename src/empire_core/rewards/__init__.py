@@ -23,18 +23,26 @@ from .models import (
     GetStartupBonusResponse,
     GetWeeklyHonorRequest,
     GetWeeklyHonorResponse,
+    GoodgamesGiftRequest,
+    GoodgamesGiftResponse,
     LoginBonus,
     LoginBonusDay,
     LostAndFoundItem,
     OpenActivityChestRequest,
     OpenActivityChestResponse,
     PendingRewardsInfo,
+    RedeemVoucherRequest,
+    RedeemVoucherResponse,
     RedeemWeeklyHonorRequest,
     RedeemWeeklyHonorResponse,
 )
 from .service import RewardsService
 
 __all__ = [
+    "GoodgamesGiftRequest",
+    "GoodgamesGiftResponse",
+    "RedeemVoucherRequest",
+    "RedeemVoucherResponse",
     "LOGIN_BONUS_REQUIRED_XP",
     "LoginBonusSpecial",
     "ActivityChestInfo",

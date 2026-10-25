@@ -77,6 +77,8 @@ RUBY_REQUESTS = {
     "EnchantRelicRequest": "ere, C2 1 (RelicUpgradeDialogPayment.getCosts, bundle line 86002)",
     "CraftGemRequest": "cge, C2 1, the ruby craft (bundle line 73943)",
     "ExtractGemRequest": "ege, a gem's removalCostC2 (CastleExtractSocketDialog.getCosts, bundle line 65738)",
+    "UnlockSymbolRequest": "bus, a premium symbol's costC2 (CastleBuyUnlockedCrestSymbolDialog, bundle line 77181)",
+    "ChangePlayerNameRequest": "cpne, playerNameChanges costC2 after the first (getCurrentC2Cost, bundle line 145462)",
     "LuckyWheelBuyJackpotRequest": "lwj, LuckyWheelData.jackpotC2Price (bundle line 17639)",
     "LuckyWheelIncreaseWinClassRequest": "lwc, LuckyWheelData.increaseWinClassC2 (bundle line 17628)",
     "GachaSpinRequest": "dge, the gacha's cost list from game data the library does not load (bundle line 113936)",

@@ -3,11 +3,13 @@
 from typing import TYPE_CHECKING
 
 from empire_core.enums import (
+    CoatOfArmsBackground,
     FactionProtectionStatus,
     Kingdom,
     MapItemType,
     NPCOwner,
     PeaceModeStatus,
+    SymbolLayout,
     TreasureMapProgress,
 )
 from empire_core.utils.lazy import lazy_exports
@@ -66,6 +68,8 @@ if TYPE_CHECKING:
     from empire_core.gamedata import AllianceCrestColor, AllianceCrestLayout, Title, Tool, Unit
 
 __all__ = [
+    "CoatOfArmsBackground",
+    "SymbolLayout",
     "GetMapAreaRequest",
     "GetMapAreaResponse",
     "MapArea",
