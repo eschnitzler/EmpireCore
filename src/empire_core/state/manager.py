@@ -211,6 +211,8 @@ _SUCCESS_ONLY = frozenset(
     | {"crin", *CRAFTING_QUEUE_REPLIES, "ffi"}
     # TSECommand, TCCCommand (bundle lines 128917, 127354)
     | {"tse", "tcc"}
+    # GAECommand.executeCommand (bundle line 127262)
+    | {"gae"}
 )
 
 
@@ -407,6 +409,7 @@ class GameState(
         "aja": "_handle_aja",
         "sll": "_handle_sll",
         "gap": "_handle_gap",
+        "gae": "_handle_gae",
         "frc": "_handle_frc",
         "acm": "_handle_acm",
         "aqi": "_handle_aqi",

@@ -59,6 +59,8 @@ RUBY_REQUESTS = {
     "StartFactionProtectionRequest": "ffp, FactionConst.getPeaceC2Cost (dll line 19316)",
     "BuyToolsRequest": "ibt, the tool's costC2 (bundle line 22493)",
     "UnlockPresetRequest": "uas, the slot's attackSetupSlots costC2 (bundle line 141850)",
+    "ActivateAllianceTowerBuffsRequest": "aatb, getAllianceTowerEffectActivationCost in C2 (bundle line 70999)",
+    "IncreaseAllianceTowerBuffsRequest": "iatb, the buffs' calculateBuffCosts in C2 (bundle line 71048)",
     "RerollAlienCampRequest": "rae with C2 (CastleRerollAlienDialog.onSendReroll, bundle line 109749)",
     "BuyTreasureMapPiecesRequest": "tbm, costPiece C2 a piece (CastleTreasureBuyPieceDialog, bundle line 67945)",
     "TreasureMapTransferSkipRequest": "tkt, the map's skipCostC2 (bundle line 99514)",
