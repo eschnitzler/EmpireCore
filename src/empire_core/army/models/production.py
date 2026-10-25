@@ -20,6 +20,7 @@ from typing import Annotated, Any, ClassVar
 from pydantic import BeforeValidator, Field, model_validator
 
 from empire_core.enums import Kingdom, ProductionListId, RecruitmentMode, SlotType
+from empire_core.gamedata.lenient import EnumOrInt
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, CurrencyBlock, object_or_none
 from empire_core.protocol.js import ParseInt, js_int, js_loose_equals, js_number, js_same_number, js_truthy
 
@@ -213,10 +214,10 @@ class ProductionList(BasePayload):
     ``RecruitmentConst`` (dll line 19660) for the ``RM`` modes
     """
 
-    list_id: int | None = Field(
+    list_id: EnumOrInt[ProductionListId] | None = Field(
         validation_alias="LID",
         default=None,
-        description="A ProductionListId; None when missing",
+        description="The list; None when missing",
     )
     queue: Annotated[list[ProductionSlot], BeforeValidator(_queue_slots)] = Field(
         validation_alias="QS", default_factory=list, description="Queued slots, by position"

@@ -107,7 +107,8 @@ _WHOLE_SECTIONS = {
 # 122861, 122846, 123163, 122744), JAACommand (bundle line 130194), RCCCommand (bundle lines 123182,
 # 28797), BUPCommand, CRMCommand, VFICommand, GDRCommand, CCDCommand, CDECommand (bundle lines 125531,
 # 125982, 121164, 123053, 127640, 127658), gdr also its sce; a refused crm still reaches the movement handler.
-# VFICommand also parses its gcu, and SOUCommand (bundle line 125699) its gcu beside the spl the state does not keep
+# VFICommand also parses its gcu, and SOUCommand (bundle line 125699) its gcu beside the spl the state does not keep.
+# The protection (uap) of a map read and a joined area: GAACommand, JAACommand (bundle lines 130164, 130243)
 _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
     **dict.fromkeys(("arl", "gla", "sdi", "sti"), ("gli",)),
     "seq": ("gli", "gcu", "esl"),
@@ -129,7 +130,9 @@ _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
     **dict.fromkeys(("msk", "fjf"), ("kpi",)),
     "rwb": ("gcu",),
     **dict.fromkeys(("ffp", "ibt"), ("gcu",)),
-    **dict.fromkeys(("ebu", "eup", "eud", "rbu", "ebe", "jaa", "rcc", "bup", "crm", "ccd", "cde"), ("grc",)),
+    **dict.fromkeys(("ebu", "eup", "eud", "rbu", "ebe", "rcc", "bup", "crm", "ccd", "cde"), ("grc",)),
+    "jaa": ("grc", "uap"),
+    "gaa": ("uap",),
     "gdr": ("grc", "sce"),
     "vfi": ("gcu", "grc"),
     "sou": ("gcu",),
@@ -172,7 +175,7 @@ _SUCCESS_ONLY = frozenset(
     | {"aja", "sll", "gap"}
     # GBDCommand.exec (bundle line 129376) reads the login data only on ALL_OK
     | {"gbd"}
-    | (set(_NESTED_SECTIONS) - {"cpm", "crm"})
+    | (set(_NESTED_SECTIONS) - {"cpm", "crm", "gaa"})
     | {"rue", "kik", "gsm", "rci", "cmr", "rcc", "jaa", "fbe", "cbx", "gdb", "gcb", "csl", "gab", "gec", "ghw"}
     | {"sde"}
     | {"qli", "qst", "qpg", "qfi", "msp", "cqs"}
@@ -181,6 +184,8 @@ _SUCCESS_ONLY = frozenset(
     | {"fki"}
     # RPRCommand, RCECommand (bundle lines 128217, 127142); ffp is a nested section reply
     | {"rpr", "rce"}
+    # SSICommand.executeCommand (bundle line 128591)
+    | {"ssi"}
 )
 
 
@@ -398,6 +403,7 @@ class GameState(
         "gcb": "_handle_gcb",
         # Any map read leaves the joined castle, refused or not
         "gaa": "_handle_gaa",
+        "ssi": "_handle_ssi",
         "gec": "_handle_gec",
         "aec": "_handle_aec",
         "qli": "_handle_qli",
@@ -578,6 +584,14 @@ class GameState(
             self._apply_sei(data)
             self._handle_mir(data.get("mir"))
 
+    def _handle_ssi(self, data: Any) -> None:
+        """Apply the protection (``uap``) inside a spy screen's map read.
+
+        Client: ``CastleSpyData.parse_SSI`` (bundle line 140011) hands ``gaa.uap`` to ``CastleUserData.parse_UAP``
+        """
+        if isinstance(data, dict) and isinstance(area := data.get("gaa"), dict) and "uap" in area:
+            self._handle_gbd({"uap": area["uap"]})
+
     def _handle_bst(self, data: Any) -> None:
         """Apply the reply to a bounty hunter target skip: its coins and rubies, then its ``sei``.
 
@@ -613,8 +627,9 @@ class GameState(
         the officers' school's "gtp" (only a successful one), the quest pushes "qli", "qst", "qpg", "qfi", "msp" and the
         campaign's "cqs", the castle pushes "rue", "kik", "fbe", "cbx", "gdb", "gcb", the gem push "gec", the faction
         protection reply "ffp", the rage points push "rpr", the alien reroll counts push "rce", the joined area's "jaa",
-        "cmr", "rcc", "ghw", the events shutting down "sde" and the map read "gaa" (refused too) — and the login
-        sections "gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap", "gpc", "gms", "sei", "tei", "gli", "skl",
+        "cmr", "rcc", "ghw", the events shutting down "sde", the map read "gaa" (refused too), the spy screen "ssi"
+        (only a successful one) — and the login sections "gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap", "gpc",
+        "gms", "sei", "tei", "gli", "skl",
         "ain", "acl", "rei", "boi", "gmu", "ufa", "uar", "vli", "gri", "cpi", "dql", "gai", "gatp", "bie", "pgl", "rww",
         "nrf", "DTS", "ggm", "gls", "esl", "kpi", "mpe", "txi", "nec", "irc", "grc", "gll" and "lrr", stamped whether
         they came inside a gbd, as a push of their own or inside a reply that carries one ("sei" from a fjf or bst,

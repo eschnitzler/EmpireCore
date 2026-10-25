@@ -177,6 +177,8 @@ class AttackService(BaseService):
         """Use one held minute-skip item and return the updated dungeon.
 
         Supply both treasure-map ids for a treasure node; omit both for ordinary camps.
+        Not checked here: the client offers no skip on a Berimond invasion camp
+        (``FactionInvasionCampMapObjectVO.cooldownCanBeSkipped``, bundle line 76359).
         Client: SkippableCooldownMinuteSkipProperties.getMinuteSkipCommand (bundle line 72341),
         C2SMinuteSkipDungeonVO (bundle lines 72354–72357), MSDCommand (bundle lines 125805–125807).
         """
@@ -207,6 +209,8 @@ class AttackService(BaseService):
         Requires ruby consent; the price depends on the target and remaining time.
         Supply both treasure-map ids for a treasure node. Replies identify position
         and kingdom, not the treasure node; same-position late replies cannot be distinguished.
+        Not checked here: the client offers no skip on a Berimond invasion camp
+        (``FactionInvasionCampMapObjectVO.cooldownCanBeSkipped``, bundle line 76359).
         Client: SkippableCooldownDialog.skipWithRubies (bundle lines 28197–28199),
         C2SSkipDungeonCooldownVO (bundle lines 46108–46110), SDCCommand (bundle lines 122356–122360).
         """
