@@ -2,6 +2,8 @@
 
 Commands:
 - cds: Send support
+- tde: Send support to an alliance battleground tower
+- cdd: Send support to a daimyo township
 - cat: Send troops to another of your own areas
 - sti: Travel pre-calculation for troops sent to another of your own areas
 """
@@ -16,7 +18,8 @@ from empire_core.enums import Kingdom
 from empire_core.gamedata import WodAmounts, WodAmountSlots
 from empire_core.map.models.areas import MapObject
 from empire_core.map.models.items import TargetRow
-from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, CommanderEffects, CurrencyBlock
+from empire_core.movements.models.movement import SentMovementResponse
+from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, CommanderEffects
 from empire_core.protocol.js import js_truthy, movement_targets
 
 # =============================================================================
@@ -49,8 +52,13 @@ class SendSupportRequest(BaseRequest):
     (``CastlePostAttackDialog.startAttack`` sends ``sendMovement(0)`` for any
     other commander). ``PTT`` 1 pays for the movement with feathers.
 
-    Client: ``C2SCreateDefenceSupportMovementVO`` (bundle line 133893), built
-    by ``CastleAttackData.sendSupport`` (bundle line 133855)
+    ``A`` carries units only: ``CastleSupportDefenceVO.getArmy`` sends the filled
+    slots of its one container, whose slots are all soldier slots.
+
+    Client: ``C2SCreateDefenceSupportMovementVO`` (bundle line 133942), built
+    by ``CastleAttackData.sendSupport`` (bundle line 133904) from
+    ``CastleSupportDefenceVO.getArmy`` (bundle line 140121); its ``ITEM_TYPES``
+    (bundle line 140167) are all ``ToolUnitVO.SLOTTYPE_SOLDIER`` (bundle line 6661)
     """
 
     command = "cds"
@@ -86,9 +94,7 @@ class SendSupportRequest(BaseRequest):
         description="1 when the horse is paid with feathers",
     )
     slowdown: int = Field(validation_alias="SD", default=0, description="Seconds the arrival is delayed by")
-    units: WodAmountSlots = Field(
-        validation_alias="A", description="The units, then any tools, one pair per filled slot"
-    )
+    units: WodAmountSlots = Field(validation_alias="A", description="The units, one pair per filled slot")
 
     def accepts_reply(self, payload: Any) -> bool:
         """Whether a cds reply is the movement this sent: its target area (``A.M.TA``) is ``TX``/``TY``.
@@ -100,21 +106,125 @@ class SendSupportRequest(BaseRequest):
         return isinstance(payload, dict) and movement_targets(payload.get("A"), self.target_x, self.target_y)
 
 
-class SendSupportResponse(BaseResponse):
+class SendSupportResponse(SentMovementResponse):
     """
     The support on its way.
 
     Command: cds
     Payload: {"gcu": {...}, "O": [owner, ...], "A": movement}
 
-    ``O`` (the owners involved) and ``A`` (the new movement) are kept as sent.
-
-    Client: ``CDSCommand.executeCommand`` (bundle line 125939)
+    Client: ``CDSCommand.executeCommand`` (bundle line 125973)
     """
 
     command = "cds"
 
-    currencies: CurrencyBlock = Field(validation_alias="gcu", default=None, description="Coins and rubies after")
+
+class SendTowerSupportRequest(SendSupportRequest):
+    """
+    Send support troops to an alliance battleground tower.
+
+    Command: tde
+    Payload: {"SID": source_castle_id, "TX": target_x, "TY": target_y, "LID": commander_id,
+              "WT": wait_time, "HBW": horse_booster_id, "BPC": use_premium_commander,
+              "PTT": feathers, "SD": slowdown, "A": [[unit_id, count], ...]}
+
+    The client builds it with the same arguments as a ``cds``, in the same key
+    order, when the target's area type is ``AREA_TYPE_ALLIANCE_BATTLE_GROUND_TOWER``.
+
+    Client: ``C2SCreateAllianceTowerSupportMovementVO`` (bundle line 133968), built by
+    ``CastleAttackData.sendSupport`` (bundle line 133904)
+    """
+
+    command = "tde"
+
+
+class SendTowerSupportResponse(SendSupportResponse):
+    """
+    The support on its way to an alliance battleground tower.
+
+    Command: tde
+    Payload: {"gcu": {...}, "O": [owner, ...], "A": movement}
+
+    Client: ``TDECommand.executeCommand`` (bundle line 126120)
+    """
+
+    command = "tde"
+
+
+# =============================================================================
+# CDD - Support a daimyo township
+# =============================================================================
+
+
+class SendTownshipSupportRequest(BaseRequest):
+    """
+    Send support troops to a daimyo township.
+
+    Command: cdd
+    Payload: {"SID": source_castle_id, "TX": target_x, "TY": target_y, "A": [[unit_id, count], ...]}
+
+    The client sends no commander, horse, wait time or slowdown: it sends this
+    straight from the support screen when the target's area type is
+    ``AREA_TYPE_DAIMYO_TOWNSHIP``, without the travel dialog.
+
+    Client: ``C2SCreateDaimyoDefenseMovementVO`` (bundle line 99735), sent by
+    ``OpenPostAttackDialogCommand.execute`` (bundle line 99685) for
+    ``ACTION_TYPE_SUPPORTDEFENSE_TOWNSHIP``, which ``CastleSupportDefenceDialog.closeScreen``
+    (bundle line 122483) picks; the army from ``CastleSupportDefenceVO.getArmy`` (bundle line 140121)
+    """
+
+    command = "cdd"
+
+    source_castle_id: int = Field(
+        validation_alias="SID",
+        description=(
+            "One of your castles, CastleInfo.castle_id from client.castle.get_all() or Castle.id from "
+            "client.state.get_castles()"
+        ),
+    )
+    target_x: int = Field(validation_alias="TX", description="The township's map x")
+    target_y: int = Field(validation_alias="TY", description="The township's map y")
+    units: WodAmountSlots = Field(validation_alias="A", description="The units, one pair per filled slot")
+
+    def accepts_reply(self, payload: Any) -> bool:
+        """Whether a cdd reply is the movement this sent: its target area (``A.M.TA``) is ``TX``/``TY``.
+
+        Client: ``CDDCommand`` (bundle line 128264) reads the new movement from ``A``.
+        """
+        return isinstance(payload, dict) and movement_targets(payload.get("A"), self.target_x, self.target_y)
+
+
+class SendTownshipSupportResponse(SentMovementResponse):
+    """
+    The support on its way to a daimyo township.
+
+    Command: cdd
+    Payload: {"gcu": {...}, "O": [owner, ...], "A": movement}
+
+    Client: ``CDDCommand.executeCommand`` (bundle line 128264)
+    """
+
+    command = "cdd"
+
+
+# =============================================================================
+# CSS - Siege movement (reply only)
+# =============================================================================
+
+
+class SiegeMovementResponse(SentMovementResponse):
+    """
+    A siege movement the server created.
+
+    Command: css
+    Payload: {"gcu": {...}, "O": [owner, ...], "A": movement}
+
+    The client has no request that sends ``css``; it only reads this reply.
+
+    Client: ``CSSCommand.executeCommand`` (bundle line 126045)
+    """
+
+    command = "css"
 
 
 # =============================================================================
@@ -203,21 +313,17 @@ class SendTroopsRequest(BaseRequest):
         return isinstance(payload, dict) and movement_targets(payload.get("A"), self.target_x, self.target_y)
 
 
-class SendTroopsResponse(BaseResponse):
+class SendTroopsResponse(SentMovementResponse):
     """
     The troops on their way.
 
     Command: cat
     Payload: {"O": [owner, ...], "A": movement, "gcu": {...}}
 
-    ``O`` (the owners involved) and ``A`` (the new movement) are kept as sent.
-
-    Client: ``CATCommand.executeCommand`` (bundle line 125924)
+    Client: ``CATCommand.executeCommand`` (bundle line 125958)
     """
 
     command = "cat"
-
-    currencies: CurrencyBlock = Field(validation_alias="gcu", default=None, description="Coins and rubies after")
 
 
 # =============================================================================
@@ -357,6 +463,11 @@ __all__ = [
     "TravelUnits",
     "SendSupportRequest",
     "SendSupportResponse",
+    "SendTowerSupportRequest",
+    "SendTowerSupportResponse",
+    "SendTownshipSupportRequest",
+    "SendTownshipSupportResponse",
     "SendTroopsRequest",
     "SendTroopsResponse",
+    "SiegeMovementResponse",
 ]

@@ -390,8 +390,8 @@ class EmpireConfig(EmpireModel):
     attack_send_interval: float = Field(
         default=4.0,
         ge=0,
-        description="Seconds client.attack.send_attack leaves between one account's attacks; the server "
-        "refuses an attack sent less than 4 seconds after the one before. 0 sends at once",
+        description="Seconds client.attack.send_attack and send_treasure_hunt_attack leave between one account's "
+        "attacks; the server refuses an attack sent less than 4 seconds after the one before. 0 sends at once",
     )
 
     # Login retries: library policy, the game client logs in again only when the player clicks

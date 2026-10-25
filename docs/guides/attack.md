@@ -52,9 +52,9 @@ passed.
 ## Pacing
 
 The server refuses an attack sent less than 4 seconds after the account's
-previous one. `send_attack` waits out that interval itself, across every
-thread sharing the client, so a loop of sends needs no sleep of its own. The
-interval is `EmpireConfig.attack_send_interval` (default `4.0`); `0` turns
+previous one. `send_attack` and `send_treasure_hunt_attack` wait out that
+interval themselves, sharing one pace across every thread on the client, so a
+loop of sends needs no sleep of its own. The interval is `EmpireConfig.attack_send_interval` (default `4.0`); `0` turns
 the pacing off.
 
 ## The commander
@@ -164,3 +164,19 @@ For a treasure-map node, supply both `map_id` and `node_id`; leave both at `-1`
 for ordinary camps. Replies do not identify the treasure node, so a late reply
 for the same position after a timeout cannot be distinguished from the next reply.
 Server eligibility checks remain authoritative. Neither method updates a cached map snapshot.
+
+## Event maps
+
+Some events send attacks with commands of their own:
+
+- On the alliance battleground server, while the event scores alliance
+  collector points, the game sends an attack on a castle or capital as
+  `abgcam`: pass `alliance_battleground=True` to `send_attack`. It takes the
+  same waves and options, without an auto-skip cooldown.
+- `send_treasure_hunt_attack(map_id, node_id, waves, commander_id)` attacks a
+  treasure map node. The map and node name the target; no source castle is sent.
+- `taunt_daimyo(township_x, township_y)` taunts a daimyo into attacking one of
+  your townships, with the samurai medal and shogun point boosters you pass.
+
+`send_attack`, `send_treasure_hunt_attack` and `taunt_daimyo` return the
+server's reply, with the new movement on it.

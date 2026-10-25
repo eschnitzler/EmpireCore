@@ -15,7 +15,7 @@ from __future__ import annotations
 import threading
 import time
 from collections.abc import Callable, Iterable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar
 
 from empire_core.commanders.models.auto_sell import (
     AUTO_SELL_RARENESSES,
@@ -77,6 +77,8 @@ if TYPE_CHECKING:
     from empire_core.client.client import EmpireClient
     from empire_core.commanders.models.inventory import GemInventoryResponse, InventorySpace, NewRelicsResponse
     from empire_core.gamedata import Currency, Gem, General, GeneralsHubCharacter
+
+_Sent = TypeVar("_Sent")
 
 
 class CommandersService(BaseService):
@@ -536,13 +538,15 @@ class CommandersService(BaseService):
         return self._premium_account_runs() or (self.free_premium_commanders() or 0) >= 1
 
     def premium_send(
-        self, commander_id: int, use_premium_commander: bool, send: Callable[[], None], *, spend_rubies: bool = False
-    ) -> None:
+        self, commander_id: int, use_premium_commander: bool, send: Callable[[], _Sent], *, spend_rubies: bool = False
+    ) -> _Sent:
         """
-        Run ``send``, refusing it first when the premium commander leads and may cost rubies, unless ``spend_rubies``.
+        Run ``send`` and return what it returns, refusing it first when the premium commander leads and may cost
+        rubies, unless ``spend_rubies``.
 
         The army sends go through this: ``client.movements.send_support``,
-        ``client.movements.send_troops`` and ``client.attack.send_attack``. The premium commander
+        ``client.movements.send_troops``, ``client.attack.send_attack`` and
+        ``client.attack.send_treasure_hunt_attack``. The premium commander
         leads when ``use_premium_commander`` is set or ``commander_id`` is ``PREMIUM_COMMANDER_ID``;
         the client always sends the two together.
 
@@ -568,17 +572,17 @@ class CommandersService(BaseService):
         exactly when the selected commander is ``TravelConst.COMMANDER_PREMIUM``
         """
         if not (use_premium_commander or commander_id == PREMIUM_COMMANDER_ID):
-            send()
-            return
+            return send()
         with self._premium_send_lock:
             premium_account = self._premium_account_runs()
             if not (spend_rubies or premium_account or (self.free_premium_commanders() or 0) >= 1):
                 raise PremiumCommanderCostError(self.free_premium_commanders())
             vip_at = self.client.state.get_last_packet_time("vip")
-            send()
+            sent = send()
             if not premium_account:
                 counted_at, own_sends = self._own_premium_sends
                 self._own_premium_sends = (vip_at, own_sends + 1 if counted_at == vip_at else 1)
+            return sent
 
     def _premium_account_runs(self) -> bool:
         return self.client.state.get_boosts().is_premium_active()

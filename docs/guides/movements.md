@@ -293,6 +293,11 @@ Led by the premium commander, a support or troop send that may cost rubies
 raises `PremiumCommanderCostError` unless you pass `spend_rubies=True`; see
 [the premium commander](commanders.md#the-premium-commander).
 
+`send_support` returns the server's reply, the new movement on it. A support to
+an alliance battleground tower goes out as `tde`, as the game sends it: pass
+`alliance_tower=True`. A daimyo township takes its support without a commander
+or horse, through `send_township_support(source_castle_id, x, y, units)`.
+
 ### Goods, one tab per send
 
 The game's send dialog offers goods on three tabs, and the server refuses a
