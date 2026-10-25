@@ -48,6 +48,7 @@ from empire_core.events.models import (
     TournamentEvent,
     event_class,
 )
+from empire_core.events.special_server_models import CurrentServer, SpecialServerCastles
 from empire_core.events.status_models import GrandTournamentQuestStatus, GrandTournamentQuestUpdate, RaidBossStatus
 from empire_core.gamedata.ids.events import Event
 from empire_core.map.models.areas import KingdomProtection
@@ -408,6 +409,36 @@ class EventState(StateBase):
         """
         if (counts := read_section(AlienRerollCountsResponse, data, "the alien reroll counts")) is not None:
             self.alien_reroll_counts = counts.merged_into(self.alien_reroll_counts)
+
+    def _handle_tse(self, data: Any) -> None:
+        """Keep which kind of server this session is on.
+
+        Client: ``TSECommand.executeCommand`` (bundle line 128917)
+        """
+        if (server := read_section(CurrentServer, data, "the server kind")) is not None:
+            self.current_server = server
+
+    def _handle_tcc(self, data: Any) -> None:
+        """Keep your special server castles and mark the running temporary server event's castle bought or not.
+
+        Client: ``TCCCommand.executeCommand`` (bundle line 127354)
+        """
+        if (castles := read_section(SpecialServerCastles, data, "the special server castles")) is None:
+            return
+        self.special_server_castles = castles
+        event = self.events.get(Event.TEMP_SERVER)
+        if isinstance(event, TempServerEvent):
+            self._replace_event(event.model_copy(update={"castle_bought": castles.temporary_server_castle_bought}))
+
+    def get_current_server(self) -> CurrentServer | None:
+        """The kind of server this session is on, from the last ``tse``; None until one came."""
+        with self._lock:
+            return self.current_server
+
+    def get_special_server_castles(self) -> SpecialServerCastles | None:
+        """Your special server castles, from the last ``tcc``; None until one came."""
+        with self._lock:
+            return self.special_server_castles
 
     def _replace_event(self, event: SpecialEvent) -> None:
         self.events = {**self.events, event.event_id: event}

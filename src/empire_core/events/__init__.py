@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING
 
-from empire_core.enums import FactionProtectionStatus, Kingdom, KingdomTransferType, RankingType
+from empire_core.enums import FactionProtectionStatus, Kingdom, KingdomTransferType, RankingType, ServerType
 from empire_core.enums.events import PerformanceStatistic, RaidBossCardStatus
 from empire_core.events.board_models import (
     GetBattlegroundRankRequest,
@@ -35,6 +35,21 @@ from empire_core.events.season_models import (
     MinuteSkipSeasonTransferResponse,
     SelectSeasonCampRequest,
     SelectSeasonCampResponse,
+)
+from empire_core.events.special_server_models import (
+    ApplyChargeCampEffectRequest,
+    ApplyChargeCampEffectResponse,
+    ChargeCampEffect,
+    ChargeCampEffects,
+    CurrentServer,
+    GetChargeCampEffectsRequest,
+    GetTemporaryServerCollectorPointsRequest,
+    RerollChargeCampEffectRequest,
+    RerollChargeCampEffectResponse,
+    SelectSpecialServerCastleRequest,
+    SelectSpecialServerCastleResponse,
+    SpecialServerCastles,
+    TemporaryServerCollectorPoints,
 )
 from empire_core.events.status_models import (
     AbortRaidRequest,
@@ -127,7 +142,7 @@ from .service import EventsService
 from .titles import get_event_titles
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import Currency, Event, GlobalEffect, QuestId, RaidBoss
+    from empire_core.gamedata import Currency, Effect, Event, GlobalEffect, QuestId, RaidBoss
 
 __all__ = [
     "BerimondBalance",
@@ -187,6 +202,19 @@ __all__ = [
     "GetPlayerPerformanceResponse",
     "GetTemporaryServerRanksRequest",
     "GetTemporaryServerRanksResponse",
+    "ApplyChargeCampEffectRequest",
+    "ApplyChargeCampEffectResponse",
+    "ChargeCampEffect",
+    "ChargeCampEffects",
+    "CurrentServer",
+    "GetChargeCampEffectsRequest",
+    "GetTemporaryServerCollectorPointsRequest",
+    "RerollChargeCampEffectRequest",
+    "RerollChargeCampEffectResponse",
+    "SelectSpecialServerCastleRequest",
+    "SelectSpecialServerCastleResponse",
+    "SpecialServerCastles",
+    "TemporaryServerCollectorPoints",
     "EVENT_CLASSES",
     "EVENT_SCOREBOARDS",
     "POINT_EVENTS",
@@ -246,6 +274,8 @@ __all__ = [
     "KingdomTransferType",
     "RankingType",
     "Currency",
+    "ServerType",
+    "Effect",
     "Event",
     "GlobalEffect",
     "QuestId",
@@ -255,5 +285,5 @@ __all__ = [
 
 if not TYPE_CHECKING:
     __getattr__ = lazy_exports(
-        __name__, "empire_core.gamedata.ids", ("Currency", "Event", "GlobalEffect", "QuestId", "RaidBoss")
+        __name__, "empire_core.gamedata.ids", ("Currency", "Effect", "Event", "GlobalEffect", "QuestId", "RaidBoss")
     )

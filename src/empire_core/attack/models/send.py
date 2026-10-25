@@ -3,6 +3,7 @@
 Commands:
 - cra: Create/send attack
 - abgcam: Send an attack on the alliance battleground
+- cam: Send an attack on the temporary server
 - thm: Send a treasure hunt attack
 - ldt: Taunt a daimyo into attacking your township
 """
@@ -191,6 +192,51 @@ class AllianceBattlegroundAttackRequest(_ArmyAttackRequest):
     )
 
 
+class TemporaryServerAttackRequest(_ArmyAttackRequest):
+    """
+    Send an attack on the temporary server.
+
+    Command: cam
+    Payload: {"SX": source_x, "SY": source_y, "TX": target_x, "TY": target_y, "KID": kingdom_id,
+              "LID": commander_id, "WT": wait_time, "HBW": horse_booster_id, "BPC": use_premium_commander,
+              "ATT": attack_type, "AV": share_battle_view, "LP": loot_priority, "FC": send_anyway,
+              "PTT": feathers, "SD": slowdown, "ICA": 0, "CD": 99, "A": waves,
+              "BKS": collector_booster, "AST": support_tools, "RW": yard_wave}
+
+    The client sends it instead of ``cra`` on the temporary server while its event scores collector
+    points, for an attack on a castle. It takes the same arguments as ``cra`` but has no ``ASCT``,
+    and its constructor sends ``ICA`` 0 whatever it is given.
+
+    Client: ``C2SCreateArmyAttackMovementTempServerVO`` (bundle line 133933), filled by
+    ``CastleAttackData.sendAttackTempServer`` (bundle line 133898), which ``CastlePostAttackDialog.sendAttack``
+    (bundle line 38381) picks when ``isOnTemporaryServer`` and the event ``isCollectorScoring``
+    """
+
+    command = "cam"
+
+    countdown: int = Field(validation_alias="CD", default=99, description="Always 99")
+    waves: list[AttackWave] = Field(
+        validation_alias="A",
+        default_factory=list,
+        description="The attack waves, front to back",
+    )
+    collector_booster: CurrencyAmounts = Field(
+        validation_alias="BKS",
+        default_factory=dict,
+        description="Collector event boosters by currency, such as CurrencyId.SAMURAI_MEDAL_BOOSTER",
+    )
+    support_tools: SupportToolSlots = Field(
+        validation_alias="AST",
+        default=(),
+        description="Support tools, one per slot, None for an empty one; the client sends every slot",
+    )
+    yard_wave: WodAmountSlots = Field(
+        validation_alias="RW",
+        default=(),
+        description="The courtyard wave's unit slots, [-1, 0] for an empty one",
+    )
+
+
 class CreateAttackResponse(BaseResponse):
     """
     Response to attack creation.
@@ -337,6 +383,29 @@ class AllianceBattlegroundAttackResponse(CreateAttackResponse):
     )
 
 
+class TemporaryServerAttackResponse(CreateAttackResponse):
+    """
+    Response to an attack sent on the temporary server.
+
+    Command: cam
+    Payload: {"gcu": {...}, "O": [owner, ...], "AAM": movement}, read as a ``cra`` reply
+
+    A ``MOVEMENT_HAS_NO_UNITS`` (100) reply carries ``MS``, the fewest units the
+    client's message names; an ``ATTACK_IN_PROGRESS`` (234) one ``TS`` and ``AS``
+    as for ``cra``.
+
+    Client: ``CAMCommand.executeCommand`` (bundle line 125937)
+    """
+
+    command = "cam"
+
+    minimum_soldiers: int | None = Field(
+        validation_alias="MS",
+        default=None,
+        description="On MOVEMENT_HAS_NO_UNITS: the fewest units the attack must carry",
+    )
+
+
 # =============================================================================
 # THM - Treasure hunt attack
 # =============================================================================
@@ -467,6 +536,8 @@ class DaimyoTauntResponse(BaseResponse, MovementWrapper):
 __all__ = [
     "AllianceBattlegroundAttackRequest",
     "AllianceBattlegroundAttackResponse",
+    "TemporaryServerAttackRequest",
+    "TemporaryServerAttackResponse",
     "CreateAttackRequest",
     "CreateAttackResponse",
     "DaimyoTauntRequest",

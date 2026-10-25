@@ -24,10 +24,17 @@ from empire_core.exceptions import (
     LoginCooldownError,
     LoginError,
     NetworkError,
+    SpecialServerUnavailableError,
     VersionCheckStatus,
     WrongServerError,
 )
-from empire_core.protocol.auth import LoginRequest, LoginResponse, VersionCheckResponse, build_version_check
+from empire_core.protocol.auth import (
+    LoginRequest,
+    LoginResponse,
+    SpecialServerLoginRequest,
+    VersionCheckResponse,
+    build_version_check,
+)
 from empire_core.protocol.base import NO_ROOM, read_or_none
 from empire_core.protocol.js import js_number_or_none
 from empire_core.protocol.packet import Packet
@@ -112,7 +119,7 @@ class Session:
     def login(self, recaptcha_token: str | Callable[[], str] | None, retry: bool) -> None:
         """See :meth:`EmpireClient.login`."""
         client = self._client
-        if not client.username or not (client.password or client.login_token):
+        if client.special_server_token is None and not (client.username and (client.password or client.login_token)):
             raise LoginError("Username and a password or login token are required")
 
         logger.debug(f"Logging in as {client.username}...")
@@ -297,28 +304,35 @@ class Session:
 
         round_trip_time = self._version_check(build)
 
-        request = LoginRequest.create(
-            client.username or "",
-            client.password.get_secret_value() if client.password is not None else None,
-            **LOGIN_DEFAULTS,
-            CONM=connection_time,
-            RTM=round_trip_time,
-            LT=None if client.password else client.login_token,
-            RCT=recaptcha_token() if callable(recaptcha_token) else recaptcha_token,
+        token = client.special_server_token
+        request = (
+            LoginRequest.create(
+                client.username or "",
+                client.password.get_secret_value() if client.password is not None else None,
+                **LOGIN_DEFAULTS,
+                CONM=connection_time,
+                RTM=round_trip_time,
+                LT=None if client.password else client.login_token,
+                RCT=recaptcha_token() if callable(recaptcha_token) else recaptcha_token,
+            )
+            if token is None
+            else SpecialServerLoginRequest(login_token=token)
         )
         xt_packet = client.frame(request)
 
         # Register the gbd waiter up front: it arrives right after a
-        # successful lli and would otherwise race the lli handling below.
+        # successful login and would otherwise race the reply handling below.
         gbd_waiter = connection.create_waiter("gbd")
         try:
             try:
-                lli_response = connection.request(xt_packet, "lli", timeout=config.login_timeout)
+                reply = connection.request(xt_packet, request.get_command(), timeout=config.login_timeout)
             except EmpireTimeoutError as e:
                 raise EmpireTimeoutError("XT login timed out") from e
 
-            if lli_response.error_code != 0:
-                self._raise_login_refusal(lli_response)
+            if reply.error_code != 0:
+                if token is None:
+                    self._raise_login_refusal(reply)
+                self._raise_special_login_refusal(reply)
 
             # The client enters the game only once gbd is parsed (GBDCommand.exec, bundle line 129376)
             try:
@@ -397,6 +411,17 @@ class Session:
                 raise LoginError("The login token was refused", code)
             case _:
                 raise LoginError("Auth failed", code)
+
+    @staticmethod
+    def _raise_special_login_refusal(tlep: Packet) -> NoReturn:
+        """
+        Raise the error for a refused ``tlep``.
+
+        Client: ``TLEPCommand.executeCommand`` (bundle line 127388)
+        """
+        if tlep.error_code == GGEError.NO_EVENT:
+            raise SpecialServerUnavailableError()
+        raise LoginError("Special server login failed", tlep.error_code)
 
     def _waits(self) -> Iterator[float]:
         """The waits before each next login attempt: the configured first delay, doubled after each failure up to

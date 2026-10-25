@@ -13,3 +13,15 @@ class VersionCheckStatus(IntEnum):
 
     VERSION_TOO_LOW = 1
     VERSION_TOO_HIGH = 2
+
+
+class ServerType(IntEnum):
+    """
+    The kind of game server a session is on, sent as ``GST``.
+
+    Client: ``GlobalServerConst`` (dll line 19410)
+    """
+
+    NORMAL = 1
+    TEMPORARY = 2
+    ALLIANCE_BATTLEGROUND = 3

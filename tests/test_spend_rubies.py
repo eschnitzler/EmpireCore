@@ -41,6 +41,9 @@ RUBY_REQUESTS = {
     "SendTroopsRequest": "same as cds",
     "CreateAttackRequest": "cra, BPC, a ruby horse, a slowdown",
     "AllianceBattlegroundAttackRequest": "abgcam, same as cra",
+    "TemporaryServerAttackRequest": "cam, same as cra",
+    "SelectSpecialServerCastleRequest": "tsc, OC2 for a castle priced in C2 (bundle line 27953)",
+    "RerollChargeCampEffectRequest": "ccr, the reroll's c2Cost (bundle line 140279)",
     "SendTowerSupportRequest": "tde, same as cds",
     "TreasureHuntAttackRequest": "thm, BPC, a ruby horse",
     "CreateMarketMovementRequest": "crm, a ruby horse, a slowdown",
@@ -100,8 +103,8 @@ NOT_CONSENT = {
     "admit_ruby_units": "whether the hospital takes in wounded ruby units, a free setting",
     "pay_with_rubies": "picks the relic forge's ruby price over its coin price; spending them needs spend_rubies",
     "free": "the generals hub's free spin, against a paid one that spends offerings, not rubies",
-    "ruby_camp": "picks a ruby-priced prebuilt camp; the rubies it costs need spend_rubies",
-    "ruby_castle": "picks a kingdom's ruby-priced prebuilt castle; the rubies it costs need spend_rubies",
+    "ruby_camp": "picks a ruby-priced Berimond or season camp; the rubies it costs need spend_rubies",
+    "ruby_castle": "picks a ruby-priced kingdom or special server castle; the rubies it costs need spend_rubies",
 }
 
 
@@ -131,11 +134,9 @@ def _called_names(node: ast.AST) -> tuple[set[str], set[str]]:
             func = func.value
         if isinstance(func, ast.Name) and func.id in RUBY_REQUESTS:
             requests.add(func.id)
-        # One of two requests picked in place: (A if flag else B)(...)
+        # One of several requests picked in place: (A if flag else B if other else C)(...)
         if isinstance(func, ast.IfExp):
-            requests |= {
-                node.id for node in (func.body, func.orelse) if isinstance(node, ast.Name)
-            } & RUBY_REQUESTS.keys()
+            requests |= {node.id for node in ast.walk(func) if isinstance(node, ast.Name)} & RUBY_REQUESTS.keys()
     return requests, methods
 
 

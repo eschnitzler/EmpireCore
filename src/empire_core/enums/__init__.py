@@ -62,7 +62,7 @@ from .gamedata import (
     ToolSide,
     UnitRole,
 )
-from .login import VersionCheckStatus
+from .login import ServerType, VersionCheckStatus
 from .map import (
     FactionProtectionStatus,
     Kingdom,
@@ -143,6 +143,7 @@ __all__ = [
     "TargetRead",
     # Errors and the login
     "GGEError",
+    "ServerType",
     "VersionCheckStatus",
     # Spy
     "SpyType",

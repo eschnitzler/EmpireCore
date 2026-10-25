@@ -209,6 +209,8 @@ _SUCCESS_ONLY = frozenset(
     | {"sin", "gca"}
     # CRINCommand, the crafting action replies and FFICommand (bundle lines 123443, 123428-123504, 124120)
     | {"crin", *CRAFTING_QUEUE_REPLIES, "ffi"}
+    # TSECommand, TCCCommand (bundle lines 128917, 127354)
+    | {"tse", "tcc"}
 )
 
 
@@ -456,6 +458,8 @@ class GameState(
         "crin": "_handle_crin",
         **dict.fromkeys(CRAFTING_QUEUE_REPLIES, "_handle_crafting_queue"),
         "ffi": "_handle_ffi",
+        "tse": "_handle_tse",
+        "tcc": "_handle_tcc",
     }
 
     def update_from_packet(self, cmd_id: str, payload: dict[str, Any], error_code: int = 0) -> None:
@@ -695,23 +699,21 @@ class GameState(
         "abgcam", "cds", "csm", "cat", "crm", "css", "tde", "cdd", "cpm", "thm", "ldt"), "mcm", "mrm", "mfc", "glu",
         "mir", "fjf", "bst", "sce", "see", "tee", "pep", "acm", "aqi", "acn", "cal", "ufp", "uht", "apt", "car", "bfs",
         the officers' school's "gtp" (only a successful one), the quest pushes "qli", "qst", "qpg", "qfi", "msp" and the
-        campaign's "cqs", the castle pushes "rue", "kik", the gem push "gec", the faction
-        protection reply "ffp", the rage points push "rpr", the alien reroll counts push "rce", the joined area's "jaa",
-        "cmr", "rcc", "ghw", the events shutting down "sde", the map read "gaa" (refused too), the spy screen "ssi"
-        (only a successful one) — and the login sections "gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap", "gpc",
-        "gms", "sei", "tei", "gli", "skl",
-        "ain", "acl", "rei", "boi", "gmu", "ufa", "uar", "vli", "gri", "cpi", "dql", "gai", "gatp", "bie", "pgl", "rww",
-        "nrf", "DTS", "ggm", "gls", "esl", "kpi", "mpe", "txi", "nec", "irc", "grc", "gll", "lrr", "tmp" and "thi",
-        stamped whether they came inside a gbd, as a push of their own or inside a reply that carries one ("sei" from a
-        fjf or bst, "gli" from an arl, "ain" from an akm, "rei" from a res, "kpi" from a kut, "tmp" from a tcn, ...),
-        plus "gac" and "drt", which only
-        come inside a gbd. "gsm" and "rci" are stamped whenever mines or resource carts are applied, from their push or
-        a jaa, cmr or rcc reply; "csl" and "gab" from their push or a jaa, the push even when no area was joined to
-        apply it to. A send reply is stamped even when the server refused the send; the commands the client reads only
-        from a successful reply (the event ones, the login section ones, the castle ones, the quest ones, "gec", "acm",
-        "aqi", "ufp", "uht", "apt", "car" and "bfs") are not, nor is a login section that was not applied: unreadable,
-        not valid, or another alliance's "ain". ``None`` means none was ever seen; packets this manager ignores are
-        never recorded.
+        campaign's "cqs", the castle pushes "rue", "kik", the gem push "gec", the faction protection reply "ffp", the
+        rage points push "rpr", the alien reroll counts push "rce", the server kind "tse", the special server castles
+        "tcc", the joined area's "jaa", "cmr", "rcc", "ghw", the events shutting down "sde", the map read "gaa" (refused
+        too), the spy screen "ssi" (only a successful one) — and the login sections "gpi", "gxp", "gcu", "vip", "gal",
+        "gcl", "gho", "uap", "gpc", "gms", "sei", "tei", "gli", "skl", "ain", "acl", "rei", "boi", "gmu", "ufa", "uar",
+        "vli", "gri", "cpi", "dql", "gai", "gatp", "bie", "pgl", "rww", "nrf", "DTS", "ggm", "gls", "esl", "kpi", "mpe",
+        "txi", "nec", "irc", "grc", "gll", "lrr", "tmp" and "thi", stamped whether they came inside a gbd, as a push of
+        their own or inside a reply that carries one ("sei" from a fjf or bst, "gli" from an arl, "ain" from an akm,
+        "rei" from a res, "kpi" from a kut, "tmp" from a tcn, ...), plus "gac" and "drt", which only come inside a gbd.
+        "gsm" and "rci" are stamped whenever mines or resource carts are applied, from their push or a jaa, cmr or rcc
+        reply; "csl" and "gab" from their push or a jaa, the push even when no area was joined to apply it to. A send
+        reply is stamped even when the server refused the send; the commands the client reads only from a successful
+        reply (the event ones, the login section ones, the castle ones, the quest ones, "gec", "acm", "aqi", "ufp",
+        "uht", "apt", "car" and "bfs") are not, nor is a login section that was not applied: unreadable, not valid, or
+        another alliance's "ain". ``None`` means none was ever seen; packets this manager ignores are never recorded.
         """
         with self._lock:
             return self._packet_times.get(cmd_id)

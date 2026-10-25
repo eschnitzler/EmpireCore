@@ -1,11 +1,12 @@
 """The wire protocol: request and response bases, packets, error codes, text codecs and the login models."""
 
-from empire_core.enums import GGEError
+from empire_core.enums import GGEError, ServerType
 from empire_core.protocol.auth import (
     CheckUsernameAvailableRequest,
     CheckUsernameAvailableResponse,
     CheckUsernameExistsRequest,
     CheckUsernameExistsResponse,
+    GetSpecialServerTokenRequest,
     LoginRequest,
     LoginResponse,
     LoginTokenResponse,
@@ -13,6 +14,9 @@ from empire_core.protocol.auth import (
     PasswordRecoveryResponse,
     RegisterRequest,
     RegisterResponse,
+    SpecialServerLoginRequest,
+    SpecialServerLoginResponse,
+    SpecialServerTokenResponse,
     VersionCheckResponse,
 )
 from empire_core.protocol.base import (
@@ -45,9 +49,14 @@ __all__ = [
     "DEFAULT_ZONE",
     "GGECommand",
     "GGEError",
+    "ServerType",
     "LoginRequest",
     "LoginResponse",
     "LoginTokenResponse",
+    "GetSpecialServerTokenRequest",
+    "SpecialServerTokenResponse",
+    "SpecialServerLoginRequest",
+    "SpecialServerLoginResponse",
     "VersionCheckResponse",
     "Packet",
     "PasswordRecoveryRequest",

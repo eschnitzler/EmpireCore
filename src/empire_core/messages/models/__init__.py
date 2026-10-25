@@ -47,6 +47,7 @@ from .mailbox import (
     ForwardSpyLogRequest,
     GetIgnoredPlayersRequest,
     GetSpyReportRequest,
+    GetWorldLinkRequest,
     IgnoredPlayer,
     IgnoredPlayersResponse,
     IgnoreList,
@@ -65,6 +66,7 @@ from .mailbox import (
     SpyReportArea,
     SpyReportResponse,
     SystemNotificationEvent,
+    WorldLinkResponse,
     repair_header,
 )
 from .trade import GetTradeReportRequest, TradeReportResponse
@@ -110,6 +112,8 @@ __all__ = [
     "IgnoredPlayersResponse",
     "IgnorePlayerRequest",
     "IgnorePlayerResponse",
+    "GetWorldLinkRequest",
+    "WorldLinkResponse",
     "ArchiveMessageRequest",
     "ArchiveMessageResponse",
     "DeleteMessageRequest",

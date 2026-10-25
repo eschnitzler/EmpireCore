@@ -1067,7 +1067,36 @@ class IgnorePlayerResponse(BaseResponse):
     )
 
 
+class GetWorldLinkRequest(BaseRequest):
+    """
+    Ask for the link to a new world a mail announces (``gil``).
+
+    Client: ``C2SGetInstanceLink`` (bundle line 137154), sent by ``CastleNewServerAnnounceDialogProperties``
+    (bundle line 137138) with the zone and website ids of the announcing mail
+    (``MessageConst.SPECIAL_ID_ANNOUNCE_INSTANCE``, bundle line 137001)
+    """
+
+    command = "gil"
+
+    website_id: int = Field(validation_alias="WID", description="The announced world's website id")
+    zone_id: int = Field(validation_alias="ZID", description="The announced world's zone id")
+
+
+class WorldLinkResponse(BaseResponse):
+    """
+    The link to the announced world.
+
+    Client: ``GILCommand.executeCommand`` (bundle line 128173)
+    """
+
+    command = "gil"
+
+    url: str = Field(validation_alias="L", description="The world's link")
+
+
 __all__ = [
+    "GetWorldLinkRequest",
+    "WorldLinkResponse",
     "GetIgnoredPlayersRequest",
     "IgnoredPlayer",
     "IgnoreList",
