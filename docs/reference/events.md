@@ -77,7 +77,7 @@ Both return typed acknowledgements without inventing a boss status. The existing
 broadcast handler updates the event in receive order; use `get_raid_boss_status()` to request
 a fresh snapshot. Refusals raise `CommandError`; timeouts and malformed replies raise.
 
-## Battle for Berimond reads
+## Battle for Berimond
 
 `get_berimond_targets()` requests the event’s special camp candidate identifiers and
 returns a tuple of `BerimondTarget` records in server order. Each `special_camp_id` is
@@ -85,8 +85,9 @@ an opaque event camp identifier; unknown identifiers and duplicates are preserve
 Membership in this list does not establish attack eligibility: faction, spectator,
 protection and destroyed-target restrictions still apply.
 These identifiers are not map area ids or coordinates. Obtain map positions separately;
-`client.attack.get_attack_info()` already supports Berimond village, tower and capital
-attack pre-calculations through its `area_type` argument.
+`client.attack.get_attack_info()` supports Berimond village, tower and capital
+attack pre-calculations through its `area_type` argument, and the faction camp conquest
+(`cfi`) with `area_type=MapItemType.FACTION_CAMP, conquer=True`.
 
 `get_berimond_balance()` returns a `BerimondBalance` with `red_players` and `blue_players`.
 Negative counts clamp to zero as in the client. No faction percentage is inferred when
@@ -96,5 +97,18 @@ Both reads require a running Battle for Berimond event, accept keyword-only `tim
 and return fresh results without caching them. Choosing or joining a faction is not
 required. Refusals raise `CommandError`, transport failures retain their typed exception,
 and missing or malformed successful payloads raise `PacketError`.
+
+`get_berimond_points()` returns `BerimondPoints`, the `red_points` and `blue_points` of
+the two factions.
+
+`join_berimond(camp_id)` joins the event with one of its prebuilt camps. The camp whose
+only price is rubies needs `ruby_camp=True` and `spend_rubies=True`; `spend_rubies` also
+pays any missing resources with rubies. A refusal, such as
+`FACTION_LAST_MAN_STANDING_ACTIVE`, raises `CommandError`.
+
+`berimond_kingdom_status` sends nothing: it is the last `BerimondKingdomStatus` (`fki`),
+pushed on its own or inside a `kpi`, kept on the running `BerimondEvent` as
+`kingdom_status`. It says whether last man standing is on for either faction, whether
+you still take part, and which capital is open to attack.
 
 ::: empire_core.events.faction_models

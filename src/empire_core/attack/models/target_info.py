@@ -1,18 +1,32 @@
 """Attack pre-calculation for other targets, and conquest pre-calculation.
 
 Commands:
-- adi, abi, ali, avi, aii: Attack pre-calculation per kind of target
-- coi, cci, cti: Conquest pre-calculation
+- adi, abi, ali, avi, aii, gti: Attack pre-calculation per kind of target
+- acc: Collector attack pre-calculation
+- tai: Treasure map node attack pre-calculation
+- coi, cci, cti, cfi: Conquest pre-calculation
 """
 
 from __future__ import annotations
 
-from pydantic import Field
+import logging
+from typing import TYPE_CHECKING
 
+from pydantic import Field, ValidatorFunctionWrapHandler, field_validator, model_validator
+
+from empire_core.army.models.units import UnitInventory
+from empire_core.army.spy_army import SpyArmyBlock
+from empire_core.commanders.models.roster import Commander
 from empire_core.enums import Kingdom
-from empire_core.protocol.base import BaseRequest
+from empire_core.gamedata import EnumOrInt
+from empire_core.protocol.base import BaseRequest, BaseResponse, int_entries, read_or_none
 
 from .info import AttackInfoResponse, GetAttackInfoResponse
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import LegendSkill
+
+logger = logging.getLogger(__name__)
 
 # =============================================================================
 # ADI / ABI / ALI / AVI / AII - Attack pre-calculation for other targets
@@ -184,6 +198,166 @@ class GetIslandAttackInfoResponse(GetAttackInfoResponse):
     command = "aii"
 
 
+class GetAllianceTowerAttackInfoRequest(BaseRequest):
+    """
+    Ask for the attack pre-calculation against an alliance battleground tower.
+
+    ``C2S_GET_TREASURE_INFO`` shares the ``gti`` id; the client builds no request for it.
+
+    Command: gti
+    Payload: {"TX": target_x, "TY": target_y, "SX": source_x, "SY": source_y, "KID": kingdom_id}
+
+    Client: ``C2SGetAttackABGTowerInfosVO`` (bundle line 72033),
+    ``CastleStartAttackDialog.attackABGTower`` (bundle line 14834),
+    ``ABGAllianceTowerMapobjectVO.attackType`` (bundle line 32324).
+    """
+
+    command = "gti"
+
+    target_x: int = Field(validation_alias="TX", description="Target map x")
+    target_y: int = Field(validation_alias="TY", description="Target map y")
+    source_x: int = Field(validation_alias="SX", description="Attacking castle's map x")
+    source_y: int = Field(validation_alias="SY", description="Attacking castle's map y")
+    kingdom_id: Kingdom = Field(validation_alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target")
+
+
+class GetAllianceTowerAttackInfoResponse(GetAttackInfoResponse):
+    """
+    The attack pre-calculation for an alliance battleground tower, read as a castle's is.
+
+    The server refuses it with PLAYER_HAS_NOOB_PROTECTION, TARGET_HAS_PEACE or
+    SPECIALCAMP_PROTECTED besides the usual errors.
+
+    Command: gti
+
+    Client: ``GTICommand.executeCommand`` (bundle line 122350), ``CastleAttackData.parse_GTI`` (133873).
+    """
+
+    command = "gti"
+
+
+class GetCollectorAttackInfoRequest(BaseRequest):
+    """
+    Ask for the attack pre-calculation of a collector attack, the attack the collector events add to a castle.
+
+    Command: acc
+    Payload: {"TX": target_x, "TY": target_y, "SX": source_x, "SY": source_y, "KID": kingdom_id}
+
+    Client: ``C2SGetCollectorAttackInfoVO`` (bundle line 72060),
+    ``CastleStartAttackDialog.attackCollector`` (bundle line 14836).
+    """
+
+    command = "acc"
+
+    target_x: int = Field(validation_alias="TX", description="Target map x")
+    target_y: int = Field(validation_alias="TY", description="Target map y")
+    source_x: int = Field(validation_alias="SX", description="Attacking castle's map x")
+    source_y: int = Field(validation_alias="SY", description="Attacking castle's map y")
+    kingdom_id: Kingdom = Field(validation_alias="KID", default=Kingdom.GREEN, description="Kingdom id of the target")
+
+
+class GetCollectorAttackInfoResponse(GetAttackInfoResponse):
+    """
+    The pre-calculation of a collector attack, with the collector currency the target holds.
+
+    Command: acc
+
+    Client: ``ACCCommand.executeCommand`` (bundle line 122185), ``CastleAttackData.parse_ACC`` (133893).
+    """
+
+    command = "acc"
+
+    collector_currency_amount: int = Field(
+        validation_alias="CCA", default=0, description="Collector currency the target holds"
+    )
+
+
+# =============================================================================
+# TAI - Treasure map node attack pre-calculation
+# =============================================================================
+
+
+class GetTreasureNodeAttackInfoRequest(BaseRequest):
+    """
+    Ask for the attack pre-calculation against a node of a treasure map.
+
+    Command: tai
+    Payload: {"MID": map_id, "NID": node_id}
+
+    Client: ``C2SAttackInfoTreasureDungeonVO`` (bundle line 33261), sent by the ``onClickMapItem`` of
+    ``DungeonSeasonMapScreenItem``, ``VillageSeasonMapScreenItem`` and ``CastleTreasureMapItemDungeon``
+    (bundle lines 39521, 39550, 67766).
+    """
+
+    command = "tai"
+
+    map_id: int = Field(validation_alias="MID", description="The treasure map")
+    node_id: int = Field(validation_alias="NID", description="The node on the treasure map")
+
+
+class GetTreasureNodeAttackInfoResponse(BaseResponse):
+    """
+    The attack pre-calculation for a treasure map node: your units and the spy report.
+
+    The target's level, walls and gates come from the treasure map's own data, not the reply.
+
+    Command: tai
+
+    Client: ``TAICommand.executeCommand`` (bundle line 129012), ``CastleTreasureMapData.parse_TAI``
+    (140468), ``CastleTreasureHuntFightscreenVO.fillFromParamObject`` (140505), which reads only these
+    keys and passes ``S``, ``AS``, ``B`` and ``LS`` to ``CastleSpyArmyInfoVO.parseArmyInfo`` (24515).
+    """
+
+    command = "tai"
+
+    map_id: int = Field(validation_alias="MID", description="The treasure map")
+    node_id: int = Field(validation_alias="NID", description="The node on the treasure map")
+    spy_army: SpyArmyBlock = Field(
+        validation_alias="S",
+        default=None,
+        description="The spied defenders by the position they hold; None without a spy report",
+    )
+    spy_age_seconds: int = Field(
+        validation_alias="AS",
+        default=-1,
+        description="Seconds since the target was spied; -1 when there is no spy report",
+    )
+    spied_castellan: Commander | None = Field(
+        validation_alias="B", default=None, description="The castellan defending the node, from the spy report"
+    )
+    defender_legend_skill_ids: tuple[EnumOrInt["LegendSkill"], ...] = Field(
+        validation_alias="LS",
+        default=(),
+        description="The defender's legend skills, part of the spy report",
+    )
+    unit_inventory: UnitInventory = Field(
+        validation_alias="gui",
+        default_factory=UnitInventory,
+        description="The attacker's units and tools, and its stronghold units",
+    )
+
+    @field_validator("spied_castellan", mode="wrap")
+    @classmethod
+    def _castellan_or_none(cls, value: object, handler: ValidatorFunctionWrapHandler) -> Commander | None:
+        if not value:
+            return None
+        return read_or_none(handler, value, warn=logger, what="the defending castellan of a treasure node")
+
+    @field_validator("defender_legend_skill_ids", mode="before")
+    @classmethod
+    def _legend_skills(cls, value: object) -> list[int]:
+        return int_entries(value, warn=logger, what="legend skills of a treasure node pre-calculation")
+
+    @model_validator(mode="after")
+    def _no_spy_report_without_an_army(self) -> "GetTreasureNodeAttackInfoResponse":
+        """Client: ``CastleSpyArmyInfoVO.parseArmyInfo`` reads the rest only when S is not empty."""
+        if self.spy_army is None:
+            self.spy_age_seconds = -1
+            self.spied_castellan = None
+            self.defender_legend_skill_ids = ()
+        return self
+
+
 # =============================================================================
 # COI / CCI / CTI - Conquest pre-calculation
 # =============================================================================
@@ -225,6 +399,38 @@ class GetOutpostConquerInfoResponse(AttackInfoResponse):
 
     available_barons: int = Field(validation_alias="AB", default=0, description="Barons free to lead the conquest")
     max_barons: int = Field(validation_alias="MB", default=0, description="Most barons the player may hold")
+
+
+class GetFactionCampConquerInfoRequest(BaseRequest):
+    """
+    Ask for the conquest pre-calculation against a Berimond faction camp.
+
+    Command: cfi
+    Payload: {"KID": kingdom_id, "TX": target_x, "TY": target_y, "SX": source_x, "SY": source_y}
+
+    Client: ``C2SConquerInfoFactioncampVO`` (bundle line 72096),
+    ``CastleStartAttackDialog.conquerFactionCamp`` (bundle line 14848).
+    """
+
+    command = "cfi"
+
+    kingdom_id: Kingdom = Field(validation_alias="KID", description="Kingdom id of the target")
+    target_x: int = Field(validation_alias="TX", description="Target map x")
+    target_y: int = Field(validation_alias="TY", description="Target map y")
+    source_x: int = Field(validation_alias="SX", description="Attacking camp's map x")
+    source_y: int = Field(validation_alias="SY", description="Attacking camp's map y")
+
+
+class GetFactionCampConquerInfoResponse(GetOutpostConquerInfoResponse):
+    """
+    The conquest pre-calculation for a faction camp, read as the outpost one is.
+
+    Command: cfi
+
+    Client: ``CFICommand.executeCommand`` (bundle line 127772), ``CastleAttackData.parse_COI`` (133887).
+    """
+
+    command = "cfi"
 
 
 class GetCapitalConquerInfoRequest(BaseRequest):
@@ -308,4 +514,12 @@ __all__ = [
     "GetCapitalConquerInfoResponse",
     "GetMetropolConquerInfoRequest",
     "GetMetropolConquerInfoResponse",
+    "GetFactionCampConquerInfoRequest",
+    "GetFactionCampConquerInfoResponse",
+    "GetAllianceTowerAttackInfoRequest",
+    "GetAllianceTowerAttackInfoResponse",
+    "GetCollectorAttackInfoRequest",
+    "GetCollectorAttackInfoResponse",
+    "GetTreasureNodeAttackInfoRequest",
+    "GetTreasureNodeAttackInfoResponse",
 ]

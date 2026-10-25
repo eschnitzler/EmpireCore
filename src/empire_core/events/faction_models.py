@@ -1,12 +1,14 @@
-"""Battle for Berimond target eligibility and faction population reads."""
+"""Battle for Berimond: targets, faction balance and points, joining, and the kingdom status."""
 
 from __future__ import annotations
 
 from typing import Any, ClassVar
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_serializer, field_validator
 
+from empire_core.enums import Kingdom
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse
+from empire_core.protocol.js import ClientInt, js_loose_equals
 
 
 class BerimondTarget(BasePayload):
@@ -63,3 +65,89 @@ class BerimondBalance(BaseResponse):
     @classmethod
     def _population(cls, value: int) -> int:
         return max(value, 0)
+
+
+class GetBerimondPointsRequest(BaseRequest):
+    """Client: ``C2SGetFactionPointsVO`` (bundle 66177), empty request, sent by the world map (66094)."""
+
+    command: ClassVar[str] = "gfp"
+
+
+class BerimondPoints(BaseResponse):
+    """The red and blue factions' points.
+
+    Client: ``GFPCommand.executeCommand`` (bundle 127917), which reads them only when either is set,
+    ``FactionEventVO.parseFactionPointsFromParamObject`` (7376).
+    """
+
+    command: ClassVar[str] = "gfp"
+    red_points: ClientInt = Field(validation_alias="RFP", default=0, description="The red faction's points")
+    blue_points: ClientInt = Field(validation_alias="BFP", default=0, description="The blue faction's points")
+
+
+class SelectBerimondCampRequest(BaseRequest):
+    """Join Battle for Berimond with one of its prebuilt camps.
+
+    Client: ``C2SSelectFactionCampVO`` (bundle 47692), sent by ``FactionEventJoinSublayer.buyCamp``
+    (95197) and, paying the missing resources, by ``CastleResourceWaitDialogProperties`` (35237).
+    """
+
+    command: ClassVar[str] = "fsc"
+    camp_id: int = Field(validation_alias="ID", description="The prebuilt camp to start with")
+    pay_with_rubies: bool = Field(
+        validation_alias="PWR", default=False, description="Pay the missing resources with rubies"
+    )
+    ruby_camp: bool = Field(validation_alias="OC2", default=False, description="The camp is the one bought with rubies")
+    kingdom_id: Kingdom = Field(validation_alias="SID", default=Kingdom.BERIMOND, description="Berimond's kingdom")
+
+    @field_serializer("pay_with_rubies", "ruby_camp")
+    def _flag(self, value: bool) -> int:
+        return int(value)
+
+
+class SelectBerimondCampResponse(BaseResponse):
+    """Client: ``FSCCommand.executeCommand`` (bundle 127885) reads nothing from the reply."""
+
+    command: ClassVar[str] = "fsc"
+
+
+class BerimondKingdomStatus(BaseResponse):
+    """Last man standing, your part in the event and which capital each faction can reach.
+
+    Pushed on its own and inside a ``kpi``; the client keeps it on the running event.
+
+    Client: ``FKICommand.executeCommand`` (bundle 127859), ``CastleKingdomData.parse_KPI`` (134604),
+    ``FactionEventVO.parse_FKI`` (7365), which takes each flag as ``1 == value``;
+    ``isOtherCapitalReachable`` (7430) and ``AFactionAttackBox.updateButton`` (54672) for their meaning.
+    """
+
+    command: ClassVar[str] = "fki"
+    blue_last_man_standing: bool = Field(
+        validation_alias="BFLMS", default=False, description="Last man standing is on for the blue faction"
+    )
+    red_last_man_standing: bool = Field(
+        validation_alias="RFLMS", default=False, description="Last man standing is on for the red faction"
+    )
+    active_in_event: bool = Field(
+        validation_alias="PA",
+        default=False,
+        description="You may still attack and send troops; False once last man standing shuts you out",
+    )
+    blue_capital_reachable: bool = Field(
+        validation_alias="BCR", default=False, description="The blue capital is open to attack: its towers are down"
+    )
+    red_capital_reachable: bool = Field(
+        validation_alias="RCR", default=False, description="The red capital is open to attack: its towers are down"
+    )
+
+    @field_validator(
+        "blue_last_man_standing",
+        "red_last_man_standing",
+        "active_in_event",
+        "blue_capital_reachable",
+        "red_capital_reachable",
+        mode="before",
+    )
+    @classmethod
+    def _one(cls, value: Any) -> bool:
+        return js_loose_equals(value, 1)

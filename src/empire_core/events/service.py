@@ -48,10 +48,14 @@ from .board_models import (
 )
 from .faction_models import (
     BerimondBalance,
+    BerimondKingdomStatus,
+    BerimondPoints,
     BerimondTarget,
     GetBerimondBalanceRequest,
+    GetBerimondPointsRequest,
     GetBerimondTargetsRequest,
     GetBerimondTargetsResponse,
+    SelectBerimondCampRequest,
 )
 from .models import (
     EVENT_SCOREBOARDS,
@@ -459,6 +463,45 @@ class EventsService(BaseService):
         """
         self._require_running(Event.FACTION)
         return self.request(GetBerimondBalanceRequest(), BerimondBalance, timeout=timeout)
+
+    def get_berimond_points(self, *, timeout: float = 5.0) -> BerimondPoints:
+        """Request the red and blue faction points in Battle for Berimond.
+
+        Requires the running event.
+        Client: ``C2SGetFactionPointsVO`` (bundle 66177), ``GFPCommand`` (127917).
+        """
+        self._require_running(Event.FACTION)
+        return self.request(GetBerimondPointsRequest(), BerimondPoints, timeout=timeout)
+
+    def join_berimond(
+        self, camp_id: int, *, ruby_camp: bool = False, spend_rubies: bool = False, timeout: float = 5.0
+    ) -> None:
+        """Join Battle for Berimond with one of its prebuilt camps.
+
+        ``ruby_camp`` takes the camp whose only price is rubies, and needs ``spend_rubies``.
+        Otherwise ``spend_rubies`` pays any missing resources with rubies.
+
+        Raises:
+            EventNotRunningError: Battle for Berimond is not running
+            ValueError: ``ruby_camp`` without ``spend_rubies``
+            CommandError: The server refused, e.g. ``FACTION_LAST_MAN_STANDING_ACTIVE``
+
+        Client: ``FactionEventJoinSublayer.buyCamp`` (bundle 95197),
+        ``CastleResourceWaitDialogProperties.getResourceSkipCommand`` (35237),
+        ``PrebuiltCastleItemVO.isPremium`` (142354), ``FSCCommand`` (127885).
+        """
+        self._require_running(Event.FACTION)
+        self._require_spend_rubies(spend_rubies, "the ruby camp costs rubies" if ruby_camp else None)
+        request = SelectBerimondCampRequest(
+            camp_id=camp_id, pay_with_rubies=spend_rubies and not ruby_camp, ruby_camp=ruby_camp
+        )
+        self.execute(request, timeout=timeout)
+
+    @property
+    def berimond_kingdom_status(self) -> BerimondKingdomStatus | None:
+        """Battle for Berimond's last kingdom status; None while it is not running or none has come."""
+        event = self.client.state.get_event(Event.FACTION)
+        return event.kingdom_status if event is not None else None
 
     def _require_running(self, event: Event | int) -> SpecialEvent:
         found = self.client.state.get_event(event)

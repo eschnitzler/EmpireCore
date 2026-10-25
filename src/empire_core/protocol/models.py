@@ -245,12 +245,18 @@ from empire_core.attack.models.presets import (
 )
 from empire_core.attack.models.send import CreateAttackRequest, CreateAttackResponse
 from empire_core.attack.models.target_info import (
+    GetAllianceTowerAttackInfoRequest,
+    GetAllianceTowerAttackInfoResponse,
     GetBossDungeonAttackInfoRequest,
     GetBossDungeonAttackInfoResponse,
     GetCapitalConquerInfoRequest,
     GetCapitalConquerInfoResponse,
+    GetCollectorAttackInfoRequest,
+    GetCollectorAttackInfoResponse,
     GetDungeonAttackInfoRequest,
     GetDungeonAttackInfoResponse,
+    GetFactionCampConquerInfoRequest,
+    GetFactionCampConquerInfoResponse,
     GetIslandAttackInfoRequest,
     GetIslandAttackInfoResponse,
     GetLandmarkAttackInfoRequest,
@@ -259,6 +265,8 @@ from empire_core.attack.models.target_info import (
     GetMetropolConquerInfoResponse,
     GetOutpostConquerInfoRequest,
     GetOutpostConquerInfoResponse,
+    GetTreasureNodeAttackInfoRequest,
+    GetTreasureNodeAttackInfoResponse,
     GetVillageAttackInfoRequest,
     GetVillageAttackInfoResponse,
 )
@@ -507,10 +515,15 @@ from empire_core.events.board_models import (
 )
 from empire_core.events.faction_models import (
     BerimondBalance,
+    BerimondKingdomStatus,
+    BerimondPoints,
     BerimondTarget,
     GetBerimondBalanceRequest,
+    GetBerimondPointsRequest,
     GetBerimondTargetsRequest,
     GetBerimondTargetsResponse,
+    SelectBerimondCampRequest,
+    SelectBerimondCampResponse,
 )
 from empire_core.events.status_models import (
     AbortRaidRequest,
@@ -1042,6 +1055,14 @@ __all__ = [
     "GetLandmarkAttackInfoResponse",
     "GetMetropolConquerInfoRequest",
     "GetMetropolConquerInfoResponse",
+    "GetFactionCampConquerInfoRequest",
+    "GetFactionCampConquerInfoResponse",
+    "GetAllianceTowerAttackInfoRequest",
+    "GetAllianceTowerAttackInfoResponse",
+    "GetCollectorAttackInfoRequest",
+    "GetCollectorAttackInfoResponse",
+    "GetTreasureNodeAttackInfoRequest",
+    "GetTreasureNodeAttackInfoResponse",
     "GetOutpostConquerInfoRequest",
     "GetOutpostConquerInfoResponse",
     "GetVillageAttackInfoRequest",
@@ -1441,6 +1462,11 @@ __all__ = [
     "GetBerimondTargetsRequest",
     "GetBerimondTargetsResponse",
     "GetBerimondBalanceRequest",
+    "BerimondKingdomStatus",
+    "BerimondPoints",
+    "GetBerimondPointsRequest",
+    "SelectBerimondCampRequest",
+    "SelectBerimondCampResponse",
     "AllianceUpgradeRequest",
     "AllianceUpgradeResponse",
 ]

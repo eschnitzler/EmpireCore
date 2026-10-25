@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Annotated, Any, ClassVar, NoReturn, TypeVar
 from pydantic import AfterValidator, ConfigDict, Field, SerializeAsAny, ValidationError
 
 from empire_core.enums import RankingType
+from empire_core.events.faction_models import BerimondKingdomStatus
 from empire_core.events.status_models import GrandTournamentQuestStatus, RaidBossStatus
 from empire_core.exceptions import ReplyMismatchError
 from empire_core.gamedata import EnumOrInt, RewardId
@@ -699,7 +700,7 @@ class BerimondEvent(SpecialEvent):
 
     Client: ``FactionEventVO.parseData`` (bundle line 7354) builds the league scores anew,
     ``parseParamObject`` and ``loadFactionDataFromParamObject`` (bundle lines 7364-7365), the
-    defaults at bundle line 7353; ``setRankAndPoints`` (bundle line 7461)
+    defaults at bundle line 7353; ``setRankAndPoints`` (bundle line 7461); ``parse_FKI`` (bundle line 7365)
     """
 
     league_id: int = Field(default=1, validation_alias="LID", description="Your league")
@@ -715,6 +716,9 @@ class BerimondEvent(SpecialEvent):
     )
     beginner_protection_end: float = Field(
         default=0.0, description="When your beginner protection ends, in time.monotonic() seconds"
+    )
+    kingdom_status: BerimondKingdomStatus | None = Field(
+        default=None, description="The last kingdom status (fki), kept across event entries"
     )
 
     @classmethod

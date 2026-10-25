@@ -706,6 +706,8 @@ class TestTargetPrecalculation:
             (10, "avi", {"KID", "TX", "TY"}),
             # attackIsland / C2SAttackInfoIslandVO
             (24, "aii", {"KID", "TX", "TY"}),
+            # attackABGTower / C2SGetAttackABGTowerInfosVO
+            (41, "gti", {"TX", "TY", "SX", "SY", "KID"}),
         ],
     )
     def test_the_command_follows_the_area_type(self, area_type, command, keys):
@@ -726,10 +728,105 @@ class TestTargetPrecalculation:
 
         assert conn(client).request_payloads[0] == (command, {"KID": 0, "TX": 700, "TY": 710})
 
+    def test_a_faction_camp_conquest_asks_cfi_with_the_source(self):
+        client = make_client(castles=OWN)
+
+        client.attack.get_attack_info(
+            700, 710, 5, 6, kingdom_id=Kingdom.BERIMOND, area_type=MapItemType.FACTION_CAMP, conquer=True
+        )
+
+        assert conn(client).request_payloads[0] == ("cfi", {"KID": 10, "TX": 700, "TY": 710, "SX": 5, "SY": 6})
+
+    def test_a_faction_camp_conquest_reads_its_barons(self):
+        from empire_core.protocol.models import GetFactionCampConquerInfoResponse
+
+        client = make_client({"cfi": xt_packet("cfi", dict(LIVE_ADI, AB=1, MB=3))}, castles=OWN)
+
+        info = client.attack.get_attack_info(
+            700, 710, 5, 6, kingdom_id=Kingdom.BERIMOND, area_type=MapItemType.FACTION_CAMP, conquer=True
+        )
+
+        assert isinstance(info, GetFactionCampConquerInfoResponse)
+        assert (info.available_barons, info.max_barons) == (1, 3)
+
+    def test_an_alliance_tower_reply_reads_as_a_castles(self):
+        from empire_core.protocol.models import GetAllianceTowerAttackInfoResponse
+
+        client = make_client({"gti": xt_packet("gti", dict(LIVE_ALI, MB=40))}, castles=OWN)
+
+        info = client.attack.get_attack_info(630, 240, 5, 6, area_type=MapItemType.ALLIANCE_BATTLE_GROUND_TOWER)
+
+        assert isinstance(info, GetAllianceTowerAttackInfoResponse)
+        assert info.morality == 40
+        assert [record.owner_id for record in info.owner_records()] == [6537608]
+
+    def test_an_alliance_tower_refusal_raises(self):
+        client = make_client({"gti": xt_packet("gti", error_code=204)}, castles=OWN)
+
+        with pytest.raises(CommandError):
+            client.attack.get_attack_info(630, 240, 5, 6, area_type=MapItemType.ALLIANCE_BATTLE_GROUND_TOWER)
+
+    def test_a_collector_attack_sends_acc_and_reads_the_currency(self):
+        client = make_client({"acc": xt_packet("acc", dict(LIVE_ALI, CCA=750, MB=20))}, castles=OWN)
+
+        info = client.attack.get_collector_attack_info(630, 240, 5, 6, kingdom_id=Kingdom.SANDS)
+
+        assert conn(client).request_payloads[0] == ("acc", {"TX": 630, "TY": 240, "SX": 5, "SY": 6, "KID": 1})
+        assert (info.collector_currency_amount, info.morality) == (750, 20)
+        assert info.target_row()[:3] == [23, 630, 240]
+
+    def test_a_refused_collector_attack_raises(self):
+        client = make_client({"acc": xt_packet("acc", error_code=131)}, castles=OWN)
+
+        with pytest.raises(CommandError):
+            client.attack.get_collector_attack_info(630, 240, 5, 6)
+
+    def test_a_treasure_node_sends_tai_and_reads_the_spy_report(self):
+        reply = {
+            "MID": 3,
+            "NID": 17,
+            "S": [[[601, 10]], [], [], [], [], [], []],
+            "AS": 120,
+            "abe": {"ID": 9},
+            "B": {"ID": 3},
+            "LS": [434],
+            "gui": {"I": [[601, 5], [601, 2]], "SHI": [[620, 1]]},
+            "AE": [[1, [5], "x"]],
+            "SCID": 2003,
+        }
+        client = make_client({"tai": xt_packet("tai", reply)}, castles=OWN)
+
+        info = client.attack.get_treasure_node_attack_info(3, 17)
+
+        assert conn(client).request_payloads[0] == ("tai", {"MID": 3, "NID": 17})
+        assert (info.map_id, info.node_id, info.spy_age_seconds) == (3, 17, 120)
+        assert info.spy_army is not None
+        # parse_TAI reads B only, never abe
+        assert info.spied_castellan is not None and info.spied_castellan.commander_id == 3
+        assert info.defender_legend_skill_ids == (434,)
+        assert (dict(info.unit_inventory.units), dict(info.unit_inventory.stronghold)) == ({601: 7}, {620: 1})
+        assert not hasattr(info, "attacker_effects")
+
+    def test_a_treasure_node_without_a_spy_report(self):
+        from empire_core.protocol.models import GetTreasureNodeAttackInfoResponse
+
+        info = GetTreasureNodeAttackInfoResponse.model_validate(
+            {"MID": 3, "NID": 17, "S": [], "AS": 120, "B": {"ID": 3}, "LS": [434], "gui": {"I": [], "SHI": []}}
+        )
+
+        assert (info.spy_army, info.spy_age_seconds, info.spied_castellan) == (None, -1, None)
+        assert info.defender_legend_skill_ids == ()
+
+    def test_a_refused_treasure_node_raises(self):
+        client = make_client({"tai": xt_packet("tai", error_code=114)}, castles=OWN)
+
+        with pytest.raises(CommandError):
+            client.attack.get_treasure_node_attack_info(3, 17)
+
     @pytest.mark.parametrize(
         ("area_type", "conquer"),
         # 7: treasure dungeons are pre-calculated with tai from the treasure-map screens, never adi
-        [(41, False), (14, False), (0, False), (9, False), (15, False), (1, True), (7, False)],
+        [(14, False), (0, False), (9, False), (15, False), (1, True), (7, False)],
     )
     def test_an_unmodelled_target_is_refused_before_sending(self, area_type, conquer):
         client = make_client(castles=OWN)
