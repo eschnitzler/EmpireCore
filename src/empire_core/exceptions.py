@@ -20,7 +20,8 @@ Failure modes are kept distinct so callers can react to them individually:
 
 from typing import Any
 
-from empire_core.enums import GGEError, VersionCheckStatus
+from empire_core.enums import GGEError, ProductionListId, VersionCheckStatus
+from empire_core.gamedata.lenient import EnumOrInt, known
 from empire_core.texts import cached_text
 
 
@@ -332,6 +333,27 @@ class AttackInProgressError(CommandError):
         self.army_size: float | None = details.get("AS")
 
 
+class ProductionSlotsNeededError(CommandError):
+    """The server refused a recruitment loop or a queue copy with ``NO_FREE_CONSTRUCTION_SLOT`` (63).
+
+    The list has too few unlocked slots for the queue; the client offers to unlock the missing ones.
+
+    Attributes:
+        list_id: the list short of slots (``LID``), or None
+        missing_slots: how many slots to unlock (``AMT``), or None
+
+    Client: ``URLCommand.executeCommand`` (bundle line 126836) and ``DRLCommand.executeCommand``
+    (bundle line 126706) open ``AutoRecruitmentBuyRecruitmentSlots`` with ``LID`` and ``AMT``.
+    """
+
+    def __init__(self, command: str, code: int, payload: Any = None):
+        super().__init__(command, code, payload)
+        details = payload if isinstance(payload, dict) else {}
+        list_id = details.get("LID")
+        self.list_id: EnumOrInt[ProductionListId] | None = None if list_id is None else known(ProductionListId, list_id)
+        self.missing_slots: int | None = details.get("AMT")
+
+
 class AttackBelowMinimumError(EmpireError, ValueError):
     """An attack's waves carry fewer units than the client lets it send.
 
@@ -454,6 +476,7 @@ __all__ = [
     "UnknownCastleError",
     "CommandError",
     "AttackInProgressError",
+    "ProductionSlotsNeededError",
     "AttackBelowMinimumError",
     "UnsendableGoodsError",
     "PremiumCommanderCostError",

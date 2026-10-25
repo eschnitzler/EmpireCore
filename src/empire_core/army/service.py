@@ -10,7 +10,7 @@ Actions raise ``CommandError`` when the server refuses them; a refused join rais
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING
 
 from empire_core.army.models.hospital import (
@@ -35,9 +35,22 @@ from empire_core.army.models.production import (
     ProduceUnitsRequest,
     ProductionList,
     SetRecruitmentModeRequest,
+    SkipProductionSlotRequest,
+    SkipProductionSlotResponse,
+)
+from empire_core.army.models.recruitment_loop import (
+    DuplicateRecruitmentInfoRequest,
+    DuplicateRecruitmentInfoResponse,
+    DuplicateRecruitmentLoopRequest,
+    RecruitmentCopyDestination,
+    RecruitmentCopyTarget,
+    RecruitmentLoopSlot,
+    UpdateRecruitmentLoopRequest,
 )
 from empire_core.army.models.units import (
     DismissUnitsRequest,
+    GetCampUnitCapacityRequest,
+    GetCampUnitCapacityResponse,
     GetUnitsRequest,
     GetUnitsResponse,
     StoreSoldiersRequest,
@@ -47,7 +60,8 @@ from empire_core.army.models.units import (
     UnitInventory,
 )
 from empire_core.castle.models.actions import SelectCastleRequest, SelectCastleResponse
-from empire_core.enums import Kingdom, ProductionListId, RecruitmentMode, SlotType
+from empire_core.enums import GGEError, Kingdom, ProductionListId, RecruitmentMode, SlotType
+from empire_core.exceptions import CommandError, ProductionSlotsNeededError
 from empire_core.gamedata import UnitOrTool
 from empire_core.services.base import BaseService
 
@@ -142,6 +156,26 @@ class ArmyService(BaseService):
         self._join_castle(castle_id, timeout)
         request = DismissUnitsRequest(wod_id=wod_id, amount=amount, from_stronghold=1 if from_stronghold else 0)
         self.execute(request, timeout=timeout)
+
+    def get_camp_unit_capacity(self, camp_id: int, *, timeout: float = 5.0) -> int:
+        """
+        How many more soldiers a camp of the faction kingdom takes.
+
+        Your own main faction camp or a camp you send support to; no castle is joined first.
+
+        Args:
+            camp_id: The camp's area id
+            timeout: Timeout in seconds
+
+        Returns:
+            The soldiers the camp still takes, never below 0
+
+        Client: ``CastleTransferTroopsToKingdomProperties.additionalDataUpdateCommands`` (bundle line
+        37467) and ``CastleTroopSupportDialog.onSupportDefenceInfos`` (bundle line 129177) ask only for
+        faction kingdom camps; the reply goes through ``FUCCommand`` (bundle line 127902)
+        """
+        request = GetCampUnitCapacityRequest(camp_id=camp_id)
+        return self.request(request, GetCampUnitCapacityResponse, timeout=timeout).capacity
 
     # =========================================================================
     # Stronghold
@@ -319,6 +353,46 @@ class ArmyService(BaseService):
         )
         self.execute(request, timeout=timeout)
 
+    def skip_production_slot(
+        self,
+        castle_id: int,
+        list_id: ProductionListId,
+        position: int,
+        *,
+        spend_rubies: bool = False,
+        timeout: float = 5.0,
+    ) -> ProductionList | None:
+        """
+        Finish a production slot now, for rubies; see "Spending rubies" in the guides.
+
+        The live client never sends this: its skip button is for an A/B test group it reports no
+        account in, so the server may refuse it.
+
+        Args:
+            castle_id: One of your castles, a ``Castle.id`` from ``client.state.get_castles()``
+            list_id: SOLDIERS, TOOLS or AUXILIARIES
+            position: 0 for the slot producing now, else the slot's ``ProductionSlot.position``
+            spend_rubies: Allow the rubies it costs; without it nothing is sent
+            timeout: Timeout in seconds
+
+        Returns:
+            The list after the skip, or None when the reply carries none
+
+        Raises:
+            ValueError: ``spend_rubies`` is False, or the list is the hospital (see ``skip_heal``)
+
+        Client: ``RecruitmentHelper.skipSlot`` (bundle line 23176) from
+        ``CastleRecruitDialogUnits.boostCurrentSlot`` (bundle line 23661) when ``_useSkipButton``,
+        priced in rubies by ``updateSkipTooltip`` (bundle line 23557); ``_useSkipButton`` needs
+        ``ClientConstABTests.takesPartInSkipRecruitingTest`` (bundle line 18700)
+        """
+        if list_id == ProductionListId.HOSPITAL:
+            raise ValueError("hospital slots are finished with skip_heal")
+        self._require_spend_rubies(spend_rubies, "finishing a production slot costs rubies")
+        self._join_castle(castle_id, timeout)
+        request = SkipProductionSlotRequest(list_id=list_id, position=position)
+        return self.request(request, SkipProductionSlotResponse, timeout=timeout).production_list
+
     def move_production_slot(
         self,
         castle_id: int,
@@ -381,6 +455,134 @@ class ArmyService(BaseService):
         kingdom_id = self._join_castle(castle_id, timeout)
         request = SetRecruitmentModeRequest(list_id=list_id, kingdom_id=kingdom_id, castle_id=castle_id, mode=mode)
         self.execute(request, timeout=timeout)
+
+    # =========================================================================
+    # Recruitment loops
+    # =========================================================================
+
+    def start_recruitment_loop(
+        self,
+        castle_id: int,
+        list_id: ProductionListId,
+        loops: int,
+        *,
+        spend_rubies: bool = False,
+        timeout: float = 5.0,
+    ) -> None:
+        """
+        Repeat a list's queue ``loops`` times, for rubies; see "Spending rubies" in the guides.
+
+        Reads the list first (``spl``) and sends its queued slots, as the client sends the queue it
+        shows. The client opens this only from an ``lri`` it never asks for, so the server may refuse it.
+
+        Args:
+            castle_id: One of your castles, a ``Castle.id`` from ``client.state.get_castles()``
+            list_id: SOLDIERS, TOOLS or AUXILIARIES
+            loops: How many times to repeat the queue, at least 1
+            spend_rubies: Allow the loop fee, which is always in rubies; without it nothing is sent
+            timeout: Timeout in seconds
+
+        Raises:
+            ValueError: ``spend_rubies`` is False, the list is the hospital, or ``loops`` is below 1
+            ProductionSlotsNeededError: The list needs more unlocked slots first
+
+        Client: ``AAutoRecruitmentPurchaseDialog.sendConfirmToServer`` (bundle line 60527) with the
+        loops picked from 1 up (``updateLoopSelector``) and the queue from
+        ``AutoRecruitmentHelper.createAutoRecruitSnapshot`` (bundle line 36599); the fee is
+        ``AutoRecruitmentPriceData.getCosts``, in rubies (bundle line 142396)
+        """
+        if list_id == ProductionListId.HOSPITAL:
+            raise ValueError("the hospital list has no recruitment loop")
+        if loops < 1:
+            raise ValueError("a recruitment loop repeats the queue at least once")
+        self._require_spend_rubies(spend_rubies, "a recruitment loop costs rubies")
+        self._join_castle(castle_id, timeout)
+        production = self.request(GetProductionListRequest(list_id=list_id), GetProductionListResponse, timeout=timeout)
+        slots = [RecruitmentLoopSlot.from_slot(slot) for slot in production.queue if slot.wod_id >= 0]
+        request = UpdateRecruitmentLoopRequest(list_id=list_id, loops=loops, slots=slots)
+        self._execute_needing_slots(request, timeout)
+
+    def get_recruitment_copy_targets(
+        self, castle_id: int, list_id: ProductionListId, *, timeout: float = 5.0
+    ) -> list[RecruitmentCopyTarget]:
+        """
+        Your castles a list's queue can be copied to, with what each copy costs.
+
+        Args:
+            castle_id: The castle whose queue would be copied, a ``Castle.id`` from ``client.state.get_castles()``
+            list_id: SOLDIERS, TOOLS or AUXILIARIES
+            timeout: Timeout in seconds
+
+        Returns:
+            One entry per castle; ``RecruitmentCopyTarget.can_copy`` is False where the copy is refused
+
+        Client: ``AAutoRecruitmentCopyDialog.requestDRI`` (bundle line 51219), opened from the recruit
+        dialog's copy button (``CastleRecruitDialogUnits.onCopyProduction``, bundle line 23709)
+        """
+        kingdom = self._join_castle(castle_id, timeout)
+        request = DuplicateRecruitmentInfoRequest(list_id=list_id, castle_id=castle_id, kingdom=kingdom)
+        return self.request(request, DuplicateRecruitmentInfoResponse, timeout=timeout).targets
+
+    def copy_recruitment(
+        self,
+        castle_id: int,
+        list_id: ProductionListId,
+        targets: Sequence[RecruitmentCopyTarget],
+        *,
+        spend_rubies: bool = False,
+        timeout: float = 5.0,
+    ) -> None:
+        """
+        Copy a list's queue to other castles, for their ``RecruitmentCopyTarget`` costs.
+
+        Each copy costs the target's resources and its ``doubling_ruby_cost`` in rubies; see
+        "Spending rubies" in the guides.
+
+        Args:
+            castle_id: The castle whose queue is copied, a ``Castle.id`` from ``client.state.get_castles()``
+            list_id: The list ``targets`` came for
+            targets: Entries from ``get_recruitment_copy_targets``
+            spend_rubies: Allow targets whose ``doubling_ruby_cost`` is above 0
+            timeout: Timeout in seconds
+
+        Raises:
+            ValueError: No targets, a target the client would not let you pick, or rubies due
+                without ``spend_rubies``
+            ProductionSlotsNeededError: The list needs more unlocked slots first
+            CommandError: ``NOT_ENOUGH_RESOURCES`` and other refusals
+
+        Client: ``AAutoRecruitmentCopyDialog.onOkButton`` (bundle line 51255), enabled once a castle is
+        picked (``updateOkButton``); a castle with an ``EID`` cannot be picked
+        (``AAutoRecruitmentCopyListItemVE.updateGreyOut``, bundle line 36574); costs summed by
+        ``AutoRecruitmentCopyCostSublayer.getCurrentCosts`` (bundle line 83947)
+        """
+        if not targets:
+            raise ValueError("pick at least one castle to copy the queue to")
+        refused = [target.castle_id for target in targets if not target.can_copy]
+        if refused:
+            raise ValueError(f"castles {refused} cannot take the copy; see RecruitmentCopyTarget.refusal")
+        rubies = sum(target.doubling_ruby_cost for target in targets)
+        self._require_spend_rubies(spend_rubies, f"copying the queue costs {rubies} rubies" if rubies > 0 else None)
+        kingdom = self._join_castle(castle_id, timeout)
+        request = DuplicateRecruitmentLoopRequest(
+            list_id=list_id,
+            kingdom=kingdom,
+            castle_id=castle_id,
+            destinations=[
+                RecruitmentCopyDestination(kingdom=target.kingdom, castle_id=target.castle_id) for target in targets
+            ],
+        )
+        self._execute_needing_slots(request, timeout)
+
+    def _execute_needing_slots(
+        self, request: UpdateRecruitmentLoopRequest | DuplicateRecruitmentLoopRequest, timeout: float
+    ) -> None:
+        try:
+            self.execute(request, timeout=timeout)
+        except CommandError as e:
+            if e.error is GGEError.NO_FREE_CONSTRUCTION_SLOT:
+                raise ProductionSlotsNeededError(e.command, e.code, e.payload) from e
+            raise
 
     # =========================================================================
     # Hospital

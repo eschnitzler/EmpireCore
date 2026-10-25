@@ -5,6 +5,7 @@ Commands:
 - dup: Dismiss units
 - sts: Store soldiers in the stronghold
 - tas: Take soldiers out of the stronghold
+- fuc: How many more soldiers a faction camp takes
 
 AttackWave and WaveFlank are the waves a cra attack sends.
 """
@@ -17,6 +18,7 @@ from pydantic import BeforeValidator, Field
 
 from empire_core.gamedata import WodAmounts, WodAmountSlots, WodAmountSlotsInput
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, object_or_none
+from empire_core.protocol.js import js_int
 
 BUY_UNIT_PACKAGE_SK = 73
 """``SK`` of every ``bup``: each client caller leaves ``C2SBuyUnitPackageVO``'s
@@ -198,6 +200,50 @@ class TakeSoldiersResponse(BaseResponse, UnitInventory):
 
 
 # =============================================================================
+# FUC - Camp Unit Capacity
+# =============================================================================
+
+
+class GetCampUnitCapacityRequest(BaseRequest):
+    """
+    Ask how many more soldiers a camp of the faction kingdom takes.
+
+    Command: fuc
+    Payload: {"CID": camp_id}
+
+    Client: ``C2SGetCampUnitCapacity`` (bundle line 54623), sent for your main faction camp by
+    ``CastleTransferTroopsToKingdomProperties.additionalDataUpdateCommands`` (bundle line 37467) and
+    for the camp a support goes to by ``CastleTroopSupportDialog.onSupportDefenceInfos`` (bundle line 129177)
+    """
+
+    command = "fuc"
+
+    camp_id: int = Field(validation_alias="CID", description="The camp's area id")
+
+
+def _not_negative(value: Any) -> int:
+    return max(js_int(value), 0)
+
+
+class GetCampUnitCapacityResponse(BaseResponse):
+    """
+    How many more soldiers a camp takes.
+
+    Command: fuc
+    Payload: {"FUC": capacity}
+
+    Client: ``FUCCommand.executeCommand`` (bundle line 127902) passes ``Math.max(FUC, 0)`` on;
+    the transfer and support dialogs cap the soldiers sent at it (bundle lines 24386, 129195)
+    """
+
+    command = "fuc"
+
+    capacity: Annotated[int, BeforeValidator(_not_negative)] = Field(
+        validation_alias="FUC", default=0, description="Soldiers the camp still takes, never below 0"
+    )
+
+
+# =============================================================================
 # CRA - Create Attack
 # =============================================================================
 
@@ -267,4 +313,6 @@ __all__ = [
     "StoreSoldiersResponse",
     "TakeSoldiersRequest",
     "TakeSoldiersResponse",
+    "GetCampUnitCapacityRequest",
+    "GetCampUnitCapacityResponse",
 ]

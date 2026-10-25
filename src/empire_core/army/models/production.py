@@ -7,6 +7,7 @@ Commands:
 - mcu: Cancel a production slot
 - mup: Move a queued slot to another position
 - srm: Set a list's recruitment mode
+- sou: Finish a production slot now
 
 These act on the castle the session has joined (``jca``);
 ``bup`` and ``bou`` also name that castle and its kingdom.
@@ -579,6 +580,53 @@ class SetRecruitmentModeResponse(BaseResponse):
     command = "srm"
 
 
+# =============================================================================
+# SOU - Skip Unit Production
+# =============================================================================
+
+
+class SkipProductionSlotRequest(BaseRequest):
+    """
+    Finish a production slot of the joined castle now, for rubies.
+
+    Command: sou
+    Payload: {"LID": list_id, "S": position}
+
+    The client sends it only from the recruit dialog's skip button, which it shows only to the
+    ``takesPartInSkipRecruitingTest`` group, and that getter answers false (bundle line 18700).
+
+    Client: ``C2SSkipUnitPackageVO`` (bundle line 79082), built by ``RecruitmentHelper.skipSlot``
+    (bundle line 23176) from ``CastleRecruitDialogUnits.boostCurrentSlot`` (bundle line 23661)
+    """
+
+    command = "sou"
+
+    list_id: ProductionListId = Field(validation_alias="LID", description="The list the slot belongs to")
+    position: int = Field(
+        validation_alias="S",
+        description="0 for the slot producing now, its index in QS for a queued one",
+    )
+
+
+class SkipProductionSlotResponse(BaseResponse):
+    """
+    The production list after a ``sou``.
+
+    Command: sou
+    Payload: {"spl": {...}, "gcu": {...}}
+
+    Client: ``SOUCommand.executeCommand`` (bundle line 125699): ``spl`` to ``parse_SPL``,
+    ``gcu`` to ``CurrencyData.parseGCU``
+    """
+
+    command = "sou"
+
+    production_list: ProductionListBlock = Field(validation_alias="spl", default=None)
+    currencies: CurrencyBlock = Field(
+        validation_alias="gcu", default=None, description="Coins and rubies after the change"
+    )
+
+
 __all__ = [
     "ProductionList",
     "ProductionSlot",
@@ -597,4 +645,6 @@ __all__ = [
     "MoveProductionSlotResponse",
     "SetRecruitmentModeRequest",
     "SetRecruitmentModeResponse",
+    "SkipProductionSlotRequest",
+    "SkipProductionSlotResponse",
 ]

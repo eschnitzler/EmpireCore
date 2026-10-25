@@ -249,6 +249,13 @@ class GGECommand:
     TAS = "tas"  # Take soldiers from the stronghold
     MUP = "mup"  # Move a production slot
     SRM = "srm"  # Set a list's recruitment mode
+    SOU = "sou"  # Finish a production slot now (rubies)
+    LRI = "lri"  # What a recruitment loop costs
+    URL = "url"  # Loop a list's queue
+    CRL = "crl"  # Cancel a recruitment loop
+    DRI = "dri"  # Castles a list's queue can be copied to
+    DRL = "drl"  # Copy a list's queue to other castles
+    FUC = "fuc"  # Soldiers a faction camp still takes
 
     # Hospital
     HRU = "hru"  # Heal units

@@ -51,7 +51,25 @@ stack first or all stacks equally (`RecruitmentMode`).
 
 `double_production_slot` doubles a slot's units, for rubies. A unit with a ruby
 price, and paying missing resources with rubies, need `spend_rubies=True`; see
-[Spending rubies](index.md#spending-rubies).
+[Spending rubies](index.md#spending-rubies). `skip_production_slot` finishes a slot now, also for
+rubies; the client keeps that button for an A/B test group, so the server may refuse it.
+
+### Loops and copies
+
+```python
+targets = client.army.get_recruitment_copy_targets(12345, ProductionListId.SOLDIERS)
+picked = [target for target in targets if target.can_copy]
+client.army.copy_recruitment(12345, ProductionListId.SOLDIERS, picked, spend_rubies=True)
+```
+
+`get_recruitment_copy_targets` lists your other castles with what a copy of the queue costs
+there; `copy_recruitment` copies it, and needs `spend_rubies=True` when a target's
+`doubling_ruby_cost` is above 0. `start_recruitment_loop(castle_id, list_id, loops,
+spend_rubies=True)` repeats the queue, always for rubies. Both raise
+`ProductionSlotsNeededError`, with `missing_slots`, when the list needs more unlocked slots.
+
+`get_camp_unit_capacity(camp_id)` gives how many more soldiers a faction kingdom camp takes,
+yours or one you send support to.
 
 ## The hospital
 
