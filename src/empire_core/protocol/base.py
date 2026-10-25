@@ -304,6 +304,8 @@ class GGECommand:
     # Gifts
     CLB = "clb"  # Collect daily login bonus
     GPG = "gpg"  # Send gift to player
+    RGG = "rgg"  # Goodgames gift
+    RVE = "rve"  # Redeem a voucher code
 
     # Quests
     QSC = "qsc"  # Complete message quest
@@ -320,6 +322,17 @@ class GGECommand:
     RMC = "rmc"  # Request email change
     MNS = "mns"  # Newsletter subscription status
     CMC = "cmc"  # Cancel email change
+    RSM = "rsm"  # Send a verification mail again
+    SCD = "scd"  # Set name, mail or password
+    SPSLMS = "spslms"  # Set a password for the social login migration
+    SLMS = "slms"  # Social login migration status (push)
+    PSD = "psd"  # Scheduled account deletion (push)
+    CEM = "cem"  # Change your crest
+    GEM = "gem"  # Your crest (push)
+    LCA = "lca"  # Create the avatar: your first crest
+    BUS = "bus"  # Buy an unlocked crest symbol
+    GUS = "gus"  # Unlocked crest symbols (push)
+    MCD = "mcd"  # Messages sent today, per limited type (push)
     FCS = "fcs"  # Facebook connection status
 
     # Settings

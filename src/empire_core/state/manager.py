@@ -152,6 +152,7 @@ _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
     **dict.fromkeys(("tcn", "tgt", "tut", "msm"), ("tmp",)),
     "tkt": ("tmp", "gcu"),
     "tfm": ("thi", "tmp"),
+    "cem": ("gem", "gcu"),
 }
 
 # Replies that carry the decoration storages (sin), applied only on success: EBECommand, EBUCommand,
@@ -223,6 +224,8 @@ _SUCCESS_ONLY = frozenset(
     # HINCommand, SJCCommand, JJCCommand, HDCommand, AICCommand, GDACommand, GDCCommand, GDWCommand (bundle
     # lines 124591, 124681, 124666, 124371, 128188, 128283, 128298, 128313)
     | {"hin", "sjc", "jjc", "hdc", "aic", "gda", "gdc", "gdw"}
+    # GUSCommand, GNCICommand, PSDCommand (bundle lines 125060, 120604, 131797)
+    | {"gus", "gnci", "psd"}
 )
 
 
@@ -321,6 +324,12 @@ class GameState(
     ruby wishing well                    ``rww``                      re-login
     new relics flag                      ``nrf`` (pushed)             re-login
     frozen food production               ``DTS`` (pushed)             re-login
+    your coat of arms                    ``gem`` (pushed), ``cem``    re-login
+    symbols earned and unlocked          ``gus`` (pushed)             --
+    temporary name, password, email      ``scd``                      re-login
+    messages sent today                  ``mcd`` (pushed)             re-login
+    player name changes and cooldown     ``gnci``                     ``client.player.get_player_name_change_info()``
+    account deletion                     ``psd`` (pushed)             --
     gems and relic gems                  ``ggm``, ``gec`` (pushed)    ``client.equipment.get_gems()``
     loot boxes, key progress             ``gls`` (pushed)             re-login
     inventory space                      ``esl``, the crafting and    ``client.equipment.get_inventory_space()``
@@ -499,6 +508,9 @@ class GameState(
         "gda": "_handle_gda",
         "gdc": "_handle_gdc",
         "gdw": "_handle_gdw",
+        "gus": "_handle_gus",
+        "gnci": "_handle_gnci",
+        "psd": "_handle_psd",
     }
 
     def update_from_packet(self, cmd_id: str, payload: dict[str, Any], error_code: int = 0) -> None:
@@ -739,17 +751,19 @@ class GameState(
         "mir", "fjf", "bst", "sce", "see", "tee", "pep", "acm", "aqi", "acn", "cal", "ufp", "uht", "apt", "car", "bfs",
         the event minigames' "lws", "lwj", "lwc", "lwm", "dge", "cfc", "saf", "sap", "gdti", "ddi" and "vwc",
         the hunter's "hin", the judgement's "sjc" and "jjc", the hero's "hdc", the alliance camp push "aic", the
-        daimyo's "gda", "gdc" and "gdw" (each only a successful one),
+        daimyo's "gda", "gdc" and "gdw", the coat of arms symbols' "gus", the player name change's "gnci" and the
+        account deletion's "psd" (each only a successful one),
         the officers' school's "gtp" (only a successful one), the quest pushes "qli", "qst", "qpg", "qfi", "msp" and the
         campaign's "cqs", the castle pushes "rue", "kik", the gem push "gec", the faction protection reply "ffp", the
         rage points push "rpr", the alien reroll counts push "rce", the server kind "tse", the special server castles
         "tcc", the joined area's "jaa", "cmr", "rcc", "ghw", the events shutting down "sde", the map read "gaa" (refused
         too), the spy screen "ssi" (only a successful one) — and the login sections "gpi", "gxp", "gcu", "vip", "gal",
         "gcl", "gho", "uap", "gpc", "gms", "sei", "tei", "gli", "skl", "ain", "acl", "rei", "boi", "gmu", "ufa", "uar",
-        "vli", "gri", "cpi", "dql", "gai", "gatp", "bie", "pgl", "rww", "nrf", "DTS", "ggm", "gls", "esl", "kpi", "mpe",
-        "txi", "nec", "irc", "grc", "gll", "lrr", "tmp" and "thi", stamped whether they came inside a gbd, as a push of
-        their own or inside a reply that carries one ("sei" from a fjf or bst, "gli" from an arl, "ain" from an akm,
-        "rei" from a res, "kpi" from a kut, "tmp" from a tcn, ...), plus "gac" and "drt", which only come inside a gbd.
+        "vli", "gri", "cpi", "dql", "gai", "gatp", "bie", "pgl", "rww", "nrf", "DTS", "gem", "scd", "mcd", "ggm",
+        "gls", "esl", "kpi", "mpe", "txi", "nec", "irc", "grc", "gll", "lrr", "tmp" and "thi", stamped whether they
+        came inside a gbd, as a push of their own or inside a reply that carries one ("sei" from a fjf or bst, "gli"
+        from an arl, "ain" from an akm, "rei" from a res, "kpi" from a kut, "tmp" from a tcn, "gem" from a cem, ...),
+        plus "gac" and "drt", which only come inside a gbd.
         "gsm" and "rci" are stamped whenever mines or resource carts are applied, from their push or a jaa, cmr or rcc
         reply; "csl" and "gab" from their push or a jaa, the push even when no area was joined to apply it to. A send
         reply is stamped even when the server refused the send; the commands the client reads only from a successful

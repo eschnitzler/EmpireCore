@@ -66,6 +66,19 @@ The rows have no name, so no generated enum names them; this type marks the id s
 """
 
 
+CoatOfArmsSymbolId = NewType("CoatOfArmsSymbolId", int)
+"""The id of a ``crestsymbols`` row, a coat of arms symbol that :attr:`GameData.coat_of_arms_symbols` describes.
+
+The rows have no name, so no generated enum names them; this type marks the id space instead.
+"""
+
+PackageId = NewType("PackageId", int)
+"""The id of a ``packages`` row, an event package that :attr:`GameData.packages` describes.
+
+The rows have no name the game shows, so no generated enum names them; this type marks the id space instead.
+"""
+
+
 def row_id(value: object) -> int:
     """The row's own id, ``parseInt`` of it; a row without one is skipped, as nothing can look it up."""
     if isinstance(value, int) and not isinstance(value, bool):
@@ -1346,6 +1359,97 @@ class ConstructionItemRecipeDef(_Row):
         return _parse_int_or_default(value, 0)
 
 
+class CoatOfArmsSymbolDef(_Row):
+    """
+    A symbol for a coat of arms. One with a required achievement is a premium symbol: that achievement
+    earns it, and it is unlocked for its coin or ruby price.
+
+    Client: ``CastleCrestSymbolData.parseXML`` (bundle line 111588), ``PremiumCrestSymbolVO.parseXML``
+    (bundle line 111660)
+    """
+
+    symbol_id: CoatOfArmsSymbolId = Field(
+        validation_alias="crestSymbolID", description="The symbol, as a coat of arms names it"
+    )
+    required_achievement_id: GameDataId["Achievement"] = Field(
+        validation_alias="requiredAchievementID",
+        default=0,
+        description="The achievement that earns it; 0 for a standard symbol, free to use",
+    )
+    cost_coins: int = Field(validation_alias="costC1", default=0, description="Coins it is unlocked for")
+    cost_rubies: int = Field(validation_alias="costC2", default=0, description="Rubies it is unlocked for")
+
+    @field_validator("symbol_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator("required_achievement_id", "cost_coins", "cost_rubies", mode="before")
+    @classmethod
+    def _int_column(cls, value: object) -> int:
+        return _parse_int_or_default(value, 0)
+
+    @property
+    def is_premium(self) -> bool:
+        """Whether an achievement earns it and it must be unlocked."""
+        return self.required_achievement_id > 0
+
+
+class PackageDef(_Row):
+    """
+    An event package: what a shop sells, and what a gift package holds. Only its id, type and gift flag are read.
+
+    Client: ``EventPackageVO.fillFromParamXML`` (bundle line 34024), kept by id in ``CastleEventPackageData``
+    (``getEventPackageByID``, bundle line 134408)
+    """
+
+    package_id: PackageId = Field(validation_alias="packageID", description="The package")
+    package_type: str = Field(
+        validation_alias="packageType", default="0", description="What it holds, e.g. tool, currency or item"
+    )
+    is_gift_package: bool = Field(
+        validation_alias="isGiftPackage", default=False, description="Whether it is a gift package you may send"
+    )
+
+    @field_validator("package_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator("package_type", mode="before")
+    @classmethod
+    def _text_column(cls, value: object) -> str:
+        return _text(value, "0")
+
+    @field_validator("is_gift_package", mode="before")
+    @classmethod
+    def _flag(cls, value: object) -> bool:
+        return _is_one(value)
+
+
+class PlayerNameChangeDef(_Row):
+    """
+    The ruby price of one of your player name changes, by its number.
+
+    Client: ``ChangePlayerNameData.parseXml`` (bundle line 145454)
+    """
+
+    name_change_id: int = Field(
+        validation_alias="nameChangeID", description="Which name change it prices: 1 for the first"
+    )
+    cost_rubies: int = Field(validation_alias="costC2", default=0, description="Rubies it costs")
+
+    @field_validator("name_change_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator("cost_rubies", mode="before")
+    @classmethod
+    def _int_column(cls, value: object) -> int:
+        return _parse_int_or_default(value, 0)
+
+
 class ScalingCampDef(_Row):
     """
     A camp of an event's difficulty scaling: the level and costs a chosen difficulty gives it.
@@ -1550,6 +1654,11 @@ class RewardDef(_Row):
 
 __all__ = [
     "row_id",
+    "CoatOfArmsSymbolDef",
+    "CoatOfArmsSymbolId",
+    "PackageDef",
+    "PackageId",
+    "PlayerNameChangeDef",
     "RewardDef",
     "RewardId",
     "AchievementCondition",

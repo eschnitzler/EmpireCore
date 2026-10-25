@@ -1,6 +1,6 @@
 """
 The free rewards: the login bonus, the startup bonus, lost and found, the activity chest, the weekly
-honour reward, the patch note rewards, and the pending rewards count.
+honour reward, the patch note rewards, the pending rewards count, the Goodgames gift and voucher codes.
 
 Commands:
 - alb / clb: The daily login bonus and picking one of its rewards
@@ -10,6 +10,8 @@ Commands:
 - gwh / rwb: Your weekly honour rank and redeeming its reward
 - gpn / cpn: A patch note's rewards and collecting them
 - pre: How many rewards wait in the reward hub (pushed)
+- rgg: The Goodgames gift's rewards, and collecting them
+- rve: Redeem a voucher code
 
 None of these requests carries a cost: each VO holds only the ids below, and the one reply with
 coins and rubies (rwb) brings the totals after the reward.
@@ -21,11 +23,11 @@ import logging
 import time
 from typing import Any, ClassVar
 
-from pydantic import ConfigDict, Field, field_validator, model_validator
+from pydantic import ConfigDict, Field, field_serializer, field_validator, model_validator
 
 from empire_core.army.models.units import UnitInventoryBlock
 from empire_core.enums import CollectableKind, LoginBonusSpecial
-from empire_core.gamedata import Collectable, CollectableObject
+from empire_core.gamedata import Collectable, CollectableObject, CollectableRows
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, CurrencyBlock, readable_list
 from empire_core.protocol.js import ClientInt, ParseInt, js_loose_equals, js_number, js_number_or_none
 
@@ -697,7 +699,66 @@ class PendingRewardsInfo(BaseResponse):
     amount: ClientInt = Field(validation_alias="AMT", default=0, description="How many rewards wait")
 
 
+class GoodgamesGiftRequest(BaseRequest):
+    """
+    Ask for the Goodgames gift event's rewards, or collect them (``rgg``).
+
+    Client: ``C2SRequestGoodgamesGift`` (bundle line 57212); ``StatusIconGoodgamesGift.onClick`` (bundle line 104504)
+    sends 0 to see the rewards, ``CastleGGSGiftDialog.onClick`` (bundle line 128053) 1 to collect them
+    """
+
+    command = "rgg"
+
+    collect: bool = Field(validation_alias="CR", default=False, description="Collect the rewards, not only list them")
+
+    @field_serializer("collect")
+    def _flag(self, collect: bool) -> int:
+        return int(collect)
+
+
+class GoodgamesGiftResponse(BaseResponse):
+    """
+    The Goodgames gift's rewards.
+
+    Client: ``RGGCommand.executeCommand`` (bundle line 128014) reads ``R`` with
+    ``CollectableParserS2CParamList.createList``
+    """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    command = "rgg"
+
+    rewards: CollectableRows = Field(validation_alias="R", default=(), description="The rewards, in the order sent")
+
+
+class RedeemVoucherRequest(BaseRequest):
+    """
+    Redeem a voucher code (``rve``), sent as typed.
+
+    Client: ``C2SRedeemVoucherVO`` (bundle line 97082), sent by
+    ``CastlePrivatePrimeDayOfferDynamicDialog.redeemVoucherCode`` (bundle line 55202)
+    """
+
+    command = "rve"
+
+    code: str = Field(validation_alias="VC", description="The voucher code")
+
+
+class RedeemVoucherResponse(BaseResponse):
+    """
+    The reply to ``rve``, which carries nothing the client reads: any status but 0 is a refused code.
+
+    Client: ``RVECommand.executeCommand`` (bundle line 126433)
+    """
+
+    command = "rve"
+
+
 __all__ = [
+    "GoodgamesGiftRequest",
+    "GoodgamesGiftResponse",
+    "RedeemVoucherRequest",
+    "RedeemVoucherResponse",
     "LOGIN_BONUS_REQUIRED_XP",
     "ActivityChestInfo",
     "CollectLoginBonusRequest",

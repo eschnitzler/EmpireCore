@@ -63,6 +63,7 @@ from .models import (
     IgnorePlayerResponse,
     MarkMessageReadRequest,
     MessageInfo,
+    MessagesSentToday,
     MiddleCourtyard,
     MiddlePlayerWave,
     MiddleWave,
@@ -90,6 +91,7 @@ if TYPE_CHECKING:
     from empire_core.gamedata import Event, Gem, GeneralAbility, LegendSkill
 
 __all__ = [
+    "MessagesSentToday",
     "MAX_SUBJECT_LENGTH",
     "MAX_TEXT_LENGTH",
     "MIN_TEXT_LENGTH",

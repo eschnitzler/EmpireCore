@@ -6,6 +6,7 @@ Commands:
 - gatp: the officers' school training program running now
 - bie: the global effects a booster event boosts
 - pgl: your gift packages and how many you may still send
+- gpg: send another player a gift package
 - DTS: whether your food production is frozen
 
 The timed models count from ``received_at``, as the client counts from its timer.
@@ -13,13 +14,13 @@ The timed models count from ``received_at``, as the client counts from its timer
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar
 
-from pydantic import ConfigDict, Field, field_validator, model_validator
+from pydantic import BeforeValidator, ConfigDict, Field, field_validator, model_validator
 
-from empire_core.gamedata import EnumOrInt
-from empire_core.protocol.base import BasePayload, BaseResponse, TimedPayload, TimedResponse, readable_list
-from empire_core.protocol.js import ClientInt, ClientNumber, js_loose_equals
+from empire_core.gamedata import EnumOrInt, PackageId
+from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, TimedPayload, TimedResponse, readable_list
+from empire_core.protocol.js import ClientInt, ClientNumber, js_int, js_loose_equals
 
 if TYPE_CHECKING:
     from empire_core.gamedata import Effect, GlobalEffect
@@ -144,7 +145,9 @@ class PlayerGift(BasePayload):
 
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
-    package_id: ClientInt = Field(default=0, description="The event package's id")
+    package_id: Annotated[PackageId, BeforeValidator(js_int)] = Field(
+        default=PackageId(0), description="The package, a packages row of the game data"
+    )
     amount: ClientInt = Field(default=0, description="How many you hold")
 
     @model_validator(mode="before")
@@ -187,6 +190,32 @@ class PlayerGiftsResponse(BaseResponse):
         return self.sendable_amount > 0
 
 
+class SendGiftPackagesRequest(BaseRequest):
+    """
+    Send another player gift packages you hold (``gpg``).
+
+    Client: ``GPGCommandVO`` (bundle line 68352), built as ``(RID, PID, A)`` by
+    ``CastlePlayerGiftSliderGiveDialog.onBtnOkClick`` (bundle line 68336)
+    """
+
+    command = "gpg"
+
+    receiver_id: int = Field(validation_alias="RID", description="The player who gets the gift")
+    package_id: PackageId = Field(validation_alias="PID", description="The package, a PlayerGift.package_id you hold")
+    amount: int = Field(validation_alias="A", description="How many of the package to send")
+
+
+class SendGiftPackagesResponse(BaseResponse):
+    """
+    The reply to ``gpg``, which carries nothing the client reads; ``TOO_MANY_PACKAGES_SENT_TODAY`` refuses
+    past the day's limit.
+
+    Client: ``GPGCommand.executeCommand`` (bundle line 127957)
+    """
+
+    command = "gpg"
+
+
 class FoodProductionStatus(BaseResponse):
     """
     Whether your food production is frozen: the client then shows food, mead and beef production and
@@ -218,4 +247,6 @@ __all__ = [
     "OfficerTraining",
     "PlayerGift",
     "PlayerGiftsResponse",
+    "SendGiftPackagesRequest",
+    "SendGiftPackagesResponse",
 ]

@@ -79,6 +79,8 @@ from .tables import (
     AllianceCrestColorDef,
     AllianceCrestLayoutDef,
     BuildingDef,
+    CoatOfArmsSymbolDef,
+    CoatOfArmsSymbolId,
     ConstructionItemRecipeDef,
     DailyQuestDef,
     DaimyoContractDef,
@@ -90,6 +92,9 @@ from .tables import (
     GeneralsHubCharacterDef,
     LootBoxDef,
     LootBoxTypeDef,
+    PackageDef,
+    PackageId,
+    PlayerNameChangeDef,
     QuestCondition,
     QuestDef,
     ResearchDef,
@@ -189,6 +194,9 @@ _CACHED_MODELS = (
     TitleDef,
     ConstructionItemRecipeDef,
     ScalingCampDef,
+    CoatOfArmsSymbolDef,
+    PackageDef,
+    PlayerNameChangeDef,
     DaimyoContractDef,
     AchievementCondition,
     AchievementDef,
@@ -388,6 +396,9 @@ _TABLES: dict[str, _TableSource] = {
     "alliance_crest_layouts": _TableSource("allianceCoatLayouts", AllianceCrestLayoutDef, "layout_id"),
     "construction_item_recipes": _TableSource("constructionItemRecipes", ConstructionItemRecipeDef, "recipe_id"),
     "scaling_camps": _TableSource("eventAutoScalingCamps", ScalingCampDef, "scaling_camp_id"),
+    "coat_of_arms_symbols": _TableSource("crestsymbols", CoatOfArmsSymbolDef, "symbol_id"),
+    "packages": _TableSource("packages", PackageDef, "package_id"),
+    "player_name_changes": _TableSource("playerNameChanges", PlayerNameChangeDef, "name_change_id"),
     "rewards": _TableSource("rewards", RewardDef, "reward_id", reads=is_reward_column),
     "daimyo_castle_contracts": _TableSource("daimyoCastleAllianceContracts", DaimyoContractDef, "contract_id"),
     "daimyo_township_contracts": _TableSource("daimyoTownshipAllianceContracts", DaimyoContractDef, "contract_id"),
@@ -691,6 +702,21 @@ class GameData(EmpireModel):
     def scaling_camps(self) -> Table[int, ScalingCampDef]:
         """The ``eventAutoScalingCamps`` rows, by the scaling camp id a map row names."""
         return self._table("scaling_camps")
+
+    @cached_property
+    def coat_of_arms_symbols(self) -> Table[CoatOfArmsSymbolId, CoatOfArmsSymbolDef]:
+        """The ``crestsymbols`` rows, by the symbol id a coat of arms names."""
+        return self._table("coat_of_arms_symbols")
+
+    @cached_property
+    def packages(self) -> Table[PackageId, PackageDef]:
+        """The ``packages`` rows, by the package id a shop or a gift package names."""
+        return self._table("packages")
+
+    @cached_property
+    def player_name_changes(self) -> Table[int, PlayerNameChangeDef]:
+        """The ``playerNameChanges`` rows, by the number of the player name change they price."""
+        return self._table("player_name_changes")
 
     @cached_property
     def daimyo_castle_contracts(self) -> Table[int, DaimyoContractDef]:

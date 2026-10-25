@@ -53,7 +53,7 @@ from empire_core.events.status_models import RaidBossStatus
 from empire_core.exceptions import StateNotLoadedError
 from empire_core.map.models.treasure_maps import TreasureMap
 from empire_core.map.models.world import ServerInfoResponse
-from empire_core.messages.models import MessageInfo
+from empire_core.messages.models import MessageInfo, MessagesSentToday
 from empire_core.movements.models import MovementOwner
 from empire_core.movements.tracked import Movement
 from empire_core.player.models.account import (
@@ -64,6 +64,8 @@ from empire_core.player.models.account import (
     PlayerGiftsResponse,
 )
 from empire_core.player.models.aqua import StormIslandsInfo
+from empire_core.player.models.coat_of_arms import CoatOfArmsResponse, CoatOfArmsSymbolsResponse
+from empire_core.player.models.credentials import AccountDeletion, CredentialsStatus, PlayerNameChangeInfoResponse
 from empire_core.player.models.economy import LootBoxesResponse
 from empire_core.player.models.hero import HeroDecisionResponse
 from empire_core.player.models.officers_school import TrainingProgramsResponse
@@ -203,6 +205,14 @@ class StateBase:
         self.hunter: HunterInfo | None = None
         self.judgement_id: int | None = None
         self.hero: HeroDecisionResponse | None = None
+
+        # Your coat of arms and its symbols, credentials, name change, account deletion, message counts; each replaced
+        self.coat_of_arms: CoatOfArmsResponse | None = None
+        self.coat_of_arms_symbols: CoatOfArmsSymbolsResponse | None = None
+        self.credentials_status: CredentialsStatus | None = None
+        self.player_name_change_info: PlayerNameChangeInfoResponse | None = None
+        self.account_deletion: AccountDeletion | None = None
+        self.messages_sent_today: MessagesSentToday | None = None
 
         # Active quests by id, the quest book and the daily quests; each replaced, never edited
         self.quests: dict[int, Quest] = {}

@@ -1,5 +1,6 @@
 """Account sections: the daily reset, attack counter, officers' school, boosted global effects, gifts,
-wishing well, new relics and frozen food production."""
+wishing well, new relics, frozen food production, your coat of arms, credentials and message counts; and the
+coat of arms symbols, name change info and account deletion."""
 
 import time
 from typing import Any
@@ -7,6 +8,7 @@ from typing import Any
 from empire_core.attack.models.counter import AttackCounterResponse
 from empire_core.castle.models.wishing_well import WishingWellResponse
 from empire_core.commanders.models.inventory import NewRelicsResponse
+from empire_core.messages.models import MessagesSentToday
 from empire_core.player.models.account import (
     BoostedGlobalEffectsResponse,
     DailyResetResponse,
@@ -14,11 +16,13 @@ from empire_core.player.models.account import (
     OfficerTraining,
     PlayerGiftsResponse,
 )
+from empire_core.player.models.coat_of_arms import CoatOfArmsResponse, CoatOfArmsSymbolsResponse
+from empire_core.player.models.credentials import AccountDeletion, CredentialsStatus, PlayerNameChangeInfoResponse
 from empire_core.player.models.officers_school import TrainingProgramsResponse
 from empire_core.protocol.js import js_truthy
 from empire_core.state.base import StateBase, loaded, read_section
 
-ACCOUNT_SECTIONS = ("drt", "gai", "gatp", "bie", "pgl", "rww", "nrf", "DTS")
+ACCOUNT_SECTIONS = ("drt", "gai", "gatp", "bie", "pgl", "rww", "nrf", "DTS", "gem", "scd", "mcd")
 
 
 class AccountState(StateBase):
@@ -28,7 +32,9 @@ class AccountState(StateBase):
         Client: ``GBDCommand.exec`` (bundle line 129381) calls ``parse_DRT``, ``parse_GATP``,
         ``parse_GIE`` (with ``bie``), ``parse_RWW`` and ``parseNRF``, and ``parse_PGL`` and the attack
         counter's ``parseParamObject`` only when ``pgl`` and ``gai`` are truthy; ``parse_DTS`` (bundle line 9925)
-        reads ``DTS`` only when it is truthy
+        reads ``DTS`` only when it is truthy. It reads ``gem`` with ``parse_GEM`` (bundle line 9877) only when
+        truthy, ``scd`` with ``parse_SCD`` (bundle line 9922) only when truthy, and ``mcd``, or the login data
+        itself without one, with ``parse_MCD`` (bundle line 135013) only when its ``MTC`` is set
         """
         applied: set[str] = set()
         if js_truthy(drt := data.get("drt")):
@@ -62,7 +68,46 @@ class AccountState(StateBase):
             if (frozen := read_section(FoodProductionStatus, dts, "the food production status")) is not None:
                 self.food_production = frozen
                 applied.add("DTS")
+        if js_truthy(gem := data.get("gem")):
+            if (coat_of_arms := read_section(CoatOfArmsResponse, gem, "your coat of arms")) is not None:
+                self.coat_of_arms = coat_of_arms
+                applied.add("gem")
+        if js_truthy(scd := data.get("scd")):
+            if (status := read_section(CredentialsStatus, scd, "the credentials status")) is not None:
+                self.credentials_status = status
+                applied.add("scd")
+        counts = data["mcd"] if js_truthy(data.get("mcd")) else data
+        if isinstance(counts, dict) and js_truthy(counts.get("MTC")):
+            if (sent := read_section(MessagesSentToday, counts, "the messages sent today")) is not None:
+                self.messages_sent_today = sent
+                applied.add("mcd")
         return {section for section in ACCOUNT_SECTIONS if section in data} - applied
+
+    def _handle_gus(self, data: Any) -> None:
+        """Keep the premium symbols earned and unlocked.
+
+        Client: ``GUSCommand.executeCommand`` (bundle line 125060), ``CastleCrestSymbolData.parse_gus``
+        (bundle line 111596)
+        """
+        if (symbols := read_section(CoatOfArmsSymbolsResponse, data, "the coat of arms symbols")) is not None:
+            self.coat_of_arms_symbols = symbols
+
+    def _handle_gnci(self, data: Any) -> None:
+        """Keep the name change count and cooldown.
+
+        Client: ``GNCICommand.executeCommand`` (bundle line 120604), ``ChangePlayerNameData.parse_GNCI``
+        (bundle line 145460)
+        """
+        if (info := read_section(PlayerNameChangeInfoResponse, data, "the name change info")) is not None:
+            self.player_name_change_info = info
+
+    def _handle_psd(self, data: Any) -> None:
+        """Keep when the account is deleted.
+
+        Client: ``PSDCommand.executeCommand`` (bundle line 131797)
+        """
+        if (deletion := read_section(AccountDeletion, data, "the account deletion")) is not None:
+            self.account_deletion = deletion
 
     def _apply_officer_training(self, body: Any) -> bool:
         """Read a ``gatp``: any block drops the program known, and one the client takes as running sets it.
@@ -148,6 +193,36 @@ class AccountState(StateBase):
         """Whether your food production is frozen, from the last ``DTS``; None until one arrived."""
         with self._lock:
             return self.food_production
+
+    def get_coat_of_arms(self) -> CoatOfArmsResponse | None:
+        """Your coat of arms, from the login data's ``gem`` and the ``gem`` and ``cem`` since; None before one."""
+        with self._lock:
+            return self.coat_of_arms
+
+    def get_coat_of_arms_symbols(self) -> CoatOfArmsSymbolsResponse | None:
+        """The premium symbols earned and unlocked, from the last ``gus``; None until one arrived."""
+        with self._lock:
+            return self.coat_of_arms_symbols
+
+    def get_credentials_status(self) -> CredentialsStatus | None:
+        """Which of your credentials are temporary, from the last ``scd``; None until one arrived."""
+        with self._lock:
+            return self.credentials_status
+
+    def get_player_name_change_info(self) -> PlayerNameChangeInfoResponse | None:
+        """Your name change count and cooldown, from the last ``gnci``; None until one arrived."""
+        with self._lock:
+            return self.player_name_change_info
+
+    def get_account_deletion(self) -> AccountDeletion | None:
+        """When your account is deleted, from the last ``psd``; None until one arrived."""
+        with self._lock:
+            return self.account_deletion
+
+    def get_messages_sent_today(self) -> MessagesSentToday | None:
+        """Messages of each limited type sent today, from the last ``mcd``; None until one arrived."""
+        with self._lock:
+            return self.messages_sent_today
 
     def get_new_relics(self) -> NewRelicsResponse:
         """Whether new relics wait to be seen, from the last ``nrf``; the login data brings one.

@@ -35,9 +35,9 @@ NON_ERROR_COMMANDS = {"rlu", "core_pol"}
 # Replies whose refusals the login turns into typed errors; logged at debug only.
 LOGIN_REPLY_COMMANDS = frozenset({"lli", "vck"})
 
-# Commands whose payload carries credentials (login, registration, social
-# login). Their bodies are never logged - only the command id and frame size.
-AUTH_COMMANDS = frozenset({"lli", "core_reg", "scp"})
+# Commands whose payload carries credentials or a mail address (login, registration, social
+# login, password and mail changes). Their bodies are never logged - only the command id and frame size.
+AUTH_COMMANDS = frozenset({"lli", "core_reg", "scp", "scd", "spslms", "rmc"})
 
 # Longest frame prefix we are willing to log, kept as defense in depth on top
 # of the redaction above.
@@ -49,7 +49,10 @@ _SECRET_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     # escaped characters (\" and \\): with a plain [^"]* a password containing
     # a double-quote would leak its tail after the json.dumps-escaped \".
     (
-        re.compile(r'("(?:PW|PWD|PASS|PASSWORD|TOKEN|SECRET|AUTH|LT|RCT|ABT)"\s*:\s*)"(?:\\.|[^"\\])*"', re.IGNORECASE),
+        re.compile(
+            r'("(?:PW|OPW|NPW|PWD|PASS|PASSWORD|MAIL|PMA|TOKEN|SECRET|AUTH|LT|RCT|ABT)"\s*:\s*)"(?:\\.|[^"\\])*"',
+            re.IGNORECASE,
+        ),
         r'\1"<redacted>"',
     ),
     # Bearer tokens (ato's ABT, ABTV2, ...) whatever key carries them.
