@@ -53,7 +53,7 @@ logger = logging.getLogger(__name__)
 # Login data sections the client parses as it parses the push of the same name.
 # Client: GBDCommand.exec (bundle line 129381) hands n.sne to parse_SNE and n.ahl to parse_AHL,
 # as SNECommand and AHLCommand do.
-LOGIN_SECTION_PUSHES = ("sne", "ahl")
+LOGIN_SECTION_PUSHES = ("sne", "ahl", "DTS")
 
 
 T = TypeVar("T", bound=BaseResponse)

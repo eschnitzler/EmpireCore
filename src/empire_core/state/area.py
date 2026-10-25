@@ -1,6 +1,6 @@
-"""The joined area: the jaa reply, its mines (gsm) and resource carts (rci), slum level (csl) and
-builder discount (gab), and the building pushes (fbe, cbx, gdb, gcb) as callbacks; and the world map's
-size (nfo)."""
+"""The joined area: the jaa reply, its mines (gsm) and resource carts (rci), slum level (csl),
+builder discount (gab) and position (ghw), and the building pushes (fbe, cbx, gdb, gcb) as callbacks; and
+the world map's size (nfo)."""
 
 import logging
 import time
@@ -15,6 +15,7 @@ from empire_core.castle.models.updates import (
     BuildingFinished,
     BuildingXP,
     DamagedBuildings,
+    JoinedAreaMoved,
     SlumLevel,
 )
 from empire_core.enums import Kingdom, ResourceCartType
@@ -76,12 +77,12 @@ class AreaState(StateBase):
         self.placed_construction_items = reply.buildings.construction_items if reply.buildings is not None else None
         self.resource_pool = None
         kingdom = enum_or_none(Kingdom, reply.kingdom_id)
-        castle_id = None
+        castle_id = x = y = None
         area = data.get("gca")
         row = area.get("A") if isinstance(area, dict) else None
         try:
             parsed = PlayerCastle.from_list(row, Kingdom.GREEN if kingdom is None else kingdom)
-            castle_id = parsed.location_id
+            castle_id, x, y = parsed.location_id, parsed.x, parsed.y
             if kingdom is not None:
                 kingdom = parsed.kingdom
         except (ValueError, TypeError):
@@ -90,6 +91,8 @@ class AreaState(StateBase):
         self.joined_area = JoinedArea(
             kingdom_id=kingdom,
             castle_id=castle_id,
+            x=x,
+            y=y,
             slum_level=reply.slum_level.level if reply.slum_level else -1,
             builder_discount=reply.area_booster.builder_discount if reply.area_booster else 0,
         )
@@ -189,6 +192,30 @@ class AreaState(StateBase):
             booster = read_or_none(AreaBooster.model_validate, data, warn=logger, what="a gab push")
             if booster is not None:
                 self.joined_area = self.joined_area.model_copy(update={"builder_discount": booster.builder_discount})
+
+    on_joined_area_moved = Event[JoinedAreaMoved]()
+    """Register a callback for the castle you have joined moving on the map (``ghw``).
+
+    Called with its new position, after :meth:`get_joined_area` has it, and also when no area
+    is joined, which the push leaves alone.
+
+    Client: ``GHWCommand.executeCommand`` (bundle line 129574)
+    """
+
+    def _handle_ghw(self, data: Any) -> None:
+        """Apply a ``ghw`` push: the joined area's new position.
+
+        Client: ``GHWCommand.executeCommand`` (bundle line 129574) moves the active area only,
+        ``AreaDataModel.changePosOfOwnArea`` (bundle line 131929)
+        """
+        if not isinstance(data, dict):
+            return
+        moved = read_or_none(JoinedAreaMoved.model_validate, data, warn=logger, what="a ghw push")
+        if moved is None:
+            return
+        if self.joined_area is not None:
+            self.joined_area = self.joined_area.model_copy(update={"x": moved.x, "y": moved.y})
+        self._fire(self.on_joined_area_moved, moved)
 
     def _handle_fbe(self, data: Any) -> None:
         if isinstance(data, dict):

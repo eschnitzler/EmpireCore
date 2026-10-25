@@ -69,6 +69,7 @@ from .models import (
     RaidBossEvent,
     Scoreboard,
     ScoredEvent,
+    ShuttingDownEvents,
     SpecialEvent,
     SpecialEventInfoRequest,
 )
@@ -119,6 +120,12 @@ class EventsService(BaseService):
 
     Reached as client.events.
     """
+
+    @property
+    def shutting_down(self) -> ShuttingDownEvents | None:
+        """The events shutting down, whose buildings stay in your castles, from the last ``sde``; None until one
+        arrived."""
+        return self.client.state.get_shutting_down_events()
 
     @property
     def running(self) -> dict[int, SpecialEvent]:

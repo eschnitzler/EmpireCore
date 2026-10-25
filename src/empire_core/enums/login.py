@@ -8,7 +8,7 @@ class VersionCheckStatus(IntEnum):
     The version check (``vck``) refusals, which are not ``GGEError`` codes.
 
     Client: ``VCKCommand.VERSION_TOO_LOW`` and ``VERSION_TOO_HIGH`` (dll line 14473),
-    matched by ``CastleVCKCommand.executeCommand`` (bundle line 120444)
+    matched by ``CastleVCKCommand.executeCommand`` (bundle line 120482)
     """
 
     VERSION_TOO_LOW = 1

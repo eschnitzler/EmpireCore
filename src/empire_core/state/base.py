@@ -34,7 +34,7 @@ from empire_core.castle.models.wishing_well import WishingWellResponse
 from empire_core.commanders.models.inventory import GemInventoryResponse, InventorySpace, NewRelicsResponse
 from empire_core.commanders.models.roster import CommanderRoster
 from empire_core.commanders.models.skills import SkillList
-from empire_core.events.models import SpecialEvent
+from empire_core.events.models import ShuttingDownEvents, SpecialEvent
 from empire_core.events.status_models import RaidBossStatus
 from empire_core.exceptions import StateNotLoadedError
 from empire_core.map.models.world import ServerInfoResponse
@@ -44,6 +44,7 @@ from empire_core.movements.tracked import Movement
 from empire_core.player.models.account import (
     BoostedGlobalEffectsResponse,
     DailyResetResponse,
+    FoodProductionStatus,
     OfficerTraining,
     PlayerGiftsResponse,
 )
@@ -175,6 +176,7 @@ class StateBase:
         self._raid_boss_receipt: tuple[dict[str, Any], RaidBossStatus] | None = None
         # The client keeps one set of counts for every alien invasion (CastleAlienRerollData)
         self.alien_reroll_counts: AlienRerollCountsResponse | None = None
+        self.shutting_down_events: ShuttingDownEvents | None = None
 
         # Active quests by id, the quest book and the daily quests; each replaced, never edited
         self.quests: dict[int, Quest] = {}
@@ -210,6 +212,7 @@ class StateBase:
         self.player_gifts: PlayerGiftsResponse | None = None
         self.wishing_well: WishingWellResponse | None = None
         self.new_relics: NewRelicsResponse | None = None
+        self.food_production: FoodProductionStatus | None = None
         self.gems: GemInventoryResponse | None = None
         self.loot_boxes: LootBoxesResponse | None = None
         self.inventory_space: InventorySpace | None = None

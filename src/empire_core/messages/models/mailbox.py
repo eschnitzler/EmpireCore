@@ -469,6 +469,19 @@ class ServerMessage(BaseResponse):
         return js_loose_equals(value, 1)
 
 
+class ServerShutdownWarning(BaseResponse):
+    """
+    The server is about to shut down. The push carries nothing; the client warns that the shutdown comes
+    in a minute, a time it fixes itself.
+
+    Command: ssd
+
+    Client: ``SSDCommand.executeCommand`` (bundle line 121018)
+    """
+
+    command = "ssd"
+
+
 # =============================================================================
 # BSD - Spy Log Detail
 # =============================================================================
@@ -1089,5 +1102,6 @@ __all__ = [
     "SpyReportArea",
     "SpyReportResponse",
     "ServerMessage",
+    "ServerShutdownWarning",
     "SystemNotificationEvent",
 ]

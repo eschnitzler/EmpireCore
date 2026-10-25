@@ -3,6 +3,7 @@
 from .account import (
     BoostedGlobalEffectsResponse,
     DailyResetResponse,
+    FoodProductionStatus,
     OfficerBonus,
     OfficerTraining,
     PlayerGift,
@@ -105,6 +106,7 @@ __all__ = [
     "TopTitleRanking",
     "BoostedGlobalEffectsResponse",
     "DailyResetResponse",
+    "FoodProductionStatus",
     "OfficerBonus",
     "OfficerTraining",
     "PlayerGift",

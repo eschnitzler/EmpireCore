@@ -1,4 +1,4 @@
-"""Castle buildings, resource carts, market goods, market scopes and tax collection."""
+"""Castle buildings, resource carts, market goods, market scopes, tax collection and the server's weekdays."""
 
 from enum import Enum, IntEnum
 
@@ -124,3 +124,19 @@ class ConstructionItemMode(IntEnum):
     ADD = 0
     REPLACE = 1
     OVERWRITE = 2
+
+
+class Weekday(IntEnum):
+    """
+    A day of the week as the server numbers it, Sunday first.
+
+    Client: ``TimeConst`` (dll line 19802)
+    """
+
+    SUNDAY = 1
+    MONDAY = 2
+    TUESDAY = 3
+    WEDNESDAY = 4
+    THURSDAY = 5
+    FRIDAY = 6
+    SATURDAY = 7

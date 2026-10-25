@@ -6,6 +6,7 @@ Commands:
 - gatp: the officers' school training program running now
 - bie: the global effects a booster event boosts
 - pgl: your gift packages and how many you may still send
+- DTS: whether your food production is frozen
 
 The timed models count from ``received_at``, as the client counts from its timer.
 """
@@ -18,7 +19,7 @@ from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from empire_core.gamedata import EnumOrInt
 from empire_core.protocol.base import BasePayload, BaseResponse, TimedPayload, TimedResponse, readable_list
-from empire_core.protocol.js import ClientInt, ClientNumber
+from empire_core.protocol.js import ClientInt, ClientNumber, js_loose_equals
 
 if TYPE_CHECKING:
     from empire_core.gamedata import Effect, GlobalEffect
@@ -186,9 +187,33 @@ class PlayerGiftsResponse(BaseResponse):
         return self.sendable_amount > 0
 
 
+class FoodProductionStatus(BaseResponse):
+    """
+    Whether your food production is frozen: the client then shows food, mead and beef production and
+    consumption as frozen.
+
+    Command: DTS, as a login section of ``gbd`` and a push.
+
+    Client: ``DTSCommand.executeCommand`` (bundle line 129363), ``CastleUserData.parse_DTS`` (bundle line 9925),
+    ``GBDCommand.exec`` (bundle line 129430)
+    """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    command = "DTS"
+
+    frozen: bool = Field(validation_alias="DTS", default=False, description="Whether food production is frozen")
+
+    @field_validator("frozen", mode="before")
+    @classmethod
+    def _flag(cls, value: Any) -> bool:
+        return js_loose_equals(value, 1)
+
+
 __all__ = [
     "BoostedGlobalEffectsResponse",
     "DailyResetResponse",
+    "FoodProductionStatus",
     "OfficerBonus",
     "OfficerTraining",
     "PlayerGift",

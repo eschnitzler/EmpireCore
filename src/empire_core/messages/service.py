@@ -38,6 +38,7 @@ from empire_core.messages.models import (
     SendMessageRequest,
     SendMessageResponse,
     ServerMessage,
+    ServerShutdownWarning,
     SystemNotificationEvent,
 )
 from empire_core.protocol.base import BaseResponse
@@ -65,6 +66,7 @@ class MessagesService(BaseService):
         super().__init__(client)
         self.on_response("sne", self._handle_update)
         self.on_response("smg", self._handle_server_message)
+        self.on_response("ssd", self._handle_server_shutdown)
 
     @property
     def mailbox(self) -> list[MessageInfo]:
@@ -94,6 +96,16 @@ class MessagesService(BaseService):
     def _handle_server_message(self, response: BaseResponse) -> None:
         if isinstance(response, ServerMessage):
             self._fire(self.on_server_message, response)
+
+    on_server_shutdown = Event[ServerShutdownWarning]()
+    """Call ``callback`` when the server warns it is about to shut down (``ssd``); the client says in a minute.
+
+    Removing a callback not registered is a no-op.
+    """
+
+    def _handle_server_shutdown(self, response: BaseResponse) -> None:
+        if isinstance(response, ServerShutdownWarning):
+            self._fire(self.on_server_shutdown, response)
 
     def read(self, message_id: int, *, timeout: float = 5.0) -> ReadMessageResponse:
         """

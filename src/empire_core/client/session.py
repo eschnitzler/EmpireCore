@@ -27,7 +27,7 @@ from empire_core.exceptions import (
     VersionCheckStatus,
     WrongServerError,
 )
-from empire_core.protocol.auth import LoginRequest, LoginResponse, build_version_check
+from empire_core.protocol.auth import LoginRequest, LoginResponse, VersionCheckResponse, build_version_check
 from empire_core.protocol.base import NO_ROOM, read_or_none
 from empire_core.protocol.js import js_number_or_none
 from empire_core.protocol.packet import Packet
@@ -76,13 +76,6 @@ def _room_entry(packet: Packet) -> tuple[int, str] | None:
 def _elapsed_ms(start: float, end: float | None = None) -> int:
     """Whole milliseconds between two ``time.monotonic()`` readings, the second defaulting to now."""
     return int(((time.monotonic() if end is None else end) - start) * 1000)
-
-
-def _first_field(packet: Packet) -> str | None:
-    """The first field after the status of a reply that is not JSON, or None when it has none."""
-    raw = packet.payload.get("raw") if isinstance(packet.payload, dict) else None
-    first = raw.split("%")[0] if isinstance(raw, str) else ""
-    return first or None
 
 
 class Session:
@@ -342,7 +335,7 @@ class Session:
         it has measured when it logs in.
 
         Client: ``BasicSmartfoxClient.onJoinRoom`` (dll line 7163), ``BasicJoinedRoomCommand`` (dll line 33011),
-        ``CastleVCKCommand.executeCommand`` (bundle line 120444)
+        ``CastleVCKCommand.executeCommand`` (bundle line 120482)
         """
         client = self._client
         connection = client.connection
@@ -364,8 +357,9 @@ class Session:
         finally:
             connection.unsubscribe("roundTripRes", on_round_trip)
 
+        reply = VersionCheckResponse.model_validate(vck.payload if isinstance(vck.payload, dict) else {})
         if vck.error_code in tuple(VersionCheckStatus):
-            raise ClientVersionError(VersionCheckStatus(vck.error_code), _first_field(vck))
+            raise ClientVersionError(VersionCheckStatus(vck.error_code), reply.server_build)
         if vck.error_code != 0:
             raise LoginError(f"Version check failed with code {vck.error_code}")
         return _elapsed_ms(sent, answered[0]) if answered else 0

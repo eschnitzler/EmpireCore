@@ -30,6 +30,7 @@ from .castle import (
     Resource,
     ResourceCartType,
     TaxStatus,
+    Weekday,
 )
 from .collectables import BoosterId, CollectableKind, RewardGrantType
 from .combat import (
@@ -146,6 +147,7 @@ __all__ = [
     "Resource",
     "ResourceCartType",
     "TaxStatus",
+    "Weekday",
     "KingdomTransferType",
     # Collectables
     "BoosterId",

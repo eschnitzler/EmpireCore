@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from pydantic import BeforeValidator, Field
+from pydantic import BeforeValidator, Field, model_validator
 
 from .base import BaseRequest, BaseResponse, build_command, list_or_empty
 from .js import js_number_or_none, js_string, js_truthy
@@ -206,9 +206,36 @@ def build_version_check(zone: str, build_number: str, session_id: str, room_id: 
     field is the server's build number.
 
     Client: ``BasicJoinedRoomCommand.execute`` (dll line 33011), reply read by
-    ``CastleVCKCommand.executeCommand`` (bundle line 120444)
+    ``CastleVCKCommand.executeCommand`` (bundle line 120482)
     """
     return build_command(zone, "vck", [build_number, VERSION_CHECK_PLATFORM, "", session_id], room_id)
+
+
+class VersionCheckResponse(BaseResponse):
+    """
+    The answer to the version check: the server's build number, whatever its status.
+
+    The reply is not JSON: its first field after the status is the build number. Status 1 and 2
+    (``VersionCheckStatus``) refuse the client's version.
+
+    Command: vck
+
+    Client: ``CastleVCKCommand.executeCommand`` (bundle line 120482), or ``VCKLegacyCommand.executeCommand``
+    (bundle line 121102) with the legacy social registration; both read ``t[1]``
+    """
+
+    command = "vck"
+
+    server_build: str | None = Field(
+        default=None, description="The server's build number; None when the reply has none"
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _fields(cls, value: Any) -> Any:
+        if isinstance(value, dict) and isinstance(raw := value.get("raw"), str):
+            return {"server_build": raw.split("%")[0] or None}
+        return value
 
 
 # =============================================================================
@@ -407,6 +434,7 @@ __all__ = [
     # VCK - Version check
     "VERSION_CHECK_PLATFORM",
     "build_version_check",
+    "VersionCheckResponse",
     # LRE - Register
     "RegisterRequest",
     "RegisterResponse",

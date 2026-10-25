@@ -171,8 +171,8 @@ units, so `get_last_packet_time("grc")` dates it.
 ## The joined castle
 
 Logging in joins no castle; `client.castle.join(castle_id)` does, and its reply
-fills `get_joined_area()` (the castle's kingdom and id, slum level and builder
-discount) and, when the server sends them, the mines and resource carts. Their
+fills `get_joined_area()` (the castle's kingdom, id and position, slum level and
+builder discount) and, when the server sends them, the mines and resource carts. Their
 pushes keep them current while you stay. A map read (`gaa`, as every
 [scan](map-scanning.md) sends) drops the mines, as the game drops them on the
 world map; `get_joined_area()` and the resource carts stay, as the game keeps
@@ -193,7 +193,8 @@ for object_id, mine in client.castle.mines.items():
 The joined castle's buildings are not kept in state. `on_building_finished`
 (`fbe`), `on_building_xp` (`cbx`) and `on_buildings_changed` (`gdb` damaged
 buildings, `gcb` changed efficiency) call you back on the callback thread
-instead; each one's `.remove(callback)` unregisters.
+instead; each one's `.remove(callback)` unregisters. `on_joined_area_moved`
+(`ghw`) calls you back with the joined castle's new position.
 
 ## Running events
 
@@ -266,6 +267,8 @@ client.on_disconnect(lambda: print("connection lost"))
 
 The callback runs on the receive thread as it shuts down. Keep it short and
 start a new login from another thread, or let the client do it.
+`client.messages.on_server_shutdown(callback)` tells you when the server
+announces it is about to shut down (`ssd`); the game warns of a minute.
 
 ### Keeping the session
 

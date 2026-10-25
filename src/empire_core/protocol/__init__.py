@@ -13,6 +13,7 @@ from empire_core.protocol.auth import (
     PasswordRecoveryResponse,
     RegisterRequest,
     RegisterResponse,
+    VersionCheckResponse,
 )
 from empire_core.protocol.base import (
     DEFAULT_ZONE,
@@ -47,6 +48,7 @@ __all__ = [
     "LoginRequest",
     "LoginResponse",
     "LoginTokenResponse",
+    "VersionCheckResponse",
     "Packet",
     "PasswordRecoveryRequest",
     "PasswordRecoveryResponse",

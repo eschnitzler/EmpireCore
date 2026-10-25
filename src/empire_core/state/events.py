@@ -1,4 +1,5 @@
-"""The running events: sei and tei entries, see and tee ends, pep scores, cqs campaigns, and their callbacks."""
+"""The running events: sei and tei entries, see and tee ends, pep scores, cqs campaigns, and their callbacks;
+and the events shutting down (sde)."""
 
 import logging
 import time
@@ -40,6 +41,7 @@ from empire_core.events.models import (
     RaidBossEvent,
     SamuraiInvasionEvent,
     SeasonEvent,
+    ShuttingDownEvents,
     SkipForFreeEvent,
     SpecialEvent,
     TempServerEvent,
@@ -50,6 +52,7 @@ from empire_core.events.status_models import GrandTournamentQuestStatus, GrandTo
 from empire_core.gamedata.ids.events import Event
 from empire_core.map.models.areas import KingdomProtection
 from empire_core.player.models.protection import StartFactionProtectionResponse
+from empire_core.protocol.base import read_or_none
 from empire_core.protocol.js import js_int, js_truthy
 from empire_core.state.base import StateBase, read_section
 from empire_core.utils import callbacks
@@ -209,6 +212,16 @@ class EventState(StateBase):
         if eid >= 0:
             self._remove_event(eid)
         self._events_updated_at = time.time()
+
+    def _handle_sde(self, data: Any) -> None:
+        """Handle the events shutting down: the list replaces the one before.
+
+        Client: ``CastleSpecialEventData.parse_SDE`` (bundle line 139841)
+        """
+        if isinstance(data, dict) and "raw" not in data:
+            shutting_down = read_or_none(ShuttingDownEvents.model_validate, data, warn=logger, what="an sde push")
+            if shutting_down is not None:
+                self.shutting_down_events = shutting_down
 
     def _handle_pep(self, data: Any) -> None:
         """Handle 'point event points': your rank (``OR``), points (``OP``) and the event's most points (``PT``).
@@ -560,6 +573,11 @@ class EventState(StateBase):
         """
         found = self.get_event(event)
         return found is not None and found.is_active(_clock())
+
+    def get_shutting_down_events(self) -> ShuttingDownEvents | None:
+        """The events shutting down, from the last ``sde``; None until one arrived."""
+        with self._lock:
+            return self.shutting_down_events
 
     def get_events_last_updated(self) -> float | None:
         """When a sei, tei, see, tee or pep was last applied, wall clock; None before any."""

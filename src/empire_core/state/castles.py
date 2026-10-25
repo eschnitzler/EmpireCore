@@ -12,10 +12,10 @@ from empire_core.castle.models.details import DetailedCastleInfo, ResourceProduc
 from empire_core.castle.models.landmarks import LaboratoryListResponse, LaboratoryResetResponse
 from empire_core.castle.models.permanent import PermanentCastle, PermanentCastleDataResponse
 from empire_core.castle.models.resources import CastleResources
-from empire_core.castle.models.updates import UnitsReceived
-from empire_core.enums import Kingdom
+from empire_core.castle.models.updates import NewDay, UnitsReceived
+from empire_core.enums import Kingdom, Weekday
 from empire_core.protocol.base import enum_or_none, read_or_none
-from empire_core.protocol.js import js_int, js_loose_equals, js_truthy
+from empire_core.protocol.js import js_int, js_truthy
 from empire_core.state.base import StateBase, read_section
 from empire_core.state.models import Castle, Resources
 
@@ -26,9 +26,6 @@ logger = logging.getLogger(__name__)
 
 # ClientConstCollectable.GROUP_LIST_RESOURCES (bundle line 3073)
 _STOCK = ("wood", "stone", "food", "coal", "oil", "glass", "iron", "aquamarine", "honey", "mead", "beef")
-
-# TimeConst.MONDAY (ggs.dll line 19802)
-_MONDAY = 2
 
 
 LABORATORY_SECTIONS = ("gll", "lrr")
@@ -261,10 +258,13 @@ class CastleState(StateBase):
     def _handle_kik(self, data: Any) -> None:
         """On a Monday's ``kik``, set every castle's open-gate counter to 0.
 
-        Client: ``KIKCommand.executeCommand`` (bundle line 123113), ``DOW == TimeConst.MONDAY``;
-        ``CastleListVO.resetOpenGateCounter`` (bundle line 13728)
+        Client: ``KIKCommand.executeCommand`` (bundle line 123151), ``DOW == TimeConst.MONDAY``;
+        ``CastleListVO.resetOpenGateCounter`` (bundle line 13735)
         """
-        if not isinstance(data, dict) or not js_loose_equals(data.get("DOW"), _MONDAY):
+        if not isinstance(data, dict):
+            return
+        new_day = read_or_none(NewDay.model_validate, data, warn=logger, what="a kik push")
+        if new_day is None or new_day.day_of_week != Weekday.MONDAY:
             return
         for castle in self.castles.values():
             if castle.open_gate_counter:

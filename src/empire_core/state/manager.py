@@ -145,8 +145,9 @@ _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
 # RUECommand, KIKCommand, GSMCommand, RCICommand, CMRCommand, RCCCommand, JAACommand, FBECommand,
 # CBXCommand, GDBCommand, GCBCommand, CSLCommand and GABCommand (bundle lines 125647, 123114,
 # 125752, 123196, 125737, 123181, 130190, 122880, 123345, 122998, 122968, 122715, 122923); GECCommand
-# (bundle line 123927). And the quest ones: QLICommand, QSTCommand, QPGCommand, QFICommand,
-# MSPCommand, CQSCommand (bundle lines 126587, 126619, 126603, 126566, 125438, 126495)
+# (bundle line 123927), GHWCommand and SDECommand (bundle lines 129574, 127931). And the quest ones:
+# QLICommand, QSTCommand, QPGCommand, QFICommand, MSPCommand, CQSCommand (bundle lines 126587, 126619,
+# 126603, 126566, 125438, 126495)
 _SUCCESS_ONLY = frozenset(
     {
         "sei",
@@ -172,7 +173,8 @@ _SUCCESS_ONLY = frozenset(
     # GBDCommand.exec (bundle line 129376) reads the login data only on ALL_OK
     | {"gbd"}
     | (set(_NESTED_SECTIONS) - {"cpm", "crm"})
-    | {"rue", "kik", "gsm", "rci", "cmr", "rcc", "jaa", "fbe", "cbx", "gdb", "gcb", "csl", "gab", "gec"}
+    | {"rue", "kik", "gsm", "rci", "cmr", "rcc", "jaa", "fbe", "cbx", "gdb", "gcb", "csl", "gab", "gec", "ghw"}
+    | {"sde"}
     | {"qli", "qst", "qpg", "qfi", "msp", "cqs"}
     | {"nfo", "aqs", "bse", "bbs", "saq", "caq", "caaq", "raq", "scq", "aec"}
     # FKICommand.executeCommand (bundle line 127859)
@@ -236,6 +238,7 @@ class GameState(
     castle unlocked units and horses     ``gpc`` (pushed)             re-login
     joined area, slum level, discount    ``jaa``, ``csl``/``gab``     ``client.castle.join(id)``
                                          (pushed)
+    joined area's position               ``jaa``, ``ghw`` (pushed)    ``client.castle.join(id)``
     joined castle's mines                ``gsm`` (pushed), ``jaa``,   ``client.castle.join(id)``
                                          ``cmr``
     joined castle's resource carts       ``rci`` (pushed), ``jaa``,   ``client.castle.join(id)``
@@ -268,6 +271,7 @@ class GameState(
     gift packages                        ``pgl``                      re-login
     ruby wishing well                    ``rww``                      re-login
     new relics flag                      ``nrf`` (pushed)             re-login
+    frozen food production               ``DTS`` (pushed)             re-login
     gems and relic gems                  ``ggm``, ``gec`` (pushed)    re-login
     loot boxes, key progress             ``gls`` (pushed)             re-login
     inventory space                      ``esl``, the crafting and    re-login
@@ -284,6 +288,7 @@ class GameState(
                                          ``fjf``, ``bst``, ``cqs``,
                                          ``uap``, ``ffp``, ``rpr``
     alien reroll counts                  ``rce`` (pushed), ``sei``    --
+    events shutting down                 ``sde`` (pushed)             --
     active quests, quest book            ``qli`` (pushed after        --
                                          login), ``qst``, ``qfi``,
                                          ``msp``
@@ -339,6 +344,7 @@ class GameState(
         "see": "_handle_see",
         "tei": "_handle_tei",
         "tee": "_handle_tee",
+        "sde": "_handle_sde",
         "pep": "_handle_pep",
         "aqs": "_handle_aqs",
         "saq": "_handle_grand_tournament_action",
@@ -378,6 +384,7 @@ class GameState(
         "rue": "_handle_rue",
         "kik": "_handle_kik",
         "jaa": "_handle_jaa",
+        "ghw": "_handle_ghw",
         "nfo": "_handle_nfo",
         "gsm": "_handle_gsm",
         "cmr": "_handle_cmr",
@@ -600,27 +607,25 @@ class GameState(
     def get_last_packet_time(self, cmd_id: str) -> float | None:
         """When a packet (or gbd sub-packet) of this kind was last applied.
 
-        Accepts the wire ids this manager tracks — "gbd", "gam", "dcl", "abr", "asr", the send replies ("cra",
-        "cam", "abgcam", "cds", "csm", "cat", "crm", "css", "tde", "cdd", "cpm", "thm", "ldt"), "mcm", "mrm",
-        "mfc", "glu", "mir", "fjf", "bst", "sce", "see", "tee", "pep", "acm", "aqi", "acn", "cal", "ufp", "uht", "apt",
-        "car", "bfs",
-        the officers' school's "gtp" (only a successful one),
-        the quest pushes "qli", "qst", "qpg", "qfi", "msp" and the campaign's "cqs",
-        the castle pushes "rue", "kik", "fbe", "cbx", "gdb", "gcb", the gem push "gec", the faction
+        Accepts the wire ids this manager tracks — "gbd", "gam", "dcl", "abr", "asr", the send replies ("cra", "cam",
+        "abgcam", "cds", "csm", "cat", "crm", "css", "tde", "cdd", "cpm", "thm", "ldt"), "mcm", "mrm", "mfc", "glu",
+        "mir", "fjf", "bst", "sce", "see", "tee", "pep", "acm", "aqi", "acn", "cal", "ufp", "uht", "apt", "car", "bfs",
+        the officers' school's "gtp" (only a successful one), the quest pushes "qli", "qst", "qpg", "qfi", "msp" and the
+        campaign's "cqs", the castle pushes "rue", "kik", "fbe", "cbx", "gdb", "gcb", the gem push "gec", the faction
         protection reply "ffp", the rage points push "rpr", the alien reroll counts push "rce", the joined area's "jaa",
-        "cmr", "rcc" and the map read "gaa" (refused too) — and the login sections "gpi", "gxp", "gcu", "vip",
-        "gal", "gcl", "gho", "uap", "gpc", "gms", "sei", "tei", "gli", "skl", "ain", "acl", "rei", "boi", "gmu",
-        "ufa", "uar", "vli", "gri", "cpi", "dql", "gai", "gatp", "bie", "pgl", "rww", "nrf", "ggm", "gls", "esl",
-        "kpi", "mpe", "txi", "nec", "irc", "grc", "gll" and "lrr", stamped whether they came inside a gbd, as a push
-        of their own or inside a reply that carries one ("sei" from a fjf or bst, "gli" from an arl, "ain" from an
-        akm, "rei" from a res, "kpi" from a kut, ...), plus "gac" and "drt", which only come inside a gbd. "gsm" and
-        "rci" are stamped whenever mines or resource carts are applied, from their push or a jaa, cmr or rcc reply;
-        "csl" and "gab" from their push or a jaa, the push even when no area was joined to apply it to. A send
-        reply is stamped even when the server refused the send; the commands the client reads only from a
-        successful reply (the event ones, the login section ones, the castle ones, the quest ones, "gec", "acm",
+        "cmr", "rcc", "ghw", the events shutting down "sde" and the map read "gaa" (refused too) — and the login
+        sections "gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap", "gpc", "gms", "sei", "tei", "gli", "skl",
+        "ain", "acl", "rei", "boi", "gmu", "ufa", "uar", "vli", "gri", "cpi", "dql", "gai", "gatp", "bie", "pgl", "rww",
+        "nrf", "DTS", "ggm", "gls", "esl", "kpi", "mpe", "txi", "nec", "irc", "grc", "gll" and "lrr", stamped whether
+        they came inside a gbd, as a push of their own or inside a reply that carries one ("sei" from a fjf or bst,
+        "gli" from an arl, "ain" from an akm, "rei" from a res, "kpi" from a kut, ...), plus "gac" and "drt", which only
+        come inside a gbd. "gsm" and "rci" are stamped whenever mines or resource carts are applied, from their push or
+        a jaa, cmr or rcc reply; "csl" and "gab" from their push or a jaa, the push even when no area was joined to
+        apply it to. A send reply is stamped even when the server refused the send; the commands the client reads only
+        from a successful reply (the event ones, the login section ones, the castle ones, the quest ones, "gec", "acm",
         "aqi", "ufp", "uht", "apt", "car" and "bfs") are not, nor is a login section that was not applied: unreadable,
-        not valid, or another alliance's "ain". ``None`` means none was ever seen;
-        packets this manager ignores are never recorded.
+        not valid, or another alliance's "ain". ``None`` means none was ever seen; packets this manager ignores are
+        never recorded.
         """
         with self._lock:
             return self._packet_times.get(cmd_id)

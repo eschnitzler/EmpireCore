@@ -373,10 +373,12 @@ from empire_core.castle.models import (
     GetResourcesResponse,
     GetTaxInfoRequest,
     JoinAreaRequest,
+    JoinedAreaMoved,
     MineStatus,
     MineStatusList,
     MoveBuildingRequest,
     MoveBuildingResponse,
+    NewDay,
     PermanentCastle,
     PermanentCastleDataResponse,
     PlacedConstructionItem,
@@ -677,6 +679,7 @@ from empire_core.messages.models import (
     SendMessageRequest,
     SendMessageResponse,
     ServerMessage,
+    ServerShutdownWarning,
     SpyLogHeader,
     SpyReportArea,
     SpyReportResponse,
@@ -711,6 +714,7 @@ from empire_core.movements.models import (
 from empire_core.player.models.account import (
     BoostedGlobalEffectsResponse,
     DailyResetResponse,
+    FoodProductionStatus,
     PlayerGiftsResponse,
 )
 from empire_core.player.models.aqua import AquaPointsResponse, GetAquaPointsRequest
@@ -767,6 +771,7 @@ from empire_core.protocol.auth import (
     PasswordRecoveryResponse,
     RegisterRequest,
     RegisterResponse,
+    VersionCheckResponse,
 )
 from empire_core.protocol.base import (
     DEFAULT_ZONE,
@@ -986,6 +991,8 @@ __all__ = [
     "DamagedBuildings",
     "SlumLevel",
     "UnitsReceived",
+    "JoinedAreaMoved",
+    "NewDay",
     # Base
     "GGECommand",
     "DEFAULT_ZONE",
@@ -1004,6 +1011,7 @@ __all__ = [
     "LoginRequest",
     "LoginResponse",
     "LoginTokenResponse",
+    "VersionCheckResponse",
     "RegisterRequest",
     "RegisterResponse",
     "CheckUsernameAvailableRequest",
@@ -1226,6 +1234,7 @@ __all__ = [
     # Messages
     "MessageInfo",
     "ServerMessage",
+    "ServerShutdownWarning",
     "SystemNotificationEvent",
     "BattleLogDetailResponse",
     "BattleLogMiddleResponse",
@@ -1518,6 +1527,7 @@ __all__ = [
     "AttackCounterResponse",
     "BoostedGlobalEffectsResponse",
     "DailyResetResponse",
+    "FoodProductionStatus",
     "PlayerGiftsResponse",
     "WishingWellResponse",
     "NewRelicsResponse",
