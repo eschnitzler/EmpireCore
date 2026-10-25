@@ -145,6 +145,8 @@ from .updates import (
     BuildingFinished,
     BuildingXP,
     DamagedBuildings,
+    JoinedAreaMoved,
+    NewDay,
     SlumLevel,
     UnitsReceived,
 )
@@ -268,6 +270,8 @@ __all__ = [
     "DamagedBuildings",
     "SlumLevel",
     "UnitsReceived",
+    "JoinedAreaMoved",
+    "NewDay",
     "TAX_DURATIONS",
     "TAX_RUBY_COSTS",
     "CollectTaxRequest",

@@ -8,6 +8,8 @@ Commands (all pushed by the server):
 - gcb: Buildings of the joined castle whose efficiency changed
 - csl: The joined castle's slum level
 - gab: The joined castle's area booster
+- kik: The server's new day
+- ghw: The joined castle moved on the map
 """
 
 from __future__ import annotations
@@ -16,7 +18,8 @@ from typing import Any
 
 from pydantic import Field, field_validator
 
-from empire_core.gamedata import UnitOrTool
+from empire_core.enums import Weekday
+from empire_core.gamedata import EnumOrInt, UnitOrTool
 from empire_core.protocol.base import BaseResponse
 from empire_core.protocol.js import ClientInt
 
@@ -148,12 +151,48 @@ class AreaBooster(BaseResponse):
     builder_discount: int | float = Field(validation_alias="B", default=0, description="The builder discount")
 
 
+class NewDay(BaseResponse):
+    """
+    A new day began on the server. On a Monday the client sets every castle's open-gate counter to 0.
+
+    Command: kik
+    Payload: {"DOW": day_of_week}
+
+    Client: ``KIKCommand.executeCommand`` (bundle line 123151)
+    """
+
+    command = "kik"
+
+    day_of_week: EnumOrInt[Weekday] | None = Field(
+        validation_alias="DOW", default=None, description="The day that began; None when the push names none"
+    )
+
+
+class JoinedAreaMoved(BaseResponse):
+    """
+    The castle you have joined now stands at a new position on the map.
+
+    Command: ghw
+    Payload: {"X": x, "Y": y}
+
+    Client: ``GHWCommand.executeCommand`` (bundle line 129574), ``AreaDataModel.changePosOfOwnArea``
+    (bundle line 131929)
+    """
+
+    command = "ghw"
+
+    x: ClientInt = Field(validation_alias="X", description="The castle's new x position")
+    y: ClientInt = Field(validation_alias="Y", description="The castle's new y position")
+
+
 __all__ = [
     "AreaBooster",
     "BuildingEfficiencyChanged",
     "BuildingFinished",
     "BuildingXP",
     "DamagedBuildings",
+    "JoinedAreaMoved",
+    "NewDay",
     "SlumLevel",
     "UnitsReceived",
 ]

@@ -1,5 +1,5 @@
 """Account sections: the daily reset, attack counter, officers' school, boosted global effects, gifts,
-wishing well and new relics."""
+wishing well, new relics and frozen food production."""
 
 import time
 from typing import Any
@@ -10,13 +10,14 @@ from empire_core.commanders.models.inventory import NewRelicsResponse
 from empire_core.player.models.account import (
     BoostedGlobalEffectsResponse,
     DailyResetResponse,
+    FoodProductionStatus,
     OfficerTraining,
     PlayerGiftsResponse,
 )
 from empire_core.protocol.js import js_int, js_truthy
 from empire_core.state.base import StateBase, loaded, read_section
 
-ACCOUNT_SECTIONS = ("drt", "gai", "gatp", "bie", "pgl", "rww", "nrf")
+ACCOUNT_SECTIONS = ("drt", "gai", "gatp", "bie", "pgl", "rww", "nrf", "DTS")
 
 
 class AccountState(StateBase):
@@ -25,7 +26,8 @@ class AccountState(StateBase):
 
         Client: ``GBDCommand.exec`` (bundle line 129381) calls ``parse_DRT``, ``parse_GATP``,
         ``parse_GIE`` (with ``bie``), ``parse_RWW`` and ``parseNRF``, and ``parse_PGL`` and the attack
-        counter's ``parseParamObject`` only when ``pgl`` and ``gai`` are truthy
+        counter's ``parseParamObject`` only when ``pgl`` and ``gai`` are truthy; ``parse_DTS`` (bundle line 9925)
+        reads ``DTS`` only when it is truthy
         """
         applied: set[str] = set()
         if js_truthy(drt := data.get("drt")):
@@ -55,6 +57,10 @@ class AccountState(StateBase):
         if "nrf" in data and (relics := read_section(NewRelicsResponse, data["nrf"], "the new relics")) is not None:
             self.new_relics = relics
             applied.add("nrf")
+        if js_truthy(dts := data.get("DTS")):
+            if (frozen := read_section(FoodProductionStatus, dts, "the food production status")) is not None:
+                self.food_production = frozen
+                applied.add("DTS")
         return {section for section in ACCOUNT_SECTIONS if section in data} - applied
 
     def _apply_officer_training(self, body: Any) -> bool:
@@ -129,6 +135,11 @@ class AccountState(StateBase):
         """The ruby wishing well, from the last ``rww``; None until one arrived."""
         with self._lock:
             return self.wishing_well
+
+    def get_food_production(self) -> FoodProductionStatus | None:
+        """Whether your food production is frozen, from the last ``DTS``; None until one arrived."""
+        with self._lock:
+            return self.food_production
 
     def get_new_relics(self) -> NewRelicsResponse:
         """Whether new relics wait to be seen, from the last ``nrf``; the login data brings one.

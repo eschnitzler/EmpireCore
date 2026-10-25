@@ -132,7 +132,7 @@ class ClientVersionError(LoginError):
         status: ``VersionCheckStatus.VERSION_TOO_LOW`` or ``VERSION_TOO_HIGH``
         server_build: the server's build number, or None when the reply had none
 
-    Client: ``CastleVCKCommand.executeCommand`` (bundle line 120444)
+    Client: ``CastleVCKCommand.executeCommand`` (bundle line 120482)
     """
 
     def __init__(self, status: VersionCheckStatus, server_build: str | None):

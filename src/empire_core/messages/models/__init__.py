@@ -60,6 +60,7 @@ from .mailbox import (
     SendMessageRequest,
     SendMessageResponse,
     ServerMessage,
+    ServerShutdownWarning,
     SpyLogHeader,
     SpyReportArea,
     SpyReportResponse,
@@ -129,5 +130,6 @@ __all__ = [
     "SpyReportArea",
     "SpyReportResponse",
     "ServerMessage",
+    "ServerShutdownWarning",
     "SystemNotificationEvent",
 ]

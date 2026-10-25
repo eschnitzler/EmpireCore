@@ -344,12 +344,12 @@ class Player(EmpireModel):
 class JoinedArea(EmpireModel):
     """
     The castle or area last joined (``jaa``, the reply to ``client.castle.join``), and the
-    slum level and builder discount it was sent with or pushed since (``csl``, ``gab``).
+    slum level, builder discount and position it was sent with or pushed since (``csl``, ``gab``, ``ghw``).
 
     Client: ``JAACommand.executeCommand`` (bundle line 130190),
     ``AreaFactory.parseAreaInfo`` (bundle line 130226), ``AreaDataUpdater.parseJAA``
     (bundle line 131496), ``AreaDataSlum`` (bundle line 131303), ``AreaDataCommonInfo.parseGAB``
-    (bundle line 130992)
+    (bundle line 130992), ``AreaDataModel.changePosOfOwnArea`` (bundle line 131929)
     """
 
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
@@ -358,5 +358,7 @@ class JoinedArea(EmpireModel):
     castle_id: int | None = Field(
         default=None, description="The area's object id; None when its map row is not one of a castle list's"
     )
+    x: int | None = Field(default=None, description="The area's map x; None when its map row could not be read")
+    y: int | None = Field(default=None, description="The area's map y; None when its map row could not be read")
     slum_level: int = Field(default=-1, description="The slum level, -1 for none")
     builder_discount: int | float = Field(default=0, description="The builder discount")

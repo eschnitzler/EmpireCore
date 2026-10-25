@@ -1719,6 +1719,28 @@ class GetEventPointsResponse(BaseResponse):
     )
 
 
+class ShuttingDownEvents(BaseResponse):
+    """
+    The events that are shutting down: each one's building stays in your castles, with no time left.
+
+    Each push replaces the list before it.
+
+    Command: sde
+    Payload: {"SD": [event_id, ...]}
+
+    Client: ``SDECommand.executeCommand`` (bundle line 127931), ``CastleSpecialEventData.parse_SDE``
+    (bundle line 139841), ``FakeEventVO`` (bundle line 139974)
+    """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    command: ClassVar[str] = "sde"
+
+    event_ids: tuple[EnumOrInt[Event], ...] = Field(
+        default=(), validation_alias="SD", description="The events shutting down"
+    )
+
+
 class GameEvent(EmpireModel):
     """A running event with its in-game title."""
 

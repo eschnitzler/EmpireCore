@@ -769,7 +769,7 @@ class TestTimings:
 
 
 class TestVersionCheck:
-    """The vck reply: 0 goes on, 1 too low, 2 too high (CastleVCKCommand, bundle line 120444)."""
+    """The vck reply: 0 goes on, 1 too low, 2 too high (CastleVCKCommand, bundle line 120482)."""
 
     @pytest.mark.parametrize("status", list(VersionCheckStatus))
     def test_a_version_the_server_refuses_raises_with_its_build(self, status):

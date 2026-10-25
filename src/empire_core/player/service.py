@@ -20,6 +20,7 @@ from empire_core.commanders.models.skills import (
 )
 from empire_core.enums import Kingdom, MysteryBoxKey, PeaceModeDuration, TitleSystem
 from empire_core.exceptions import CommandError, EmpireError, EmpireTimeoutError, PacketError
+from empire_core.player.models.account import FoodProductionStatus
 from empire_core.player.models.aqua import AquaPointsResponse, GetAquaPointsRequest
 from empire_core.player.models.economy import (
     GetLootBoxesRequest,
@@ -118,6 +119,7 @@ class PlayerService(BaseService):
         self.on_response("ego", self._handle_skill_list)
         self.on_response("vfi", self._handle_achievement_finished)
         self.on_response("apt", self._request_title_ranks)
+        self.on_response("DTS", self._handle_food_production)
 
     @property
     def local_player(self) -> Player:
@@ -201,6 +203,12 @@ class PlayerService(BaseService):
             StateNotLoadedError: No login has brought it
         """
         return self.client.state.get_glory_points()
+
+    @property
+    def food_production(self) -> FoodProductionStatus | None:
+        """Whether your food production is frozen, from the login data's ``DTS`` and each push since; None until
+        one arrived."""
+        return self.client.state.get_food_production()
 
     @property
     def faction_points(self) -> FactionPointsResponse | None:
@@ -692,6 +700,20 @@ class PlayerService(BaseService):
         if skills is None:
             return
         self._fire(self.on_skill_list, skills)
+
+    on_food_production = Event[FoodProductionStatus]()
+    """
+    Register a callback for each food production status the server sends: the login data's ``DTS``
+    and each ``DTS`` push, after :attr:`food_production` has it.
+
+    Client: ``CastleUserData.parse_DTS`` (bundle line 9925) fires ``DOWNTIME_STATUS_UPDATED`` on each one
+
+    Removing a callback not registered is a no-op.
+    """
+
+    def _handle_food_production(self, response: BaseResponse) -> None:
+        if isinstance(response, FoodProductionStatus):
+            self._fire(self.on_food_production, response)
 
 
 __all__ = ["PlayerDetailsBulkResult", "PlayerService"]
