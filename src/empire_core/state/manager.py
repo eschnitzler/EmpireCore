@@ -107,7 +107,7 @@ _WHOLE_SECTIONS = {
 # 122861, 122846, 123163, 122744), JAACommand (bundle line 130194), RCCCommand (bundle lines 123182,
 # 28797), BUPCommand, CRMCommand, VFICommand, GDRCommand, CCDCommand, CDECommand (bundle lines 125531,
 # 125982, 121164, 123053, 127640, 127658), gdr also its sce; a refused crm still reaches the movement handler.
-# VFICommand also parses its gcu
+# VFICommand also parses its gcu, and SOUCommand (bundle line 125699) its gcu beside the spl the state does not keep
 _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
     **dict.fromkeys(("arl", "gla", "sdi", "sti"), ("gli",)),
     "seq": ("gli", "gcu", "esl"),
@@ -132,6 +132,7 @@ _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
     **dict.fromkeys(("ebu", "eup", "eud", "rbu", "ebe", "jaa", "rcc", "bup", "crm", "ccd", "cde"), ("grc",)),
     "gdr": ("grc", "sce"),
     "vfi": ("gcu", "grc"),
+    "sou": ("gcu",),
 }
 
 # Commands whose state the client applies only from a successful reply: SEICommand, SEECommand,

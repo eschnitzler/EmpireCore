@@ -132,7 +132,8 @@ call always does.
 | A ruby price of the item | `castle.build`, `upgrade_building`, `upgrade_defense`, `army.produce_units`, `heal_units` | when the game data prices it in rubies |
 | Missing resources | `castle.build`, `upgrade_building`, `upgrade_defense`, `repair_building`, `army.produce_units` | with the flag they are paid with rubies; without it never |
 | Finishing at once | `castle.finish_construction` | over 240 seconds left, or a time left it cannot work out |
-| | `castle.repair_all`, `army.skip_heal`, `double_production_slot` | always |
+| | `castle.repair_all`, `army.skip_heal`, `double_production_slot`, `skip_production_slot`, `start_recruitment_loop` | always |
+| Copying a queue | `army.copy_recruitment` | a target's `doubling_ruby_cost` above 0 |
 | | `army.heal_all` | a price above 0 |
 | Travel | `movements.send_resources`, `send_support`, `send_troops`, `attack.send_attack`, the `client.spy` sends | a horse that costs rubies (not paid with feathers), any slowdown, the premium commander when none is free |
 | The rest | `castle.buy_expansion`, `rename`, `start_tax`, `castle.start_research`, `alliance.donate` | a premium expansion; a rename with no premium account; tax types 5 and 6; a ruby research; donated rubies |
