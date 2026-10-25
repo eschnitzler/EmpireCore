@@ -276,47 +276,47 @@ class TestResourceCarts:
 
 
 class TestBuildingCallbacks:
-    def test_fbe_and_cbx_report_the_building_and_its_xp(self, state):
+    def test_fbe_and_cbx_report_the_building_and_its_xp(self):
         # FBECommand and CBXCommand: parseCBX(OID, XP) -> onGainedBuildingPoints
+        client = make_client(state=GameState())  # type: ignore[arg-type]
         finished: list[BuildingFinished] = []
         gained: list[BuildingXP] = []
-        state.on_building_finished(finished.append)
-        state.on_building_xp(gained.append)
+        client.castle.on_building_finished(finished.append)
+        client.castle.on_building_xp(gained.append)
 
-        state.update_from_packet("fbe", {"OID": 5, "XP": 120})
-        state.update_from_packet("cbx", {"OID": 6, "XP": 40})
-        settle(state)
+        client._on_packet(xt_packet("fbe", {"OID": 5, "XP": 120}))
+        client._on_packet(xt_packet("cbx", {"OID": 6, "XP": 40}))
 
         assert [(event.object_id, event.xp) for event in finished] == [(5, 120)]
         assert [(event.object_id, event.xp) for event in gained] == [(6, 40)]
         assert type(gained[0]) is BuildingXP
 
-    def test_gdb_and_gcb_report_the_changed_rows(self, state):
+    def test_gdb_and_gcb_report_the_changed_rows(self):
         # GDBCommand and GCBCommand: updateMultipleObjectInfos(e.B); a row may be wrapped as {"O": row}
+        client = make_client(state=GameState())  # type: ignore[arg-type]
         changed: list[DamagedBuildings] = []
-        state.on_buildings_changed(changed.append)
+        client.castle.on_buildings_changed(changed.append)
 
-        state.update_from_packet("gdb", {"B": [ROW]})
-        state.update_from_packet("gcb", {"B": [{"O": [*ROW[:9], 50, 0]}]})
-        settle(state)
+        client._on_packet(xt_packet("gdb", {"B": [ROW]}))
+        client._on_packet(xt_packet("gcb", {"B": [{"O": [*ROW[:9], 50, 0]}]}))
 
         assert [type(event) for event in changed] == [DamagedBuildings, BuildingEfficiencyChanged]
         assert changed[0].buildings[0].hit_points == 60
         assert changed[1].buildings[0].efficiency == 50
 
-    def test_a_removed_callback_no_longer_fires(self, state):
+    def test_a_removed_callback_no_longer_fires(self):
+        client = make_client(state=GameState())  # type: ignore[arg-type]
         seen: list[object] = []
-        state.on_building_finished(seen.append)
-        state.on_building_xp(seen.append)
-        state.on_buildings_changed(seen.append)
-        state.on_building_finished.remove(seen.append)
-        state.on_building_xp.remove(seen.append)
-        state.on_buildings_changed.remove(seen.append)
+        client.castle.on_building_finished(seen.append)
+        client.castle.on_building_xp(seen.append)
+        client.castle.on_buildings_changed(seen.append)
+        client.castle.on_building_finished.remove(seen.append)
+        client.castle.on_building_xp.remove(seen.append)
+        client.castle.on_buildings_changed.remove(seen.append)
 
-        state.update_from_packet("fbe", {"OID": 5, "XP": 1})
-        state.update_from_packet("cbx", {"OID": 5, "XP": 1})
-        state.update_from_packet("gdb", {"B": [ROW]})
-        settle(state)
+        client._on_packet(xt_packet("fbe", {"OID": 5, "XP": 1}))
+        client._on_packet(xt_packet("cbx", {"OID": 5, "XP": 1}))
+        client._on_packet(xt_packet("gdb", {"B": [ROW]}))
 
         assert seen == []
 
@@ -328,7 +328,7 @@ class TestRefusedReplies:
         state = client.state
         login(state)
         seen: list[object] = []
-        state.on_building_finished(seen.append)
+        client.castle.on_building_finished(seen.append)
 
         client._on_packet(xt_packet("rue", {"AID": 1, "SID": 0, "WID": 620, "NUA": 5}, error_code=1))
         client._on_packet(xt_packet("gsm", MINES, error_code=1))

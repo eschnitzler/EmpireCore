@@ -97,11 +97,17 @@ class Session:
         self._dropped_logged_in: int | None = None
         # The seconds the last cooldown refusal named, and when it came (time.monotonic()).
         self._login_cooldown: tuple[float, float] | None = None
+        self._server_build: str | None = None
 
     @property
     def restoring(self) -> bool:
         """See :attr:`EmpireClient.is_restoring_session`."""
         return self._relogin_running
+
+    @property
+    def server_build(self) -> str | None:
+        """See :attr:`EmpireClient.server_build`."""
+        return self._server_build
 
     def login(self, recaptcha_token: str | Callable[[], str] | None, retry: bool) -> None:
         """See :meth:`EmpireClient.login`."""
@@ -358,6 +364,7 @@ class Session:
             connection.unsubscribe("roundTripRes", on_round_trip)
 
         reply = VersionCheckResponse.model_validate(vck.payload if isinstance(vck.payload, dict) else {})
+        self._server_build = reply.server_build
         if vck.error_code in tuple(VersionCheckStatus):
             raise ClientVersionError(VersionCheckStatus(vck.error_code), reply.server_build)
         if vck.error_code != 0:

@@ -240,17 +240,16 @@ class TestPushes:
         assert reply.buildings is not None and reply.buildings.construction_items == ()
 
     def test_a_gca_replaces_the_joined_castles_construction_items(self):
-        state = GameState()
+        client = make_client(state=GameState())  # type: ignore[arg-type]
         pushed: list[CastleBuildingsPushed] = []
-        state.on_castle_buildings(pushed.append)
-        state.update_from_packet("gca", {"O": {"OID": 1001}, "gca": {"CI": []}})
-        assert pushed == [] and state.get_placed_construction_items() is None
+        client.castle.on_castle_buildings(pushed.append)
+        client._on_packet(xt_packet("gca", {"O": {"OID": 1001}, "gca": {"CI": []}}))
+        assert pushed == [] and client.state.get_placed_construction_items() is None
 
-        state.update_from_packet("jaa", {"KID": 0, "gca": {"A": [1, 3, 4, 7, 1001]}})
-        state.update_from_packet("gca", {"O": {"OID": 1001}, "gca": {"CI": []}})
-        state.shutdown()
+        client._on_packet(xt_packet("jaa", {"KID": 0, "gca": {"A": [1, 3, 4, 7, 1001]}}))
+        client._on_packet(xt_packet("gca", {"O": {"OID": 1001}, "gca": {"CI": []}}))
 
-        assert state.get_placed_construction_items() == ()
+        assert client.state.get_placed_construction_items() == ()
         assert [push.owner.owner_id for push in pushed if push.owner is not None] == [1001]
 
     def test_a_season_event_packet_is_read(self):

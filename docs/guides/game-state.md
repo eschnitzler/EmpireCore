@@ -194,11 +194,12 @@ for object_id, mine in client.castle.mines.items():
         client.castle.collect_mine(object_id)
 ```
 
-The joined castle's buildings are not kept in state. `on_building_finished`
+The joined castle's buildings are not kept in state. `client.castle.on_building_finished`
 (`fbe`), `on_building_xp` (`cbx`) and `on_buildings_changed` (`gdb` damaged
-buildings, `gcb` changed efficiency) call you back on the callback thread
-instead; each one's `.remove(callback)` unregisters. `on_joined_area_moved`
-(`ghw`) calls you back with the joined castle's new position.
+buildings, `gcb` changed efficiency) call you back on the receive thread
+instead, so a callback must not block; each one's `.remove(callback)` unregisters.
+`client.castle.on_joined_area_moved` (`ghw`) calls you back with the joined castle's
+new position.
 
 ## Running events
 

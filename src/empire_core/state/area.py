@@ -1,6 +1,5 @@
 """The joined area: the jaa reply, its mines (gsm) and resource carts (rci), slum level (csl),
-builder discount (gab) and position (ghw), and the building pushes (fbe, cbx, gdb, gcb, gca) as callbacks; and
-the world map's size (nfo)."""
+builder discount (gab) and position (ghw); and the world map's size (nfo)."""
 
 import logging
 import time
@@ -11,11 +10,7 @@ from empire_core.castle.models.castles import PlayerCastle
 from empire_core.castle.models.collect import MineStatus, MineStatusList, ResourceCart, ResourceCartInfo
 from empire_core.castle.models.updates import (
     AreaBooster,
-    BuildingEfficiencyChanged,
-    BuildingFinished,
-    BuildingXP,
     CastleBuildingsPushed,
-    DamagedBuildings,
     JoinedAreaMoved,
     SlumLevel,
 )
@@ -24,7 +19,6 @@ from empire_core.map.models.world import MapSize, ServerInfoResponse
 from empire_core.protocol.base import enum_or_none, read_or_none
 from empire_core.state.base import StateBase, loaded
 from empire_core.state.models import JoinedArea
-from empire_core.utils.callbacks import Event
 
 logger = logging.getLogger(__name__)
 
@@ -33,32 +27,6 @@ _CART_COUNT = 3
 
 
 class AreaState(StateBase):
-    on_building_finished = Event[BuildingFinished]()
-    """Register a callback for a building in the joined castle that finished (``fbe``).
-
-    Called with the building's object id and the XP it gave. Runs on the callback
-    thread, in packet order (see :class:`GameState`).
-
-    Client: ``FBECommand.exec`` (bundle line 122879), ``AreaDataUpdater.parseCBX`` (bundle line 131521)
-    """
-
-    on_building_xp = Event[BuildingXP]()
-    """Register a callback for XP a building in the joined castle gave (``cbx``).
-
-    Client: ``CBXCommand.executeCommand`` (bundle line 123345)
-    """
-
-    on_buildings_changed = Event[DamagedBuildings]()
-    """Register a callback for buildings of the joined castle that were damaged (``gdb``) or
-    whose efficiency changed (``gcb``, a :class:`BuildingEfficiencyChanged`).
-
-    Called with the buildings' new rows. State does not keep the joined castle's
-    buildings: the build, upgrade and repair replies change them too.
-
-    Client: ``GDBCommand`` and ``GCBCommand`` (bundle lines 122998, 122968),
-    ``IsoUpdaterData.updateMultipleObjectInfos`` (bundle line 130259)
-    """
-
     def _handle_jaa(self, data: Any) -> None:
         """Apply a join's reply: the joined area, and its mines and resource carts when it sends them.
 
@@ -194,61 +162,16 @@ class AreaState(StateBase):
             if booster is not None:
                 self.joined_area = self.joined_area.model_copy(update={"builder_discount": booster.builder_discount})
 
-    on_joined_area_moved = Event[JoinedAreaMoved]()
-    """Register a callback for the castle you have joined moving on the map (``ghw``).
-
-    Called with its new position, after :meth:`get_joined_area` has it, and also when no area
-    is joined, which the push leaves alone.
-
-    Client: ``GHWCommand.executeCommand`` (bundle line 129574)
-    """
-
     def _handle_ghw(self, data: Any) -> None:
         """Apply a ``ghw`` push: the joined area's new position.
 
         Client: ``GHWCommand.executeCommand`` (bundle line 129574) moves the active area only,
         ``AreaDataModel.changePosOfOwnArea`` (bundle line 131929)
         """
-        if not isinstance(data, dict):
-            return
-        moved = read_or_none(JoinedAreaMoved.model_validate, data, warn=logger, what="a ghw push")
-        if moved is None:
-            return
-        if self.joined_area is not None:
-            self.joined_area = self.joined_area.model_copy(update={"x": moved.x, "y": moved.y})
-        self._fire(self.on_joined_area_moved, moved)
-
-    def _handle_fbe(self, data: Any) -> None:
-        if isinstance(data, dict):
-            finished = read_or_none(BuildingFinished.model_validate, data, warn=logger, what="an fbe push")
-            if finished is not None:
-                self._fire(self.on_building_finished, finished)
-
-    def _handle_cbx(self, data: Any) -> None:
-        if isinstance(data, dict):
-            gained = read_or_none(BuildingXP.model_validate, data, warn=logger, what="a cbx push")
-            if gained is not None:
-                self._fire(self.on_building_xp, gained)
-
-    def _handle_gdb(self, data: Any) -> None:
-        if isinstance(data, dict):
-            damaged = read_or_none(DamagedBuildings.model_validate, data, warn=logger, what="a gdb push")
-            if damaged is not None:
-                self._fire(self.on_buildings_changed, damaged)
-
-    def _handle_gcb(self, data: Any) -> None:
-        if isinstance(data, dict):
-            changed = read_or_none(BuildingEfficiencyChanged.model_validate, data, warn=logger, what="a gcb push")
-            if changed is not None:
-                self._fire(self.on_buildings_changed, changed)
-
-    on_castle_buildings = Event[CastleBuildingsPushed]()
-    """Register a callback for the joined castle's buildings sent whole (``gca``).
-
-    Called after :meth:`get_placed_construction_items` has the construction items they carry.
-
-    Client: ``GCACommand.executeCommand`` (bundle line 122991)
-    """
+        if isinstance(data, dict) and self.joined_area is not None:
+            moved = read_or_none(JoinedAreaMoved.model_validate, data, warn=logger, what="a ghw push")
+            if moved is not None:
+                self.joined_area = self.joined_area.model_copy(update={"x": moved.x, "y": moved.y})
 
     def _handle_gca(self, data: Any) -> None:
         """Apply a ``gca`` push to the joined castle: the construction items on its buildings.
@@ -263,7 +186,6 @@ class AreaState(StateBase):
             return
         self._placed_construction_item_sequence = self._packet_sequence
         self.placed_construction_items = pushed.buildings.construction_items
-        self._fire(self.on_castle_buildings, pushed)
 
     def _handle_nfo(self, data: Any) -> None:
         """Keep the server info pushed when the connection opens: the world map's size in sectors.

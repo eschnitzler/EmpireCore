@@ -545,6 +545,17 @@ class EmpireClient:
         """
         return self._session.restoring
 
+    @property
+    def server_build(self) -> str | None:
+        """The game server's build number from the last version check (``vck``) of a login, refused or not.
+
+        None before the first login reached the version check; a logout keeps it until the next.
+
+        Client: ``CastleVCKCommand.executeCommand`` (bundle line 120482) keeps it as ``env.buildNumberServer``
+        before it reads the status
+        """
+        return self._session.server_build
+
     on_session_retry = Event[int, float, Exception]()
     """Register a callback for a failed login attempt that is tried again.
 

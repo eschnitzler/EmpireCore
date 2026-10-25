@@ -23,7 +23,7 @@ from empire_core.enums import Weekday
 from empire_core.gamedata import EnumOrInt, UnitOrTool
 from empire_core.map.models.areas import MapObject
 from empire_core.protocol.base import BaseResponse, object_or_none
-from empire_core.protocol.js import ClientInt
+from empire_core.protocol.js import ClientInt, js_number_or_none
 
 from .objects import BuildingRow, CastleBuildings, block_or_none, building_rows
 
@@ -166,8 +166,15 @@ class NewDay(BaseResponse):
     command = "kik"
 
     day_of_week: EnumOrInt[Weekday] | None = Field(
-        validation_alias="DOW", default=None, description="The day that began; None when the push names none"
+        validation_alias="DOW", default=None, description="The day that began; None when the push names no whole day"
     )
+
+    @field_validator("day_of_week", mode="before")
+    @classmethod
+    def _whole_day(cls, value: Any) -> Any:
+        # The client compares DOW loosely (DOW == MONDAY), so 2.0 and "2" are Monday and 2.5 is no day
+        number = js_number_or_none(value)
+        return int(number) if number is not None and float(number).is_integer() else None
 
 
 class JoinedAreaMoved(BaseResponse):
