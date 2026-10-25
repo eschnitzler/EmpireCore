@@ -2,7 +2,14 @@
 
 from typing import TYPE_CHECKING
 
-from empire_core.enums import FactionProtectionStatus, Kingdom, MapItemType, NPCOwner, PeaceModeStatus
+from empire_core.enums import (
+    FactionProtectionStatus,
+    Kingdom,
+    MapItemType,
+    NPCOwner,
+    PeaceModeStatus,
+    TreasureMapProgress,
+)
 from empire_core.utils.lazy import lazy_exports
 
 from .models import (
@@ -16,14 +23,19 @@ from .models import (
     AbgTowerConnection,
     AllianceCrest,
     AllianceEmblem,
+    BuyTreasureMapPiecesRequest,
+    BuyTreasureMapPiecesResponse,
     FindNextEnemyCastleRequest,
     FindNextEnemyCastleResponse,
     FindNextMapObjectRequest,
     FindNextMapObjectResponse,
     FindNextTowerRequest,
     FindNextTowerResponse,
+    FinishTreasureMapRequest,
+    FinishTreasureMapResponse,
     GetMapAreaRequest,
     GetMapAreaResponse,
+    GetTreasureMapsRequest,
     KingdomProtection,
     MapArea,
     MapAreaItem,
@@ -36,13 +48,22 @@ from .models import (
     RuinInfoRequest,
     RuinInfoResponse,
     ServerInfoResponse,
+    TreasureHuntInfoResponse,
+    TreasureMap,
+    TreasureMapGoodsTransfer,
+    TreasureMapNode,
+    TreasureMapsBlock,
+    TreasureMapsResponse,
+    TreasureMapStorage,
+    TreasureMapUnitTransfer,
+    TreasureNodeClickResponse,
     parse_area_rows,
 )
 from .scanner import ChunkHandler, MapScanner, ScanResult, scan_kingdom_with
 from .service import MapService
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import AllianceCrestColor, AllianceCrestLayout, Title
+    from empire_core.gamedata import AllianceCrestColor, AllianceCrestLayout, Title, Tool, Unit
 
 __all__ = [
     "GetMapAreaRequest",
@@ -86,13 +107,30 @@ __all__ = [
     "MapService",
     "PeaceModeStatus",
     "FactionProtectionStatus",
+    "TreasureMapProgress",
+    "BuyTreasureMapPiecesRequest",
+    "BuyTreasureMapPiecesResponse",
+    "FinishTreasureMapRequest",
+    "FinishTreasureMapResponse",
+    "GetTreasureMapsRequest",
+    "TreasureHuntInfoResponse",
+    "TreasureMap",
+    "TreasureMapGoodsTransfer",
+    "TreasureMapNode",
+    "TreasureMapStorage",
+    "TreasureMapUnitTransfer",
+    "TreasureMapsBlock",
+    "TreasureMapsResponse",
+    "TreasureNodeClickResponse",
     "AllianceCrestColor",
     "AllianceCrestLayout",
     "Title",
+    "Tool",
+    "Unit",
 ]
 
 
 if not TYPE_CHECKING:
     __getattr__ = lazy_exports(
-        __name__, "empire_core.gamedata.ids", ("AllianceCrestColor", "AllianceCrestLayout", "Title")
+        __name__, "empire_core.gamedata.ids", ("AllianceCrestColor", "AllianceCrestLayout", "Title", "Tool", "Unit")
     )

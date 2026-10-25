@@ -427,6 +427,7 @@ class EventState(StateBase):
         self.events = {key: value for key, value in self.events.items() if key != eid}
         if eid == Event.ALLIANCE_RAIDBOSS_EVENT:
             self._raid_boss_receipt = None
+        self._forget_treasure_map_of(event)
         self._fire(self.on_event_removed, event)
         self._expire_events()
 
@@ -452,6 +453,7 @@ class EventState(StateBase):
             for event in ended:
                 if event.event_id == Event.ALLIANCE_RAIDBOSS_EVENT:
                     self._raid_boss_receipt = None
+                self._forget_treasure_map_of(event)
                 self._fire(self.on_event_removed, event)
 
     def get_alien_reroll_counts(self) -> AlienRerollCountsResponse | None:

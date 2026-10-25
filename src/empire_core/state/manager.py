@@ -20,6 +20,7 @@ from empire_core.state.player import PlayerState
 from empire_core.state.progress import ProgressState
 from empire_core.state.quests import QuestState
 from empire_core.state.rewards import RewardsState
+from empire_core.state.treasure_maps import TREASURE_MAP_SECTIONS, TreasureMapState
 
 __all__ = ["MOVEMENT_PARSE_WARN_INTERVAL", "EventCallback", "EventsCallback", "GameState", "MovementEventCallback"]
 # gbd sections stamped under their own id, whether they came in a gbd or as a push.
@@ -56,6 +57,7 @@ _TRACKED_SECTIONS = (
     *ACCOUNT_SECTIONS,
     *INVENTORY_SECTIONS,
     *LABORATORY_SECTIONS,
+    *TREASURE_MAP_SECTIONS,
 )
 
 _PLAYER_SECTIONS = frozenset({"gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap", "gac", "sce"})
@@ -83,6 +85,7 @@ _WHOLE_SECTIONS = {
     **{section: section for section in ACCOUNT_SECTIONS if section != "drt"},
     **{section: section for section in INVENTORY_SECTIONS},
     **{section: section for section in LABORATORY_SECTIONS},
+    **{section: section for section in TREASURE_MAP_SECTIONS},
 }
 
 # Replies that carry a gbd section under its own key, applied only on success: ARLCommand,
@@ -100,6 +103,8 @@ _WHOLE_SECTIONS = {
 # 123798, 123955, 124019) bring their esl, and frc its ain; the kingdom replies KGTCommand, KSTCommand, KUTCommand,
 # MSKCommand and FJFCommand (bundle lines 124654, 124713, 124728, 125795, 127783) their kpi.
 # FFPCommand and IBTCommand (bundle lines 127785, 123574) bring their gcu.
+# The treasure map replies TCNCommand, TGTCommand, TUTCommand, MSMCommand, TKTCommand and TFMCommand (bundle
+# lines 129038, 129068, 129118, 125848, 129088, 129053) bring their tmp, tkt its gcu and tfm its thi.
 # RWBCommand (bundle line 124426) brings only its gcu to state; its parseRWB (bundle line 111900)
 # also reads a gui the state does not keep. A castle's resources (grc) wherever AreaDataUpdater.parseGRC
 # (bundle line 131501) gets them: RESCommand, ADOCommand, KGTCommand, KSTCommand, SBPCommand above, and
@@ -136,6 +141,9 @@ _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
     "gdr": ("grc", "sce"),
     "vfi": ("gcu", "grc"),
     "sou": ("gcu",),
+    **dict.fromkeys(("tcn", "tgt", "tut", "msm"), ("tmp",)),
+    "tkt": ("tmp", "gcu"),
+    "tfm": ("thi", "tmp"),
 }
 
 # Commands whose state the client applies only from a successful reply: SEICommand, SEECommand,
@@ -203,6 +211,7 @@ class GameState(
     InventoryState,
     MailboxState,
     RewardsState,
+    TreasureMapState,
 ):
     """
     Manages game state parsed from server packets.
@@ -284,6 +293,8 @@ class GameState(
     kingdoms, transfers between them     ``kpi``, the transfer        re-login
                                          replies
     mercenary missions                   ``mpe``                      re-login
+    treasure maps, treasure hunt's map   ``tmp``/``thi``, the         ``client.map.get_treasure_maps()``
+                                         treasure map replies
     tax collection                       ``txi``, ``txs``, ``txc``,   ``client.castle.get_tax_info()``
                                          ``btx``
     construction item expiry             ``nec`` (pushed)             re-login
@@ -501,6 +512,7 @@ class GameState(
         skipped |= self._parse_account(data)
         skipped |= self._parse_inventory(data)
         skipped |= self._parse_laboratories(data)
+        skipped |= self._parse_treasure_maps(data)
         self._parse_castles(data)
         self._parse_permanent_castles(data)
         self._parse_max_spies(data)
@@ -631,9 +643,10 @@ class GameState(
         (only a successful one) — and the login sections "gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap", "gpc",
         "gms", "sei", "tei", "gli", "skl",
         "ain", "acl", "rei", "boi", "gmu", "ufa", "uar", "vli", "gri", "cpi", "dql", "gai", "gatp", "bie", "pgl", "rww",
-        "nrf", "DTS", "ggm", "gls", "esl", "kpi", "mpe", "txi", "nec", "irc", "grc", "gll" and "lrr", stamped whether
-        they came inside a gbd, as a push of their own or inside a reply that carries one ("sei" from a fjf or bst,
-        "gli" from an arl, "ain" from an akm, "rei" from a res, "kpi" from a kut, ...), plus "gac" and "drt", which only
+        "nrf", "DTS", "ggm", "gls", "esl", "kpi", "mpe", "txi", "nec", "irc", "grc", "gll", "lrr", "tmp" and "thi",
+        stamped whether they came inside a gbd, as a push of their own or inside a reply that carries one ("sei" from a
+        fjf or bst, "gli" from an arl, "ain" from an akm, "rei" from a res, "kpi" from a kut, "tmp" from a tcn, ...),
+        plus "gac" and "drt", which only
         come inside a gbd. "gsm" and "rci" are stamped whenever mines or resource carts are applied, from their push or
         a jaa, cmr or rcc reply; "csl" and "gab" from their push or a jaa, the push even when no area was joined to
         apply it to. A send reply is stamped even when the server refused the send; the commands the client reads only

@@ -220,6 +220,24 @@ gives the row it found.
 - `client.castle.join_area(x, y)` joins an outpost, capital, metropolis or
   faction camp by its position.
 
+## Treasure maps
+
+The treasure hunt's map and each season's map (Thornking, Sea Queen,
+Underworld) come with the login and with every treasure map reply.
+`client.map.treasure_maps` holds them by map id: pieces found, progress,
+each node's state, the camp's storage and units, and the units and goods on
+their way. `client.map.treasure_hunt_map_id` is the treasure hunt's current
+map, -1 once none is left.
+
+- `client.map.get_treasure_maps(map_id=-1)` asks for them again.
+- `client.map.buy_treasure_map_pieces(map_id, amount, spend_rubies=True)` buys
+  missing pieces.
+- `client.map.finish_treasure_map(map_id)` closes a map whose end node fell
+  (`TreasureMapProgress.DESTROYED_END_NODE`), which the game sends by itself.
+- `client.movements.transfer_goods_to_treasure_map`,
+  `transfer_units_to_treasure_map` and `skip_treasure_map_transfer` send to a
+  season's map camp, as the season dialog does.
+
 ## Runnable example
 
 ```python title="examples/kingdom_scan.py"

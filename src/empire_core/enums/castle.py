@@ -99,12 +99,13 @@ class TaxStatus(IntEnum):
 
 class KingdomTransferType(IntEnum):
     """
-    What a transfer to another kingdom carries, the ``TT`` of a transfer skip.
+    What a transfer to another kingdom or to a treasure map carries, the ``TT`` of a transfer skip.
 
     The client names no constant; it passes the numbers itself.
 
     Client: ``KingdomUnitsTravelMinuteSkipProperties.getMinuteSkipCommand`` (bundle line 37497),
-    ``KingdomGoodsTravelMinuteSkipProperties.getMinuteSkipCommand`` (bundle line 55567)
+    ``KingdomGoodsTravelMinuteSkipProperties.getMinuteSkipCommand`` (bundle line 55567),
+    ``CastleStartSeasonEventDialogSupport.onMouseUp`` (bundle lines 99541, 99543)
     """
 
     UNITS = 1

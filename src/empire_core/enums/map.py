@@ -1,4 +1,4 @@
-"""Kingdom ids, map area types, NPC owner ids and protection."""
+"""Kingdom ids, map area types, NPC owner ids, protection and treasure map progress."""
 
 from __future__ import annotations
 
@@ -253,3 +253,17 @@ class FactionProtectionStatus(IntEnum):
     PRETIME = 0
     ACTIVE = 1
     COOLDOWN = 2
+
+
+class TreasureMapProgress(IntEnum):
+    """
+    The last step a treasure map took, a ``tmp`` map's ``PT``.
+
+    Client: ``TreasureMapsConst.PROGRESS_*`` (dll line 19881)
+    """
+
+    NONE = 0
+    FOUND_MAP_PIECE = 1
+    DESTROYED_DUNGEON = 2
+    NEW_MAP = 3
+    DESTROYED_END_NODE = 4
