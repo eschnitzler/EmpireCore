@@ -16,6 +16,7 @@ from .models import (
     QuestDonateCurrencyResponse,
     QuestDonateResourcesRequest,
     QuestDonateResourcesResponse,
+    QuestStarterClickRequest,
 )
 from .service import QuestsService
 
@@ -33,6 +34,7 @@ __all__ = [
     "QuestDonateCurrencyResponse",
     "QuestDonateResourcesRequest",
     "QuestDonateResourcesResponse",
+    "QuestStarterClickRequest",
     "QuestsService",
     "CurrencyId",
     "DailyQuestId",

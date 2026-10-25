@@ -1,5 +1,6 @@
 """
-Your active quests, the quest book's main quests and your daily quests; donating for a quest.
+Your active quests, the quest book's main quests and your daily quests; donating for a quest, and the
+quest conditions and starters only the client sees done.
 """
 
 from __future__ import annotations
@@ -12,6 +13,7 @@ from empire_core.quests.models import (
     FinishQuestConditionRequest,
     QuestDonateCurrencyRequest,
     QuestDonateResourcesRequest,
+    QuestStarterClickRequest,
 )
 from empire_core.services.base import BaseService
 
@@ -39,7 +41,7 @@ _DONATED_CURRENCIES: dict[str, CurrencyId] = {
 class QuestsService(BaseService):
     """
     Your quests as the login data and the quest pushes left them, which send nothing,
-    and the requests that donate for a quest or finish a condition.
+    and the requests that donate for a quest, finish a condition or a quest starter.
 
     Reached as client.quests.
     """
@@ -120,6 +122,20 @@ class QuestsService(BaseService):
         (bundle line 15812) and ``GeneralHubIntroductionHandler`` (bundle lines 74775, 74778)
         """
         self.send(FinishQuestConditionRequest(condition_type=condition_type, target_id=target_id))
+
+    def finish_starter(self, quest_id: QuestId | int) -> None:
+        """
+        Report a quest's starter seen through, as the client does when the dialog that introduces
+        the quest is closed or the tutorial step that triggered it is done. The client has no
+        handler for an answer, so none is waited for; what the server does with it is unverified.
+
+        Args:
+            quest_id: The quest the starter introduces
+
+        Client: ``C2SQuestStarterClickVO`` (bundle line 37187), sent by ``CastleStartQuestDialog.finishQuestStarter``
+        (bundle line 17052) and ``TutorialBasicActionCommand.finishTriggerQuest`` (bundle line 9024)
+        """
+        self.send(QuestStarterClickRequest(quest_id=quest_id))
 
 
 __all__ = ["QuestsService"]

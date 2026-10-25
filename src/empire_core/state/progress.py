@@ -10,12 +10,14 @@ from empire_core.player.models.progress import (
     FactionPointsResponse,
     Festival,
     GloryPointsResponse,
+    GloryTitleResetResponse,
+    IslandTitle,
     MightPointsResponse,
     RelocationInfoResponse,
     SelectTitleResponse,
     TitleRanksResponse,
 )
-from empire_core.protocol.js import js_truthy
+from empire_core.protocol.js import js_int, js_truthy
 from empire_core.spy.models import PlagueMonkInfoResponse
 from empire_core.state.base import StateBase, loaded, read_section
 
@@ -108,6 +110,35 @@ class ProgressState(StateBase):
             ranks = ranks.model_copy(update={"alliance_city_title": previous.alliance_city_title})
         self.title_ranks = ranks
         return True
+
+    def _handle_uht(self, data: Any) -> None:
+        """Handle a ``uht`` push: when the glory top-X titles reset, kept on the glory system of the last ``uar``.
+
+        Nothing is applied before a ``uar`` arrived, nor for an ``RS`` that does not read as a number.
+
+        Client: ``UHTCommand.executeCommand`` (bundle line 129926), ``CastleTitleData.parseUHT`` (bundle line 21048),
+        which does nothing for a falsy body
+        """
+        if self.title_ranks is None or not js_truthy(data):
+            return
+        reset = read_section(GloryTitleResetResponse, data, "the glory title reset")
+        if reset is None or reset.reset_seconds is None:
+            return
+        glory = self.title_ranks.glory.model_copy(
+            update={"reset_seconds": reset.reset_seconds, "received_at": reset.received_at}
+        )
+        self.title_ranks = self.title_ranks.model_copy(update={"glory": glory})
+
+    def _handle_apt(self, data: Any) -> None:
+        """Handle an ``apt`` without a player name: its truthy ``TI`` is your Storm Islands title now.
+
+        Client: ``APTCommand.executeCommand`` (bundle line 123623), ``CastleTitleData.parseAPT`` (bundle line 21029)
+        """
+        if self.title_ranks is None or not isinstance(data, dict) or js_truthy(data.get("PN")):
+            return
+        if js_truthy(title_id := data.get("TI")):
+            island_title = IslandTitle(title_id=js_int(title_id))
+            self.title_ranks = self.title_ranks.model_copy(update={"island_title": island_title})
 
     def _apply_achievements(self, body: Any) -> bool:
         """Read a ``vli`` over what is known: finished achievements stay finished, unlisted progress stays.

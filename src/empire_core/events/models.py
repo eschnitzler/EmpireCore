@@ -1497,6 +1497,19 @@ class CampaignQuestEvent(SpecialEvent):
         values["quest_ids"] = [js_int(_dict(quest).get("QID")) for quest in listed] if isinstance(listed, list) else []
 
 
+class EventAnnouncementEvent(SpecialEvent):
+    """
+    The event announcement, the teaser for an event to come, with a reward to claim.
+
+    No entry says whether the reward was claimed: the client marks it on the running event when a
+    ``car`` answer comes, and so does the library, until the event ends.
+
+    Client: ``EventAnnouncementData.parseCAR`` and ``isClaimed`` (bundle lines 53117-53119)
+    """
+
+    reward_collected: bool = Field(default=False, description="Whether you claimed the reward this session")
+
+
 _EVENT_IDS: dict[int, Event] = {int(e): e for e in Event}
 
 EVENT_CLASSES: dict[Event, type[SpecialEvent]] = {
@@ -1538,6 +1551,7 @@ EVENT_CLASSES: dict[Event, type[SpecialEvent]] = {
     Event.SEASON_PASS_PRIME_SALE: DiscountSaleEvent,
     Event.SKIP_FOR_FREE: SkipForFreeEvent,
     Event.GGS_GIFT: GiftEvent,
+    Event.EVENT_ANNOUNCEMENT: EventAnnouncementEvent,
     Event.FORTUNE_TELLER: FortuneTellerEvent,
     Event.TOURNAMENT: TournamentEvent,
     Event.TIME_LIMITED_CAMPAIGN_EVENT: CampaignEvent,
@@ -1693,3 +1707,30 @@ class GameEvent(EmpireModel):
     details: SerializeAsAny[SpecialEvent] = Field(
         description="The running event, as client.state.get_event() gives it, dumped with its own fields"
     )
+
+
+class ClaimAnnouncementRewardRequest(BaseRequest):
+    """
+    Claim the reward of the running event announcement, the teaser for an event to come.
+
+    Command: car
+    Payload: {}
+
+    Client: ``C2SEventAnnouncementClaimRewardVO`` (bundle line 91468), sent by
+    ``CastleEventTeaserDialog.claimRewards`` (bundle line 91443)
+    """
+
+    command = "car"
+
+
+class ClaimAnnouncementRewardResponse(BaseResponse):
+    """
+    The answer to an announcement reward claim; the client reads nothing from it.
+
+    Command: car
+
+    Client: ``CARCommand.executeCommand`` (bundle line 125277) calls ``EventAnnouncementData.parseCAR(null)``
+    (bundle line 53117), which marks the announcement's reward collected
+    """
+
+    command = "car"

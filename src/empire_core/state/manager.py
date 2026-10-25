@@ -105,7 +105,8 @@ _WHOLE_SECTIONS = {
 # EBUCommand, EUPCommand, EUDCommand, RBUCommand, EBECommand through the area updater (bundle lines 122761,
 # 122861, 122846, 123163, 122744), JAACommand (bundle line 130194), RCCCommand (bundle lines 123182,
 # 28797), BUPCommand, CRMCommand, VFICommand, GDRCommand, CCDCommand, CDECommand (bundle lines 125531,
-# 125982, 121127, 123053, 127640, 127658), gdr also its sce; a refused crm still reaches the movement handler
+# 125982, 121164, 123053, 127640, 127658), gdr also its sce; a refused crm still reaches the movement handler.
+# VFICommand also parses its gcu
 _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
     **dict.fromkeys(("arl", "gla", "sdi", "sti"), ("gli",)),
     "seq": ("gli", "gcu", "esl"),
@@ -126,14 +127,16 @@ _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
     "kut": ("gcu", "kpi"),
     **dict.fromkeys(("msk", "fjf"), ("kpi",)),
     "rwb": ("gcu",),
-    **dict.fromkeys(("ebu", "eup", "eud", "rbu", "ebe", "jaa", "rcc", "bup", "crm", "vfi", "ccd", "cde"), ("grc",)),
+    **dict.fromkeys(("ebu", "eup", "eud", "rbu", "ebe", "jaa", "rcc", "bup", "crm", "ccd", "cde"), ("grc",)),
     "gdr": ("grc", "sce"),
+    "vfi": ("gcu", "grc"),
 }
 
 # Commands whose state the client applies only from a successful reply: SEICommand, SEECommand,
 # TEICommand, TEECommand, PEPCommand, FJFCommand, BSTCommand (bundle lines 128379, 128364,
 # 128409, 128394, 128214, 127782, 127608), ACMCommand, AQICommand, UFPCommand, BFSCommand (bundle
-# lines 121317, 121557, 121010, 122569), GTPCommand (bundle line 126146), the section replies above;
+# lines 121317, 121557, 121010, 122569), GTPCommand (bundle line 126146), UHTCommand, APTCommand,
+# CARCommand (bundle lines 129926, 123623, 125277), the section replies above;
 # a cpm error reply still reaches the movement handler, its cpi only a successful one. Also the castle
 # pushes and replies:
 # RUECommand, KIKCommand, GSMCommand, RCICommand, CMRCommand, RCCCommand, JAACommand, FBECommand,
@@ -142,7 +145,24 @@ _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
 # (bundle line 123927). And the quest ones: QLICommand, QSTCommand, QPGCommand, QFICommand,
 # MSPCommand, CQSCommand (bundle lines 126587, 126619, 126603, 126566, 125438, 126495)
 _SUCCESS_ONLY = frozenset(
-    {"sei", "see", "tei", "tee", "pep", "fjf", "bst", "acm", "aqi", "ufp", "bfs", "gtp", *_WHOLE_SECTIONS}
+    {
+        "sei",
+        "see",
+        "tei",
+        "tee",
+        "pep",
+        "fjf",
+        "bst",
+        "acm",
+        "aqi",
+        "ufp",
+        "uht",
+        "apt",
+        "car",
+        "bfs",
+        "gtp",
+        *_WHOLE_SECTIONS,
+    }
     | {"agr", "afa", "abl", "aee", "ahl", "ahh", "ahd", "sne", "dms", "ams", "uac", "pre"}
     # AJACommand, SLLCommand, GAPCommand (bundle lines 121532, 122063, 122976)
     | {"aja", "sll", "gap"}
@@ -342,6 +362,9 @@ class GameState(
         "uac": "_handle_uac",
         "pre": "_handle_pre",
         "ufp": "_handle_ufp",
+        "uht": "_handle_uht",
+        "apt": "_handle_apt",
+        "car": "_handle_car",
         "bfs": "_handle_bfs",
         "gtp": "_handle_gtp",
         # Castle pushes and the joined area
@@ -569,7 +592,8 @@ class GameState(
 
         Accepts the wire ids this manager tracks — "gbd", "gam", "dcl", "abr", "asr", the send replies ("cra",
         "cam", "abgcam", "cds", "csm", "cat", "crm", "css", "tde", "cdd", "cpm", "thm", "ldt"), "mcm", "mrm",
-        "mfc", "glu", "mir", "fjf", "bst", "sce", "see", "tee", "pep", "acm", "aqi", "acn", "cal", "ufp", "bfs",
+        "mfc", "glu", "mir", "fjf", "bst", "sce", "see", "tee", "pep", "acm", "aqi", "acn", "cal", "ufp", "uht", "apt",
+        "car", "bfs",
         the officers' school's "gtp" (only a successful one),
         the quest pushes "qli", "qst", "qpg", "qfi", "msp" and the campaign's "cqs",
         the castle pushes "rue", "kik", "fbe", "cbx", "gdb", "gcb", the gem push "gec", the joined area's "jaa",
@@ -583,8 +607,8 @@ class GameState(
         "csl" and "gab" from their push or a jaa, the push even when no area was joined to apply it to. A send
         reply is stamped even when the server refused the send; the commands the client reads only from a
         successful reply (the event ones, the login section ones, the castle ones, the quest ones, "gec", "acm",
-        "aqi", "ufp" and "bfs") are not, nor is a login section that was not applied: unreadable, not valid, or
-        another alliance's "ain". ``None`` means none was ever seen;
+        "aqi", "ufp", "uht", "apt", "car" and "bfs") are not, nor is a login section that was not applied: unreadable,
+        not valid, or another alliance's "ain". ``None`` means none was ever seen;
         packets this manager ignores are never recorded.
         """
         with self._lock:

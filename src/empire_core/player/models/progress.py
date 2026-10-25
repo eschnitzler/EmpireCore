@@ -8,8 +8,12 @@ Commands:
 - ufa: glory points
 - ufp: Berimond (faction) points
 - uar: top-X title ranks, the island title and the displayed title systems
+- uht: when the glory top-X titles reset
+- iot: titles info, which the client ignores
+- apt: assigning a Storm Islands title
 - ste: choosing the displayed title systems
 - vli: achievements
+- vfi: an achievement finished
 - gri: relocation
 
 Each model is read once and never changes; the times in it count from ``received_at``.
@@ -22,12 +26,14 @@ from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Literal
 
 from pydantic import BeforeValidator, ConfigDict, Field, field_validator
 
+from empire_core.castle.models.resources import CastleResources
 from empire_core.enums import PremiumAccountType, TitleSystem
 from empire_core.gamedata import EnumOrInt, EnumOrStr
 from empire_core.protocol.base import (
     BasePayload,
     BaseRequest,
     BaseResponse,
+    CurrencyBlock,
     TimedPayload,
     TimedResponse,
     object_or_none,
@@ -444,6 +450,111 @@ class TitleRanksResponse(TimedResponse):
         return value if isinstance(value, str) else None
 
 
+class GetTitleRanksRequest(BaseRequest):
+    """
+    Ask for your top-X title ranks, Storm Islands title and displayed title systems; answered with a ``uar``.
+
+    Command: uar
+    Payload: {}
+
+    Client: ``C2SUserAchievedRanksVO`` (bundle line 55542), sent as the Storm Islands title ranking opens
+    (``CastleEilandRankingDialogTitle.show``, bundle line 98292) and after every ``apt`` (bundle line 123625);
+    ``UARCommand.executeCommand`` (bundle line 121034) hands the reply to ``parseUAR``
+    """
+
+    command = "uar"
+
+
+class GloryTitleResetResponse(TimedResponse):
+    """
+    When the glory system's top-X titles reset; the server pushes it, the client has no request for it.
+
+    Command: uht
+    Payload: {"RS": seconds}
+
+    Client: ``UHTCommand.executeCommand`` (bundle line 129926), ``CastleTitleData.parseUHT`` (bundle line 21048),
+    which reads ``parseInt(RS)`` into the glory top-X reset time
+    """
+
+    command = "uht"
+
+    reset_seconds: ParsedInt = Field(
+        validation_alias="RS",
+        default=None,
+        description="Seconds until the glory top-X titles reset, when the values were read; None when unreadable",
+    )
+
+
+class TitleInfoResponse(BaseResponse):
+    """
+    A titles info push. The client reads nothing from it, so its body is kept only as sent.
+
+    Command: iot
+
+    Client: ``IOTCommand.executeCommand`` (bundle line 123682) hands it to ``CastleTitleData.parseIOT``
+    (bundle line 21045), which is empty
+    """
+
+    command = "iot"
+
+
+class AssignTitleRequest(BaseRequest):
+    """
+    Give a Storm Islands title to a player, or take it back.
+
+    Command: apt
+    Payload: {"TI": title_id, "PN": player name, "" to take the title back}
+
+    Client: ``C2SAssignTitleVO`` (bundle line 98387), sent by
+    ``CastleEilandAssignTitleDialog.onConfirmAssignment`` (bundle line 98376)
+    """
+
+    command = "apt"
+
+    title_id: EnumOrInt["Title"] = Field(validation_alias="TI", description="The title")
+    player_name: str = Field(
+        validation_alias="PN", default="", description='The player to give it to; "" takes the title back'
+    )
+
+
+class AssignTitleResponse(BaseResponse):
+    """
+    A Storm Islands title given or taken back, as the answer to an :class:`AssignTitleRequest`.
+    The client reads one without a player name as your own title.
+
+    Command: apt
+    Payload: {"TI": title_id, "PN": player name}, either left out, or no body
+
+    Client: ``APTCommand.executeCommand`` (bundle line 123623): without ``PN`` the title is yours
+    (``CastleTitleData.parseAPT``, bundle line 21029, which reads a truthy ``TI``); either way it asks
+    for a ``uar``
+    """
+
+    command = "apt"
+
+    title_id: EnumOrInt["Title"] | None = Field(
+        validation_alias="TI", default=None, description="The title; None when not sent"
+    )
+    player_name: str | None = Field(
+        validation_alias="PN", default=None, description="The player given it; None in the push to that player"
+    )
+
+    @field_validator("title_id", mode="before")
+    @classmethod
+    def _title(cls, value: Any) -> Any:
+        return js_int(value) if value else None
+
+    @field_validator("player_name", mode="before")
+    @classmethod
+    def _name(cls, value: Any) -> Any:
+        return value if isinstance(value, str) and value else None
+
+    @property
+    def is_own_title(self) -> bool:
+        """Whether the client takes the title as now yours: a title without a player name."""
+        return self.player_name is None and self.title_id is not None
+
+
 class AchievementProgress(BasePayload):
     """
     One achievement's progress, an entry of a ``vli``'s ``RA``.
@@ -489,6 +600,52 @@ class AchievementsResponse(TimedResponse):
     @classmethod
     def _progress(cls, value: Any) -> Any:
         return tuple(readable_list(AchievementProgress, value, accept=lambda entry: isinstance(entry, dict)))
+
+
+class GetAchievementsRequest(BaseRequest):
+    """
+    Ask for your achievements; answered with a ``vli``.
+
+    Command: vli
+    Payload: {}
+
+    Client: ``C2SAchievementListVO`` (bundle line 106992), sent as the achievements dialog opens
+    (``CastleAchievementDialog.showLoaded``, bundle line 106960)
+    """
+
+    command = "vli"
+
+
+class AchievementFinishedResponse(BaseResponse):
+    """
+    An achievement you finished, pushed by the server with the coins, rubies and castle resources after its rewards.
+
+    The client only shows it: the achievement's state comes with the next ``vli``.
+
+    Command: vfi
+    Payload: {"AID": achievement_id, "gcu": {..}, "grc": {..}}
+
+    Client: ``VFICommand.exec`` (bundle line 121164), which parses ``gcu``, the joined castle's ``grc``
+    when sent, and opens the level-up dialog or the achievement popup for ``AID``
+    """
+
+    command = "vfi"
+
+    achievement_id: EnumOrInt["Achievement"] = Field(validation_alias="AID", description="The achievement finished")
+    currencies: CurrencyBlock = Field(validation_alias="gcu", default=None, description="Coins and rubies after")
+    resources: CastleResources | None = Field(
+        validation_alias="grc", default=None, description="The castle's resources after; None when not sent"
+    )
+
+    @field_validator("achievement_id", mode="before")
+    @classmethod
+    def _achievement(cls, value: Any) -> int:
+        return js_int(value)
+
+    @field_validator("resources", mode="before")
+    @classmethod
+    def _resources(cls, value: Any) -> Any:
+        return object_or_none(value)
 
 
 class RelocationInfoResponse(TimedResponse):
@@ -591,19 +748,26 @@ class SelectTitleResponse(BaseResponse):
 
 __all__ = [
     "PERMANENT_BOOSTER_DURATION",
+    "AchievementFinishedResponse",
     "AchievementProgress",
     "AchievementsResponse",
     "AllianceCityTitle",
+    "AssignTitleRequest",
+    "AssignTitleResponse",
     "Booster",
     "BoosterInfoResponse",
     "FactionPointsResponse",
     "Festival",
+    "GetAchievementsRequest",
+    "GetTitleRanksRequest",
     "GloryPointsResponse",
+    "GloryTitleResetResponse",
     "IslandTitle",
     "MightPointsResponse",
     "RelocationInfoResponse",
     "SelectTitleRequest",
     "SelectTitleResponse",
+    "TitleInfoResponse",
     "TitleRanksResponse",
     "TopTitleRanking",
 ]
