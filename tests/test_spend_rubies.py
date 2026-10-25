@@ -77,6 +77,12 @@ RUBY_REQUESTS = {
     "EnchantRelicRequest": "ere, C2 1 (RelicUpgradeDialogPayment.getCosts, bundle line 86002)",
     "CraftGemRequest": "cge, C2 1, the ruby craft (bundle line 73943)",
     "ExtractGemRequest": "ege, a gem's removalCostC2 (CastleExtractSocketDialog.getCosts, bundle line 65738)",
+    "LuckyWheelBuyJackpotRequest": "lwj, LuckyWheelData.jackpotC2Price (bundle line 17639)",
+    "LuckyWheelIncreaseWinClassRequest": "lwc, LuckyWheelData.increaseWinClassC2 (bundle line 17628)",
+    "GachaSpinRequest": "dge, the gacha's cost list from game data the library does not load (bundle line 113936)",
+    "BuyArtifactPieceRequest": "sap, artifactPartCosts in C2 (CastleArtifactBuyPieceDialog.setAmount, bundle 114756)",
+    "SkipBountyTargetRequest": "bst, targetSkipCostC2 (bundle line 114944)",
+    "FortuneTellerReadingRequest": "ftl, the reading's c2Cost (FortuneTellerClassVO.parseXML, bundle line 145167)",
 }
 
 SENT_WITHOUT_CONSENT = {

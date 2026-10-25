@@ -40,7 +40,7 @@ Each event is a model of its kind, with the fields its game dialog reads, and
 | `BerimondEvent` | `FACTION` | `league_id`, `unlocked`, `own_rank`, `own_points`, your faction |
 | `RaidBossEvent` | `ALLIANCE_RAIDBOSS_EVENT` | your `score`, the alliance's `league_id`, `alliance_points` and `alliance_rank`, `boss_level_points` |
 | `TempServerEvent` | `TEMP_SERVER` | `daily_reset_time`, `castle_bought` |
-| `DonationEvent` | `DONATION_EVENT` | `setting_id` |
+| `DonationEvent` | `DONATION_EVENT` | `setting_id`, `donated_points` |
 | `KingdomsLeagueEvent` | `SEASON_LEAGUE` | `remaining_days`, `original_days`, `has_alliance_ranking` |
 | `GlobalEffectEvent`, `GlobalEffectBuffEvent` | `GLOBAL_EFFECT`, `GLOBAL_EFFECT_BUFF` | the effects and their ends, the boosts |
 | `AllianceTournamentEvent` | `ALLI_TOURNAMENT` | your alliance's score in `parts["A"]` |
@@ -52,6 +52,7 @@ Each event is a model of its kind, with the fields its game dialog reads, and
 | `CampaignEvent`, `CampaignQuestEvent` | `TIME_LIMITED_CAMPAIGN_EVENT`, `TIME_LIMITED_CAMPAIGN_QUEST_EVENT` | the campaign's `quests` (each a `Quest`), its reward ids; the quests (`QuestId`) the quest event times |
 | `FameBoosterEvent`, `AllianceBonusEvent` | `FAMEBOOSTER`; `PRIME_ALLI_BONUS`, `ALLI_PAYMENT_BONUS` | `bonus_percent` |
 | `DiscountSaleEvent` | `RELIC_ENCHANTER_PRIME_SALE`, `SEASON_PASS_PRIME_SALE` | `discount` |
+| `WorldCupEvent` | `WORLD_CUP` | the teams, `vote`, `bet_price_rubies`, `rubies_spent`, `bonus_rubies` |
 | `SkipForFreeEvent`, `GiftEvent`, `FortuneTellerEvent` | `SKIP_FOR_FREE`, `GGS_GIFT`, `FORTUNE_TELLER` | `free_skip_seconds`; `collected`; `tries`, `daily_reset_time` |
 | `SpecialEvent` | any other | `event_id`, `event`, `end_time`, `raw` |
 
@@ -219,6 +220,27 @@ for the same board cannot be told apart, so the call after a timeout may
 return the late page. Seen live with no event running: asking for
 your own page of a player board got no answer at all, where `rank=1` was
 answered.
+
+## Minigames
+
+The minigame calls update the event they play, as the game does:
+
+| Call | Event | Rubies |
+|---|---|---|
+| `spin_lucky_wheel(wheel)`, `change_lucky_wheel_mode()` | the lucky wheels | no, tickets |
+| `buy_lucky_wheel_jackpot()`, `increase_lucky_wheel_win_class()` | `LUCKY_WHEEL` | `spend_rubies` |
+| `pull_gacha(event, pulls)` | the gacha events | `spend_rubies` (the price is in game data the library does not load) |
+| `donate_to_colossus(castle_id, wood=, stone=)`, `donate_to_coin_colossus(coins)` | the colossi | no |
+| `get_donation_progress()`, `donate_items({item_id: amount})`, `donated_points` | `DONATION_EVENT` | no |
+| `give_marauder_packages(castle_id, ...)` | `BEGGING_KNIGHTS` | no; returns your points |
+| `buy_artifact_pieces(event, pieces)` | the artifact events | `spend_rubies` |
+| `validate_bounty_target()`, `skip_bounty_target()` | `BOUNTYHUNTER` | the skip needs `spend_rubies` |
+| `buy_fortune_teller_reading()` | `FORTUNE_TELLER` | `spend_rubies` |
+| `vote_world_cup(vote)` | `WORLD_CUP` | no |
+| `get_collector_currency(player_id)` | the collector events | no |
+
+A free gacha chest (`cfc`) and an artifact piece found (`saf`) come as pushes and
+update their event.
 
 ## When an event is not running
 
