@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Annotated, Any, ClassVar, NoReturn, TypeVar
 
 from pydantic import AfterValidator, ConfigDict, Field, SerializeAsAny, ValidationError
 
-from empire_core.enums import RankingType
+from empire_core.enums import NPCOwner, RankingType
 from empire_core.events.faction_models import BerimondKingdomStatus, FactionStanding
 from empire_core.events.status_models import GrandTournamentQuestStatus, RaidBossStatus
 from empire_core.exceptions import ReplyMismatchError
@@ -570,8 +570,8 @@ class InvasionEvent(ScoredEvent):
     An invasion: its player and alliance scores are its ``parts``.
 
     Client: ``SamuraiInvasionEventVO.parseData`` (bundle line 55680) and ``FactionInvasionEventVO.parseData``
-    (bundle line 116044) rebuild every part from every entry; ``setRankAndPoints`` (bundle lines 55701,
-    116056) give a ``pep``'s first rank and points to the first part, and so on
+    (bundle line 116082) rebuild every part from every entry; ``setRankAndPoints`` (bundle lines 55701,
+    116094) give a ``pep``'s first rank and points to the first part, and so on
     """
 
     # Each part's key and sub type, in the order a pep counts them
@@ -607,12 +607,22 @@ class FactionInvasionEvent(InvasionEvent):
     """
     The Berimond invasion: ``FB`` and ``FR`` are the blue and red players' scores, ``A`` the alliance's.
 
-    Client: ``FactionInvasionEventVO.parseData`` (bundle line 116044), ``setRankAndPoints`` (bundle line 116056)
+    Client: ``FactionInvasionEventVO.parseData`` (bundle line 116082), ``setRankAndPoints`` (bundle line 116094)
     """
 
     _parts = (("FB", 2), ("FR", 3), ("A", 1))
     _rebuilt_parts = ("FB", "FR", "A")
     _pep_reads_maxima = True
+
+    def camp_score(self, owner_id: int | None) -> EventPart | None:
+        """
+        Your score for the faction of an invasion camp with this owner, whose league sets where its camps start.
+
+        ``FB`` for the blue faction king's camps, ``FR`` for any other owner, as the client splits them.
+
+        Client: ``FactionInvasionEventVO.baseCampLevel`` (bundle line 116095)
+        """
+        return self.parts.get("FB" if owner_id == NPCOwner.BLUE_FACTION_KING else "FR")
 
 
 class AlienInvasionEvent(InvasionEvent):

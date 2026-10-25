@@ -358,7 +358,7 @@ def _invasion_camp(row: _Row) -> dict[str, Any]:
 
 
 def _faction_invasion_camp(row: _Row) -> dict[str, Any]:
-    """``FactionInvasionCampMapObjectVO.parseAreaInfo`` (bundle line 76324)."""
+    """``FactionInvasionCampMapObjectVO.parseAreaInfo`` (bundle line 76355): the owner is ``int(e[7])``."""
     if len(row) <= 3:
         return {}
     return {
@@ -366,6 +366,7 @@ def _faction_invasion_camp(row: _Row) -> dict[str, Any]:
         "victory_count": row.raw(4),
         "attack_cooldown_seconds": row.raw(5),
         "dungeon_type": row.as_int(7),
+        "owner_id": row.as_int(7),
     }
 
 
@@ -475,9 +476,10 @@ INVASION_AREA_TYPES = frozenset(
         MapItemType.NOMAD_CAMP,
         MapItemType.DAIMYO_CASTLE,
         MapItemType.DAIMYO_TOWNSHIP,
+        MapItemType.FACTION_INVASION_CAMP,
     }
 )
-"""Invasion event camps: their row gives the camp's own wall, gate and moat protection."""
+"""Invasion event camps: their row does not carry the level they are fought at."""
 
 
 class MapAreaItem(BasePayload):
@@ -666,7 +668,7 @@ class MapAreaItem(BasePayload):
 
     @property
     def is_invasion_camp(self) -> bool:
-        """Whether this row is an invasion event camp, whose row gives its own protection."""
+        """Whether this row is an invasion event camp, whose level its row does not carry."""
         return self.item_type in INVASION_AREA_TYPES
 
     @property

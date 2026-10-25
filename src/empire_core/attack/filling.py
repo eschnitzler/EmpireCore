@@ -12,13 +12,14 @@ from empire_core.attack.targeting import _row_item, _Target
 from empire_core.combat import (
     DefenderFlankEffects,
     Inventory,
+    faction_invasion_side,
     fortification_bonuses,
     robber_baron_camp_defense,
     robber_baron_camp_fortification_levels,
     robber_baron_camp_level,
     spied_castle_defense,
 )
-from empire_core.enums import Flank
+from empire_core.enums import Flank, MapItemType
 from empire_core.gamedata import EMPTY_WOD_ID, GameData, ToolStats
 from empire_core.map.models.items import MapAreaItem
 
@@ -81,7 +82,15 @@ def _target_defense(game_data: GameData, target: "_Target") -> dict[Flank, Defen
         item = _row_item(target.row)
         if item is None:
             return None
-        if _has_row_protection(item):
+        if item.item_type == MapItemType.FACTION_INVASION_CAMP:
+            # FactionInvasionCampMapObjectVO (bundle lines 76367-76382): wall and gate from the
+            # faction's camp row at the camp's level, no moat.
+            side = faction_invasion_side(item.owner_id)
+            camp = game_data.faction_invasion_camp(target.level, side.faction_id) if target.level is not None else None
+            wall = camp.wall_bonus / 100 if camp is not None else 0.0
+            gate = camp.gate_bonus / 100 if camp is not None else 0.0
+            moat = 0.0
+        elif _has_row_protection(item):
             # FightScreenHelper.getDefenceBonuses (bundle line 19148) divides the target's
             # baseWallBonus (and gate, moat) by 100; the camps whose row carries them return it as sent.
             wall = (item.base_wall_bonus or 0.0) / 100

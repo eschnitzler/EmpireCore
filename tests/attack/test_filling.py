@@ -5,7 +5,11 @@ from __future__ import annotations
 import pytest
 
 from empire_core.attack.filling import _target_defense
+from empire_core.attack.targeting import _Target
+from empire_core.enums import Flank
+from empire_core.gamedata import GameData
 from tests.attack.fill_helpers import FillClient
+from tests.combat.combat_helpers import PAYLOAD
 
 
 class TestTargetDefense(FillClient):
@@ -43,3 +47,27 @@ class TestTargetDefense(FillClient):
             assert defense is not None
             middle = defense[Flank.MIDDLE]
             assert (middle.wall_bonus, middle.gate_bonus, middle.moat_bonus) == pytest.approx((0.4, 0.5, 0.6)), row
+
+
+def test_a_berimond_camp_takes_its_factions_protection_at_its_level():
+    # FactionInvasionCampMapObjectVO: baseWallBonus / baseGateBonus from getFactionInvasion(dungeonLevel,
+    # ownerInfo.factionID), baseMoatBonus 0
+    game = GameData.parse(
+        "test",
+        dict(
+            PAYLOAD,
+            factioninvasioncamps=[
+                {"countVictory": "24", "factionID": "0", "wallBonus": "10", "gateBonus": "20"},
+                {"countVictory": "24", "factionID": "1", "wallBonus": "40", "gateBonus": "50"},
+            ],
+        ),
+    )
+    blue = _target_defense(game, _Target(x=1, y=2, row=[30, 1, 2, -1, 4, 0, 0, -410], level=24))
+    red = _target_defense(game, _Target(x=1, y=2, row=[30, 1, 2, -1, 4, 0, 0, -411], level=24))
+    unknown = _target_defense(game, _Target(x=1, y=2, row=[30, 1, 2, -1, 4, 0, 0, -411], level=25))
+
+    assert blue is not None and red is not None and unknown is not None
+    assert (blue[Flank.MIDDLE].wall_bonus, blue[Flank.MIDDLE].gate_bonus) == pytest.approx((0.1, 0.2))
+    assert (red[Flank.MIDDLE].wall_bonus, red[Flank.MIDDLE].gate_bonus) == pytest.approx((0.4, 0.5))
+    assert red[Flank.MIDDLE].moat_bonus == 0.0
+    assert (unknown[Flank.MIDDLE].wall_bonus, unknown[Flank.MIDDLE].gate_bonus) == (0.0, 0.0)

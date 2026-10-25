@@ -10,11 +10,14 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterable, Sequence
+from typing import NamedTuple, Protocol
 
 from empire_core.army.spy_army import SpyArmy
 from empire_core.commanders.models.roster import Commander
-from empire_core.enums import CombatEffectType, Flank, Kingdom, MapItemType
+from empire_core.enums import CombatEffectType, Flank, Kingdom, MapItemType, NPCOwner
 from empire_core.gamedata import GameData, NpcCampDefence, ToolStats
+from empire_core.gamedata.data import BLUE_FACTION, FACTION_INVASION_CAMP_TABLE
+from empire_core.gamedata.ids.events import Event
 from empire_core.map.models.items import MapAreaItem
 
 from .bonuses import Bonus, EffectResolver, commander_bonuses, effect_value_bonuses
@@ -57,14 +60,53 @@ NOMAD_INVASION_EVENT_ID = 72
 DAIMYO_CASTLE_TABLE = "daimyoCastles"
 
 
-def invasion_camp_level(item: MapAreaItem, player_level: int, *, game_data: GameData | None = None) -> int | None:
+class FactionInvasionSide(NamedTuple):
+    """What a Berimond invasion camp's owner decides: its faction, and the sub type of its event league."""
+
+    faction_id: int
+    sub_type: int
+
+
+class LeagueScore(Protocol):
+    """An event score's league, e.g. a part of :class:`~empire_core.events.FactionInvasionEvent`."""
+
+    @property
+    def league_id(self) -> int: ...
+
+    @property
+    def sub_type(self) -> int: ...
+
+
+# The blue faction king owns the blue camps; the client takes any other owner as red.
+# Client: CastleNPCOwnerFactory.generateBlueFactionNPC / generateRedFactionNPC (bundle lines 14591, 14587),
+# FactionConst (dll line 19333), EventConst.LEAGUETYPE_EVENT_SUBTYPE_FACTION_INVASION_BLUE / _RED (dll line 19291)
+BLUE_FACTION_INVASION = FactionInvasionSide(faction_id=BLUE_FACTION, sub_type=2)
+RED_FACTION_INVASION = FactionInvasionSide(faction_id=1, sub_type=3)
+
+
+def faction_invasion_side(owner_id: int | None) -> FactionInvasionSide:
+    """The side of a Berimond invasion camp with this owner (its row's ``owner_id``)."""
+    return BLUE_FACTION_INVASION if owner_id == NPCOwner.BLUE_FACTION_KING else RED_FACTION_INVASION
+
+
+def invasion_camp_level(
+    item: MapAreaItem,
+    player_level: int,
+    *,
+    game_data: GameData | None = None,
+    faction_invasion_score: LeagueScore | None = None,
+) -> int | None:
     """
     The level an invasion event target is fought at, which its row does not carry.
 
-    The four types do not share a rule, because only three of them are camps:
+    The five types do not share a rule, because only four of them are camps:
 
     - A samurai or nomad camp starts where the attacking player's league band
       in its event starts and climbs by one for every defeat it has taken.
+    - A Berimond invasion camp starts at the bottom of the league the running
+      event puts you in for the camp's faction and climbs by one per defeat.
+      Without ``faction_invasion_score`` the league is taken as the band
+      holding ``player_level``, as for a samurai camp.
     - A daimyo castle names a rank instead of a defeat count, and the rank
       carries the level.
     - A daimyo township is not a camp. The game counts the attacking player as
@@ -72,16 +114,23 @@ def invasion_camp_level(item: MapAreaItem, player_level: int, *, game_data: Game
       nothing about it.
 
     A row that names a difficulty scaling camp overrides the level of the
-    camps, which is how a chosen difficulty raises them for one player.
+    samurai and nomad camps, which is how a chosen difficulty raises them for one player.
 
     Args:
         game_data: Loaded items payload
         item: The target's map row
         player_level: The attacking player's level
+        faction_invasion_score: For a Berimond invasion camp, your score for
+            its faction in the running event,
+            ``client.state.get_event(Event.FACTION_INVASION).camp_score(item.owner_id)``
 
     Returns:
         The level to size the wave at, or None when this is not one of the
-        four or the tables do not describe it
+        five or the tables do not describe it
+
+    Client: ``FactionInvasionCampMapObjectVO.dungeonLevel`` (bundle line 76385),
+    ``FactionInvasionEventVO.baseCampLevel`` (bundle line 116095), ``AScoreEventVO.countVictories``
+    (bundle line 14978)
     """
     game_data = game_data if game_data is not None else GameData.require()
     if not item.is_invasion_camp:
@@ -101,6 +150,16 @@ def invasion_camp_level(item: MapAreaItem, player_level: int, *, game_data: Game
     # Not a camp: the township's owner is whoever is attacking it.
     if item.item_type == MapItemType.DAIMYO_TOWNSHIP:
         return player_level
+
+    if item.item_type == MapItemType.FACTION_INVASION_CAMP:
+        score = faction_invasion_score
+        if score is None:
+            sub_type = faction_invasion_side(item.owner_id).sub_type
+            base = game_data.event_base_camp_level(Event.FACTION_INVASION, player_level, sub_type=sub_type)
+        else:
+            league = game_data.league_type(score.league_id, Event.FACTION_INVASION, sub_type=score.sub_type)
+            base = league.victory_min if league is not None else None
+        return None if base is None else base + field
 
     scaled = game_data.scaling_camp_level(item.scaling_camp_id or -1)
     if scaled is not None:
@@ -519,7 +578,7 @@ def robber_baron_camp_defense(
 
 
 def event_camp_defense(
-    table: str, victories: int, *, game_data: GameData | None = None
+    table: str, victories: int, *, faction_id: int | None = None, game_data: GameData | None = None
 ) -> dict[Flank, DefenderFlankEffects] | None:
     """
     What defends an event camp, per flank.
@@ -533,7 +592,13 @@ def event_camp_defense(
     Args:
         game_data: Optional tables override; uses the process game data by default.
         table: One of ``empire_core.gamedata.CAMP_TABLES``
-        victories: The camp's victory count
+        victories: The camp's victory count; for ``factioninvasioncamps``, the
+            camp's level (:func:`invasion_camp_level`)
+        faction_id: For ``factioninvasioncamps``, which has a row per faction
+            at each level, the camp's faction (:func:`faction_invasion_side`)
+
+    Raises:
+        ValueError: ``factioninvasioncamps`` without ``faction_id``
 
     Returns:
         Effects per flank, or None when no such camp is listed. Unit counts are
@@ -541,10 +606,15 @@ def event_camp_defense(
         unit; treat the wall and gate bonuses as the reliable part.
     """
     game_data = game_data if game_data is not None else GameData.require()
-    row = next(
-        (camp for camp in game_data.camps.get(table, []) if camp.count_victory == victories),
-        None,
-    )
+    if table == FACTION_INVASION_CAMP_TABLE:
+        if faction_id is None:
+            raise ValueError("A faction invasion camp's row depends on its faction; pass faction_id")
+        row = game_data.faction_invasion_camp(victories, faction_id)
+    else:
+        row = next(
+            (camp for camp in game_data.camps.get(table, []) if camp.count_victory == victories),
+            None,
+        )
     if row is None:
         return None
     return _camp_flanks(row, game_data)
@@ -564,6 +634,9 @@ __all__ = [
     "robber_baron_camp_fortification_levels",
     "robber_baron_camp_level",
     "invasion_camp_level",
+    "faction_invasion_side",
+    "FactionInvasionSide",
+    "LeagueScore",
     "defender_flank_effects",
     "event_camp_defense",
     "fortification_bonuses",

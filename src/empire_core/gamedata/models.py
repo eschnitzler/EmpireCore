@@ -1646,6 +1646,8 @@ class NpcCampDefence(_Row):
     An event camp's defense, shared shape across the camp tables.
 
     Covers the nomad, samurai, faction invasion and alliance invasion camps.
+
+    Client: ``CastleInvasionCampNodeVO.parseXML`` (bundle line 39701)
     """
 
     count_victory: int = Field(validation_alias="countVictory", default=0)
@@ -1659,6 +1661,11 @@ class NpcCampDefence(_Row):
     unit_wall_count: int = Field(validation_alias="unitWallCount", default=0)
     cool_down: int = Field(validation_alias="coolDown", default=0)
     dungeon_level: int = Field(validation_alias="dungeonlevel", default=0)
+    faction_id: int = Field(
+        validation_alias="factionID",
+        default=0,
+        description="The Berimond faction a faction invasion camp row is for: 0 blue, 1 red",
+    )
 
     @property
     def defense_unit_ids(self) -> tuple[int, ...]:

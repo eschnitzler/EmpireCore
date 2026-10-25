@@ -30,6 +30,7 @@ from empire_core.combat import (
 )
 from empire_core.combat.capacity import OTHER_PLAYER_INFO_AREA_TYPES
 from empire_core.enums import MapItemType
+from empire_core.events import EventPart, FactionInvasionEvent
 from empire_core.gamedata import EMPTY_SLOT, GameData, WodAmount
 from empire_core.map.models.items import MapAreaItem
 from empire_core.protocol.models import AttackWave, Commander, WaveFlank
@@ -226,6 +227,12 @@ class TestWaveCapacity:
         assert owner_id_from_row([15, 5, 6, 900, 4242, 1, 1, 1, 0, 0, "camp", 0]) == 4242
         assert owner_id_from_row([2, 5, 6, 0, 12, 0]) is None
         assert owner_id_from_row(None) is None
+
+    def test_a_berimond_invasion_camp_is_owned_by_its_faction_king(self):
+        # FactionInvasionCampMapObjectVO.parseAreaInfo: getOwnerInfoVO(int(e[7]))
+        assert owner_id_from_row([30, 5, 6, -1, 3, 0, 0, -410]) == -410
+        assert owner_id_from_row([30, 5, 6, -1, 3, 0, 0, "-411"]) == -411
+        assert owner_id_from_row([30, 5, 6]) is None
 
     def test_bonuses_are_not_clamped(self):
         # An earlier version clamped these at 50%, which reproduced one target
@@ -791,6 +798,98 @@ class TestInvasionCampLevel:
     def test_other_area_types_are_not_invasion_camps(self, data):
         assert self.level(data, [1, 700, 710, 900, 4242, 1, 1, 1, 0, 0, "castle"], 70) is None
         assert self.level(data, [2, 625, 244, -1, 0, -1, 0], 70) is None
+
+
+class TestBerimondInvasionCampLevel:
+    """
+    A Berimond invasion camp starts at the bottom of your league for its faction and climbs per defeat.
+
+    Client: ``FactionInvasionCampMapObjectVO.dungeonLevel`` and ``FactionInvasionEventVO.baseCampLevel``.
+    """
+
+    PAYLOAD: ClassVar[dict] = {
+        "leaguetypes": [
+            {
+                "leaguetypeID": "2",
+                "eventID": "85",
+                "subType": "2",
+                "minLevel": "10",
+                "maxLevel": "69",
+                "countVictoryMin": "20",
+            },
+            {
+                "leaguetypeID": "4",
+                "eventID": "85",
+                "subType": "2",
+                "minLevel": "70",
+                "maxLevel": "999",
+                "countVictoryMin": "60",
+            },
+            {
+                "leaguetypeID": "3",
+                "eventID": "85",
+                "subType": "3",
+                "minLevel": "10",
+                "maxLevel": "69",
+                "countVictoryMin": "30",
+            },
+            {
+                "leaguetypeID": "5",
+                "eventID": "85",
+                "subType": "3",
+                "minLevel": "70",
+                "maxLevel": "999",
+                "countVictoryMin": "75",
+            },
+            {
+                "leaguetypeID": "2",
+                "eventID": "85",
+                "subType": "1",
+                "minLevel": "10",
+                "maxLevel": "69",
+                "countVictoryMin": "99",
+            },
+        ],
+    }
+
+    @pytest.fixture
+    def data(self) -> GameData:
+        return GameData.parse("test", self.PAYLOAD)
+
+    @staticmethod
+    def event() -> FactionInvasionEvent:
+        entry = {"EID": 85, "RS": 3600, "FB": {"LID": 2}, "FR": {"LID": 5}, "A": {"LID": 2}}
+        event = FactionInvasionEvent.from_entry(85, entry, None, 0.0, {})
+        assert isinstance(event, FactionInvasionEvent)
+        return event
+
+    def test_each_faction_starts_at_its_own_league(self, data):
+        event = self.event()
+        blue = MapAreaItem.from_list([30, 5, 6, -1, 4, 0, 0, -410])
+        red = MapAreaItem.from_list([30, 5, 6, -1, 4, 0, 0, -411])
+
+        # FB's league 2 starts at 20 victories, FR's league 5 at 75; each defeat adds one
+        assert invasion_camp_level(blue, 40, game_data=data, faction_invasion_score=event.camp_score(-410)) == 24
+        assert invasion_camp_level(red, 40, game_data=data, faction_invasion_score=event.camp_score(-411)) == 79
+
+    def test_without_the_event_the_players_band_is_taken(self, data):
+        blue = MapAreaItem.from_list([30, 5, 6, -1, 0, 0, 0, -410])
+        red = MapAreaItem.from_list([30, 5, 6, -1, 2, 0, 0, -411])
+
+        assert invasion_camp_level(blue, 80, game_data=data) == 60
+        assert invasion_camp_level(red, 40, game_data=data) == 32
+
+    def test_a_league_the_tables_lack_or_a_short_row_has_no_level(self, data):
+        camp = MapAreaItem.from_list([30, 5, 6, -1, 0, 0, 0, -410])
+        assert invasion_camp_level(camp, 40, game_data=data, faction_invasion_score=EventPart(league_id=9)) is None
+        assert invasion_camp_level(MapAreaItem.from_list([30, 5, 6]), 40, game_data=data) is None
+
+    def test_the_red_score_serves_any_owner_but_the_blue_king(self):
+        event = self.event()
+
+        assert event.camp_score(-410) is event.parts["FB"]
+        assert event.camp_score(-411) is event.parts["FR"]
+        assert event.camp_score(None) is event.parts["FR"]
 
 
 class TestSpiedCastleDefence:
