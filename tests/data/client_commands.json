@@ -1,7 +1,7 @@
 {
   "generated_by": "scripts/extract_client_commands.py",
-  "bundle_release": "a4a25ae6d735e29092f6",
-  "dll_release": "145565eddbcbe244aab0",
+  "bundle_release": "44dfdad29653dddea9cb",
+  "dll_release": "375c3dca2ade50b26550",
   "client": {
     "FTF": ["ClientConstSF.C2S_FEATURE_FLAGS"],
     "aa": ["ClientConstSF.C2S_ACTIVATE_ATTACK_ADVISOR_EVENT"],
