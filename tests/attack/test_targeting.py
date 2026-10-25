@@ -3,15 +3,18 @@
 from __future__ import annotations
 
 import logging
+import time
 from types import SimpleNamespace
+from typing import ClassVar
 
 import pytest
 
 from empire_core.army.spy_army import SpyArmy
 from empire_core.attack.filling import _target_defense
-from empire_core.attack.targeting import _read_precalculation, _read_target
+from empire_core.attack.targeting import _read_precalculation, _read_target, _Target
 from empire_core.combat import TargetRead
 from empire_core.enums import GGEError, MapItemType
+from empire_core.events import FactionInvasionEvent
 from empire_core.exceptions import EmpireTimeoutError
 from tests.attack.fill_helpers import FillClient
 from tests.service_helpers import conn, xt_packet
@@ -189,3 +192,58 @@ class TestCampDefense(FillClient):
         defense = _target_defense(data(), camp)
         assert defense is not None
         assert defense[Flank.MIDDLE].melee_units_melee_strength == 600
+
+
+class TestBerimondInvasionCampTarget(FillClient):
+    """A Berimond invasion camp's level comes from your league for its faction in the running event."""
+
+    UNITS: ClassVar[dict[str, list]] = {
+        **FillClient.UNITS,
+        "leaguetypes": [
+            {
+                "leaguetypeID": "2",
+                "eventID": "85",
+                "subType": "2",
+                "minLevel": "10",
+                "maxLevel": "999",
+                "countVictoryMin": "20",
+            },
+            {
+                "leaguetypeID": "5",
+                "eventID": "85",
+                "subType": "3",
+                "minLevel": "10",
+                "maxLevel": "69",
+                "countVictoryMin": "75",
+            },
+            {
+                "leaguetypeID": "4",
+                "eventID": "85",
+                "subType": "3",
+                "minLevel": "70",
+                "maxLevel": "999",
+                "countVictoryMin": "40",
+            },
+        ],
+    }
+
+    def read(self, row: list, with_event: bool) -> _Target:
+        client = self.build([[601, 100_000]])
+        if with_event:
+            entry = {"EID": 85, "RS": 3600, "FB": {"LID": 2}, "FR": {"LID": 5}, "A": {"LID": 2}}
+            client.state.special_events[85] = FactionInvasionEvent.from_entry(85, entry, None, time.time(), {})
+        conn(client).script["adi"] = xt_packet("adi", None, error_code=203)
+        conn(client).script["gaa"] = xt_packet("gaa", {"KID": 0, "AI": [row], "OI": []})
+        target = _Target(x=700, y=710)
+        _read_target(client.attack, target, castle_id=12345, timeout=1.0)
+        return target
+
+    def test_the_red_camp_follows_the_red_league(self):
+        assert self.read([30, 700, 710, -1, 3, 0, 0, -411], with_event=True).level == 78
+
+    def test_the_blue_camp_follows_the_blue_league(self):
+        assert self.read([30, 700, 710, -1, 3, 0, 0, -410], with_event=True).level == 23
+
+    def test_without_the_event_the_players_band_is_taken(self):
+        # The player is level 70, in red league 4 that starts at 40
+        assert self.read([30, 700, 710, -1, 3, 0, 0, -411], with_event=False).level == 43

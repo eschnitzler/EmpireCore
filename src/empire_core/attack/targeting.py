@@ -38,6 +38,7 @@ from empire_core.combat import Bonus, TargetRead, invasion_camp_level, owner_id_
 from empire_core.commanders.models.roster import Commander
 from empire_core.enums import GGEError, Kingdom, MapItemType
 from empire_core.exceptions import CommandError
+from empire_core.gamedata.ids.events import Event
 from empire_core.map.models.areas import GetMapAreaResponse, MapObject
 from empire_core.map.models.items import MapAreaItem
 from empire_core.protocol.base import BaseRequest
@@ -266,7 +267,15 @@ def _read_target(service: AttackService, target: "_Target", *, castle_id: int, t
     elif item.is_invasion_camp:
         if target.level is None:
             player = service.client.state.get_local_player()
-            target.level = invasion_camp_level(item, player.level, game_data=service._require_game_data())
+            faction_invasion = service.client.state.get_event(Event.FACTION_INVASION)
+            target.level = invasion_camp_level(
+                item,
+                player.level,
+                game_data=service._require_game_data(),
+                faction_invasion_score=(
+                    faction_invasion.camp_score(item.owner_id) if faction_invasion is not None else None
+                ),
+            )
     elif item.dungeon_level is not None and item.dungeon_level > 0:
         # A camp whose row gives its level (an alien camp, the wolf king, an event
         # or boss dungeon, a faction object) has an NPC owner and no record to read;

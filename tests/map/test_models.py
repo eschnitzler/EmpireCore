@@ -589,6 +589,9 @@ class TestCampRows:
     def test_a_faction_invasion_camp(self):
         item = _row(MapItemType.FACTION_INVASION_CAMP, 60, 4, 100, 0, "-2")
         assert (item.victory_count, item.attack_cooldown_seconds, item.dungeon_type) == (4, 100, -2)
+        # parseAreaInfo: _ownerInfo = getOwnerInfoVO(int(e[7]))
+        assert item.owner_id == -2
+        assert item.is_invasion_camp
 
     def test_daimyo_castles_and_townships(self):
         for area_type in (MapItemType.DAIMYO_CASTLE, MapItemType.DAIMYO_TOWNSHIP):

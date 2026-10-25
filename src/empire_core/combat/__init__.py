@@ -48,10 +48,13 @@ from .capacity import (
     yard_capacity,
 )
 from .defense import (
+    FactionInvasionSide,
+    LeagueScore,
     castellan_defense_multiplier,
     castellan_fortification,
     defender_flank_effects,
     event_camp_defense,
+    faction_invasion_side,
     fortification_bonuses,
     invasion_camp_level,
     robber_baron_camp_defense,
@@ -119,6 +122,9 @@ __all__ = [
     "castellan_fortification",
     "robber_baron_camp_level",
     "invasion_camp_level",
+    "faction_invasion_side",
+    "FactionInvasionSide",
+    "LeagueScore",
     "defender_flank_effects",
     "fortification_bonuses",
     "event_camp_defense",

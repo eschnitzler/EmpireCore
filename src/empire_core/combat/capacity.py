@@ -151,6 +151,9 @@ def owner_id_from_row(row: list[Any] | None) -> int | None:
     area_type = int(row[0])
     if area_type in ALIEN_INVASION_AREA_TYPES:
         return ALIEN_INVASION_AREA_TYPES[area_type]
+    # FactionInvasionCampMapObjectVO.parseAreaInfo (bundle line 76355): getOwnerInfoVO(int(e[7]))
+    if area_type == MapItemType.FACTION_INVASION_CAMP:
+        return int(row[7]) if len(row) > 7 else None
     # A castle row of four fields is one on the move; CastleMapobjectVO sets no owner then.
     if area_type in ROW_OWNER_AREA_TYPES and len(row) > 4:
         return int(row[4])

@@ -171,6 +171,41 @@ class TestEventCampDefence:
         assert event_camp_defense("nomadCamps", 999, game_data=self.data()) is None
         assert event_camp_defense("notATable", 48, game_data=self.data()) is None
 
+    def test_a_berimond_camp_takes_its_factions_row(self):
+        # CastleFactionInvasionCampData keeps a blue and a red map keyed by countVictory, the camp's level
+        data = GameData.parse(
+            "test",
+            dict(
+                PAYLOAD,
+                factioninvasioncamps=[
+                    {
+                        "countVictory": "5",
+                        "factionID": "0",
+                        "defenceUnits": "601",
+                        "wallBonus": "10",
+                        "gateBonus": "20",
+                    },
+                    {
+                        "countVictory": "5",
+                        "factionID": "1",
+                        "defenceUnits": "601",
+                        "wallBonus": "40",
+                        "gateBonus": "50",
+                    },
+                ],
+            ),
+        )
+
+        blue = event_camp_defense("factioninvasioncamps", 5, faction_id=0, game_data=data)
+        red = event_camp_defense("factioninvasioncamps", 5, faction_id=1, game_data=data)
+
+        assert blue is not None and red is not None
+        assert (blue[Flank.MIDDLE].wall_bonus, blue[Flank.MIDDLE].gate_bonus) == (0.1, 0.2)
+        assert (red[Flank.MIDDLE].wall_bonus, red[Flank.MIDDLE].gate_bonus) == (0.4, 0.5)
+        assert event_camp_defense("factioninvasioncamps", 6, faction_id=0, game_data=data) is None
+        with pytest.raises(ValueError, match="faction_id"):
+            event_camp_defense("factioninvasioncamps", 5, game_data=data)
+
 
 class TestNpcCampDefence:
     def test_camp_defense_is_read_per_flank(self):

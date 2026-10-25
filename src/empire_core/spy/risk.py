@@ -25,7 +25,6 @@ from typing import Any
 from empire_core.combat import is_npc_pvp_player, owner_id_from_row
 from empire_core.enums import MapItemType, NPCOwner
 from empire_core.messages.models import SPY_VALIDITY
-from empire_core.protocol.js import js_int
 
 MAX_GUARD = 180
 MAX_SPY = 15
@@ -99,9 +98,6 @@ The owners ``NomadCampMapObjectVO.parseAreaInfo``, ``SamuraiCampMapObjectVO.pars
 ``NomadKhanCampMapObjectVO.parseData`` set for a row of more than three fields
 (bundle lines 76379, 76493, 76434 through 47391).
 """
-
-_FACTION_INVASION_OWNER_FIELD = 7
-"""``FactionInvasionCampMapObjectVO.parseAreaInfo`` (bundle line 76324) owns the camp by ``int(e[7])``."""
 
 
 def _clamp(value: float, low: float, high: float) -> float:
@@ -227,9 +223,8 @@ def row_risk_flags(row: list[Any] | None) -> tuple[bool, bool] | None:
     The client's ``(isDungeon, isPlayer)`` for a target's map row, or None where its owner is not traced here.
 
     NPC dungeons and camps have fixed owners below 0 that the game does not
-    fight like players; a faction invasion camp names its owner in the row;
-    alien camps and the areas whose row names the owner are read with
-    :func:`~empire_core.combat.owner_id_from_row`. Not traced: treasure
+    fight like players; alien and faction invasion camps and the areas whose
+    row names the owner are read with :func:`~empire_core.combat.owner_id_from_row`. Not traced: treasure
     dungeons and camps, shadow areas (whose owner may be a collector) and any
     other type; a samurai alien camp has no map object in the client.
 
@@ -247,8 +242,6 @@ def row_risk_flags(row: list[Any] | None) -> tuple[bool, bool] | None:
             return True, True
         if area_type in _NPC_CAMP_OWNERS:
             owner_id = _NPC_CAMP_OWNERS[area_type] if len(row) > 3 else None
-        elif area_type == MapItemType.FACTION_INVASION_CAMP:
-            owner_id = js_int(row[_FACTION_INVASION_OWNER_FIELD]) if len(row) > _FACTION_INVASION_OWNER_FIELD else None
         else:
             owner_id = owner_id_from_row(row)
     except (TypeError, ValueError):
