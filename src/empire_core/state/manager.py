@@ -148,6 +148,11 @@ _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
     "tfm": ("thi", "tmp"),
 }
 
+# Replies that carry the decoration storages (sin), applied only on success: EBECommand, EBUCommand,
+# PIOCommand, SOBCommand, SBPCommand, JAACommand, SDSCommand (bundle lines 122782, 122799, 123183, 124652,
+# 128358, 130249, 131787), each through DecoStorageData.parseSIN (bundle line 141430)
+_DECORATION_STORAGE_REPLIES = frozenset({"ebe", "ebu", "pio", "sob", "sbp", "jaa", "sds"})
+
 # Commands whose state the client applies only from a successful reply: SEICommand, SEECommand,
 # TEICommand, TEECommand, PEPCommand, FJFCommand, BSTCommand (bundle lines 128379, 128364,
 # 128409, 128394, 128214, 127782, 127608), ACMCommand, AQICommand, UFPCommand, BFSCommand (bundle
@@ -198,6 +203,8 @@ _SUCCESS_ONLY = frozenset(
     | {"ssi"}
     # SIICommand, IKRCommand, GTWARACommand (bundle lines 127742, 127728, 127296)
     | {"sii", "ikr", "gtwara"}
+    # SINCommand.exec, GCACommand.executeCommand (bundle lines 124638, 122991)
+    | {"sin", "gca"}
 )
 
 
@@ -308,6 +315,8 @@ class GameState(
                                          ``btx``
     construction item expiry             ``nec`` (pushed)             re-login
     resource citizen                     ``irc`` (pushed)             --
+    decoration storages                  ``sin``, the replies that    ``client.castle.get_deco_storage()``
+                                         carry one (``ebu``, ...)
     running events, scores, ends         ``sei``/``tei`` (pushed),    ``client.events.refresh()``
                                          ``see``/``tee``, ``pep``,
                                          ``fjf``, ``bst``, ``cqs``,
@@ -421,6 +430,8 @@ class GameState(
         "cbx": "_handle_cbx",
         "gdb": "_handle_gdb",
         "gcb": "_handle_gcb",
+        "gca": "_handle_gca",
+        "sin": "_handle_sin",
         # Any map read leaves the joined castle, refused or not, and so does losing the joined area
         "gaa": "_handle_gaa",
         "ssi": "_handle_ssi",
@@ -483,6 +494,8 @@ class GameState(
             elif handler_name:
                 self._packet_times[cmd_id] = time.time()
                 getattr(self, handler_name)(payload)
+            if ok and cmd_id in _DECORATION_STORAGE_REPLIES and isinstance(payload, dict) and "sin" in payload:
+                self._handle_sin(payload["sin"])
             if ok and cmd_id in _NESTED_SECTIONS and isinstance(payload, dict):
                 if sections := {key: payload[key] for key in _NESTED_SECTIONS[cmd_id] if key in payload}:
                     self._handle_gbd(sections)

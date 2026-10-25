@@ -10,6 +10,7 @@ Commands (all pushed by the server):
 - gab: The joined castle's area booster
 - kik: The server's new day
 - ghw: The joined castle moved on the map
+- gca: The joined castle's buildings, whole
 """
 
 from __future__ import annotations
@@ -20,10 +21,11 @@ from pydantic import Field, field_validator
 
 from empire_core.enums import Weekday
 from empire_core.gamedata import EnumOrInt, UnitOrTool
-from empire_core.protocol.base import BaseResponse
+from empire_core.map.models.areas import MapObject
+from empire_core.protocol.base import BaseResponse, object_or_none
 from empire_core.protocol.js import ClientInt
 
-from .objects import BuildingRow, building_rows
+from .objects import BuildingRow, CastleBuildings, block_or_none, building_rows
 
 
 class UnitsReceived(BaseResponse):
@@ -185,11 +187,40 @@ class JoinedAreaMoved(BaseResponse):
     y: ClientInt = Field(validation_alias="Y", description="The castle's new y position")
 
 
+class CastleBuildingsPushed(BaseResponse):
+    """
+    The joined castle's buildings, sent whole, and its owner.
+
+    The client never sends ``gca`` (``C2S_GET_CASTLE`` is declared but unused), so it arrives only from the server.
+
+    Command: gca
+    Payload: {"O": owner, "gca": {"BD": [..], "D": [..], ...}}
+
+    Client: ``GCACommand.executeCommand`` (bundle line 122991), ``CastleOtherPlayerData.parseOwnerInfo``
+    (bundle line 139045), ``AreaDataUpdater.parseGCA`` (bundle line 131546)
+    """
+
+    command = "gca"
+
+    owner: MapObject | None = Field(validation_alias="O", default=None, description="The castle's owner")
+    buildings: CastleBuildings | None = Field(
+        validation_alias="gca", default=None, description="The castle's buildings; None when unreadable"
+    )
+
+    _owner = field_validator("owner", mode="before")(object_or_none)
+
+    @field_validator("buildings", mode="before")
+    @classmethod
+    def _buildings(cls, value: Any) -> CastleBuildings | None:
+        return block_or_none(CastleBuildings, value)
+
+
 __all__ = [
     "AreaBooster",
     "BuildingEfficiencyChanged",
     "BuildingFinished",
     "BuildingXP",
+    "CastleBuildingsPushed",
     "DamagedBuildings",
     "JoinedAreaMoved",
     "NewDay",

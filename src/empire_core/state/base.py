@@ -34,6 +34,7 @@ from empire_core.castle.models.mercenaries import MercenaryMissionsResponse
 from empire_core.castle.models.objects import BuildingConstructionItems
 from empire_core.castle.models.permanent import PermanentCastle
 from empire_core.castle.models.research import ResearchInfoResponse
+from empire_core.castle.models.storage import DecorationStorage
 from empire_core.castle.models.tax import TaxInfo
 from empire_core.castle.models.upkeep import ConstructionItemExpiryResponse, ResourcePoolResponse
 from empire_core.castle.models.villages import VillageListResponse
@@ -233,6 +234,8 @@ class StateBase:
         self.expired_construction_items: ExpiredConstructionItemsResponse | None = None
         self.construction_item_expiry: ConstructionItemExpiryResponse | None = None
         self.resource_pool: ResourcePoolResponse | None = None
+        # The decoration storages by storage id, each replaced whole by the sin that names it
+        self.decoration_storages: dict[int, DecorationStorage] = {}
         self.laboratories: LaboratoryListResponse | None = None
         self.laboratory_reset: LaboratoryResetResponse | None = None
         self.kings_towers: KingsTowerListResponse | None = None

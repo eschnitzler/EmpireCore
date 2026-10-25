@@ -1751,6 +1751,20 @@ class ShuttingDownEvents(BaseResponse):
     )
 
 
+class SeasonEventResponse(BaseResponse):
+    """
+    A season event packet; the client accepts it and reads nothing from it.
+
+    The client has no request for it, so it comes only from the server.
+
+    Command: sea
+
+    Client: ``SEACommand.executeCommand`` (bundle line 128389)
+    """
+
+    command: ClassVar[str] = "sea"
+
+
 class GameEvent(EmpireModel):
     """A running event with its in-game title."""
 

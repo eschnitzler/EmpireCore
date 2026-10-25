@@ -2,7 +2,7 @@
 Your research, starting it and shortening it with a minute skip.
 
 Commands:
-- rei: your research, as a login section of ``gbd``, a push, and inside the ``res`` and ``msr`` replies
+- rei: read your research; also a login section of ``gbd``, a push, and inside the ``res`` and ``msr`` replies
 - res: start a research
 - msr: shorten the running research with a minute skip
 
@@ -28,6 +28,20 @@ def _ints(value: Any) -> tuple[int, ...]:
     if not isinstance(value, list):
         return ()
     return tuple(entry for entry in value if isinstance(entry, int) and not isinstance(entry, bool))
+
+
+class ResearchInfoRequest(BaseRequest):
+    """
+    Read your research.
+
+    Command: rei
+    Payload: {}
+
+    Client: ``C2SResearchInfoVO`` (bundle line 79687), sent by ``CastleResearchDialog.showLoaded``
+    (bundle line 16731)
+    """
+
+    command = "rei"
 
 
 class ResearchInfoResponse(TimedResponse):
@@ -157,6 +171,7 @@ class SkipResearchResponse(BaseResponse):
 
 
 __all__ = [
+    "ResearchInfoRequest",
     "ResearchInfoResponse",
     "SkipResearchRequest",
     "SkipResearchResponse",

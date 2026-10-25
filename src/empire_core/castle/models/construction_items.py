@@ -192,6 +192,16 @@ class DisassembleConstructionItemResponse(BaseResponse):
     rewards: tuple[Collectable, ...] = Field(default=(), description="Collectables resolved from the rewards drawn")
 
 
+class ConstructionItemSpaceRequest(BaseRequest):
+    """Request the free construction inventory capacity.
+
+    Client: ``C2SConstructionItemInventorySpaceLeftVO`` (bundle line 41293), sent by
+    ``LostAndFoundDialog.showLoaded`` (bundle line 107119)
+    """
+
+    command = "csp"
+
+
 class ConstructionItemSpace(BaseResponse):
     """Free construction inventory capacity, which may be negative.
 

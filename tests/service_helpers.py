@@ -51,7 +51,8 @@ def request_payload(data: str) -> dict[str, Any]:
     raw = data.split("%", 5)[5]
     if raw.endswith("%"):
         raw = raw[:-1]
-    return json.loads(raw)
+    # a frame with no parameter at all (sendEmptyCommandVO) reads as an empty payload
+    return json.loads(raw) if raw else {}
 
 
 # Live capture of an adi reply for a robber baron camp.

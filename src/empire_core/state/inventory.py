@@ -2,6 +2,7 @@
 construction item expiry and the resource citizen."""
 
 import logging
+import time
 from typing import Any
 
 from empire_core.alliance.models.forge import ForgeCraftResponse
@@ -14,6 +15,7 @@ from empire_core.castle.models.construction_items import (
 from empire_core.castle.models.kingdoms import KingdomInfoResponse
 from empire_core.castle.models.mercenaries import MercenaryMissionsResponse
 from empire_core.castle.models.objects import BuildingConstructionItems
+from empire_core.castle.models.storage import DecorationStorage, DecorationStorageResponse
 from empire_core.castle.models.tax import TaxInfo, TaxInfoResponse
 from empire_core.castle.models.upkeep import ConstructionItemExpiryResponse, ResourcePoolResponse
 from empire_core.commanders.models.inventory import GemInventoryResponse, InventorySpace
@@ -228,6 +230,27 @@ class InventoryState(StateBase):
         """
         with self._lock:
             return self.resource_pool
+
+    def get_decoration_storages(self) -> dict[int, DecorationStorage]:
+        """The decoration storages by storage id, from the last ``sin`` that named each; empty until one arrived."""
+        with self._lock:
+            return dict(self.decoration_storages)
+
+    def _handle_sin(self, data: Any) -> None:
+        """Apply a ``sin`` block: each storage it names replaces the one of the same id.
+
+        Client: ``DecoStorageData.parseSIN`` (bundle line 141430), from ``SINCommand`` and the replies
+        that carry a ``sin`` (``_DECORATION_STORAGE_REPLIES`` in ``state/manager.py``)
+        """
+        read = read_or_none(
+            DecorationStorageResponse.model_validate, data, warn=logging.getLogger(__name__), what="a sin block"
+        )
+        if read is None or not read.storages:
+            return
+        storages = dict(self.decoration_storages)
+        storages.update((storage.storage_id, storage) for storage in read.storages)
+        self.decoration_storages = storages
+        self._packet_times["sin"] = time.time()
 
     def get_construction_items(self) -> ConstructionItemInventory | None:
         """The construction inventory from the last successful gii; None before it arrived."""

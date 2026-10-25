@@ -2,8 +2,8 @@
 Pushes that keep the castle screen current: construction item expiry and the resource citizen.
 
 Commands:
-- nec: when the next construction item expires, a login section of ``gbd`` and a push
-- irc: the resource the citizen in your castle carries, a push
+- nec: when the next construction item expires, a login section of ``gbd``, a push and a reply
+- irc: the resource the citizen in your castle carries, a push and the reply to collecting it
 """
 
 from __future__ import annotations
@@ -13,8 +13,22 @@ from typing import Any, ClassVar
 from pydantic import ConfigDict, Field, field_validator
 
 from empire_core.gamedata import CollectableRows
-from empire_core.protocol.base import BaseResponse, TimedResponse
+from empire_core.protocol.base import BaseRequest, BaseResponse, TimedResponse
 from empire_core.protocol.js import ClientNumber, js_truthy
+
+
+class GetConstructionItemExpiryRequest(BaseRequest):
+    """
+    Ask when the next of your construction items expires.
+
+    Command: nec
+    Payload: {}
+
+    Client: ``C2SGetNextExpiringConstructionItemVO`` (bundle line 77698), sent by
+    ``ConstructionItemData.onCIExpiration`` (bundle line 22993)
+    """
+
+    command = "nec"
 
 
 class ConstructionItemExpiryResponse(TimedResponse):
@@ -49,11 +63,25 @@ class ConstructionItemExpiryResponse(TimedResponse):
         return max(0.0, self.next_expiry_seconds - self._elapsed(now))
 
 
+class CollectResourceCitizenRequest(BaseRequest):
+    """
+    Collect what the citizen walking in the joined castle carries.
+
+    Command: irc
+    Payload: {}
+
+    Client: ``C2SIsoResourceCitizenVO`` (bundle line 63836), sent by
+    ``IsoServerCommands.collectResourcePool`` (bundle line 63801)
+    """
+
+    command = "irc"
+
+
 class ResourcePoolResponse(BaseResponse):
     """
     The resource the citizen walking in your castle carries, to collect by clicking it.
 
-    Command: irc, a push.
+    Command: irc, a push and the reply to collecting the goods.
 
     Client: ``IRCCommand`` (bundle line 123090), ``CastleResourcePoolData.parseIRC`` (bundle line 139623), which
     keeps the first collectable of ``G`` and sets its amount to 1000 when ``EG`` is set. The client drops it
@@ -79,4 +107,9 @@ class ResourcePoolResponse(BaseResponse):
         return js_truthy(value)
 
 
-__all__ = ["ConstructionItemExpiryResponse", "ResourcePoolResponse"]
+__all__ = [
+    "CollectResourceCitizenRequest",
+    "ConstructionItemExpiryResponse",
+    "GetConstructionItemExpiryRequest",
+    "ResourcePoolResponse",
+]
