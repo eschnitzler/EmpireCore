@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Annotated, Any, ClassVar
 from pydantic import BeforeValidator, ConfigDict, Field, field_validator
 
 from empire_core.gamedata import EnumOrInt
-from empire_core.protocol.base import BasePayload, BaseResponse, readable_list
+from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, readable_list
 from empire_core.protocol.js import ClientInt, ParseInt, js_int, js_loose_equals
 
 from .equipment import RelicGem
@@ -50,6 +50,20 @@ def _gem_counts(counts: dict[int, int], rows: Any) -> dict[int, int]:
 
 def _stacks(counts: dict[int, int]) -> tuple[GemStack, ...]:
     return tuple(GemStack(gem_id=gem_id, amount=amount) for gem_id, amount in counts.items())
+
+
+class GetGemsRequest(BaseRequest):
+    """
+    Ask for the gems and relic gems in your inventory.
+
+    Command: ggm
+    Payload: {}
+
+    Client: ``C2SGetGemInventory`` (bundle line 22746), sent when the equipment screen updates
+    (``CastleEquipmentSublayer.updateEquipmentData``, bundle line 25717)
+    """
+
+    command = "ggm"
 
 
 class GemInventoryResponse(BaseResponse):
@@ -87,6 +101,22 @@ class GemInventoryResponse(BaseResponse):
         """This inventory after a ``gec``'s ``GEM`` rows: ``[gem_id, amount]``, a negative amount taken away."""
         counts = _gem_counts({stack.gem_id: stack.amount for stack in self.gems}, rows)
         return self.model_copy(update={"gems": _stacks(counts)})
+
+
+class GetInventorySpaceRequest(BaseRequest):
+    """
+    Ask for the equipment and gem inventory space.
+
+    Command: esl
+    Payload: {}
+
+    The reply is read into ``client.state``: its ``E`` is the equipment space, not an error code.
+
+    Client: ``C2SEquipmentSpaceLeftVO`` (bundle line 41423), sent by ``AMerchantBuyDialog.onInventorySpaceData``
+    (bundle line 41333)
+    """
+
+    command = "esl"
 
 
 class InventorySpace(BasePayload):
@@ -141,4 +171,11 @@ class NewRelicsResponse(BaseResponse):
         return js_loose_equals(value, 1)
 
 
-__all__ = ["GemInventoryResponse", "GemStack", "InventorySpace", "NewRelicsResponse"]
+__all__ = [
+    "GemInventoryResponse",
+    "GemStack",
+    "GetGemsRequest",
+    "GetInventorySpaceRequest",
+    "InventorySpace",
+    "NewRelicsResponse",
+]

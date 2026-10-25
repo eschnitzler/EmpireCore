@@ -13,6 +13,24 @@ from .auto_sell import (
     SetAutoSellEquipmentRequest,
     SetAutoSellGemsRequest,
 )
+from .crafting import (
+    BoughtEquipmentResponse,
+    BoughtGemsResponse,
+    BoughtRelic,
+    BoughtRelicsResponse,
+    CraftEquipmentRequest,
+    CraftEquipmentResponse,
+    CraftGemRequest,
+    CraftGemResponse,
+    EnchantEquipmentRequest,
+    EnchantEquipmentResponse,
+    EnchantRelicRequest,
+    EnchantRelicResponse,
+    ExtractGemRequest,
+    ExtractGemResponse,
+    GetNewRelicsRequest,
+    NewRelicItemsResponse,
+)
 from .equipment import (
     NO_GEM_ID,
     BindGemRequest,
@@ -41,6 +59,8 @@ from .generals import (
 from .inventory import (
     GemInventoryResponse,
     GemStack,
+    GetGemsRequest,
+    GetInventorySpaceRequest,
     InventorySpace,
     NewRelicsResponse,
 )
@@ -81,6 +101,24 @@ from .skills import (
 )
 
 __all__ = [
+    "BoughtEquipmentResponse",
+    "BoughtGemsResponse",
+    "BoughtRelic",
+    "BoughtRelicsResponse",
+    "CraftEquipmentRequest",
+    "CraftEquipmentResponse",
+    "CraftGemRequest",
+    "CraftGemResponse",
+    "EnchantEquipmentRequest",
+    "EnchantEquipmentResponse",
+    "EnchantRelicRequest",
+    "EnchantRelicResponse",
+    "ExtractGemRequest",
+    "ExtractGemResponse",
+    "GetNewRelicsRequest",
+    "NewRelicItemsResponse",
+    "GetGemsRequest",
+    "GetInventorySpaceRequest",
     "NO_GEM_ID",
     "EquipmentBonus",
     "RelicBonus",

@@ -22,6 +22,8 @@ from empire_core.castle.models.construction_items import (
     ConstructionItemSpace,
     ExpiredConstructionItemsResponse,
 )
+from empire_core.castle.models.crafting import CraftingQueue
+from empire_core.castle.models.fusion_forge import FusionForge
 from empire_core.castle.models.kingdoms import KingdomInfoResponse
 from empire_core.castle.models.landmarks import (
     KingsTowerListResponse,
@@ -42,6 +44,7 @@ from empire_core.castle.models.wishing_well import WishingWellResponse
 from empire_core.commanders.models.inventory import GemInventoryResponse, InventorySpace, NewRelicsResponse
 from empire_core.commanders.models.roster import CommanderRoster
 from empire_core.commanders.models.skills import SkillList
+from empire_core.enums import Kingdom
 from empire_core.events.models import ShuttingDownEvents, SpecialEvent
 from empire_core.events.status_models import RaidBossStatus
 from empire_core.exceptions import StateNotLoadedError
@@ -247,6 +250,9 @@ class StateBase:
         self.treasure_maps: dict[int, TreasureMap] | None = None
         self.treasure_hunt_map_id: int | None = None
         self.storm_islands: StormIslandsInfo | None = None
+        # The crafting queues by queue id, kingdom and castle, and the fusion forges by id; swapped, never edited
+        self.crafting_queues: dict[tuple[int, Kingdom, int], CraftingQueue] | None = None
+        self.fusion_forges: dict[int, FusionForge] | None = None
 
         # Freshness bookkeeping (see the GameState docstring). Wall-clock seconds.
         self._packet_times: dict[str, float] = {}

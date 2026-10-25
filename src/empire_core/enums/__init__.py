@@ -23,7 +23,9 @@ from .alliance import (
 from .army import ProductionListId, RecruitmentMode, SlotType
 from .castle import (
     BuildingState,
+    CatalystConversion,
     ConstructionItemMode,
+    CraftingSlotType,
     DecorationStorageId,
     ExpansionType,
     KingdomTransferType,
@@ -155,6 +157,8 @@ __all__ = [
     # Castle
     "BuildingState",
     "DecorationStorageId",
+    "CatalystConversion",
+    "CraftingSlotType",
     "ExpansionType",
     "MarketScope",
     "Resource",

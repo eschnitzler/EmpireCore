@@ -6,15 +6,16 @@
   feeding it xp items, unlocking it and raising its stars with shards, and spinning
   the generals hub for them. A general's skills widen the flanks whatever the target is.
 - EquipmentService reads the equipment inventory, moves items on and off
-  commanders and castellans, sells items and gems, sets gems in worn items, and
-  reads and sets the auto-sell rules.
+  commanders and castellans, sells items and gems, sets gems in worn items and takes
+  them out, crafts and enchants items, relics and gems, and reads and sets the
+  auto-sell rules.
 """
 
 from __future__ import annotations
 
 import threading
 import time
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 from typing import TYPE_CHECKING, TypeVar
 
 from empire_core.commanders.models.auto_sell import (
@@ -26,6 +27,20 @@ from empire_core.commanders.models.auto_sell import (
     GetAutoSellResponse,
     SetAutoSellEquipmentRequest,
     SetAutoSellGemsRequest,
+)
+from empire_core.commanders.models.crafting import (
+    CraftEquipmentRequest,
+    CraftEquipmentResponse,
+    CraftGemRequest,
+    CraftGemResponse,
+    EnchantEquipmentRequest,
+    EnchantEquipmentResponse,
+    EnchantRelicRequest,
+    EnchantRelicResponse,
+    ExtractGemRequest,
+    ExtractGemResponse,
+    GetNewRelicsRequest,
+    NewRelicItemsResponse,
 )
 from empire_core.commanders.models.equipment import (
     BindGemRequest,
@@ -47,7 +62,13 @@ from empire_core.commanders.models.generals import (
     UnlockGeneralRequest,
     UpgradeGeneralStarsRequest,
 )
-from empire_core.commanders.models.inventory import GemStack
+from empire_core.commanders.models.inventory import (
+    GemInventoryResponse,
+    GemStack,
+    GetGemsRequest,
+    GetInventorySpaceRequest,
+    InventorySpace,
+)
 from empire_core.commanders.models.roster import (
     PREMIUM_COMMANDER_ID,
     Castellan,
@@ -70,12 +91,12 @@ from empire_core.commanders.models.skills import (
     SetGeneralAbilitiesRequest,
     UnlockGeneralSkillRequest,
 )
-from empire_core.exceptions import PremiumCommanderCostError
+from empire_core.exceptions import PacketError, PremiumCommanderCostError
 from empire_core.services.base import BaseService
 
 if TYPE_CHECKING:
     from empire_core.client.client import EmpireClient
-    from empire_core.commanders.models.inventory import GemInventoryResponse, InventorySpace, NewRelicsResponse
+    from empire_core.commanders.models.inventory import NewRelicsResponse
     from empire_core.gamedata import Currency, Gem, General, GeneralsHubCharacter
 
 _Sent = TypeVar("_Sent")
@@ -591,7 +612,7 @@ class CommandersService(BaseService):
 class EquipmentService(BaseService):
     """
     The equipment inventory: putting items on and off commanders and castellans, selling items and gems,
-    setting gems, and the auto-sell rules.
+    setting gems and taking them out, crafting and enchanting, and the auto-sell rules.
 
     Reached as client.equipment. What a leader
     wears comes with ``client.commanders`` (``gli`` ``EQ``).
@@ -766,6 +787,207 @@ class EquipmentService(BaseService):
         gems = {color: rules.gems.get(color, 0) for color in colors}
         self.execute(SetAutoSellEquipmentRequest(equipment=rules.equipment), timeout=timeout)
         self.execute(SetAutoSellGemsRequest(gems=gems), timeout=timeout)
+
+    def get_gems(self, *, timeout: float = 5.0) -> GemInventoryResponse:
+        """
+        The gems and relic gems in your inventory; the reply also reaches :attr:`gems`.
+
+        Client: ``CastleEquipmentSublayer.updateEquipmentData`` (bundle line 25717)
+        """
+        return self.request(GetGemsRequest(), GemInventoryResponse, timeout=timeout)
+
+    def get_inventory_space(self, *, timeout: float = 5.0) -> InventorySpace:
+        """
+        The equipment and gem inventory space; the reply also reaches :attr:`inventory_space`.
+
+        Raises:
+            PacketError: The reply could not be read
+
+        Client: ``AMerchantBuyDialog.onInventorySpaceData`` (bundle line 41333), ``ESLCommand`` (bundle line 123933)
+        """
+        self.execute(GetInventorySpaceRequest(), timeout=timeout)
+        space = self.client.state.get_inventory_space()
+        if space is None:
+            raise PacketError("The esl reply could not be read")
+        return space
+
+    def get_new_relics(self, *, timeout: float = 5.0) -> NewRelicItemsResponse:
+        """
+        The relic items and relic gems you have not seen yet.
+
+        Client: the equipment dialog's ``showLoaded`` (bundle line 8801)
+        """
+        return self.request(GetNewRelicsRequest(), NewRelicItemsResponse, timeout=timeout)
+
+    def craft_equipment(
+        self,
+        equipment_ids: Sequence[int],
+        *,
+        extract_gems: bool = False,
+        spend_rubies: bool = False,
+        timeout: float = 5.0,
+    ) -> Equipment:
+        """
+        Craft a new item from inventory items. The items are used up, and so are their gems unless
+        ``extract_gems`` takes them back first.
+
+        Taking a gem back costs its level's rubies, a relic gem relic fragments, so ``extract_gems``
+        needs ``spend_rubies``. The reply's inventory space reaches :attr:`inventory_space`.
+
+        Args:
+            equipment_ids: The inventory items used up, their ``Equipment.equipment_id``
+            extract_gems: Take the items' gems back into the inventory first
+            spend_rubies: Allow the rubies ``extract_gems`` costs
+            timeout: Timeout in seconds
+
+        Returns:
+            The crafted item
+
+        Raises:
+            ValueError: ``extract_gems`` without ``spend_rubies``
+            CommandError: The server refused
+
+        Client: ``CraftingEquipmentClickHandler.onClick`` and ``extractGems`` (bundle lines 74125, 74129),
+        ``CastleExtractGemsDialog.calculateRemovalCostsForGems`` (bundle line 74260)
+        """
+        self._require_spend_rubies(spend_rubies, "taking the items' gems back costs rubies" if extract_gems else None)
+        request = CraftEquipmentRequest(extract_gems=extract_gems, equipment_ids=tuple(equipment_ids))
+        return self.request(request, CraftEquipmentResponse, timeout=timeout).equipment
+
+    def enchant_equipment(
+        self, equipment_id: int, *, pay_with_rubies: bool = False, spend_rubies: bool = False, timeout: float = 5.0
+    ) -> Equipment:
+        """
+        Enchant an item one level, for coins or, with ``pay_with_rubies``, rubies.
+
+        Returns:
+            The item after
+
+        Raises:
+            ValueError: ``pay_with_rubies`` without ``spend_rubies``
+            CommandError: The server refused; ``ENCHANTING_FAILED`` when the enchantment's chance failed
+
+        Client: the enchant dialog's pay buttons (bundle lines 59446-59448), ``EQECommand`` (bundle line 123900)
+        """
+        self._require_spend_rubies(spend_rubies, "the ruby enchantment costs rubies" if pay_with_rubies else None)
+        request = EnchantEquipmentRequest(pay_with_rubies=pay_with_rubies, equipment_id=equipment_id)
+        return self.request(request, EnchantEquipmentResponse, timeout=timeout).equipment
+
+    def enchant_relic(
+        self,
+        relic: Equipment | RelicGem,
+        *,
+        pay_with_rubies: bool = False,
+        spend_rubies: bool = False,
+        timeout: float = 5.0,
+    ) -> Equipment | RelicGem:
+        """
+        Enchant a relic item or relic gem one level, for relic fragments and coins or, with
+        ``pay_with_rubies``, rubies.
+
+        Args:
+            relic: A relic item (``Equipment.is_relic``), or a relic gem, one set in an item too
+            pay_with_rubies: Pay in rubies instead of coins
+            spend_rubies: Allow those rubies
+            timeout: Timeout in seconds
+
+        Returns:
+            The relic item or relic gem after
+
+        Raises:
+            ValueError: ``relic`` is an item that is no relic, or ``pay_with_rubies`` without ``spend_rubies``
+            CommandError: The server refused; ``ENCHANTING_FAILED`` when the enchantment's chance failed
+            PacketError: The reply carries no relic
+
+        Client: ``RelicUpgradeDialog.onBuyButtonClicked`` (bundle line 29490),
+        ``RelicUpgradeDialogPayment.getCosts`` (bundle line 86002)
+        """
+        is_equipment = isinstance(relic, Equipment)
+        if isinstance(relic, Equipment) and not relic.is_relic:
+            raise ValueError(f"item {relic.equipment_id} is no relic")
+        self._require_spend_rubies(spend_rubies, "the ruby enchantment costs rubies" if pay_with_rubies else None)
+        request = EnchantRelicRequest(
+            pay_with_rubies=pay_with_rubies,
+            relic_id=relic.equipment_id if isinstance(relic, Equipment) else relic.gem_id,
+            is_equipment=is_equipment,
+        )
+        response = self.request(request, EnchantRelicResponse, timeout=timeout)
+        upgraded = response.equipment if is_equipment else response.relic_gem
+        if upgraded is None:
+            raise PacketError("The ere reply carries no relic")
+        return upgraded
+
+    def craft_gem(
+        self,
+        gem: Gem | GemStack,
+        used_gems: Sequence[Gem | GemStack],
+        *,
+        pay_with_rubies: bool = False,
+        spend_rubies: bool = False,
+        timeout: float = 5.0,
+    ) -> CraftGemResponse:
+        """
+        Craft a gem a level up from a gem and gems around it. The gems around it are used up.
+
+        The craft can fail; its reply says whether it worked (``CraftGemResponse.crafted``). The ruby craft,
+        ``pay_with_rubies``, needs ``spend_rubies``. The reply's inventory space reaches :attr:`inventory_space`.
+
+        Args:
+            gem: The centre gem, crafted a level up
+            used_gems: The gems in the outer slots, used up
+            pay_with_rubies: The ruby craft
+            spend_rubies: Allow its rubies
+            timeout: Timeout in seconds
+
+        Raises:
+            ValueError: ``pay_with_rubies`` without ``spend_rubies``
+            CommandError: The server refused
+
+        Client: ``CastleGemData.craftGem`` (bundle line 144476), ``CraftingGemClickHandler.handleDialogClick``
+        (bundle lines 73941-73943)
+        """
+        self._require_spend_rubies(spend_rubies, "the ruby gem craft costs rubies" if pay_with_rubies else None)
+        request = CraftGemRequest(
+            gem_id=self._gem(gem)[0],
+            pay_with_rubies=pay_with_rubies,
+            used_gem_ids=tuple(self._gem(used)[0] for used in used_gems),
+        )
+        return self.request(request, CraftGemResponse, timeout=timeout)
+
+    def extract_gem(
+        self,
+        equipment: Equipment,
+        *,
+        commander_id: int | None = None,
+        spend_rubies: bool = False,
+        timeout: float = 5.0,
+    ) -> None:
+        """
+        Take the gem out of an item, back into the inventory.
+
+        A gem costs its level's rubies, so it needs ``spend_rubies``; a relic gem costs relic fragments.
+
+        Args:
+            equipment: An inventory item, or one a commander wears, with a gem
+            commander_id: The commander or castellan wearing it; None for an inventory item
+            spend_rubies: Allow the rubies a gem costs
+            timeout: Timeout in seconds
+
+        Raises:
+            ValueError: The item has no gem, or a gem without ``spend_rubies``
+            CommandError: The server refused
+
+        Client: ``CastleGemData.extractGem`` (bundle line 144483), ``CastleExtractSocketDialog.getCosts``
+        (bundle line 65738)
+        """
+        relic_gem = equipment.relic_info.gem if equipment.relic_info is not None else None
+        if relic_gem is None and not equipment.has_gem:
+            raise ValueError(f"item {equipment.equipment_id} has no gem")
+        self._require_spend_rubies(spend_rubies, "taking a gem out costs rubies" if relic_gem is None else None)
+        request = ExtractGemRequest(
+            equipment_id=equipment.equipment_id, commander_id=-1 if commander_id is None else commander_id
+        )
+        self.request(request, ExtractGemResponse, timeout=timeout)
 
     @staticmethod
     def _gem(gem: Gem | GemStack | RelicGem) -> tuple[int, bool]:

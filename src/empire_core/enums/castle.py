@@ -1,4 +1,5 @@
-"""Castle buildings, resource carts, market goods, market scopes, tax collection and the server's weekdays."""
+"""Castle buildings, crafting slots, fusion catalysts, resource carts, market goods, market scopes, tax
+collection and the server's weekdays."""
 
 from enum import Enum, IntEnum
 
@@ -153,3 +154,26 @@ class DecorationStorageId(IntEnum):
 
     GLOBAL = 1
     AREA_INVENTORY = 2
+
+
+class CraftingSlotType(str, Enum):
+    """
+    The two kinds of slot in a crafting queue: the slots crafting now, and the slots waiting behind them.
+
+    Client: ``CraftingSlotVO.SLOT_TYPE_PRODUCTION`` and ``SLOT_TYPE_QUEUE`` (bundle line 17023), sent as
+    ``"production"``, else ``"queue"`` (``C2SCraftingCancelVO``, bundle line 111472)
+    """
+
+    PRODUCTION = "production"
+    QUEUE = "queue"
+
+
+class CatalystConversion(IntEnum):
+    """
+    Which way fusion catalysts are converted.
+
+    Client: ``ClientConstFusion.CATALYST_CONVERSION_DIRECTION_ASSEMBLE`` and ``_DISASSEMBLE`` (bundle line 7919)
+    """
+
+    ASSEMBLE = 0
+    DISASSEMBLE = 1

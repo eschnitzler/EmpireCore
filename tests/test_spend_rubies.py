@@ -63,6 +63,15 @@ RUBY_REQUESTS = {
     "SelectKingdomCastleRequest": "ksc, OC2 for the ruby castle and PWR (bundle lines 55479, 35239)",
     "SelectSeasonCampRequest": "csc, OC2 for the ruby camp and PWR (bundle lines 55482, 35238)",
     "RelocateCastleRequest": "rst, RELOCATION_COST_C2 after the first (bundle line 109656, dll line 19674)",
+    "SkipCraftingRequest": "crsk, PC2 rubies (CraftingSlotVO.getAdjustedSkipCostC2, bundle line 17012)",
+    "SkipConstructionCraftingRequest": "sci, PWR 1 and MST - (bundle line 79930)",
+    "RefillFusionForgeRequest": "fsr, FSRP 1 (getC2PriceForEnergyPremiumSkip, bundle line 142206)",
+    "FuseDecorationRequest": "dff, FFFP 1, the premium fusion (bundle line 35455)",
+    "CraftEquipmentRequest": "ceq, EX 1 takes the gems back for removalCostC2 (bundle line 74260)",
+    "EnchantEquipmentRequest": "eqe, C2 1 (bundle line 59448)",
+    "EnchantRelicRequest": "ere, C2 1 (RelicUpgradeDialogPayment.getCosts, bundle line 86002)",
+    "CraftGemRequest": "cge, C2 1, the ruby craft (bundle line 73943)",
+    "ExtractGemRequest": "ege, a gem's removalCostC2 (CastleExtractSocketDialog.getCosts, bundle line 65738)",
 }
 
 SENT_WITHOUT_CONSENT = {
@@ -70,6 +79,7 @@ SENT_WITHOUT_CONSENT = {
     "CastleService.list_missions": "mpe with no mission id only lists the missions",
     "CastleService.start_mission": "sends mpe only for an open mission while none runs, which costs coins",
     "CastleService.collect_mission": "sends mpe only for a mission the client would collect for 0 rubies",
+    "CastleService.skip_construction_crafting_time": "sci with a minute skip and PWR 0 spends the skip item",
 }
 
 CONSENT_WITHOUT_REQUEST = {
