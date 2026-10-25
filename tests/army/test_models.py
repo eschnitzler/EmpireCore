@@ -198,7 +198,7 @@ class TestProductionList:
             }
         )
 
-        assert reply.list_id == ProductionListId.SOLDIERS
+        assert reply.list_id is ProductionListId.SOLDIERS
         assert [(s.position, s.wod_id, s.amount, s.is_locked) for s in reply.queue] == [
             (0, 620, 30, False),
             (1, 0, 0, False),
@@ -223,6 +223,9 @@ class TestProductionList:
 
     def test_a_block_without_lid_is_ignored_by_the_client(self):
         assert GetProductionListResponse.model_validate({"QS": []}).list_id is None
+
+    def test_an_unknown_list_keeps_its_id(self):
+        assert GetProductionListResponse.model_validate({"LID": "99"}).list_id == 99
 
 
 class TestReplies:
@@ -253,7 +256,7 @@ class TestReplies:
 
     def test_bou_reply(self):
         reply = DoubleProductionSlotResponse.model_validate({"spl": {"LID": 0}, "gcu": {"C2": 10}})
-        assert reply.production_list is not None and reply.production_list.list_id == 0
+        assert reply.production_list is not None and reply.production_list.list_id is ProductionListId.SOLDIERS
 
 
 class TestHospitalFlags:

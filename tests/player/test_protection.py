@@ -172,6 +172,52 @@ class TestProtectionState:
         assert isinstance(berimond, BerimondEvent) and berimond.faction_protection_status == -1
         state.shutdown()
 
+    @pytest.mark.parametrize(
+        ("command", "payload"),
+        [
+            ("gaa", {"KID": 2, "AI": [], "OI": [], "uap": {"KID": 2, "NS": 0, "PMS": 1, "PMT": 3600}}),
+            ("jaa", {"uap": {"KID": 2, "NS": 0, "PMS": 1, "PMT": 3600}}),
+            ("ssi", {"GC": 0, "AS": 1, "gaa": {"AI": [], "OI": [], "uap": {"KID": 2, "NS": 0, "PMS": 1, "PMT": 3600}}}),
+        ],
+    )
+    def test_a_map_read_join_or_spy_screen_applies_its_protection(self, command, payload):
+        state = logged_in_state(uap={"KID": 0, "NS": 600, "PMS": -1, "PMT": 0})
+
+        state.update_from_packet(command, payload)
+
+        player = state.get_local_player()
+        assert player.protection[Kingdom.ICE].peace_mode_status is PeaceModeStatus.PEACETIME
+        assert player.beginner_protection == {0: True, 2: False}
+        state.shutdown()
+
+    @pytest.mark.parametrize(
+        ("command", "payload"),
+        [
+            ("gaa", {"uap": {"KID": 2, "NS": 0, "PMS": 1, "PMT": 3600}}),
+            ("jaa", {"uap": {"KID": 2, "NS": 0, "PMS": 1, "PMT": 3600}}),
+            ("ssi", {"gaa": {"uap": {"KID": 2, "NS": 0, "PMS": 1, "PMT": 3600}}}),
+        ],
+    )
+    def test_a_refused_reply_leaves_the_protection(self, command, payload):
+        state = logged_in_state(uap={"KID": 0, "NS": 600, "PMS": -1, "PMT": 0})
+
+        state.update_from_packet(command, payload, error_code=1)
+
+        assert Kingdom.ICE not in state.get_local_player().protection
+        state.shutdown()
+
+    def test_a_berimond_map_read_updates_the_berimond_event(self, clock):
+        state = logged_in_state()
+        state.update_from_packet("sei", {"E": [BERIMOND_ENTRY]})
+
+        state.update_from_packet(
+            "gaa", {"KID": 10, "AI": [], "OI": [], "uap": {"KID": 10, "NS": 0, "PMS": 1, "PMT": 200}}
+        )
+
+        berimond = state.get_event(Event.FACTION)
+        assert isinstance(berimond, BerimondEvent) and berimond.faction_protection_end == 1200.0
+        state.shutdown()
+
     def test_ffp_applies_its_coins_and_faction(self, clock):
         state = logged_in_state()
         state.update_from_packet("sei", {"E": [BERIMOND_ENTRY]})
