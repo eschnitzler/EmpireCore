@@ -280,3 +280,17 @@ class TreasureMapProgress(IntEnum):
     DESTROYED_DUNGEON = 2
     NEW_MAP = 3
     DESTROYED_END_NODE = 4
+
+
+class TreasureMapType(IntEnum):
+    """
+    What a treasure map is for, a ``tmaps`` row's ``maptype``: a season event's map, a treasure hunt's, or the
+    timed season map of the low level Underworld.
+
+    Client: ``TreasureMapsConst.MAP_TYPE_CRUSADE``, ``MAP_TYPE_TREASURE_HUNT`` and ``MAP_TYPE_CRUSADE_TIMED``
+    (dll line 19881)
+    """
+
+    SEASON = 0
+    TREASURE_HUNT = 1
+    TIMED_SEASON = 2

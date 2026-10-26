@@ -15,7 +15,7 @@ from empire_core.castle.models.construction_items import (
 from empire_core.castle.models.kingdoms import KingdomInfoResponse
 from empire_core.castle.models.mercenaries import MercenaryMissionsResponse
 from empire_core.castle.models.objects import BuildingConstructionItems
-from empire_core.castle.models.storage import DecorationStorage, DecorationStorageResponse
+from empire_core.castle.models.storage import DecorationStorage, DecorationStorageKey, DecorationStorageResponse
 from empire_core.castle.models.tax import TaxInfo, TaxInfoResponse
 from empire_core.castle.models.upkeep import ConstructionItemExpiryResponse, ResourcePoolResponse
 from empire_core.commanders.models.inventory import GemInventoryResponse, InventorySpace
@@ -231,7 +231,7 @@ class InventoryState(StateBase):
         with self._lock:
             return self.resource_pool
 
-    def get_decoration_storages(self) -> dict[int, DecorationStorage]:
+    def get_decoration_storages(self) -> dict[DecorationStorageKey, DecorationStorage]:
         """The decoration storages by storage id, from the last ``sin`` that named each; empty until one arrived."""
         with self._lock:
             return dict(self.decoration_storages)

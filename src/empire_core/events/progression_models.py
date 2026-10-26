@@ -14,13 +14,25 @@ Commands:
 
 from __future__ import annotations
 
-from typing import Any, ClassVar, Literal
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Literal
 
-from pydantic import Field, field_serializer, field_validator, model_validator
+from pydantic import BeforeValidator, Field, field_serializer, field_validator, model_validator
 
 from empire_core.enums import Kingdom
+from empire_core.gamedata import (
+    AllianceInvasionCampId,
+    DaimyoContractId,
+    EnumOrInt,
+    EventDifficultyId,
+    PartPayPriceId,
+    ScalingCampId,
+)
+from empire_core.gamedata.ids.events import Event
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, TimedPayload, readable_list
 from empire_core.protocol.js import ClientInt, ClientNumber, js_int, js_truthy
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import TreasureMapId
 
 # Daimyo
 
@@ -43,10 +55,10 @@ class DaimyoArea(TimedPayload):
         validation_alias="CD", default=0, description="Seconds until the area can be attacked again when read"
     )
     cooldown_count: ClientInt = Field(validation_alias="CDC", default=0, description="How often it went on cooldown")
-    scaling_camp_id: ClientInt = Field(
+    scaling_camp_id: Annotated[ScalingCampId, BeforeValidator(js_int)] = Field(
         validation_alias="DDCID",
-        default=-1,
-        description="The area's row in the event auto scaling camps table, -1 without difficulty scaling",
+        default=ScalingCampId(-1),
+        description="The area's camp in GameData.scaling_camps, -1 without difficulty scaling",
     )
 
     def remaining_cooldown_seconds(self, now: float | None = None) -> float:
@@ -110,7 +122,10 @@ class DaimyoContractProgress(BasePayload):
     Client: ``SamuraiDaimyoContractProgressVO.parseServerData`` (bundle line 142665)
     """
 
-    contract_id: ClientInt = Field(default=0, description="The contract's row in its daimyo contracts table")
+    contract_id: Annotated[DaimyoContractId, BeforeValidator(js_int)] = Field(
+        default=DaimyoContractId(0),
+        description="The contract, in GameData.daimyo_castle_contracts or daimyo_township_contracts as listed",
+    )
     points: ClientInt = Field(default=0, description="The shogun points your alliance has on it")
 
     @model_validator(mode="before")
@@ -231,9 +246,9 @@ class AllianceCampInfo(BasePayload):
     ``ALLIANCE_CAMP_ID`` and ``ALLIANCE_RAGE`` (``EID``, ``ACID``, ``AR``)
     """
 
-    event_id: ClientInt = Field(validation_alias="EID", default=0, description="The event the camp belongs to")
-    camp_id: ClientInt = Field(
-        validation_alias="ACID", default=0, description="The camp's row in the alliance invasion camps table"
+    event_id: EnumOrInt[Event] = Field(validation_alias="EID", description="The event the camp belongs to")
+    camp_id: Annotated[AllianceInvasionCampId, BeforeValidator(js_int)] = Field(
+        validation_alias="ACID", description="The camp, a GameData.alliance_invasion_camps row"
     )
     alliance_rage: ClientInt = Field(validation_alias="AR", default=0, description="The camp's alliance rage")
 
@@ -281,7 +296,9 @@ class UnlockEventRequest(BaseRequest):
     stone: int = Field(validation_alias="S", default=0, description="Stone to pay")
     food: Literal[0] = Field(validation_alias="F", default=0, description="Always 0: food is never paid")
     coins: int = Field(validation_alias="C1", default=0, description="Coins to pay")
-    part_price_id: int = Field(validation_alias="IID", description="The row of the part pay prices table paid towards")
+    part_price_id: PartPayPriceId = Field(
+        validation_alias="IID", description="The price paid towards, a GameData.part_pay_prices row"
+    )
     pay_with_rubies: bool = Field(
         validation_alias="SC", default=False, description="The marked resource's missing amount is paid in rubies"
     )
@@ -315,7 +332,7 @@ class SeasonJoinEventRequest(BaseRequest):
 
     command: ClassVar[str] = "sje"
 
-    map_id: int = Field(validation_alias="MID", description="The season event's treasure map")
+    map_id: EnumOrInt["TreasureMapId"] = Field(validation_alias="MID", description="The season event's treasure map")
 
 
 # Event difficulties
@@ -334,10 +351,10 @@ class SelectEventDifficultyRequest(BaseRequest):
 
     command: ClassVar[str] = "sede"
 
-    event_id: int = Field(validation_alias="EID", description="The event")
-    difficulty_id: int = Field(
+    event_id: EnumOrInt[Event] = Field(validation_alias="EID", description="The event")
+    difficulty_id: EventDifficultyId = Field(
         validation_alias="EDID",
-        description="The row of the event auto scaling difficulties table; 0 for the event without scaling",
+        description="The difficulty, a GameData.event_difficulties row; 0 for the event without scaling",
     )
     unlock_with_rubies: bool = Field(
         validation_alias="C2U", default=False, description="A locked difficulty is unlocked for its ruby price"

@@ -224,6 +224,7 @@ from .resources import (
 )
 from .storage import (
     DecorationStorage,
+    DecorationStorageKey,
     DecorationStorageResponse,
     MarkStorageSeenRequest,
     MarkStorageSeenResponse,
@@ -496,6 +497,7 @@ __all__ = [
     "TransportationBuildingsResponse",
     "UpgradableBuilding",
     "DecorationStorage",
+    "DecorationStorageKey",
     "DecorationStorageResponse",
     "MarkStorageSeenRequest",
     "MarkStorageSeenResponse",

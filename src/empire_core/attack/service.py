@@ -63,7 +63,7 @@ from empire_core.attack.models.target_info import (
     GetTreasureNodeAttackInfoResponse,
 )
 from empire_core.attack.models.taunts import LaunchTauntAttackRequest, LaunchWolfKingTauntRequest
-from empire_core.attack.models.tools import BoughtTools, BuyToolsRequest, BuyToolsResponse
+from empire_core.attack.models.tools import NO_PACKAGE, BoughtTools, BuyToolsRequest, BuyToolsResponse
 from empire_core.attack.pacing import AttackSendPacer
 from empire_core.attack.targeting import _merged, _precalculation, _read_target, _row_item, _Target
 from empire_core.combat import (
@@ -114,9 +114,10 @@ from empire_core.exceptions import (
     CommandError,
     PacketError,
 )
-from empire_core.gamedata import WodAmount, WodAmountMapping
+from empire_core.gamedata import PackageId, TreasureMapNodeId, WodAmount, WodAmountMapping
 from empire_core.gamedata.ids.events import Event
 from empire_core.map.models.items import MapAreaItem
+from empire_core.map.models.treasure_maps import NO_TREASURE_MAP, NO_TREASURE_MAP_NODE
 from empire_core.movements.models import NO_HORSE
 from empire_core.protocol.base import BaseResponse
 from empire_core.protocol.text import SMARTFOX_INVALID_CHARS, is_smartfox_valid
@@ -126,7 +127,7 @@ from empire_core.utils import callbacks
 if TYPE_CHECKING:
     from empire_core.attack.models.counter import AttackCounterResponse
     from empire_core.client.client import EmpireClient
-    from empire_core.gamedata import Currency, CurrencyId, GameData, GlobalEffect, Horse, Tool
+    from empire_core.gamedata import Currency, CurrencyId, GameData, GlobalEffect, Horse, Tool, TreasureMapId
 
 logger = logging.getLogger(__name__)
 
@@ -173,8 +174,8 @@ class AttackService(BaseService):
         minute_skip: Currency | str,
         kingdom_id: Kingdom = Kingdom.GREEN,
         *,
-        map_id: int = -1,
-        node_id: int = -1,
+        map_id: TreasureMapId | int = NO_TREASURE_MAP,
+        node_id: TreasureMapNodeId = NO_TREASURE_MAP_NODE,
         timeout: float = 5.0,
     ) -> MapAreaItem:
         """Use one held minute-skip item and return the updated dungeon.
@@ -206,8 +207,8 @@ class AttackService(BaseService):
         y: int,
         kingdom_id: Kingdom = Kingdom.GREEN,
         *,
-        map_id: int = -1,
-        node_id: int = -1,
+        map_id: TreasureMapId | int = NO_TREASURE_MAP,
+        node_id: TreasureMapNodeId = NO_TREASURE_MAP_NODE,
         spend_rubies: bool = False,
         timeout: float = 5.0,
     ) -> MapAreaItem:
@@ -235,7 +236,7 @@ class AttackService(BaseService):
         return self._dungeon_skip_result(response, kingdom_id)
 
     @staticmethod
-    def _check_dungeon_node(map_id: int, node_id: int) -> None:
+    def _check_dungeon_node(map_id: int, node_id: TreasureMapNodeId) -> None:
         if (map_id, node_id) != (-1, -1) and (map_id < 0 or node_id < 0):
             raise ValueError("map_id and node_id must both name a treasure node, or both be -1")
 
@@ -459,8 +460,8 @@ class AttackService(BaseService):
 
     def send_treasure_hunt_attack(
         self,
-        map_id: int,
-        node_id: int,
+        map_id: TreasureMapId | int,
+        node_id: TreasureMapNodeId,
         waves: list[AttackWave],
         commander_id: int,
         horse_booster_id: Horse | None = None,
@@ -480,7 +481,7 @@ class AttackService(BaseService):
         feathers.
 
         Args:
-            map_id: The treasure map's id
+            map_id: The treasure map
             node_id: The node to attack on that map
             waves: Attack waves, front to back
             commander_id: Commander to lead the attack, a ``Commander.commander_id`` from
@@ -626,7 +627,7 @@ class AttackService(BaseService):
         return self.request(request, GetCollectorAttackInfoResponse, timeout=timeout)
 
     def get_treasure_node_attack_info(
-        self, map_id: int, node_id: int, *, timeout: float = 10.0
+        self, map_id: TreasureMapId | int, node_id: TreasureMapNodeId, *, timeout: float = 10.0
     ) -> GetTreasureNodeAttackInfoResponse:
         """
         Get the attack pre-calculation for a node of a treasure map.
@@ -808,8 +809,8 @@ class AttackService(BaseService):
         tool: Tool | int,
         amount: int,
         *,
-        map_id: int = -1,
-        package_id: int = -1,
+        map_id: TreasureMapId | int = NO_TREASURE_MAP,
+        package_id: PackageId = NO_PACKAGE,
         spend_rubies: bool = False,
         timeout: float = 5.0,
     ) -> BoughtTools:

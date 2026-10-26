@@ -15,6 +15,7 @@ from empire_core.enums import (
 from empire_core.utils.lazy import lazy_exports
 
 from .models import (
+    NO_PACKAGE,
     PRESET_NAME_MAX_LENGTH,
     ActivateAttackAdvisorRequest,
     ActivateAttackAdvisorResponse,
@@ -89,7 +90,7 @@ from .models import (
 from .service import AttackService
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import Currency, CurrencyId, Event, Horse, LegendSkill, Tool
+    from empire_core.gamedata import Currency, CurrencyId, Event, Horse, LegendSkill, Tool, TreasureMapId
 
 __all__ = [
     "ActivateAttackAdvisorRequest",
@@ -106,6 +107,7 @@ __all__ = [
     "LaunchWolfKingTauntResponse",
     "RagePointsResponse",
     "BoughtTools",
+    "NO_PACKAGE",
     "BuyToolsRequest",
     "BuyToolsResponse",
     "UnlockPresetRequest",
@@ -177,10 +179,13 @@ __all__ = [
     "Horse",
     "LegendSkill",
     "Tool",
+    "TreasureMapId",
 ]
 
 
 if not TYPE_CHECKING:
     __getattr__ = lazy_exports(
-        __name__, "empire_core.gamedata.ids", ("Currency", "CurrencyId", "Event", "Horse", "LegendSkill", "Tool")
+        __name__,
+        "empire_core.gamedata.ids",
+        ("Currency", "CurrencyId", "Event", "Horse", "LegendSkill", "Tool", "TreasureMapId"),
     )

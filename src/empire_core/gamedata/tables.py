@@ -11,6 +11,7 @@ other tables are not read yet.
 
 from __future__ import annotations
 
+import math
 import sys
 from typing import TYPE_CHECKING, NewType
 
@@ -27,6 +28,7 @@ from empire_core.enums import (
     RewardGrantType,
     TitleDisplayType,
     TitleSystem,
+    TreasureMapType,
     WearerType,
 )
 from empire_core.protocol.js import js_falsy, js_int, js_number_or_none, js_parse_float, js_parse_int, js_string
@@ -41,11 +43,13 @@ if TYPE_CHECKING:
         Achievement,
         AllianceCrestColor,
         AllianceCrestLayout,
+        AllianceTowerEffect,
         Building,
         ConstructionItem,
         CurrencyId,
         DailyQuestId,
         DifficultyType,
+        Effect,
         EquipmentGroup,
         Event,
         FusionForgeId,
@@ -61,6 +65,7 @@ if TYPE_CHECKING:
         Research,
         SceatSkill,
         Title,
+        TreasureMapId,
     )
 
 
@@ -89,6 +94,12 @@ ConstructionItemRecipeId = NewType("ConstructionItemRecipeId", int)
 The rows have no name, so no generated enum names them; this type marks the id space instead.
 """
 
+TreasureMapNodeId = NewType("TreasureMapNodeId", int)
+"""The id of a ``tmapnodes`` row, a node of a treasure map that :attr:`GameData.treasure_map_nodes` describes.
+
+The rows have no name, so no generated enum names them; this type marks the id space instead.
+"""
+
 CraftingRecipeId = NewType("CraftingRecipeId", int)
 """The id of a ``craftingRecipes`` row, a recipe that :attr:`GameData.crafting_recipes` describes.
 
@@ -106,6 +117,50 @@ StartResourcesId = NewType("StartResourcesId", int)
 
 The rows have no name, so no generated enum names them; this type marks the id space instead.
 """
+
+PartPayPriceId = NewType("PartPayPriceId", int)
+"""The id of a ``partpayprices`` row, a price paid in parts that :attr:`GameData.part_pay_prices` describes."""
+
+DonationItemId = NewType("DonationItemId", int)
+"""The id of a ``donationItems`` row, what a donation event takes, that :attr:`GameData.donation_items` describes."""
+
+TrainingProgramId = NewType("TrainingProgramId", int)
+"""The id of an ``officersSchoolEffects`` row, a training program that :attr:`GameData.training_programs` describes."""
+
+EventDifficultyId = NewType("EventDifficultyId", int)
+"""The id of an ``eventAutoScalingDifficulties`` row, an event difficulty that :attr:`GameData.event_difficulties`
+describes."""
+
+GachaId = NewType("GachaId", int)
+"""The id of a ``gachaEvents`` row, a gacha level that :attr:`GameData.gachas` describes."""
+
+WheelOfFortuneRewardSetId = NewType("WheelOfFortuneRewardSetId", int)
+"""The id of a ``luckywheelrewardsets`` row, a Wheel of Fortune jackpot set that
+:attr:`GameData.wheel_of_fortune_reward_sets` describes."""
+
+WheelOfFortuneWinClassId = NewType("WheelOfFortuneWinClassId", int)
+"""The id of a ``luckywheelclasses`` row, a Wheel of Fortune win class that
+:attr:`GameData.wheel_of_fortune_win_classes` describes; the classes count up from 1."""
+
+OuterRealmsSettingId = NewType("OuterRealmsSettingId", int)
+"""The id of a ``tempServerSettings`` row, an Outer Realms run's settings that :attr:`GameData.outer_realms_settings`
+describes."""
+
+HorizonSettingId = NewType("HorizonSettingId", int)
+"""The id of an ``allianceBattleGroundSettings`` row, a Beyond the Horizon run's settings that
+:attr:`GameData.horizon_settings` describes."""
+
+DaimyoContractId = NewType("DaimyoContractId", int)
+"""The id of a daimyo alliance contract, a row of :attr:`GameData.daimyo_castle_contracts` or
+:attr:`GameData.daimyo_township_contracts`: each table counts its own."""
+
+ScalingCampId = NewType("ScalingCampId", int)
+"""The id of an ``eventAutoScalingCamps`` row, a camp of an event's difficulty scaling that
+:attr:`GameData.scaling_camps` describes."""
+
+AllianceInvasionCampId = NewType("AllianceInvasionCampId", int)
+"""The id of an ``allianceInvasionCamps`` row, an alliance invasion camp that :attr:`GameData.alliance_invasion_camps`
+describes."""
 
 
 def row_id(value: object) -> int:
@@ -132,7 +187,7 @@ def _is_one(value: object) -> bool:
     return value if isinstance(value, bool) else _parse_int_or_default(value, 0) == 1
 
 
-def _int_list(value: object, default: str = "") -> list[int]:
+def _int_list(value: object, default: str = "", separator: str = ",") -> list[int]:
     """
     ``CastleXMLUtils.createIntListFromString`` (bundle line 1038): ``parseInt`` of each non-empty ``,`` part.
 
@@ -141,7 +196,7 @@ def _int_list(value: object, default: str = "") -> list[int]:
     if isinstance(value, list | tuple):
         return list(value)
     text = default if js_falsy(value) else js_string(value)
-    return [number for part in text.split(",") if part and (number := js_parse_int(part)) is not None]
+    return [number for part in text.split(separator) if part and (number := js_parse_int(part)) is not None]
 
 
 def _text(value: object, default: str = "") -> str:
@@ -263,10 +318,10 @@ class BuildingDef(EffectSpecRow):
         default=(),
         description="The events it may be built in; empty for none in particular",
     )
-    available_in_map_ids: tuple[int, ...] = Field(
+    available_in_map_ids: tuple[GameDataId["TreasureMapId"], ...] = Field(
         validation_alias="mapIDs",
         default=(),
-        description="The maps it may be built on; empty for any",
+        description="The season event maps it may be built on; empty for any",
     )
     sceat_skill_id: GameDataId["SceatSkill"] = Field(
         validation_alias="sceatSkillLocked",
@@ -977,10 +1032,10 @@ class QuestDef(_Row):
         description="The kingdom it counts in, as the row has it",
     )
     hidden: bool = Field(default=False, description="It is not shown")
-    map_id: int = Field(
+    map_id: GameDataId["TreasureMapId"] = Field(
         validation_alias="mapID",
         default=-1,
-        description="The map it belongs to; -1 for none",
+        description="The season event map it belongs to; -1 for none",
     )
     required_level: int = Field(
         validation_alias="requiredLevel",
@@ -2000,7 +2055,7 @@ class ScalingCampDef(_Row):
     ``CastleEventDifficultyScalingData`` (bundle line 145211)
     """
 
-    scaling_camp_id: int = Field(
+    scaling_camp_id: ScalingCampId = Field(
         validation_alias="eventAutoScalingCampID",
         description="The scaling camp, as map rows name it",
     )
@@ -2116,16 +2171,16 @@ class DaimyoContractDef(_Row):
     ``SamuraiDaimyoDataXml.parseXml`` (bundle line 13914)
     """
 
-    contract_id: int = Field(validation_alias="id", description="The contract")
+    contract_id: DaimyoContractId = Field(validation_alias="id", description="The contract")
     rank: int = Field(default=-1, description="The contract rank it is a level of")
     enable_on_start: bool = Field(
         validation_alias="enableOnStart",
         default=False,
         description="Open from the event's start, not after another contract",
     )
-    next_contract_id: int = Field(
+    next_contract_id: DaimyoContractId = Field(
         validation_alias="nextContract",
-        default=-1,
+        default=DaimyoContractId(-1),
         description="The contract after it; -1 for none",
     )
     shogun_points: int = Field(
@@ -2194,6 +2249,486 @@ class RewardDef(_Row):
         return _parse_int_or_default(value, RewardGrantType.PLAYER)
 
 
+class TreasureMapDef(_Row):
+    """
+    A treasure map: a season event's map or one of the treasure hunt's, with its nodes and prices.
+
+    Client: ``TreasureMapVO.fillFromParamXML`` (bundle line 140567), keyed by ``mapID`` in
+    ``CastleTreasureMapData.parseTreasureMapXML`` (bundle line 140439)
+    """
+
+    map_id: GameDataId["TreasureMapId"] = Field(validation_alias="mapID", description="The map")
+    label: str = Field(
+        validation_alias="comment1", default="", description="Designer label the game does not read, e.g. hardmode"
+    )
+    note: str = Field(
+        validation_alias="comment2", default="", description="Designer note the game does not read, e.g. Thornking"
+    )
+    node_ids: tuple[TreasureMapNodeId, ...] = Field(
+        validation_alias="tmapnodeIDs", default=(), description="Its nodes, besides the start node"
+    )
+    end_node_id: TreasureMapNodeId = Field(
+        validation_alias="endNodeID", default=TreasureMapNodeId(0), description="The node that ends the map"
+    )
+    map_type: GameDataId[TreasureMapType] = Field(
+        validation_alias="maptype", default=TreasureMapType.SEASON, description="What the map is for"
+    )
+    kingdom: GameDataId[Kingdom] = Field(
+        validation_alias="kID", default=Kingdom.GREEN, description="The kingdom a treasure hunt's map lies in"
+    )
+    total_pieces: int = Field(validation_alias="totalpieces", default=0, description="Pieces that make the map")
+    piece_cost_rubies: int = Field(validation_alias="costpiece", default=0, description="Rubies a missing piece costs")
+    travel_seconds: int = Field(
+        validation_alias="travelTime", default=0, description="Seconds a transfer to a season map travels"
+    )
+    skip_cost_rubies: int = Field(
+        validation_alias="skipCostC2", default=0, description="Rubies that skip a transfer to a season map"
+    )
+    package_ids: tuple[PackageId, ...] = Field(
+        validation_alias="packages", default=(), description="The packages the map's shop sells"
+    )
+
+    @field_validator("map_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator("label", "note", mode="before")
+    @classmethod
+    def _text_column(cls, value: object) -> str:
+        return _text(value)
+
+    @field_validator("node_ids", "package_ids", mode="before")
+    @classmethod
+    def _ids(cls, value: object) -> list[int]:
+        return _int_list(value, separator="+")
+
+    @field_validator(
+        "end_node_id", "map_type", "kingdom", "total_pieces", "piece_cost_rubies", "travel_seconds",
+        "skip_cost_rubies", mode="before",
+    )  # fmt: skip
+    @classmethod
+    def _int_column(cls, value: object, info: ValidationInfo) -> int:
+        return _parse_int_or_default(value, cls.model_fields[str(info.field_name)].default)
+
+
+class TreasureMapNodeDef(_Row):
+    """
+    A node of a treasure map: a camp, an obstacle or a port, and the nodes that unlock it.
+
+    Client: ``TMapNodeVO.fillFromParamXML`` (bundle line 26934), keyed by ``tmapnodeID`` in
+    ``CastleTreasureMapData.parseTreasureMapXML`` (bundle line 140431)
+    """
+
+    node_id: TreasureMapNodeId = Field(validation_alias="tmapnodeID", description="The node")
+    node_type: str = Field(validation_alias="type", default="DUNGEON", description="What it is, e.g. DUNGEON or BRIDGE")
+    unlocked_by_any: tuple[TreasureMapNodeId, ...] = Field(
+        validation_alias="orUnlockIDs", default=(TreasureMapNodeId(0),), description="Any of these nodes unlocks it"
+    )
+    unlocked_by_all: tuple[TreasureMapNodeId, ...] = Field(
+        validation_alias="andUnlockIDs", default=(TreasureMapNodeId(0),), description="All of these nodes unlock it"
+    )
+    count_victories: int = Field(
+        validation_alias="countVictories", default=1, description="The victory count its camp is looked up by"
+    )
+    part_price_id: PartPayPriceId | None = Field(
+        validation_alias="partPayPriceID",
+        default=None,
+        description="The price its obstacle is paid in parts; None for none",
+    )
+    position: int = Field(validation_alias="pos", default=0, description="Its place on the map")
+    dungeon_level: int = Field(validation_alias="dungeonlevel", default=0, description="Its camp's level")
+    cool_down: int = Field(validation_alias="coolDown", default=0, description="Seconds of cooldown after an attack")
+    wall_bonus: int = Field(validation_alias="wallBonus", default=0, description="Wall protection, in percent")
+    gate_bonus: int = Field(validation_alias="gateBonus", default=0, description="Gate protection, in percent")
+
+    @field_validator("node_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator("node_type", mode="before")
+    @classmethod
+    def _text_column(cls, value: object) -> str:
+        return _text(value, "DUNGEON")
+
+    @field_validator("unlocked_by_any", "unlocked_by_all", mode="before")
+    @classmethod
+    def _ids(cls, value: object) -> list[int]:
+        return _int_list(value, "0", separator="+")
+
+    @field_validator("part_price_id", mode="before")
+    @classmethod
+    def _price(cls, value: object) -> int | None:
+        price = _parse_int_or_default(value, -1)
+        return None if price < 0 else price
+
+    @field_validator(
+        "count_victories", "position", "dungeon_level", "cool_down", "wall_bonus", "gate_bonus", mode="before"
+    )  # fmt: skip
+    @classmethod
+    def _int_column(cls, value: object, info: ValidationInfo) -> int:
+        return _parse_int_or_default(value, cls.model_fields[str(info.field_name)].default)
+
+
+class PartPayPriceDef(_Row):
+    """
+    A price paid in parts: a season map's obstacle, a treasure map node's or a slum level's.
+
+    ``costs`` reads the row's goods as a reward row's (see :meth:`Collectable.from_reward_row`).
+
+    Client: ``PartpaypriceVO.fillFromParamXml`` (bundle line 142257)
+    """
+
+    part_price_id: PartPayPriceId = Field(validation_alias="partPayPriceID", description="The price")
+    costs: tuple[Collectable, ...] = Field(default=(), description="What it costs, in the client's order")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _read_costs(cls, row: object, info: ValidationInfo) -> object:
+        if not isinstance(row, dict) or "costs" in row:
+            return row
+        currency_ids = (info.context or {}).get("currency_ids", {})
+        return {**row, "costs": Collectable.from_reward_row(row, currency_ids)}
+
+    @field_validator("part_price_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+
+class DonationItemDef(_Row):
+    """
+    What a donation event takes, and the points it gives. Its set, donation type and resource are not read.
+
+    Client: ``DonationItemsVO.parseXmlNode`` (bundle line 111715), keyed by id in
+    ``CastleDonationEventData.parseXml`` (bundle line 58843)
+    """
+
+    donation_item_id: DonationItemId = Field(validation_alias="donationItemID", description="The item")
+    currency_id: GameDataId["CurrencyId"] = Field(
+        validation_alias="currencyID", default=-1, description="The currency donated; -1 for a resource"
+    )
+    ratio: int = Field(default=-1, description="How many of it make a point")
+    max_point_limit: int = Field(
+        validation_alias="maxPointLimit", default=-1, description="Most points it gives; -1 for no limit"
+    )
+
+    @field_validator("donation_item_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator("currency_id", "ratio", "max_point_limit", mode="before")
+    @classmethod
+    def _int_column(cls, value: object) -> int:
+        return _parse_int_or_default(value, -1)
+
+
+class TrainingProgramDef(_Row):
+    """
+    A training program of the officers' school: the bonus it gives against one event's targets, and its prices.
+
+    Client: ``OfficersSchoolEffectVO.parseXml`` (bundle line 144770), keyed by id in ``OfficersSchoolData``
+    (bundle line 144668)
+    """
+
+    program_id: TrainingProgramId = Field(validation_alias="id", description="The program")
+    effect_id: GameDataId["Effect"] = Field(validation_alias="effectID", default=-1, description="The bonus it gives")
+    event_id: GameDataId["Event"] = Field(validation_alias="eventID", default=-1, description="The event it is for")
+    cost_coins: int = Field(validation_alias="c1Cost", default=-1, description="Coins its first slot costs")
+    cost_rubies: int = Field(validation_alias="c2Cost", default=-1, description="Rubies its third slot costs")
+
+    @field_validator("program_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator("effect_id", "event_id", "cost_coins", "cost_rubies", mode="before")
+    @classmethod
+    def _int_column(cls, value: object) -> int:
+        return _parse_int_or_default(value, -1)
+
+
+class EventDifficultyDef(_Row):
+    """
+    A difficulty an event offers, and what unlocking a locked one costs.
+
+    Client: ``EventAutoScalingDifficultyVO.parseXML`` (bundle line 145390)
+    """
+
+    difficulty_id: EventDifficultyId = Field(validation_alias="difficultyID", description="The difficulty")
+    event_id: GameDataId["Event"] = Field(validation_alias="eventID", default=0, description="The event it is for")
+    difficulty_type: GameDataId["DifficultyType"] = Field(
+        validation_alias="difficultyTypeID", default=0, description="Its type, e.g. easyPlus"
+    )
+    is_locked: bool = Field(validation_alias="isLocked", default=False, description="Whether it must be unlocked")
+    unlock_rubies: int = Field(validation_alias="rentC2Cost", default=0, description="Rubies that unlock it")
+
+    @field_validator("difficulty_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator("event_id", "difficulty_type", "unlock_rubies", mode="before")
+    @classmethod
+    def _int_column(cls, value: object) -> int:
+        return _parse_int_or_default(value, 0)
+
+    @field_validator("is_locked", mode="before")
+    @classmethod
+    def _flag(cls, value: object) -> bool:
+        return _is_one(value)
+
+
+class GachaDef(_Row):
+    """
+    A level of a gacha event: the pulls it covers and how many one buy may make.
+
+    Client: ``GachaXmlVO.init`` (bundle line 113936), keyed by ``gachaID`` in ``GachaData.init`` (bundle line 113911)
+    """
+
+    gacha_id: GachaId = Field(validation_alias="gachaID", description="The gacha level")
+    event_id: GameDataId["Event"] = Field(validation_alias="eventID", default=0, description="The gacha event")
+    level: int = Field(validation_alias="gachaLevel", default=0, description="Its level in the event")
+    min_pulls: int = Field(validation_alias="minPulls", default=0, description="Pulls made before it starts")
+    max_pulls: int = Field(
+        validation_alias="maxPulls", default=0, description="Pulls made when it ends; 0 when it never does"
+    )
+    multi_pull_max: int = Field(validation_alias="multiPullMax", default=0, description="Most pulls one buy makes")
+
+    @field_validator("gacha_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator("event_id", "level", "min_pulls", "max_pulls", "multi_pull_max", mode="before")
+    @classmethod
+    def _int_column(cls, value: object) -> int:
+        return _parse_int_or_default(value, 0)
+
+
+class WheelOfFortuneRewardSetDef(_Row):
+    """
+    A Wheel of Fortune jackpot set: the rewards a jackpot spin can win.
+
+    Client: ``LuckyWheelData.parseXml`` and ``createRewardItemsMappedToSetID`` (bundle lines 17571, 17583)
+    """
+
+    reward_set_id: WheelOfFortuneRewardSetId = Field(
+        validation_alias="luckyWheelRewardSetID", description="The jackpot set"
+    )
+    reward_ids: tuple[RewardId, ...] = Field(validation_alias="rewardIDs", default=(), description="Its rewards")
+
+    @field_validator("reward_set_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator("reward_ids", mode="before")
+    @classmethod
+    def _ids(cls, value: object) -> list[int]:
+        return _int_list(value)
+
+
+class WheelOfFortuneWinClassDef(_Row):
+    """
+    A Wheel of Fortune win class: the spins to the next class, the rubies a skipped spin costs, and the previews.
+
+    Client: ``LuckyWheelData.parseXml`` (bundle lines 17571-17576)
+    """
+
+    win_class_id: WheelOfFortuneWinClassId = Field(validation_alias="luckyWheelClassID", description="The win class")
+    spins_to_next_class: int = Field(
+        validation_alias="neededSpinsForNextClass", default=0, description="Spins that reach the next class"
+    )
+    rubies_per_skipped_spin: float = Field(
+        validation_alias="C2PerSkippedSpin", default=0.0, description="Rubies each spin skipped to the next class costs"
+    )
+    preview_reward_ids: tuple[RewardId, ...] = Field(
+        validation_alias="normalPreview", default=(), description="The rewards the wheel previews"
+    )
+    pro_mode_preview_reward_ids: tuple[RewardId, ...] = Field(
+        validation_alias="hardcorePreview", default=(), description="The rewards the pro mode previews"
+    )
+
+    @field_validator("win_class_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator("spins_to_next_class", mode="before")
+    @classmethod
+    def _int_column(cls, value: object) -> int:
+        return _parse_int_or_default(value, 0)
+
+    @field_validator("rubies_per_skipped_spin", mode="before")
+    @classmethod
+    def _number(cls, value: object) -> float:
+        number = js_number_or_none(_text(value, "0"))
+        return 0.0 if number is None else float(number)
+
+    @field_validator("preview_reward_ids", "pro_mode_preview_reward_ids", mode="before")
+    @classmethod
+    def _ids(cls, value: object) -> list[int]:
+        return _int_list(value)
+
+
+class OuterRealmsSettingDef(_Row):
+    """
+    An Outer Realms run's settings. Only some columns are read: the presets and rewards are not.
+
+    Client: ``TempServerConfigurationVO.parseXML`` (bundle line 14448), keyed by ``settingID`` in
+    ``CastleTempServerData`` (bundle line 140189)
+    """
+
+    setting_id: OuterRealmsSettingId = Field(validation_alias="settingID", description="The settings")
+    peace_mode: bool = Field(validation_alias="peaceMode", default=False, description="Whether the run is peaceful")
+    scoring_system: str = Field(validation_alias="scoringSystem", default="0", description="How it scores, e.g. might")
+    start_currency_amount: int = Field(
+        validation_alias="startCurrencyAmount", default=-1, description="The currency you start with; -1 for none"
+    )
+    currency_id: GameDataId["CurrencyId"] = Field(
+        validation_alias="currencyID", default=0, description="The run's currency; 0 for none"
+    )
+    booster_package_id: PackageId = Field(
+        validation_alias="boosterCurrencyPackageID",
+        default=PackageId(0),
+        description="The package that sells its booster currency; 0 for none",
+    )
+
+    @field_validator("setting_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator("peace_mode", mode="before")
+    @classmethod
+    def _flag(cls, value: object) -> bool:
+        return _is_one(value)
+
+    @field_validator("scoring_system", mode="before")
+    @classmethod
+    def _text_column(cls, value: object) -> str:
+        return _text(value, "0")
+
+    @field_validator("start_currency_amount", "currency_id", "booster_package_id", mode="before")
+    @classmethod
+    def _int_column(cls, value: object, info: ValidationInfo) -> int:
+        return _parse_int_or_default(value, cls.model_fields[str(info.field_name)].default)
+
+
+class HorizonSettingDef(_Row):
+    """
+    A Beyond the Horizon run's settings. Only some columns are read: the presets, map and rewards are not.
+
+    Client: ``AllianceBattleGroundConfigurationVO.parseXML`` (bundle line 145025), keyed by ``settingID`` in
+    ``CastleAllianceBattleGroundData`` (bundle line 144859)
+    """
+
+    setting_id: HorizonSettingId = Field(validation_alias="settingID", description="The settings")
+    max_alliance_size: int = Field(
+        validation_alias="maxAllianceSize", default=0, description="Most members an alliance takes in"
+    )
+    currency_id: GameDataId["CurrencyId"] = Field(
+        validation_alias="currencyID", default=0, description="The players' currency; 0 for none"
+    )
+    alliance_currency_id: GameDataId["CurrencyId"] = Field(
+        validation_alias="allianceCurrencyID", default=0, description="The alliances' currency; 0 for none"
+    )
+    booster_package_id: PackageId = Field(
+        validation_alias="boosterCurrencyPackageID",
+        default=PackageId(0),
+        description="The package that sells its booster currency; 0 for none",
+    )
+    tower_effects: tuple[GameDataId["AllianceTowerEffect"], ...] = Field(
+        validation_alias="allianceTowerEffectIDs", default=(), description="The alliance tower effects on offer"
+    )
+
+    @field_validator("setting_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator("max_alliance_size", "currency_id", "alliance_currency_id", "booster_package_id", mode="before")
+    @classmethod
+    def _int_column(cls, value: object) -> int:
+        return _parse_int_or_default(value, 0)
+
+    @field_validator("tower_effects", mode="before")
+    @classmethod
+    def _ids(cls, value: object) -> list[int]:
+        return _int_list(value)
+
+
+class AllianceTowerEffectDef(_Row):
+    """
+    An alliance tower effect of Beyond the Horizon: the bonus it gives, and how its price and strength grow per level.
+
+    Client: ``ABGAllianceTowerEffectXmlVO.parseXML`` (bundle line 145007)
+    """
+
+    tower_effect_id: GameDataId["AllianceTowerEffect"] = Field(
+        validation_alias="allianceTowerEffectID", description="The tower effect"
+    )
+    effect_id: GameDataId["Effect"] = Field(validation_alias="effectID", default=0, description="The bonus it gives")
+    base_price: int = Field(validation_alias="effectBasePrice", default=0, description="The price its levels grow from")
+    max_level: int = Field(validation_alias="effectMaxLevel", default=0, description="Its highest level")
+    start_value: float = Field(validation_alias="effectStartValue", default=0.0, description="Its strength at level 1")
+    increase: float = Field(validation_alias="effectIncrease", default=0.0, description="Its strength's growth")
+
+    @field_validator("tower_effect_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator("effect_id", "base_price", "max_level", mode="before")
+    @classmethod
+    def _int_column(cls, value: object) -> int:
+        return _parse_int_or_default(value, 0)
+
+    @field_validator("start_value", "increase", mode="before")
+    @classmethod
+    def _number(cls, value: object) -> float:
+        number = js_parse_float(_text(value, "0"))
+        return 0.0 if math.isnan(number) else number
+
+
+class AllianceInvasionCampDef(_Row):
+    """
+    An alliance invasion camp, by the id an ``aic`` push names it with.
+
+    The camp's defence, as the combat code reads it, is in ``GameData.camps["allianceInvasionCamps"]``.
+
+    Client: ``CastleAllianceInvasionCampNodeVO.parseXML`` (bundle line 111195), keyed by id in
+    ``CastleAllianceInvasionCampData`` (bundle line 111180)
+    """
+
+    camp_id: AllianceInvasionCampId = Field(validation_alias="allianceInvasionCampID", description="The camp")
+    event_id: GameDataId["Event"] = Field(validation_alias="eventID", default=0, description="The event it is for")
+    dungeon_level: int = Field(validation_alias="dungeonlevel", default=0, description="Its level")
+    rage_needed_for_level_up: int = Field(
+        validation_alias="rageNeededForLevelUp", default=0, description="Alliance rage to its next level"
+    )
+    player_rage_cap: int = Field(validation_alias="playerRageCap", default=0, description="Most rage a player builds")
+    wall_bonus: int = Field(validation_alias="wallBonus", default=0, description="Wall protection, in percent")
+    gate_bonus: int = Field(validation_alias="gateBonus", default=0, description="Gate protection, in percent")
+    count_victory: int = Field(validation_alias="countVictory", default=0, description="Its victory count")
+
+    @field_validator("camp_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator(
+        "event_id", "dungeon_level", "rage_needed_for_level_up", "player_rage_cap", "wall_bonus", "gate_bonus",
+        "count_victory", mode="before",
+    )  # fmt: skip
+    @classmethod
+    def _int_column(cls, value: object) -> int:
+        return _parse_int_or_default(value, 0)
+
+
 __all__ = [
     "row_id",
     "is_cost_column",
@@ -2210,6 +2745,32 @@ __all__ = [
     "SpecialServerPrebuiltCastleDef",
     "StartResourcesDef",
     "StartResourcesId",
+    "AllianceInvasionCampDef",
+    "AllianceInvasionCampId",
+    "AllianceTowerEffectDef",
+    "DaimyoContractId",
+    "DonationItemDef",
+    "DonationItemId",
+    "EventDifficultyDef",
+    "EventDifficultyId",
+    "GachaDef",
+    "GachaId",
+    "HorizonSettingDef",
+    "HorizonSettingId",
+    "OuterRealmsSettingDef",
+    "OuterRealmsSettingId",
+    "PartPayPriceDef",
+    "PartPayPriceId",
+    "ScalingCampId",
+    "TrainingProgramDef",
+    "TrainingProgramId",
+    "TreasureMapDef",
+    "TreasureMapNodeDef",
+    "TreasureMapNodeId",
+    "WheelOfFortuneRewardSetDef",
+    "WheelOfFortuneRewardSetId",
+    "WheelOfFortuneWinClassDef",
+    "WheelOfFortuneWinClassId",
     "CoatOfArmsSymbolDef",
     "CoatOfArmsSymbolId",
     "PackageDef",

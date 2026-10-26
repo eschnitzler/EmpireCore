@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Annotated, Any, ClassVar, NoReturn, TypeVar
 
 from pydantic import AfterValidator, ConfigDict, Field, SerializeAsAny, ValidationError
 
-from empire_core.enums import NPCOwner, RankingType
+from empire_core.enums import BerimondFaction, NPCOwner, RankingType
 from empire_core.enums.events import WorldCupVote
 from empire_core.events.berimond_models import BerimondKingdomStatus, FactionStanding
 from empire_core.events.minigame_models import (
@@ -30,7 +30,7 @@ from empire_core.events.progression_models import (
 )
 from empire_core.events.status_models import GrandTournamentQuestStatus, RiftRaidStatus
 from empire_core.exceptions import ReplyMismatchError
-from empire_core.gamedata import EnumOrInt, RewardId
+from empire_core.gamedata import EnumOrInt, RewardId, WheelOfFortuneRewardSetId, WheelOfFortuneWinClassId
 from empire_core.gamedata.ids.events import Event
 from empire_core.map.models.areas import KingdomProtection, MapObject
 from empire_core.protocol.base import BaseRequest, BaseResponse, EmpireModel, GGECommand
@@ -56,7 +56,7 @@ from empire_core.ranking.models import (
 )
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import Collectable, Event, GameData, GlobalEffect, QuestId, RaidBoss
+    from empire_core.gamedata import Collectable, Event, GameData, GlobalEffect, QuestId, RaidBoss, TreasureMapId
 
 
 class Scoreboard(EmpireModel):
@@ -758,7 +758,7 @@ class BerimondEvent(SpecialEvent):
     reward_set_id: int = Field(default=0, validation_alias="RSID", description="The reward set")
     own_rank: int = Field(default=-1, description="Your rank, -1 while unranked; from the pep pushes")
     own_points: int = Field(default=0, description="Your points, from the pep pushes")
-    faction_id: int = Field(default=0, description="Your faction")
+    faction_id: EnumOrInt[BerimondFaction] = Field(default=BerimondFaction.URSIDAE, description="Your faction")
     main_camp_id: int = Field(default=0, description="Your faction's main camp")
     faction_protection_status: int = Field(default=0, description="Your faction protection's status")
     faction_protection_end: float | None = Field(
@@ -1204,15 +1204,19 @@ class WheelOfFortuneEvent(NobilityContestEvent):
     )
     has_free_spin: bool = Field(default=False, validation_alias="HFS", description="Whether a free spin is waiting")
     pro_mode: bool = Field(default=False, validation_alias="PMA", description="Whether the pro mode is on")
-    win_class: int = Field(default=0, validation_alias="CWC", description="The wheel's current win class")
+    win_class: WheelOfFortuneWinClassId = Field(
+        default=WheelOfFortuneWinClassId(0), validation_alias="CWC", description="The wheel's current win class"
+    )
     win_class_progress: float = Field(
         default=0.0,
         validation_alias="WCP",
         description="The progress towards the next win class",
     )
-    jackpot_set_id: int = Field(default=0, validation_alias="JSID", description="The next jackpot set")
-    jackpot_spin_set_id: int = Field(
-        default=0,
+    jackpot_set_id: WheelOfFortuneRewardSetId = Field(
+        default=WheelOfFortuneRewardSetId(0), validation_alias="JSID", description="The next jackpot set"
+    )
+    jackpot_spin_set_id: WheelOfFortuneRewardSetId = Field(
+        default=WheelOfFortuneRewardSetId(0),
         validation_alias="JHID",
         description="The jackpot set of the next jackpot spin",
     )
@@ -1300,9 +1304,11 @@ class SeasonEvent(SpecialEvent):
     _reads_kl = False
 
     unlocked: bool = Field(default=False, description="Whether the event is open to you, from UL.UL")
-    reward_id: int | None = Field(default=None, validation_alias="RID", description="The reward the event's end gives")
+    reward_id: RewardId | None = Field(
+        default=None, validation_alias="RID", description="The reward the event's end gives"
+    )
     finished: bool = Field(default=False, validation_alias="F", description="Whether you have finished the event")
-    map_id: int | None = Field(default=None, description="The event's treasure map, from UL.MID")
+    map_id: EnumOrInt["TreasureMapId"] | None = Field(default=None, description="The event's treasure map, from UL.MID")
 
     @classmethod
     def _read(
@@ -1794,7 +1800,7 @@ class GetEventPointsRequest(BaseRequest):
 
     command = "pep"
 
-    event_id: int = Field(validation_alias="EID", description="The event, e.g. Event.NOBILITY_CONTEST")
+    event_id: EnumOrInt[Event] = Field(validation_alias="EID", description="The event, e.g. Event.NOBILITY_CONTEST")
 
     def accepts_reply(self, payload: Any) -> bool:
         """Whether a pep reply is about this event: its ``EID``, when sent, is the one asked for.
@@ -1828,7 +1834,7 @@ class GetEventPointsResponse(BaseResponse):
 
     command: ClassVar[str] = GGECommand.PEP
 
-    event_id: ClientInt = Field(validation_alias="EID", description="The event")
+    event_id: EnumOrInt[Event] = Field(validation_alias="EID", description="The event")
     own_ranks: list[ClientInt] = Field(
         default_factory=list,
         validation_alias="OR",

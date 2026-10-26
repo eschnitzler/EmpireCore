@@ -23,7 +23,7 @@ from empire_core.alliance import (
     DiplomacyStatus,
 )
 from empire_core.exceptions import GameDataNotLoadedError
-from empire_core.gamedata import GameData, ids
+from empire_core.gamedata import DaimyoContractId, GameData, ids
 
 Action = AllianceChronicleAction
 
@@ -111,7 +111,7 @@ class TestDetails:
             (Action.CHANGE_NAME, ["New name"], ChronicleText("New name")),
             (Action.HORIZON_MALUS_INCREASED, [5], ChronicleText("5")),
             (Action.MEMBER_KICKED, [42, "Kicked"], ChronicleMember("Kicked")),
-            (Action.DAIMYO_ALLIANCE_TOWNSHIP_CONTRACT_COMPLETED, ["12"], ChronicleDaimyoContract(12)),
+            (Action.DAIMYO_ALLIANCE_TOWNSHIP_CONTRACT_COMPLETED, ["12"], ChronicleDaimyoContract(DaimyoContractId(12))),
         ],
     )
     def test_the_values_are_read_by_action(self, action: int, values: list[Any], details: object) -> None:
@@ -202,7 +202,7 @@ class TestDescribe:
             entry(Action.DAIMYO_ALLIANCE_CASTLE_CONTRACT_COMPLETED, 404).describe(game_data=game_data)
 
     def test_series_position(self, game_data: GameData) -> None:
-        contract, level, levels = ChronicleDaimyoContract(11).series_position(game_data=game_data)
+        contract, level, levels = ChronicleDaimyoContract(DaimyoContractId(11)).series_position(game_data=game_data)
 
         assert (contract.contract_id, contract.rank, level, levels) == (11, 2, 1, 2)
 

@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING
 
-from empire_core.enums import CombatEffectType, Flank, Kingdom, TargetRead
+from empire_core.enums import BerimondFaction, CombatEffectType, Flank, Kingdom, TargetRead
 from empire_core.utils.lazy import lazy_exports
 
 from .bonuses import (
@@ -172,6 +172,7 @@ __all__ = [
     "wave_limit_violations",
     "Kingdom",
     "GlobalEffect",
+    "BerimondFaction",
 ]
 
 

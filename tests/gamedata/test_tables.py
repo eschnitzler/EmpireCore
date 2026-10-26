@@ -5,6 +5,7 @@ import sys
 
 from empire_core.combat import Bonus, effect_value_bonuses
 from empire_core.enums import (
+    BerimondFaction,
     BuildingGroundType,
     BuildingGroup,
     CollectableKind,
@@ -17,11 +18,14 @@ from empire_core.enums import (
     RewardGrantType,
     TitleDisplayType,
     TitleSystem,
+    TreasureMapType,
     WearerType,
 )
 from empire_core.gamedata import (
+    AllianceInvasionCampId,
     BuildingDef,
     DailyQuestDef,
+    DonationItemId,
     Effect,
     EffectDef,
     EffectValue,
@@ -29,12 +33,22 @@ from empire_core.gamedata import (
     EquipmentGroupDef,
     EquipmentSetDef,
     EventDef,
+    EventDifficultyId,
+    GachaId,
     GameData,
+    HorizonSettingId,
+    OuterRealmsSettingId,
+    PartPayPriceId,
     QuestCondition,
     QuestDef,
     RelicEffectDef,
     ResearchDef,
+    ScalingCampId,
     TitleDef,
+    TrainingProgramId,
+    TreasureMapNodeId,
+    WheelOfFortuneRewardSetId,
+    WheelOfFortuneWinClassId,
     ids,
 )
 
@@ -193,8 +207,8 @@ class TestRewards:
 def test_a_scaling_camp_gives_its_level():
     data = GameData.parse("786.03", {"eventAutoScalingCamps": [{"eventAutoScalingCampID": "7", "camplevel": "40"}]})
 
-    assert data.scaling_camp_level(7) == 40
-    assert data.scaling_camp_level(8) is None and data.scaling_camp_level(0) is None
+    assert data.scaling_camp_level(ScalingCampId(7)) == 40
+    assert data.scaling_camp_level(ScalingCampId(8)) is None and data.scaling_camp_level(ScalingCampId(0)) is None
     assert data.scaling_camps[7].shogun_points_needed_for_level_up == -1
     assert "eventAutoScalingCamps" not in data.raw_tables
 
@@ -324,3 +338,172 @@ class TestReferencedIds:
         assert again.equipment_effects[9].item_group_ids == (ids.EquipmentGroup.ATTACK_PVP, 4711)
         assert again.dungeons[0].kingdom_id is Kingdom.ICE
         assert again.dungeons[0].commander == data.default_lords[-14]
+
+
+class TestEventTables:
+    ITEMS = {
+        "tmaps": [
+            {
+                "mapID": "25",
+                "comment1": "hardmode",
+                "comment2": "Thornking",
+                "tmapnodeIDs": "122+123",
+                "kID": "-1",
+                "maptype": "0",
+                "endNodeID": "123",
+                "packages": "213+214",
+                "travelTime": "7200",
+                "skipCostC2": "240",
+            },
+            {"mapID": "9", "tmapnodeIDs": "65", "kID": "1", "totalpieces": "13", "costpiece": "1590", "maptype": "1"},
+        ],
+        "tmapnodes": [
+            {"tmapnodeID": "122", "type": "DUNGEON", "countVictories": "-20", "pos": "1", "dungeonlevel": "5"},
+            {"tmapnodeID": "71", "orUnlockIDs": "69+70", "partPayPriceID": "164", "type": "BRIDGE"},
+        ],
+        "partpayprices": [
+            {"partPayPriceID": "164", "wood": "160", "stone": "160", "food": "0", "currency2": "68", "mode": "fixed"}
+        ],
+        "donationItems": [{"donationItemID": "2", "donationItemSetID": "1", "currencyID": "15", "ratio": "1"}],
+        "officersSchoolEffects": [{"id": "1", "effectID": "276", "eventID": "72", "c1Cost": "80000", "c2Cost": "700"}],
+        "eventAutoScalingDifficulties": [
+            {"difficultyID": "311", "eventID": "72", "difficultyTypeID": "2", "isLocked": "1", "rentC2Cost": "55000"}
+        ],
+        "gachaEvents": [{"gachaID": "1", "eventID": "126", "gachaLevel": "1", "maxPulls": "9", "multiPullMax": "10"}],
+        "luckywheelrewardsets": [{"luckyWheelRewardSetID": "1", "rewardIDs": "170,130,233"}],
+        "luckywheelclasses": [
+            {
+                "luckyWheelClassID": "1",
+                "neededSpinsForNextClass": "3",
+                "C2PerSkippedSpin": "300",
+                "normalPreview": "245",
+            }
+        ],
+        "tempServerSettings": [
+            {"settingID": "8", "scoringSystem": "might", "startCurrencyAmount": "-1", "boosterCurrencyPackageID": "7"}
+        ],
+        "allianceBattleGroundSettings": [
+            {"settingID": "15", "maxAllianceSize": "65", "currencyID": "115", "allianceTowerEffectIDs": "1,2,9"}
+        ],
+        "allianceTowerEffects": [
+            {"allianceTowerEffectID": "1", "effectID": "141", "effectStartValue": "1", "effectIncrease": "2.5"}
+        ],
+        "allianceInvasionCamps": [
+            {"allianceInvasionCampID": "85", "eventID": "72", "dungeonlevel": "105", "rageNeededForLevelUp": "18500"}
+        ],
+    }
+
+    def test_treasure_maps_and_their_nodes(self):
+        data = GameData.parse("788.02", self.ITEMS)
+
+        season = data.treasure_maps[ids.TreasureMapId.THORNKING_HARDMODE]
+        assert season.map_id is ids.TreasureMapId.THORNKING_HARDMODE
+        assert (season.node_ids, season.end_node_id, season.package_ids) == ((122, 123), 123, (213, 214))
+        assert (season.map_type, season.kingdom) == (TreasureMapType.SEASON, -1)
+        assert (season.travel_seconds, season.skip_cost_rubies) == (7200, 240)
+        hunt = data.treasure_maps[9]
+        assert (hunt.map_type, hunt.kingdom, hunt.total_pieces, hunt.piece_cost_rubies) == (
+            TreasureMapType.TREASURE_HUNT,
+            Kingdom.SANDS,
+            13,
+            1590,
+        )
+
+        dungeon = data.treasure_map_nodes[TreasureMapNodeId(122)]
+        assert (dungeon.node_type, dungeon.count_victories, dungeon.position, dungeon.dungeon_level) == (
+            "DUNGEON",
+            -20,
+            1,
+            5,
+        )
+        assert (dungeon.unlocked_by_any, dungeon.part_price_id) == ((0,), None)
+        bridge = data.treasure_map_nodes[TreasureMapNodeId(71)]
+        assert (bridge.unlocked_by_any, bridge.part_price_id) == ((69, 70), 164)
+        price = data.part_pay_prices[PartPayPriceId(164)]
+        assert [(c.kind, c.amount) for c in price.costs if c.amount] == [
+            (CollectableKind.WOOD, 160),
+            (CollectableKind.STONE, 160),
+            (CollectableKind.RUBIES, 68),
+        ]
+
+    def test_event_minigame_and_difficulty_rows(self):
+        data = GameData.parse("788.02", self.ITEMS)
+
+        assert data.donation_items[DonationItemId(2)].currency_id == 15
+        program = data.training_programs[TrainingProgramId(1)]
+        assert (program.event_id, program.cost_coins, program.cost_rubies) == (ids.Event.NOMAD_INVASION_72, 80000, 700)
+        difficulty = data.event_difficulties[EventDifficultyId(311)]
+        assert (difficulty.event_id, difficulty.difficulty_type) == (ids.Event.NOMAD_INVASION_72, 2)
+        assert difficulty.is_locked and difficulty.unlock_rubies == 55000
+        gacha = data.gachas[GachaId(1)]
+        assert (gacha.event_id, gacha.level, gacha.max_pulls, gacha.multi_pull_max) == (126, 1, 9, 10)
+        assert data.wheel_of_fortune_reward_sets[WheelOfFortuneRewardSetId(1)].reward_ids == (170, 130, 233)
+        win_class = data.wheel_of_fortune_win_classes[WheelOfFortuneWinClassId(1)]
+        assert (win_class.spins_to_next_class, win_class.rubies_per_skipped_spin) == (3, 300.0)
+        assert win_class.preview_reward_ids == (245,) and win_class.pro_mode_preview_reward_ids == ()
+
+    def test_special_server_settings_and_alliance_tower_effects(self):
+        data = GameData.parse("788.02", self.ITEMS)
+
+        outer_realms = data.outer_realms_settings[OuterRealmsSettingId(8)]
+        assert (outer_realms.scoring_system, outer_realms.start_currency_amount) == ("might", -1)
+        assert outer_realms.booster_package_id == 7 and not outer_realms.peace_mode
+        horizon = data.horizon_settings[HorizonSettingId(15)]
+        assert (horizon.max_alliance_size, horizon.currency_id) == (65, 115)
+        assert horizon.tower_effects == (
+            ids.AllianceTowerEffect.WALL_BONUS_TOWER,
+            ids.AllianceTowerEffect.GATE_BONUS_TOWER,
+            9,
+        )
+        effect = data.alliance_tower_effects[ids.AllianceTowerEffect.WALL_BONUS_TOWER]
+        assert (effect.effect_id, effect.start_value, effect.increase) == (141, 1.0, 2.5)
+
+    def test_alliance_invasion_camps_by_id(self):
+        data = GameData.parse("788.02", self.ITEMS)
+
+        camp = data.alliance_invasion_camps[AllianceInvasionCampId(85)]
+        assert (camp.event_id, camp.dungeon_level, camp.rage_needed_for_level_up) == (
+            ids.Event.NOMAD_INVASION_72,
+            105,
+            18500,
+        )
+        assert [row.dungeon_level for row in data.camps["allianceInvasionCamps"]] == [105]
+
+    def test_they_survive_the_cache(self, tmp_path):
+        GameData.parse("788.02", self.ITEMS)._write_cache(tmp_path / "cache.json")
+
+        again = GameData._read_cache(tmp_path / "cache.json", "788.02")
+
+        assert again is not None
+        assert again.treasure_maps[25].node_ids == (122, 123)
+        assert (
+            again.part_pay_prices[PartPayPriceId(164)]
+            == GameData.parse("788.02", self.ITEMS).part_pay_prices[PartPayPriceId(164)]
+        )
+        assert again.alliance_invasion_camps[AllianceInvasionCampId(85)].event_id == ids.Event.NOMAD_INVASION_72
+
+
+def test_quests_and_buildings_name_their_season_maps():
+    quest = QuestDef.model_validate({"questID": "1", "mapID": "25"})
+    building = BuildingDef.model_validate({"wodID": "171", "mapIDs": "21,30"})
+
+    assert quest.map_id is ids.TreasureMapId.THORNKING_HARDMODE
+    assert QuestDef.model_validate({"questID": "2"}).map_id == -1
+    assert building.available_in_map_ids == (ids.TreasureMapId.THORNKING_NORMAL, ids.TreasureMapId.UNDERWORLD_LOW_LEVEL)
+
+
+def test_berimond_invasion_camp_rows_name_their_faction():
+    data = GameData.parse(
+        "788.02",
+        {
+            "factioninvasioncamps": [
+                {"countVictory": "3", "factionID": "0", "wallBonus": "10"},
+                {"countVictory": "3", "factionID": "1", "wallBonus": "20"},
+            ]
+        },
+    )
+
+    blue = data.berimond_invasion_camp(3, BerimondFaction.URSIDAE)
+    red = data.berimond_invasion_camp(3, BerimondFaction.GERBRANDT)
+    assert blue is not None and blue.faction_id is BerimondFaction.URSIDAE and blue.wall_bonus == 10
+    assert red is not None and red.faction_id is BerimondFaction.GERBRANDT and red.wall_bonus == 20

@@ -4,7 +4,7 @@ import pytest
 
 from empire_core.enums import GGEError, Kingdom
 from empire_core.exceptions import CommandError, ConnectionClosedError, EmpireTimeoutError, PacketError
-from empire_core.gamedata import Currency
+from empire_core.gamedata import Currency, TreasureMapNodeId
 from empire_core.state.manager import GameState
 from tests.service_helpers import conn, make_client, xt_packet
 
@@ -33,9 +33,11 @@ def test_full_skip_requires_ruby_consent_before_sending():
 def test_treasure_node_ids_are_explicit_and_paired(command):
     client = make_client({command: xt_packet(command, {"AI": [7, 5, 6, -1, 3, 0, 0]})})
     if command == "msd":
-        result = client.attack.minute_skip_dungeon(5, 6, Currency.SKIP_1_MINUTE, map_id=3, node_id=12)
+        result = client.attack.minute_skip_dungeon(
+            5, 6, Currency.SKIP_1_MINUTE, map_id=3, node_id=TreasureMapNodeId(12)
+        )
     else:
-        result = client.attack.skip_dungeon_cooldown(5, 6, map_id=3, node_id=12, spend_rubies=True)
+        result = client.attack.skip_dungeon_cooldown(5, 6, map_id=3, node_id=TreasureMapNodeId(12), spend_rubies=True)
     assert (result.x, result.y) == (5, 6)
     payload = conn(client).request_payloads[0][1]
     assert (payload["MID"], payload["NID"]) == (3, 12)

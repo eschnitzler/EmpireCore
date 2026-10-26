@@ -19,6 +19,8 @@ from .models import (
     INVASION_AREA_TYPES,
     MAX_AREA_SPAN,
     MAX_FINDABLE_ENEMY_INDEX,
+    NO_TREASURE_MAP,
+    NO_TREASURE_MAP_NODE,
     ROW_PARSERS,
     SECTOR_SIZE,
     AbgCastleConnection,
@@ -54,6 +56,7 @@ from .models import (
     TreasureMap,
     TreasureMapGoodsTransfer,
     TreasureMapNode,
+    TreasureMapOrNone,
     TreasureMapsBlock,
     TreasureMapsResponse,
     TreasureMapStorage,
@@ -65,7 +68,7 @@ from .scanner import ChunkHandler, MapScanner, ScanResult, scan_kingdom_with
 from .service import MapService
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import AllianceCrestColor, AllianceCrestLayout, Title, Tool, Unit
+    from empire_core.gamedata import AllianceCrestColor, AllianceCrestLayout, Title, Tool, TreasureMapId, Unit
 
 __all__ = [
     "CoatOfArmsBackground",
@@ -124,6 +127,9 @@ __all__ = [
     "TreasureMapStorage",
     "TreasureMapUnitTransfer",
     "TreasureMapsBlock",
+    "TreasureMapOrNone",
+    "NO_TREASURE_MAP",
+    "NO_TREASURE_MAP_NODE",
     "TreasureMapsResponse",
     "TreasureNodeClickResponse",
     "AllianceCrestColor",
@@ -131,10 +137,13 @@ __all__ = [
     "Title",
     "Tool",
     "Unit",
+    "TreasureMapId",
 ]
 
 
 if not TYPE_CHECKING:
     __getattr__ = lazy_exports(
-        __name__, "empire_core.gamedata.ids", ("AllianceCrestColor", "AllianceCrestLayout", "Title", "Tool", "Unit")
+        __name__,
+        "empire_core.gamedata.ids",
+        ("AllianceCrestColor", "AllianceCrestLayout", "Title", "Tool", "TreasureMapId", "Unit"),
     )

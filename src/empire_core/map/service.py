@@ -10,7 +10,7 @@ else castle-scoped needs ``client.castle.select`` first.
 from __future__ import annotations
 
 import threading
-from typing import TypeVar
+from typing import TYPE_CHECKING, TypeVar
 
 from empire_core.enums import GGEError, Kingdom, MapItemType
 from empire_core.exceptions import CommandError
@@ -29,6 +29,7 @@ from empire_core.map.models.areas import (
 from empire_core.map.models.items import parse_area_rows
 from empire_core.map.models.ruins import RememberRuinRequest, RuinInfoRequest, RuinInfoResponse
 from empire_core.map.models.treasure_maps import (
+    NO_TREASURE_MAP,
     BuyTreasureMapPiecesRequest,
     FinishTreasureMapRequest,
     FinishTreasureMapResponse,
@@ -41,6 +42,9 @@ from empire_core.map.pacing import MapAreaPacer
 from empire_core.map.scanner import ChunkHandler, MapScanner, ScanResult
 from empire_core.protocol.base import BaseRequest
 from empire_core.services.base import BaseService
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import TreasureMapId
 
 _F = TypeVar("_F", bound=FindNextMapObjectResponse)
 
@@ -319,7 +323,7 @@ class MapService(BaseService):
         self.send(RememberRuinRequest(x=x, y=y))
 
     @property
-    def treasure_maps(self) -> dict[int, TreasureMap] | None:
+    def treasure_maps(self) -> dict[TreasureMapId | int, TreasureMap] | None:
         """
         Your treasure maps by map id, as every ``tmp`` so far left them; None until one arrived.
 
@@ -328,17 +332,19 @@ class MapService(BaseService):
         return self.client.state.get_treasure_maps()
 
     @property
-    def treasure_hunt_map_id(self) -> int | None:
+    def treasure_hunt_map_id(self) -> TreasureMapId | int | None:
         """The treasure hunt's current map, -1 once no map is left; None until the server named one."""
         return self.client.state.get_treasure_hunt_map_id()
 
-    def get_treasure_maps(self, map_id: int = -1, *, timeout: float = 5.0) -> TreasureMapsResponse:
+    def get_treasure_maps(
+        self, map_id: TreasureMapId | int = NO_TREASURE_MAP, *, timeout: float = 5.0
+    ) -> TreasureMapsResponse:
         """
         Ask for your treasure maps; the reply also updates :attr:`treasure_maps`.
 
         Args:
             map_id: A season's treasure map, as the client sends when it opens that season's
-                dialog; -1, as it sends otherwise
+                dialog; ``NO_TREASURE_MAP``, as it sends otherwise
             timeout: Timeout in seconds
 
         Client: ``C2STreasureMapsVO`` (bundle line 24131), ``TMPCommand`` (bundle line 129103)
@@ -346,13 +352,13 @@ class MapService(BaseService):
         return self.request(GetTreasureMapsRequest(map_id=map_id), TreasureMapsResponse, timeout=timeout)
 
     def buy_treasure_map_pieces(
-        self, map_id: int, amount: int, *, spend_rubies: bool = False, timeout: float = 5.0
+        self, map_id: TreasureMapId | int, amount: int, *, spend_rubies: bool = False, timeout: float = 5.0
     ) -> None:
         """
         Buy missing pieces of a treasure map with rubies.
 
         The server sends the map's new piece count in a ``tmp`` of its own; how many pieces a map
-        has and what one costs are in the game's ``tmaps`` data, which the library does not read.
+        has and what one costs are its ``GameData.treasure_maps`` row.
 
         Args:
             map_id: The treasure map
@@ -372,7 +378,7 @@ class MapService(BaseService):
         self._require_spend_rubies(spend_rubies, "treasure map pieces cost rubies")
         self.execute(BuyTreasureMapPiecesRequest(amount=amount, map_id=map_id), timeout=timeout)
 
-    def finish_treasure_map(self, map_id: int, *, timeout: float = 5.0) -> FinishTreasureMapResponse:
+    def finish_treasure_map(self, map_id: TreasureMapId | int, *, timeout: float = 5.0) -> FinishTreasureMapResponse:
         """
         Close a treasure map whose end node fell, which moves the treasure hunt on to its next map.
 

@@ -4,10 +4,12 @@ import pytest
 
 from empire_core.enums import CollectableKind, GachaRarity, Kingdom, WheelOfFortuneType, WorldCupVote
 from empire_core.exceptions import CommandError, EventNotRunningError
-from empire_core.gamedata import Event, GameData
+from empire_core.gamedata import DonationItemId, Event, GachaId, GameData
 from empire_core.protocol.base import get_response_model
 from empire_core.protocol.models import (
+    ArtifactFoundResponse,
     ColossusCoinDepositResponse,
+    GachaFreeChestResponse,
     GachaInfoResponse,
     GachaSpinResponse,
     WheelOfFortuneSpinResponse,
@@ -103,6 +105,11 @@ class TestGacha:
             client.events.pull_gacha(Event.ENCHANTED_SNOWGLOBE)
         assert conn(client).request_payloads == []
 
+    def test_the_gacha_event_and_level_are_typed(self):
+        reply = GachaSpinResponse.model_validate({"ID": "31", "LTR": []})
+        assert reply.gacha_id == GachaId(31)
+        assert GachaFreeChestResponse.model_validate({"EID": 127}).event_id is Event.ENCHANTED_SNOWGLOBE
+
     def test_free_chest_push_updates_the_event_it_names(self):
         client = events_client([{"EID": 127, "OP": 3}])
         client._on_packet(xt_packet("cfc", {"EID": 127, "OP": 0, "OR": 2, "FCRT": 0}))
@@ -153,7 +160,7 @@ class TestDonation:
     def test_donation_sends_the_items_given(self):
         reply = {"DIS": [{"DII": 5, "DIP": 130}]}
         client = events_client([{"EID": 123}], {"ddi": xt_packet("ddi", reply)})
-        points = client.events.donate_items({5: 10, 6: 0}, spend_rubies=True)
+        points = client.events.donate_items({DonationItemId(5): 10, DonationItemId(6): 0}, spend_rubies=True)
         assert conn(client).request_payloads == [("ddi", {"DIV": [{"DII": 5, "DIA": 10}]})]
         assert points[0].points == 130 and client.events.donated_points == points
 
@@ -198,6 +205,7 @@ class TestArtifact:
         client = events_client([{"EID": 23, "PF": 1}])
         client._on_packet(xt_packet("saf", {"EID": 23, "PF": 2}))
         client._on_packet(xt_packet("saf", {"EID": 19, "PF": 2}))
+        assert ArtifactFoundResponse.model_validate({"EID": 23}).event_id is Event(23)
         assert client.state.get_event(23).parts_found == 2
         assert client.state.get_event(19) is None
 

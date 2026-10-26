@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 from pydantic import Field, field_serializer, field_validator
 
-from empire_core.enums import FactionProtectionStatus, Kingdom
+from empire_core.enums import BerimondFaction, FactionProtectionStatus, Kingdom
 from empire_core.gamedata import EnumOrInt
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, enum_or_none
 from empire_core.protocol.js import ClientInt, ClientNumber, js_loose_equals
@@ -166,7 +166,9 @@ class FactionStanding(BasePayload):
     Client: ``FactionEventVO.loadFactionDataFromParamObject`` (bundle line 7363)
     """
 
-    faction_id: ClientInt = Field(validation_alias="FID", default=0, description="Your faction")
+    faction_id: EnumOrInt[BerimondFaction] = Field(
+        validation_alias="FID", default=BerimondFaction.URSIDAE, description="Your faction"
+    )
     main_camp_id: ClientInt = Field(validation_alias="MC", default=0, description="Your faction's main camp")
     protection_seconds: ClientNumber = Field(
         validation_alias="PMT", default=0, description="Seconds left of the faction protection stage"

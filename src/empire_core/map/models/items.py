@@ -5,15 +5,19 @@ from __future__ import annotations
 import logging
 import math
 from collections.abc import Callable
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 from pydantic import BeforeValidator, Field, model_validator
 
 from empire_core.enums import Kingdom, MapItemType
+from empire_core.gamedata import EnumOrInt, ScalingCampId
 from empire_core.protocol.base import BasePayload, enum_or_none, readable_list
 from empire_core.protocol.js import ClientInt, js_int, js_loose_equals, js_truthy
 
 from .owners import AllianceCrest
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import TreasureMapId
 
 logger = logging.getLogger(__name__)
 
@@ -557,10 +561,12 @@ class MapAreaItem(BasePayload):
     victory_count: int | None = Field(default=None, description="How often the camp has been beaten")
     defeater_player_id: int | None = Field(default=None, description="Player id of whoever defeated the boss dungeon")
     is_defeated: bool | None = Field(default=None, description="The dungeon is defeated")
-    map_id: int | None = Field(default=None, description="The treasure map a treasure camp leads to")
+    map_id: EnumOrInt["TreasureMapId"] | None = Field(
+        default=None, description="The treasure map a treasure camp leads to"
+    )
     has_peace_mode: bool | None = Field(default=None, description="The alien camp is in peace mode")
     already_rerolled: bool | None = Field(default=None, description="The alien camp was already rerolled")
-    scaling_camp_id: int | None = Field(
+    scaling_camp_id: ScalingCampId | None = Field(
         default=None, description="The difficulty-scaling camp that sets the camp's level; -1 or 0 when none"
     )
     dungeon_type: int | None = Field(default=None, description="The faction king whose invasion camp this is")

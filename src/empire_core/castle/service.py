@@ -194,6 +194,7 @@ from empire_core.castle.models.resources import (
 )
 from empire_core.castle.models.storage import (
     DecorationStorage,
+    DecorationStorageKey,
     DecorationStorageResponse,
     MarkStorageSeenRequest,
     PlaceStoredDecorationRequest,
@@ -243,7 +244,6 @@ from empire_core.enums import (
     CollectableKind,
     ConstructionItemMode,
     CurrencyId,
-    DecorationStorageId,
     ExpansionType,
     JudgementOption,
     Kingdom,
@@ -1776,7 +1776,7 @@ class CastleService(BaseService):
         """
         return self.request(ShowInventoryRequest(), DecorationStorageResponse, timeout=timeout).storages
 
-    def mark_storage_seen(self, storage_id: DecorationStorageId | int, *, timeout: float = 5.0) -> None:
+    def mark_storage_seen(self, storage_id: DecorationStorageKey, *, timeout: float = 5.0) -> None:
         """
         Mark a storage's new decorations as seen.
 

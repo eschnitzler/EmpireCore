@@ -9,12 +9,25 @@ from pydantic import BeforeValidator, Field
 
 from empire_core.enums import Kingdom
 from empire_core.enums.events import GachaRarity, WheelOfFortuneType, WorldCupVote
-from empire_core.gamedata import Collectable, CollectableRows, EnumOrInt, RewardId
+from empire_core.gamedata import (
+    Collectable,
+    CollectableRows,
+    DonationItemId,
+    EnumOrInt,
+    GachaId,
+    RewardId,
+    WheelOfFortuneRewardSetId,
+    WheelOfFortuneWinClassId,
+)
+from empire_core.gamedata.ids.events import Event
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, CurrencyBlock
 from empire_core.protocol.js import ClientInt, js_int, js_number, js_truthy
 from empire_core.ranking.event_models import GetColossusHighscoreResponse
 
 _Truthy = Annotated[bool, BeforeValidator(js_truthy)]
+_WinClassId = Annotated[WheelOfFortuneWinClassId, BeforeValidator(js_int)]
+_RewardSetId = Annotated[WheelOfFortuneRewardSetId, BeforeValidator(js_int)]
+_DonationItemId = Annotated[DonationItemId, BeforeValidator(js_int)]
 
 
 def _first_int(value: Any) -> int | None:
@@ -105,13 +118,19 @@ class WheelOfFortuneStatus(BaseResponse):
     )
     has_free_spin: _Truthy = Field(default=False, validation_alias="HFS", description="Whether a free spin is waiting")
     pro_mode: _Truthy = Field(default=False, validation_alias="PMA", description="Whether the pro mode is on")
-    win_class: ClientInt = Field(default=0, validation_alias="CWC", description="The wheel's current win class")
+    win_class: _WinClassId = Field(
+        default=WheelOfFortuneWinClassId(0), validation_alias="CWC", description="The wheel's current win class"
+    )
     win_class_progress: float = Field(
         default=0.0, validation_alias="WCP", description="The spins made towards the next win class"
     )
-    jackpot_set_id: ClientInt = Field(default=0, validation_alias="JSID", description="The next jackpot set")
-    jackpot_spin_set_id: ClientInt = Field(
-        default=0, validation_alias="JHID", description="The jackpot set of the next jackpot spin"
+    jackpot_set_id: _RewardSetId = Field(
+        default=WheelOfFortuneRewardSetId(0), validation_alias="JSID", description="The next jackpot set"
+    )
+    jackpot_spin_set_id: _RewardSetId = Field(
+        default=WheelOfFortuneRewardSetId(0),
+        validation_alias="JHID",
+        description="The jackpot set of the next jackpot spin",
     )
 
 
@@ -127,7 +146,9 @@ class WheelOfFortuneSpinResponse(WheelOfFortuneStatus):
     wheel: EnumOrInt[WheelOfFortuneType] = Field(
         default=WheelOfFortuneType.WHEEL_OF_FORTUNE, validation_alias="LWET", description="The wheel that was spun"
     )
-    winning_category: ClientInt = Field(default=0, validation_alias="WC", description="The wheel's slice that won")
+    winning_category: ClientInt = Field(
+        default=0, validation_alias="WC", description="The wheel's slice that won, a place on it; 0 is the jackpot"
+    )
     rewards: CollectableRows = Field(default=(), validation_alias="R", description="What the spin won")
     own_rank: _FirstInt = Field(default=None, validation_alias="OR", description="Your rank in the event")
     own_points: _FirstInt = Field(default=None, validation_alias="OP", description="Your points in the event")
@@ -152,9 +173,13 @@ class WheelOfFortuneChangeModeResponse(BaseResponse):
 
     command: ClassVar[str] = "lwm"
 
-    jackpot_set_id: ClientInt = Field(default=0, validation_alias="JSID", description="The next jackpot set")
-    jackpot_spin_set_id: ClientInt = Field(
-        default=0, validation_alias="JHID", description="The jackpot set of the next jackpot spin"
+    jackpot_set_id: _RewardSetId = Field(
+        default=WheelOfFortuneRewardSetId(0), validation_alias="JSID", description="The next jackpot set"
+    )
+    jackpot_spin_set_id: _RewardSetId = Field(
+        default=WheelOfFortuneRewardSetId(0),
+        validation_alias="JHID",
+        description="The jackpot set of the next jackpot spin",
     )
 
 
@@ -183,7 +208,7 @@ class GachaSpinRequest(BaseRequest):
 
     command: ClassVar[str] = "dge"
 
-    event_id: int = Field(validation_alias="EID", description="The gacha event")
+    event_id: EnumOrInt[Event] = Field(validation_alias="EID", description="The gacha event")
     pulls: int = Field(default=1, ge=1, validation_alias="AMT", description="How many pulls")
     reserved: Literal[0] = Field(default=0, validation_alias="OB", description="Always 0")
 
@@ -223,8 +248,8 @@ class GachaSpinResponse(GachaUpdate):
 
     command: ClassVar[str] = "dge"
 
-    gacha_id: ClientInt = Field(
-        default=0, validation_alias="ID", description="The row of the game data's gachas table pulled from"
+    gacha_id: Annotated[GachaId, BeforeValidator(js_int)] = Field(
+        default=GachaId(0), validation_alias="ID", description="The gacha level pulled from, a GameData.gachas row"
     )
     pulls: tuple[GachaPull, ...] = Field(default=(), validation_alias="LTR", description="Each pull's rewards")
 
@@ -238,7 +263,7 @@ class GachaFreeChestResponse(GachaUpdate):
 
     command: ClassVar[str] = "cfc"
 
-    event_id: ClientInt = Field(validation_alias="EID", description="The gacha event")
+    event_id: EnumOrInt[Event] = Field(validation_alias="EID", description="The gacha event")
 
 
 class GachaInfoResponse(BaseResponse):
@@ -324,7 +349,9 @@ class DonationItemAmount(BasePayload):
     Client: ``DonationEventDialogDonate.onDonate`` (bundle line 115642)
     """
 
-    donation_item_id: int = Field(validation_alias="DII", description="The donation item, a donationItems row")
+    donation_item_id: DonationItemId = Field(
+        validation_alias="DII", description="The donation item, a GameData.donation_items row"
+    )
     amount: int = Field(ge=1, validation_alias="DIA", description="How much of it to give")
 
 
@@ -359,7 +386,9 @@ class DonationItemPoints(BasePayload):
     Client: ``CastleDonationEventData.parseGDTI`` (bundle line 58869)
     """
 
-    donation_item_id: ClientInt = Field(validation_alias="DII", description="The donation item, a donationItems row")
+    donation_item_id: _DonationItemId = Field(
+        validation_alias="DII", description="The donation item, a GameData.donation_items row"
+    )
     points: ClientInt = Field(default=0, validation_alias="DIP", description="The points it has earned")
 
 
@@ -434,7 +463,7 @@ class BuyArtifactPieceRequest(BaseRequest):
     command: ClassVar[str] = "sap"
 
     pieces: int = Field(ge=1, validation_alias="A", description="How many pieces to buy")
-    event_id: int = Field(validation_alias="EID", description="The Traveling Knights event")
+    event_id: EnumOrInt[Event] = Field(validation_alias="EID", description="The Traveling Knights event")
     kingdom: Kingdom = Field(validation_alias="KID", description="The event's kingdom")
 
 
@@ -448,7 +477,7 @@ class ArtifactFoundResponse(BaseResponse):
 
     command: ClassVar[str] = "saf"
 
-    event_id: ClientInt = Field(validation_alias="EID", description="The Traveling Knights event")
+    event_id: EnumOrInt[Event] = Field(validation_alias="EID", description="The Traveling Knights event")
     parts_found: ClientInt = Field(default=0, validation_alias="PF", description="The pieces you have")
 
 

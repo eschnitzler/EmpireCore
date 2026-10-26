@@ -6,8 +6,9 @@ import pytest
 
 from empire_core.enums import CollectableKind, TreasureMapProgress
 from empire_core.exceptions import CommandError
-from empire_core.gamedata import Unit
+from empire_core.gamedata import TreasureMapId, TreasureMapNodeId, Unit
 from empire_core.map import (
+    NO_TREASURE_MAP,
     BuyTreasureMapPiecesRequest,
     BuyTreasureMapPiecesResponse,
     FinishTreasureMapRequest,
@@ -59,12 +60,12 @@ class TestModels:
         assert treasure_map.progress is TreasureMapProgress.DESTROYED_DUNGEON
         assert treasure_map.units == {Unit.SWORDMAN: 100}
         assert treasure_map.remaining_seconds(treasure_map.received_at) == 86400
-        node = treasure_map.node(2)
+        node = treasure_map.node(TreasureMapNodeId(2))
         assert node is not None and not node.defeated
         assert (node.coins_in_rubies, node.stone_in_rubies, node.wood_in_rubies) == (40, 30, 20)
         assert [(good.kind, good.amount) for good in node.paid_goods] == [(CollectableKind.WOOD, 500)]
         assert node.remaining_cooldown_seconds(node.received_at + 20) == pytest.approx(100)
-        assert treasure_map.node(1).defeated  # type: ignore[union-attr]
+        assert treasure_map.node(TreasureMapNodeId(1)).defeated  # type: ignore[union-attr]
 
     def test_the_transfers_and_storage(self):
         (treasure_map,) = parse_response("tmp", tmp(MAP_ROW)).maps  # type: ignore[union-attr]
@@ -96,7 +97,20 @@ class TestModels:
         assert finished.treasure_hunt is not None and finished.treasure_hunt.map_id == 51
         assert isinstance(parse_response("tbm", {}), BuyTreasureMapPiecesResponse)
         hunt = parse_response("thi", {"MID": -1})
-        assert isinstance(hunt, TreasureHuntInfoResponse) and hunt.map_id == -1
+        assert isinstance(hunt, TreasureHuntInfoResponse) and hunt.map_id == NO_TREASURE_MAP
+
+    def test_map_and_node_ids_are_typed_and_none_stays_minus_one_without_a_warning(self, caplog):
+        reply = TreasureMapsResponse.model_validate(tmp(MAP_ROW, full=True))
+        (treasure_map,) = reply.maps
+        assert treasure_map.map_id is TreasureMapId.UNDERWORLD_NORMAL
+        assert [node.node_id for node in treasure_map.nodes] == [TreasureMapNodeId(1), TreasureMapNodeId(2)]
+        assert treasure_map.node(TreasureMapNodeId(2)) is treasure_map.nodes[1]
+        hunt = parse_response("thi", {"MID": 51})
+        assert isinstance(hunt, TreasureHuntInfoResponse) and hunt.map_id is TreasureMapId.SWINE_KING
+        with caplog.at_level("WARNING"):
+            assert GetTreasureMapsRequest(map_id=NO_TREASURE_MAP).map_id == -1
+            assert TreasureHuntInfoResponse.model_validate({"MID": "-1"}).map_id == -1
+        assert not caplog.records
 
 
 class TestState:
@@ -117,8 +131,8 @@ class TestState:
         assert maps is not None and set(maps) == {23, 50}
         updated = maps[23]
         assert updated.pieces_found == 4 and updated.goods_transfer is None
-        assert updated.node(1).defeated  # type: ignore[union-attr]
-        node = updated.node(2)
+        assert updated.node(TreasureMapNodeId(1)).defeated  # type: ignore[union-attr]
+        node = updated.node(TreasureMapNodeId(2))
         assert node is not None and [good.amount for good in node.paid_goods] == [500] and node.cooldown_seconds == 0
 
     def test_a_full_list_replaces_the_maps(self):

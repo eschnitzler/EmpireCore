@@ -290,6 +290,12 @@ CREST_LAYOUT_NAME = DisplayName(
     "allianceCoat_Layout_name_{value}", "``CollectableItemAllianceCrestLayoutVO.getNameTextId`` (bundle line 89359)"
 )
 MAIN_QUEST_TITLE = DisplayName("mainquest_{value}_title", "the quest book's chapter dialog (bundle line 93386)")
+TREASURE_MAP_TITLE = DisplayName(
+    "treasuremap_chest_{value}_title",
+    '``"treasuremap_chest_" + currentMapID + "_title"``, as ``CastleTreasureMapDialog.onMapLoaded`` names the '
+    "treasure hunt's map (bundle line 43848)",
+    when_known=True,
+)
 PREBUILT_CASTLE_NAME = DisplayName(
     "{text_id}",
     "``SpecialServerPreBuiltCastleVO.getNameText`` (bundle line 40294) and ``CastleKingdomCastleDetails.update`` "
@@ -560,6 +566,25 @@ def event_rows(data: GameData, texts: Texts | None) -> list[Row]:
         else:
             base, doc = to_snake(e.event_type) or f"E{event_id}", f"No in-game title; {code}."
         rows.append(Row(base, event_id, id_text(event_id), doc=doc))
+    return rows
+
+
+def treasure_map_rows(data: GameData, texts: Texts | None) -> list[Row]:
+    """
+    ``treasuremap_chest_<mapID>_title`` without a leading "The", else the ``comment2`` and ``comment1`` notes: the
+    season maps have no title, and ``comment1`` names their difficulty (``THORNKING_HARDMODE``); a note that
+    already starts with the other is taken alone (``UNDERWORLD_LOW_LEVEL``).
+    """
+    rows = []
+    for m in data.treasure_maps.values():
+        map_id = int(m.map_id)
+        title = named(texts, TREASURE_MAP_TITLE(value=map_id))
+        if title:
+            base = re.sub(r"^The\s+", "", title)
+        else:
+            label, note = to_snake(m.label), to_snake(m.note)
+            base = label if label.startswith(note) else "_".join(part for part in (note, label) if part)
+        rows.append(Row(base or f"MAP_{map_id}", map_id, id_text(map_id), (int(m.map_type),)))
     return rows
 
 
@@ -1164,6 +1189,36 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
             display=JUDGEMENT_NAME,
         ),
         Table(
+            "treasure_maps",
+            "TreasureMapId",
+            "M",
+            "Treasure map ids from the ``tmaps`` table: the season events' maps and the treasure hunt's, named from "
+            "the game's English title, else the ``comment2`` and ``comment1`` notes.",
+            "``TreasureMapVO.fillFromParamXML`` (bundle line 140567); names from ``CastleTreasureMapDialog."
+            "onMapLoaded`` (bundle line 43848)",
+            treasure_map_rows(data, texts),
+            (Attr("map_type", "int", "What the map is for, a ``TreasureMapType`` value."),),
+            display=TREASURE_MAP_TITLE,
+        ),
+        Table(
+            "alliance_tower_effects",
+            "AllianceTowerEffect",
+            "T",
+            "Beyond the Horizon's alliance tower effect ids from the ``allianceTowerEffects`` table, named from the "
+            "effect each gives: the game shows no name of their own.",
+            "``ABGAllianceTowerEffectXmlVO.parseXML`` (bundle line 145007)",
+            [
+                Row(
+                    to_snake(effect.name)
+                    if (effect := data.effects.get(t.effect_id))
+                    else f"TOWER_EFFECT_{t.tower_effect_id}",
+                    int(t.tower_effect_id),
+                    id_text(t.tower_effect_id),
+                )
+                for t in data.alliance_tower_effects.values()
+            ],
+        ),
+        Table(
             "difficulty_types",
             "DifficultyType",
             "D",
@@ -1316,7 +1371,7 @@ member, e.g. ``game_data.units[Unit.MEAD_RANGER_L6]``.
 Enums whose rows the game names by a text (units, tools, currencies,
 researches, generals, legend and sceat skills, events, gems, achievements,
 titles, crest layouts, main quests, prebuilt castles, private villages,
-fusion forges, judgements) have ``display_name(lang="en")``, the
+fusion forges, judgements, treasure maps) have ``display_name(lang="en")``, the
 name the game shows: ``Unit.MEAD_RANGER_L6.display_name("de")``. It reads the
 language file, fetched on first use and cached (:mod:`empire_core.texts`).
 

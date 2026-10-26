@@ -68,7 +68,7 @@ from .service import MovementsService
 from .tracked import Movement, MovementResources
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import Currency, Horse, Title, Tool, Unit
+    from empire_core.gamedata import Currency, Event, Horse, Title, Tool, TreasureMapId, Unit
 
 __all__ = [
     "NO_HORSE",
@@ -135,8 +135,12 @@ __all__ = [
     "Title",
     "Tool",
     "Unit",
+    "Event",
+    "TreasureMapId",
 ]
 
 
 if not TYPE_CHECKING:
-    __getattr__ = lazy_exports(__name__, "empire_core.gamedata.ids", ("Currency", "Horse", "Title", "Tool", "Unit"))
+    __getattr__ = lazy_exports(
+        __name__, "empire_core.gamedata.ids", ("Currency", "Event", "Horse", "Title", "Tool", "TreasureMapId", "Unit")
+    )

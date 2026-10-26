@@ -9,6 +9,7 @@ from pydantic import Field, field_validator
 
 from empire_core.enums.events import PerformanceStatistic
 from empire_core.gamedata import EnumOrInt
+from empire_core.gamedata.ids.events import Event
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, readable_list
 from empire_core.protocol.js import ClientInt, js_int
 
@@ -58,7 +59,7 @@ class GetPlayerPerformanceRequest(BaseRequest):
 
     command: ClassVar[str] = "gpe"
     player_id: int = Field(validation_alias="PID", description="Player whose performance is requested")
-    event_id: int = Field(validation_alias="EID", description="Event whose performance is requested")
+    event_id: EnumOrInt[Event] = Field(validation_alias="EID", description="Event whose performance is requested")
 
 
 class GetPlayerPerformanceResponse(BaseResponse):

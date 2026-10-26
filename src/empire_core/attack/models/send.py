@@ -11,7 +11,7 @@ Commands:
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, PrivateAttr, ValidatorFunctionWrapHandler, field_validator, model_validator
 from pydantic.functional_validators import ModelWrapValidatorHandler
@@ -19,7 +19,7 @@ from pydantic.functional_validators import ModelWrapValidatorHandler
 from empire_core.army.models.units import AttackWave, UnitInventoryBlock
 from empire_core.commanders.models.roster import Commander
 from empire_core.enums import AttackType, AutoSkipCooldownType, Kingdom, LootPriority
-from empire_core.gamedata import CurrencyAmounts, SupportToolSlots, WodAmountSlots
+from empire_core.gamedata import CurrencyAmounts, EnumOrInt, SupportToolSlots, TreasureMapNodeId, WodAmountSlots
 from empire_core.movements.models import (
     NO_HORSE,
     HorseBoosterId,
@@ -29,6 +29,9 @@ from empire_core.movements.models import (
 )
 from empire_core.protocol.base import BaseRequest, BaseResponse, CurrencyBlock, read_or_none, readable_list
 from empire_core.protocol.js import js_truthy, movement_targets
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import TreasureMapId
 
 logger = logging.getLogger(__name__)
 
@@ -451,8 +454,8 @@ class TreasureHuntAttackRequest(BaseRequest):
     use_premium_commander: int = Field(
         validation_alias="BPC", default=0, description="1 when the premium commander leads"
     )
-    map_id: int = Field(validation_alias="MID", description="The treasure map's id")
-    node_id: int = Field(validation_alias="NID", description="The attacked node's id on that map")
+    map_id: EnumOrInt["TreasureMapId"] = Field(validation_alias="MID", description="The treasure map")
+    node_id: TreasureMapNodeId = Field(validation_alias="NID", description="The attacked node on that map")
     feathers: int = Field(validation_alias="PTT", default=0, description="1 when the horse is paid with feathers")
     waves: list[AttackWave] = Field(
         validation_alias="A",

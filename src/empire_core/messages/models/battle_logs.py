@@ -35,8 +35,10 @@ from empire_core.enums import (
     MapItemType,
     MessageType,
 )
-from empire_core.gamedata import Collectable, CollectableRows, CurrencyIdRows, EnumOrInt, EnumOrStr
+from empire_core.gamedata import Collectable, CollectableRows, CurrencyIdRows, EnumOrInt, EnumOrStr, TreasureMapNodeId
 from empire_core.gamedata.collectables import MINUTE_SKIP_FIRST_ID
+from empire_core.gamedata.ids.treasure_maps import TreasureMapId
+from empire_core.gamedata.lenient import known
 from empire_core.map.models import MapObject
 from empire_core.protocol.base import (
     BasePayload,
@@ -660,9 +662,9 @@ class BattleLogArea(SpyReportArea):
     overrides (see :class:`SpyReportArea`)
     """
 
-    treasure_map_node_id: ClientInt = Field(
+    treasure_map_node_id: Annotated[TreasureMapNodeId, BeforeValidator(js_int)] = Field(
         validation_alias="NID",
-        default=0,
+        default=TreasureMapNodeId(0),
         description="The treasure map node fought over; 0 or less for none",
     )
     alliance_crest: dict[str, Any] | None = Field(
@@ -698,7 +700,7 @@ class BattleLogMeta:
     area_type: int
     attack_type: BattleLogAttackType | None
     result: LogResult | None
-    treasure_map_id: int = 0
+    treasure_map_id: TreasureMapId | int = 0
     treasure_map_area_type: str | int = 0
 
     @classmethod
@@ -711,7 +713,7 @@ class BattleLogMeta:
             area_type=js_int(parts[0]),
             attack_type=enum_or_none(BattleLogAttackType, attack_type),
             result=enum_or_none(LogResult, result),
-            treasure_map_id=js_int(parts[3]) if len(parts) > 3 else 0,
+            treasure_map_id=known(TreasureMapId, js_int(parts[3]), warn=False) if len(parts) > 3 else 0,
             treasure_map_area_type=parts[4] if len(parts) > 4 else 0,
         )
 

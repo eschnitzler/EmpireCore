@@ -97,7 +97,7 @@ class RagePointsResponse(BaseResponse):
 
     command = "rpr"
 
-    event_id: ClientInt = Field(validation_alias="EID", default=0, description="The event the rage is for")
+    event_id: EnumOrInt[Event] = Field(validation_alias="EID", description="The event the rage is for")
     player_rage: ClientInt = Field(validation_alias="PCRP", default=0, description="Your current rage points")
     player_total_rage: ClientInt = Field(validation_alias="PTRP", default=0, description="Your total rage points")
 

@@ -10,6 +10,7 @@ from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from empire_core.enums.events import RaidBossCardStatus
 from empire_core.gamedata import EnumOrInt
+from empire_core.gamedata.ids.events import Event
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, readable_list
 from empire_core.protocol.js import ClientInt, js_int, js_loose_equals, js_string, js_truthy
 
@@ -88,7 +89,7 @@ class GetGrandTournamentStatusRequest(BaseRequest):
     """Client: ``C2SAllianceQuestStatusVO`` (bundle lines 75687-75691)."""
 
     command: ClassVar[str] = "aqs"
-    event_id: int = Field(validation_alias="EID", description="Grand Tournament event")
+    event_id: EnumOrInt[Event] = Field(validation_alias="EID", description="Grand Tournament event")
 
     def accepts_reply(self, payload: Any) -> bool:
         """AQSCommand looks up EID as a numeric Map key (bundle 127419-127420)."""
@@ -102,7 +103,7 @@ class GrandTournamentQuestStatus(BaseResponse):
 
     command: ClassVar[str] = "aqs"
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True, populate_by_name=True, extra="ignore")
-    event_id: ClientInt = Field(validation_alias="EID", description="Grand Tournament event")
+    event_id: EnumOrInt[Event] = Field(validation_alias="EID", description="Grand Tournament event")
     participants: ClientInt | None = Field(
         default=None, validation_alias="APC", description="Participating alliance members"
     )
@@ -132,7 +133,7 @@ class GetGrandTournamentContributionsRequest(BaseRequest):
     """Client: ``C2SAllianceDivisionPlayerContributionVO`` (bundle 75678-75682)."""
 
     command: ClassVar[str] = "aqpc"
-    event_id: int = Field(validation_alias="EID", description="Grand Tournament event")
+    event_id: EnumOrInt[Event] = Field(validation_alias="EID", description="Grand Tournament event")
 
 
 class GetGrandTournamentContributionsResponse(BaseResponse):
@@ -294,7 +295,7 @@ class GrandTournamentQuestUpdate(BasePayload):
     (bundle 127430-127503) read only nested aqs.EID and aqs.AQS.
     """
 
-    event_id: ClientInt = Field(validation_alias="EID", description="Grand Tournament event")
+    event_id: EnumOrInt[Event] = Field(validation_alias="EID", description="Grand Tournament event")
     slots: tuple[GrandTournamentQuestSlot, ...] = Field(validation_alias="AQS", description="Updated quest slots")
 
     @field_validator("slots", mode="before")

@@ -19,6 +19,7 @@ from pydantic import ConfigDict, Field, ValidationInfo, field_validator, model_v
 
 from empire_core.enums import (
     AllianceBuffType,
+    BerimondFaction,
     CastleEffect,
     Kingdom,
     MapItemType,
@@ -1661,10 +1662,10 @@ class NpcCampDefence(_Row):
     unit_wall_count: int = Field(validation_alias="unitWallCount", default=0)
     cool_down: int = Field(validation_alias="coolDown", default=0)
     dungeon_level: int = Field(validation_alias="dungeonlevel", default=0)
-    faction_id: int = Field(
+    faction_id: GameDataId[BerimondFaction] = Field(
         validation_alias="factionID",
-        default=0,
-        description="The Berimond faction a Berimond invasion camp row is for: 0 blue, 1 red",
+        default=BerimondFaction.URSIDAE,
+        description="The Berimond faction a Berimond invasion camp row is for",
     )
 
     @property

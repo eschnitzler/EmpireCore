@@ -8,14 +8,20 @@ Commands:
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from pydantic import Field
 
 from empire_core.enums import Kingdom, KingdomTransferType
-from empire_core.gamedata import WodAmountSlots
+from empire_core.gamedata import EnumOrInt, WodAmountSlots
+from empire_core.gamedata.ids.events import Event
 from empire_core.map.models.treasure_maps import TreasureMapsBlock
 from empire_core.protocol.base import BaseRequest, BaseResponse, CurrencyBlock
 
 from .market import ResourceAmounts
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import TreasureMapId
 
 
 class TreasureMapGoodsTransferRequest(BaseRequest):
@@ -37,7 +43,7 @@ class TreasureMapGoodsTransferRequest(BaseRequest):
 
     command = "tgt"
 
-    map_id: int = Field(validation_alias="MID", description="The season's treasure map")
+    map_id: EnumOrInt["TreasureMapId"] = Field(validation_alias="MID", description="The season's treasure map")
     source_castle_id: int = Field(
         validation_alias="SCID",
         description=(
@@ -87,7 +93,7 @@ class TreasureMapUnitTransferRequest(BaseRequest):
 
     command = "tut"
 
-    map_id: int = Field(validation_alias="MID", description="The season's treasure map")
+    map_id: EnumOrInt["TreasureMapId"] = Field(validation_alias="MID", description="The season's treasure map")
     source_castle_id: int = Field(
         validation_alias="SCID",
         description=(
@@ -132,8 +138,8 @@ class TreasureMapTransferSkipRequest(BaseRequest):
 
     command = "tkt"
 
-    event_id: int = Field(validation_alias="EID", description="The season event the map belongs to")
-    map_id: int = Field(validation_alias="MID", description="The season's treasure map")
+    event_id: EnumOrInt[Event] = Field(validation_alias="EID", description="The season event the map belongs to")
+    map_id: EnumOrInt["TreasureMapId"] = Field(validation_alias="MID", description="The season's treasure map")
     transfer_type: KingdomTransferType = Field(
         validation_alias="TT", description="Whether the transfer carries units or goods"
     )

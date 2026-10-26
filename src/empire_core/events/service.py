@@ -20,6 +20,7 @@ from empire_core.exceptions import (
     PacketError,
     ReplyMismatchError,
 )
+from empire_core.gamedata import DonationItemId, EventDifficultyId, PartPayPriceId
 from empire_core.gamedata.ids.events import Event
 from empire_core.protocol.base import BaseRequest, BaseResponse
 from empire_core.ranking.models import (
@@ -35,7 +36,7 @@ from empire_core.ranking.models import (
 from empire_core.services.base import BaseService
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import PrebuiltCastle, RaidBoss
+    from empire_core.gamedata import PrebuiltCastle, RaidBoss, TreasureMapId
 
 from .berimond_models import (
     BerimondBalance,
@@ -764,7 +765,7 @@ class EventsService(BaseService):
         """
         self.send(SeasonJoinEventRequest(map_id=self._season_map(event)))
 
-    def _season_map(self, event: Event) -> int:
+    def _season_map(self, event: Event) -> TreasureMapId | int:
         found = self._require_running(event)
         if not isinstance(found, SeasonEvent) or found.map_id is None:
             raise ValueError(f"{Event(event).name} is no season event with a map")
@@ -772,7 +773,7 @@ class EventsService(BaseService):
 
     def pay_toward_unlock(
         self,
-        part_price_id: int,
+        part_price_id: PartPayPriceId,
         *,
         wood: int = 0,
         stone: int = 0,
@@ -785,11 +786,11 @@ class EventsService(BaseService):
     ) -> None:
         """Pay towards something priced in parts: a season map's obstacle, a treasure map node or a slum level.
 
-        ``part_price_id`` is the price's row in the part pay prices table, which the obstacle, node or slum
-        level names. Goods come from ``castle_id`` in ``kingdom``: the client pays a slum level from the joined
-        castle, a treasure hunt node from your main castle in the hunt's kingdom, and a season obstacle from
-        no castle (-1) in the green kingdom. ``ruby_payment`` instead pays that resource's missing amount in
-        rubies, and needs ``spend_rubies``.
+        ``part_price_id`` is the price's row in ``GameData.part_pay_prices``, which the obstacle, node
+        (``TreasureMapNodeDef.part_price_id``) or slum level names. Goods come from ``castle_id`` in
+        ``kingdom``: the client pays a slum level from the joined castle, a treasure hunt node from your main
+        castle in the hunt's kingdom, and a season obstacle from no castle (-1) in the green kingdom.
+        ``ruby_payment`` instead pays that resource's missing amount in rubies, and needs ``spend_rubies``.
 
         Raises:
             ValueError: ``ruby_payment`` without ``spend_rubies``, or with goods; no goods and no ``ruby_payment``
@@ -821,7 +822,7 @@ class EventsService(BaseService):
     def select_difficulty(
         self,
         event: Event | int,
-        difficulty_id: int,
+        difficulty_id: EventDifficultyId,
         *,
         unlock_with_rubies: bool = False,
         spend_rubies: bool = False,
@@ -829,7 +830,7 @@ class EventsService(BaseService):
     ) -> None:
         """Choose a running event's difficulty.
 
-        ``difficulty_id`` is the difficulty's row in the event auto scaling difficulties table, or 0 for the
+        ``difficulty_id`` is the difficulty's row in ``GameData.event_difficulties``, or 0 for the
         event without difficulty scaling. A locked difficulty is opened with ``unlock_with_rubies`` for its
         ruby price, which needs ``spend_rubies``. The event's ``difficulty_id`` changes with its next update.
 
@@ -1253,13 +1254,13 @@ class EventsService(BaseService):
         ).items
 
     def donate_items(
-        self, items: Mapping[int, int], *, spend_rubies: bool = False, timeout: float = 5.0
+        self, items: Mapping[DonationItemId, int], *, spend_rubies: bool = False, timeout: float = 5.0
     ) -> tuple[DonationItemPoints, ...]:
         """
         Give imperial patronage items, by donation item id and amount; returns the points each has earned.
 
-        A donation item is a resource or a currency of the game data's donationItems table, which the library
-        does not load, so it may be rubies: the call needs ``spend_rubies``.
+        A donation item is a resource or a currency (``GameData.donation_items``), which may be rubies: the call
+        needs ``spend_rubies``.
 
         Raises:
             ValueError: No amount is above 0, or ``spend_rubies`` is False

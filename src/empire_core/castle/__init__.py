@@ -104,6 +104,7 @@ from .models import (
     CraftingSlot,
     DamagedBuildings,
     DecorationStorage,
+    DecorationStorageKey,
     DecorationStorageResponse,
     DestroyBuildingRequest,
     DestroyBuildingResponse,
@@ -283,6 +284,7 @@ if TYPE_CHECKING:
         PrivateVillageType,
         Research,
         Tool,
+        TreasureMapId,
         Unit,
     )
 
@@ -519,6 +521,7 @@ __all__ = [
     "TransportationBuildingsResponse",
     "UpgradableBuilding",
     "DecorationStorage",
+    "DecorationStorageKey",
     "DecorationStorageResponse",
     "MarkStorageSeenRequest",
     "MarkStorageSeenResponse",
@@ -558,6 +561,7 @@ __all__ = [
     "PrivateVillageType",
     "Tool",
     "Unit",
+    "TreasureMapId",
 ]
 
 
@@ -577,6 +581,7 @@ if not TYPE_CHECKING:
             "PrivateVillageType",
             "Research",
             "Tool",
+            "TreasureMapId",
             "Unit",
         ),
     )

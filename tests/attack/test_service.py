@@ -9,7 +9,7 @@ import pytest
 from empire_core.combat import FilledAttack, WaveCapacity
 from empire_core.enums import Kingdom
 from empire_core.exceptions import AttackBelowMinimumError, CommandError, UnknownCastleError
-from empire_core.gamedata import EMPTY_SLOT, Horse, Unit, WodAmount
+from empire_core.gamedata import EMPTY_SLOT, Horse, TreasureMapNodeId, Unit, WodAmount
 from empire_core.protocol.models import AttackType, Commander, CreateAttackRequest, CreateAttackResponse, MapItemType
 from tests.service_helpers import (
     COIN_HORSE,
@@ -798,7 +798,7 @@ class TestTargetPrecalculation:
         }
         client = make_client({"tai": xt_packet("tai", reply)}, castles=OWN)
 
-        info = client.attack.get_treasure_node_attack_info(3, 17)
+        info = client.attack.get_treasure_node_attack_info(3, TreasureMapNodeId(17))
 
         assert conn(client).request_payloads[0] == ("tai", {"MID": 3, "NID": 17})
         assert (info.map_id, info.node_id, info.spy_age_seconds) == (3, 17, 120)
@@ -823,7 +823,7 @@ class TestTargetPrecalculation:
         client = make_client({"tai": xt_packet("tai", error_code=114)}, castles=OWN)
 
         with pytest.raises(CommandError):
-            client.attack.get_treasure_node_attack_info(3, 17)
+            client.attack.get_treasure_node_attack_info(3, TreasureMapNodeId(17))
 
     @pytest.mark.parametrize(
         ("area_type", "conquer"),

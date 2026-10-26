@@ -31,7 +31,7 @@ from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, re
 from empire_core.protocol.js import ClientInt, js_int, js_truthy
 
 if TYPE_CHECKING:
-    from empire_core.gamedata.ids import Effect
+    from empire_core.gamedata.ids import AllianceTowerEffect, Effect
 
 logger = logging.getLogger(__name__)
 
@@ -54,8 +54,8 @@ class AllianceTowerBuff(BasePayload):
     ``ABGAllianceTowerEffectVO.parseServerParams`` (bundle line 144981) reads ``L`` through ``int()``
     """
 
-    tower_effect_id: ClientInt = Field(
-        validation_alias="TEID", default=0, description="The alliance tower effect, an allianceTowerEffectID"
+    tower_effect_id: EnumOrInt["AllianceTowerEffect"] = Field(
+        validation_alias="TEID", description="The alliance tower effect, a GameData.alliance_tower_effects row"
     )
     level: ClientInt = Field(validation_alias="L", default=0, description="The buff's current level")
 

@@ -12,12 +12,15 @@ from empire_core.events import (
     DaimyoContractsResponse,
     DaimyoWarEffortsResponse,
     NomadInvasionEvent,
+    PreviousHorizonRun,
+    PreviousOuterRealmsRun,
     PreviousSpecialServerRuns,
     SamuraiInvasionEvent,
     SelectEventDifficultyRequest,
     UnlockEventRequest,
 )
 from empire_core.exceptions import CommandError, EventNotRunningError
+from empire_core.gamedata import EventDifficultyId, PartPayPriceId
 from empire_core.gamedata.ids.events import Event
 from empire_core.protocol.base import parse_response
 from empire_core.state.manager import GameState
@@ -180,6 +183,7 @@ class TestAllianceCamp:
         push = parse_response("aic", {"AC": [{"EID": 72, "ACID": 11, "AR": 40}]})
         assert isinstance(push, AllianceCampInfoResponse)
         assert [(camp.event_id, camp.camp_id, camp.alliance_rage) for camp in push.camps] == [(72, 11, 40)]
+        assert push.camps[0].event_id is Event.NOMAD_INVASION_72
 
     def test_updates_the_nomad_invasion(self):
         state = logged_in_state()
@@ -207,13 +211,13 @@ class TestAllianceCamp:
 
 class TestUnlock:
     def test_keys_follow_the_client_order(self):
-        request = UnlockEventRequest(part_price_id=31, wood=100)
+        request = UnlockEventRequest(part_price_id=PartPayPriceId(31), wood=100)
         assert list(request.to_payload()) == ["SCID", "SKID", "W", "S", "F", "C1", "IID", "SC"]
 
     def test_goods_from_a_castle(self):
         client = make_client()
 
-        client.events.pay_toward_unlock(31, wood=100, coins=50, castle_id=1234, kingdom=Kingdom.FIRE)
+        client.events.pay_toward_unlock(PartPayPriceId(31), wood=100, coins=50, castle_id=1234, kingdom=Kingdom.FIRE)
 
         assert conn(client).request_payloads == [
             ("ule", {"SCID": 1234, "SKID": 3, "W": 100, "S": 0, "F": 0, "C1": 50, "IID": 31, "SC": 0})
@@ -223,7 +227,7 @@ class TestUnlock:
     def test_a_ruby_payment_marks_its_resource(self, resource, flags):
         client = make_client()
 
-        client.events.pay_toward_unlock(31, ruby_payment=resource, spend_rubies=True)
+        client.events.pay_toward_unlock(PartPayPriceId(31), ruby_payment=resource, spend_rubies=True)
 
         wood, stone, coins = flags
         assert conn(client).request_payloads == [
@@ -233,25 +237,25 @@ class TestUnlock:
     def test_a_ruby_payment_needs_consent(self):
         client = make_client()
         with pytest.raises(ValueError, match="spend_rubies"):
-            client.events.pay_toward_unlock(31, ruby_payment="wood")
+            client.events.pay_toward_unlock(PartPayPriceId(31), ruby_payment="wood")
         assert conn(client).request_payloads == []
 
     def test_consent_alone_pays_no_rubies(self):
         client = make_client()
-        client.events.pay_toward_unlock(31, stone=10, spend_rubies=True)
+        client.events.pay_toward_unlock(PartPayPriceId(31), stone=10, spend_rubies=True)
         assert conn(client).request_payloads[0][1]["SC"] == 0
 
     @pytest.mark.parametrize("kwargs", [{}, {"ruby_payment": "wood", "wood": 5, "spend_rubies": True}])
     def test_nothing_or_both_is_refused(self, kwargs):
         client = make_client()
         with pytest.raises(ValueError):
-            client.events.pay_toward_unlock(31, **kwargs)
+            client.events.pay_toward_unlock(PartPayPriceId(31), **kwargs)
         assert conn(client).request_payloads == []
 
     def test_a_refusal_raises(self):
         client = make_client({"ule": xt_packet("ule", None, error_code=176)})
         with pytest.raises(CommandError):
-            client.events.pay_toward_unlock(31, wood=1)
+            client.events.pay_toward_unlock(PartPayPriceId(31), wood=1)
 
 
 class TestSeasonMap:
@@ -272,8 +276,11 @@ class TestSeasonMap:
 
 class TestDifficulty:
     def test_keys(self):
-        request = SelectEventDifficultyRequest(event_id=80, difficulty_id=12, unlock_with_rubies=True)
+        request = SelectEventDifficultyRequest(
+            event_id=80, difficulty_id=EventDifficultyId(12), unlock_with_rubies=True
+        )
         assert request.to_payload() == {"EID": 80, "EDID": 12, "C2U": 1}
+        assert request.event_id is Event.SAMURAI_INVASION
 
     def test_select(self):
         client = samurai_client()
@@ -297,7 +304,7 @@ class TestDifficulty:
     def test_the_event_must_run(self):
         client = make_client(state=GameState())
         with pytest.raises(EventNotRunningError):
-            client.events.select_difficulty(Event.SAMURAI_INVASION, 12)
+            client.events.select_difficulty(Event.SAMURAI_INVASION, EventDifficultyId(12))
 
     def test_a_refusal_raises(self):
         client = samurai_client({"sede": xt_packet("sede", None, error_code=1)})
@@ -314,6 +321,7 @@ class TestPreviousRuns:
         assert conn(client).request_payloads == [("gpr", {})]
         assert runs.outer_realms is not None and runs.horizon is not None
         assert (runs.outer_realms.setting_id, runs.horizon.setting_id) == (4, 2)
+        assert isinstance(runs.outer_realms, PreviousOuterRealmsRun) and isinstance(runs.horizon, PreviousHorizonRun)
         assert 3600 <= runs.outer_realms.ended_seconds_ago() < 3610
 
     def test_a_run_not_sent_is_none(self):
