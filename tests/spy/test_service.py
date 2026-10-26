@@ -12,6 +12,7 @@ import pytest
 from empire_core.client.client import EmpireClient
 from empire_core.enums import CollectableKind, Kingdom, SpyOutcome, SpyStep, SpyType
 from empire_core.exceptions import CommandError, EmpireTimeoutError
+from empire_core.gamedata import Horse
 from empire_core.protocol.packet import Packet
 from empire_core.spy import service as spy_module
 from empire_core.spy.service import SpyHandle
@@ -653,7 +654,7 @@ class TestPaying:
     def test_feathers_win_over_a_horse(self, no_sleep):
         client = spy_client()
 
-        client.spy.execute_instant_spy(12345, 700, 710, feathers=True, horse_booster_id=1010)
+        client.spy.execute_instant_spy(12345, 700, 710, feathers=True, horse_booster_id=Horse.COURSER_STABLE1)
 
         sent = dict(conn(client).request_payloads)["csm"]
         assert (sent["HBW"], sent["PTT"]) == (-1, 1)

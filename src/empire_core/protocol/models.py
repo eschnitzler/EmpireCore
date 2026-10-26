@@ -363,7 +363,6 @@ from empire_core.attack.models.tools import (
     BuyToolsResponse,
 )
 from empire_core.castle.models import (
-    DECORATION_FORGE_ID,
     FREE_SLOT,
     FULL_SKIP,
     LOCKED_SLOT,
@@ -1258,7 +1257,6 @@ __all__ = [
     "StartCraftingResponse",
     "UnlockCraftingSlotsRequest",
     "UnlockCraftingSlotsResponse",
-    "DECORATION_FORGE_ID",
     "ConvertCatalystRequest",
     "ConvertCatalystResponse",
     "FuseDecorationRequest",

@@ -82,26 +82,40 @@ from .tables import (
     CoatOfArmsSymbolDef,
     CoatOfArmsSymbolId,
     ConstructionItemRecipeDef,
+    ConstructionItemRecipeId,
+    CraftingQueueDef,
+    CraftingQueueId,
+    CraftingRecipeDef,
+    CraftingRecipeId,
     DailyQuestDef,
     DaimyoContractDef,
     DifficultyTypeDef,
     EquipmentGroupDef,
     EventDef,
+    FusionForgeDef,
+    FusionSystemDef,
     GemColorDef,
     GeneralRarityDef,
     GeneralsHubCharacterDef,
+    JudgementDef,
     LootBoxDef,
     LootBoxTypeDef,
     PackageDef,
     PackageId,
     PlayerNameChangeDef,
+    PrebuiltCastleDef,
+    PrivateVillageDef,
     QuestCondition,
     QuestDef,
     ResearchDef,
     RewardDef,
     RewardId,
     ScalingCampDef,
+    SpecialServerPrebuiltCastleDef,
+    StartResourcesDef,
+    StartResourcesId,
     TitleDef,
+    is_cost_column,
     is_research_cost_column,
     row_id,
 )
@@ -120,6 +134,7 @@ if TYPE_CHECKING:
         EffectType,
         EquipmentGroup,
         Event,
+        FusionForgeId,
         Gem,
         GemColor,
         General,
@@ -129,9 +144,12 @@ if TYPE_CHECKING:
         GeneralSkill,
         GlobalEffect,
         Horse,
+        Judgement,
         LegendSkill,
         LootBox,
         LootBoxType,
+        PrebuiltCastle,
+        PrivateVillageType,
         QuestId,
         RaidBoss,
         Research,
@@ -197,6 +215,15 @@ _CACHED_MODELS = (
     CoatOfArmsSymbolDef,
     PackageDef,
     PlayerNameChangeDef,
+    PrebuiltCastleDef,
+    SpecialServerPrebuiltCastleDef,
+    StartResourcesDef,
+    PrivateVillageDef,
+    CraftingRecipeDef,
+    CraftingQueueDef,
+    FusionSystemDef,
+    FusionForgeDef,
+    JudgementDef,
     DaimyoContractDef,
     AchievementCondition,
     AchievementDef,
@@ -399,6 +426,26 @@ _TABLES: dict[str, _TableSource] = {
     "coat_of_arms_symbols": _TableSource("crestsymbols", CoatOfArmsSymbolDef, "symbol_id"),
     "packages": _TableSource("packages", PackageDef, "package_id"),
     "player_name_changes": _TableSource("playerNameChanges", PlayerNameChangeDef, "name_change_id"),
+    "prebuilt_castles": _TableSource("prebuiltcastles", PrebuiltCastleDef, "prebuilt_castle_id", reads=is_cost_column),
+    "outer_realms_prebuilt_castles": _TableSource(
+        "tempServerPreBuiltCastles", SpecialServerPrebuiltCastleDef, "prebuilt_castle_id", reads=is_cost_column
+    ),
+    "horizon_prebuilt_castles": _TableSource(
+        "allianceBattleGroundPreBuiltCastles",
+        SpecialServerPrebuiltCastleDef,
+        "prebuilt_castle_id",
+        reads=is_cost_column,
+    ),
+    "storm_islands_prebuilt_castles": _TableSource(
+        "islandPreBuiltCastles", SpecialServerPrebuiltCastleDef, "prebuilt_castle_id", reads=is_cost_column
+    ),
+    "start_resources": _TableSource("startResources", StartResourcesDef, "start_resources_id", reads=is_reward_column),
+    "private_villages": _TableSource("privateVillages", PrivateVillageDef, "village_type_id"),
+    "crafting_recipes": _TableSource("craftingRecipes", CraftingRecipeDef, "recipe_id", reads=is_cost_column),
+    "crafting_queues": _TableSource("craftingQueues", CraftingQueueDef, "queue_id"),
+    "fusion_systems": _TableSource("fusionSystems", FusionSystemDef, "forge_id"),
+    "fusion_forges": _TableSource("fusionForges", FusionForgeDef, "forge_id"),
+    "judgements": _TableSource("judgements", JudgementDef, "judgement_id"),
     "rewards": _TableSource("rewards", RewardDef, "reward_id", reads=is_reward_column),
     "daimyo_castle_contracts": _TableSource("daimyoCastleAllianceContracts", DaimyoContractDef, "contract_id"),
     "daimyo_township_contracts": _TableSource("daimyoTownshipAllianceContracts", DaimyoContractDef, "contract_id"),
@@ -694,7 +741,7 @@ class GameData(EmpireModel):
         return self._table("alliance_crest_layouts")
 
     @cached_property
-    def construction_item_recipes(self) -> Table[int, ConstructionItemRecipeDef]:
+    def construction_item_recipes(self) -> Table[ConstructionItemRecipeId, ConstructionItemRecipeDef]:
         """The ``constructionItemRecipes`` rows, by the recipe id a blueprint research unlocks."""
         return self._table("construction_item_recipes")
 
@@ -717,6 +764,71 @@ class GameData(EmpireModel):
     def player_name_changes(self) -> Table[int, PlayerNameChangeDef]:
         """The ``playerNameChanges`` rows, by the number of the player name change they price."""
         return self._table("player_name_changes")
+
+    @cached_property
+    def prebuilt_castles(self) -> Table[GameDataId["PrebuiltCastle"], PrebuiltCastleDef]:
+        """
+        The castles and camps a kingdom, a season event's map or a special server starts with, by ``PrebuiltCastle``.
+
+        Client: ``PrebuiltCastleData.parsePreBuiltCastles`` (bundle line 142274)
+        """
+        return self._table("prebuilt_castles")
+
+    @cached_property
+    def outer_realms_prebuilt_castles(self) -> Table[GameDataId["PrebuiltCastle"], SpecialServerPrebuiltCastleDef]:
+        """The Outer Realms' castle selection (``tempServerPreBuiltCastles``), by ``PrebuiltCastle``."""
+        return self._special_server_castles("outer_realms_prebuilt_castles")
+
+    @cached_property
+    def horizon_prebuilt_castles(self) -> Table[GameDataId["PrebuiltCastle"], SpecialServerPrebuiltCastleDef]:
+        """Beyond the Horizon's castle selection (``allianceBattleGroundPreBuiltCastles``), by ``PrebuiltCastle``."""
+        return self._special_server_castles("horizon_prebuilt_castles")
+
+    @cached_property
+    def storm_islands_prebuilt_castles(self) -> Table[GameDataId["PrebuiltCastle"], SpecialServerPrebuiltCastleDef]:
+        """The Storm Islands' castle selection (``islandPreBuiltCastles``), by ``PrebuiltCastle``."""
+        return self._special_server_castles("storm_islands_prebuilt_castles")
+
+    def _special_server_castles(self, name: str) -> Table[Any, Any]:
+        return self._table(name, context={"currency_ids": self._currency_ids()})
+
+    @cached_property
+    def start_resources(self) -> Table[StartResourcesId, StartResourcesDef]:
+        """The goods a special server's prebuilt castle starts with, by the id its row names."""
+        return self._table("start_resources", context={"currency_ids": self._currency_ids()})
+
+    @cached_property
+    def private_villages(self) -> Table[GameDataId["PrivateVillageType"], PrivateVillageDef]:
+        """Private resource villages by ``PrivateVillageType``, one row per type, kingdom and level."""
+        return self._table("private_villages")
+
+    @cached_property
+    def crafting_recipes(self) -> Table[CraftingRecipeId, CraftingRecipeDef]:
+        """The ``craftingRecipes`` rows, by the recipe id a crafting slot names."""
+        return self._table("crafting_recipes", context={"currency_ids": self._currency_ids()})
+
+    @cached_property
+    def crafting_queues(self) -> Table[CraftingQueueId, CraftingQueueDef]:
+        """The ``craftingQueues`` rows, by the queue id a crafting building's queue is sent with."""
+        return self._table("crafting_queues")
+
+    @cached_property
+    def fusion_systems(self) -> Table[GameDataId["FusionForgeId"], FusionSystemDef]:
+        """The fusion forges' energy and fusion rules (``fusionSystems``), by ``FusionForgeId``."""
+        return self._table("fusion_systems")
+
+    @cached_property
+    def fusion_forges(self) -> Table[GameDataId["FusionForgeId"], FusionForgeDef]:
+        """The fusion forges' dust and minute skips (``fusionForges``), by ``FusionForgeId``."""
+        return self._table("fusion_forges")
+
+    @cached_property
+    def judgements(self) -> Table[GameDataId["Judgement"], JudgementDef]:
+        """Citizen judgements by ``Judgement``."""
+        return self._table("judgements")
+
+    def _currency_ids(self) -> dict[str, int]:
+        return {row.name: row.currency_id for row in self.currencies.values()}
 
     @cached_property
     def daimyo_castle_contracts(self) -> Table[int, DaimyoContractDef]:

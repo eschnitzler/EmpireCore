@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, TypeVar
 
 from empire_core.enums import Kingdom
 from empire_core.exceptions import UnknownCastleError
-from empire_core.gamedata import Currency, GameData
+from empire_core.gamedata import Currency, GameData, PrebuiltCastleDef
 from empire_core.gamedata.collectables import MINUTE_SKIP_FIRST_ID, MINUTE_SKIP_KEY
 from empire_core.gamedata.lenient import known
 from empire_core.protocol.base import BaseRequest, BaseResponse
@@ -18,6 +18,7 @@ from empire_core.utils.callbacks import BoundEvent, Registry
 
 if TYPE_CHECKING:
     from empire_core.client.client import EmpireClient
+    from empire_core.gamedata import Horse, PrebuiltCastle
     from empire_core.state.models import Castle
 
 logger = logging.getLogger(__name__)
@@ -165,7 +166,43 @@ class BaseService:
         game_data = self.client.game_data
         return game_data if game_data is not None else GameData.require()
 
-    def _travel_ruby_cost(self, horse_booster_id: int, feathers: bool, slowdown: int) -> str | None:
+    def _prebuilt_castle(self, castle: PrebuiltCastle | int) -> PrebuiltCastleDef:
+        """
+        A prebuilt castle's row, refused above your level.
+
+        Raises:
+            ValueError: The game data lacks the castle, or your level is below its ``min_level``
+            GameDataNotLoadedError: The game data cannot be loaded
+
+        Client: ``CastleKingdomCastleDetails.findNextSelectableCastleIndex`` (bundle line 97897) and
+        ``PrebuiltCastleSelector.validateSelection`` (bundle line 54604) offer only a castle whose ``minLevel``
+        your level reaches
+        """
+        row = self._require_game_data().prebuilt_castles.get(castle)
+        if row is None:
+            raise ValueError(f"prebuilt castle {int(castle)} is not in the game data")
+        level = self.client.state.get_local_player().level
+        if 0 < level < row.min_level:
+            raise ValueError(f"prebuilt castle {int(castle)} needs level {row.min_level}; you are level {level}")
+        return row
+
+    @staticmethod
+    def _castle_rubies(row: PrebuiltCastleDef, ruby_price: bool) -> int:
+        """
+        The rubies a prebuilt castle is bought for: its ruby price when that is its only price or
+        ``ruby_price`` picks it, else 0.
+
+        Raises:
+            ValueError: ``ruby_price`` for a castle with no ruby price
+
+        Client: ``UnlockPrebuiltCastleForRubies.onClick`` (bundle line 55514), the ruby button that
+        ``UnlockPrebuiltCastleForResourcesOrRubies`` (bundle line 97981) also shows beside the resource one
+        """
+        if ruby_price and row.cost_rubies <= 0:
+            raise ValueError(f"prebuilt castle {int(row.prebuilt_castle_id)} has no ruby price")
+        return row.cost_rubies if row.is_premium or ruby_price else 0
+
+    def _travel_ruby_cost(self, horse_booster_id: Horse | int | None, feathers: bool, slowdown: int) -> str | None:
         """
         What of a movement's horse and slowdown costs rubies, None when neither does.
 
@@ -182,7 +219,7 @@ class BaseService:
         """
         if slowdown > 0:
             return f"a slowdown costs {_SLOWDOWN_RUBIES} rubies"
-        if feathers or horse_booster_id == -1:
+        if feathers or horse_booster_id is None:
             return None
         horse = self._require_game_data().get_horse(horse_booster_id)
         if horse is None:

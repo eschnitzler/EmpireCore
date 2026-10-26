@@ -46,6 +46,7 @@ from enum import IntEnum
 from pathlib import Path
 from typing import Any
 
+from empire_core.enums import Kingdom
 from empire_core.gamedata import AchievementCondition, CurrencyDef, GameData, QuestCondition, ResearchDef
 from empire_core.gamedata.tables import row_id
 from empire_core.texts import fetch_texts
@@ -289,6 +290,30 @@ CREST_LAYOUT_NAME = DisplayName(
     "allianceCoat_Layout_name_{value}", "``CollectableItemAllianceCrestLayoutVO.getNameTextId`` (bundle line 89359)"
 )
 MAIN_QUEST_TITLE = DisplayName("mainquest_{value}_title", "the quest book's chapter dialog (bundle line 93386)")
+PREBUILT_CASTLE_NAME = DisplayName(
+    "{text_id}",
+    "``SpecialServerPreBuiltCastleVO.getNameText`` (bundle line 40294) and ``CastleKingdomCastleDetails.update`` "
+    "(bundle line 97888)",
+    optional=True,
+    shown="dialog_chooseCastle_preBuiltCastle_<id> or dialog_prebuiltCastle<id>_name",
+)
+PRIVATE_VILLAGE_NAME = DisplayName(
+    "dialog_privateResourceVillages_villageLevel_{resource}_tt",
+    "``PrivateResourceVillageShopItem.getTitleTxt`` (bundle line 81659)",
+    arg="level",
+)
+FUSION_FORGE_NAME = DisplayName(
+    "{text_id}",
+    "``FusionForgeHubDialogMainItem.getNameTextId`` (bundle line 78081)",
+    optional=True,
+    shown="dialog_fusionHub_fusionForges_deco",
+)
+JUDGEMENT_NAME = DisplayName(
+    "judgement_{value}_name", "``EventJudgementVO.getInfoTooltipLine1`` (bundle line 49629)", when_known=True
+)
+
+FUSION_FORGE_TEXT_IDS = {1: "dialog_fusionHub_fusionForges_deco"}
+"""``FusionForgeHubDialogMainItem.getNameTextId`` (bundle line 78081), by ``FusionConst.DECORATION_FORGE_ID``."""
 
 
 def building_name(name: str, building_type: str, level: int) -> str:
@@ -548,6 +573,61 @@ def building_rows(data: GameData) -> list[Row]:
         )
         for b in data.buildings.values()
     ]
+
+
+def prebuilt_castle_rows(data: GameData, texts: Texts | None) -> list[Row]:
+    """
+    The castle's English name, after the area that offers it: the kingdom, the special server (none when both
+    special servers offer it) or else the ``comment1`` note, e.g. a season event's map. Without a name, the
+    ``comment2`` note.
+
+    A special server's selection names a castle ``dialog_chooseCastle_preBuiltCastle_<id>``
+    (``SpecialServerPreBuiltCastleVO.getNameText``, bundle line 40296), a kingdom's details
+    ``dialog_prebuiltCastle<id>_name`` (``CastleKingdomCastleDetails.update``, bundle line 97888).
+    """
+    outer_realms, horizon = set(data.outer_realms_prebuilt_castles), set(data.horizon_prebuilt_castles)
+    rows = []
+    for castle in data.prebuilt_castles.values():
+        castle_id = int(castle.prebuilt_castle_id)
+        candidates = (f"dialog_chooseCastle_preBuiltCastle_{castle_id}", f"dialog_prebuiltCastle{castle_id}_name")
+        text_id = next((t for t in candidates if texts is not None and texts.get(t)), "")
+        name = named(texts, text_id) if text_id else None
+        kingdom = castle.kingdom
+        if kingdom is not None and kingdom is not Kingdom.GREEN:
+            area = kingdom.name
+        elif castle_id in outer_realms or castle_id in horizon:
+            area = (
+                ""
+                if castle_id in outer_realms and castle_id in horizon
+                else ("OUTER_REALMS" if castle_id in outer_realms else "HORIZON")
+            )
+        else:
+            area = to_snake(castle.area_label)
+        base = "_".join(part for part in (area, name or to_snake(castle.label)) if part) or f"CASTLE_{castle_id}"
+        rows.append(Row(base, castle_id, id_text(castle_id), (text_id,)))
+    return rows
+
+
+def private_village_rows(data: GameData, texts: Texts | None) -> list[Row]:
+    """
+    Kingdom, the village's English name without its level, and level: ``SANDS_PRIVATE_WOOD_VILLAGE_L1``.
+
+    Client: ``dialog_privateResourceVillages_villageLevel_<type>_tt`` (bundle line 81659), its ``{0}`` the level
+    """
+    rows = []
+    for village in data.private_villages.values():
+        village_id = int(village.village_type_id)
+        text = texts.get(PRIVATE_VILLAGE_NAME(resource=village.resource)) if texts is not None else None
+        name = re.sub(r"\s*level\s*\{0\}\s*$", "", text, flags=re.IGNORECASE) if text else village.resource
+        rows.append(
+            Row(
+                f"{Kingdom(village.kingdom).name}_{text_name(name)}{level_suffix(village.level)}",
+                village_id,
+                id_text(village_id),
+                (int(village.kingdom), village.resource, village.level),
+            )
+        )
+    return rows
 
 
 def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
@@ -1019,6 +1099,71 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
             display=MAIN_QUEST_TITLE,
         ),
         Table(
+            "prebuilt_castles",
+            "PrebuiltCastle",
+            "P",
+            "Prebuilt castle ids from the ``prebuiltcastles`` table: the castles and camps a kingdom, a season "
+            "event's map or a special server starts with, named from the game's English name and the area "
+            "offering it.",
+            "``PrebuiltCastleItemVO.parseXML`` (bundle line 142341)",
+            prebuilt_castle_rows(data, texts),
+            (TEXT_ID,),
+            display=PREBUILT_CASTLE_NAME,
+        ),
+        Table(
+            "private_villages",
+            "PrivateVillageType",
+            "V",
+            "Private resource village ids from the ``privateVillages`` table, one per kind, kingdom and level, "
+            "named from the game's English name. Named PrivateVillageType, as ``PrivateVillage`` is one you hold.",
+            "``PrivateResourceVillageInfoVO.fillFromParamXML`` (bundle line 143715)",
+            private_village_rows(data, texts),
+            (
+                Attr("kingdom_id", "int", "Its kingdom, a ``Kingdom`` value."),
+                Attr("resource", "str", "What it produces: wood, stone or food."),
+                LEVEL,
+            ),
+            display=PRIVATE_VILLAGE_NAME,
+        ),
+        Table(
+            "fusion_forges",
+            "FusionForgeId",
+            "F",
+            "Fusion forge ids from the ``fusionSystems`` table, which the ``fusionForges`` table shares, named "
+            "from the game's English name. Named FusionForgeId, as ``FusionForge`` is a forge's level and energy.",
+            "``FusionForgeData.init`` (bundle line 141977) builds a forge per ``fusionSystems`` row; names from "
+            "``FusionForgeHubDialogMainItem.getNameTextId`` (bundle line 78081)",
+            [
+                Row(
+                    named(texts, FUSION_FORGE_TEXT_IDS.get(int(f.forge_id), "")) or f"FORGE_{int(f.forge_id)}",
+                    int(f.forge_id),
+                    id_text(f.forge_id),
+                    (FUSION_FORGE_TEXT_IDS.get(int(f.forge_id), ""),),
+                )
+                for f in data.fusion_systems.values()
+            ],
+            (TEXT_ID,),
+            display=FUSION_FORGE_NAME,
+        ),
+        Table(
+            "judgements",
+            "Judgement",
+            "J",
+            "Citizen judgement ids from the ``judgements`` table, named from the game's English name, else "
+            "``visualName``.",
+            "``JudgementVO.fillFromParamXML`` (bundle line 134514); names from ``judgement_<id>_name`` (bundle "
+            "line 49629)",
+            [
+                Row(
+                    named(texts, JUDGEMENT_NAME(value=int(j.judgement_id))) or to_snake(j.visual_name) or "JUDGEMENT",
+                    int(j.judgement_id),
+                    id_text(j.judgement_id),
+                )
+                for j in data.judgements.values()
+            ],
+            display=JUDGEMENT_NAME,
+        ),
+        Table(
             "difficulty_types",
             "DifficultyType",
             "D",
@@ -1170,7 +1315,8 @@ member, e.g. ``game_data.units[Unit.MEAD_RANGER_L6]``.
 
 Enums whose rows the game names by a text (units, tools, currencies,
 researches, generals, legend and sceat skills, events, gems, achievements,
-titles, crest layouts, main quests) have ``display_name(lang="en")``, the
+titles, crest layouts, main quests, prebuilt castles, private villages,
+fusion forges, judgements) have ``display_name(lang="en")``, the
 name the game shows: ``Unit.MEAD_RANGER_L6.display_name("de")``. It reads the
 language file, fetched on first use and cached (:mod:`empire_core.texts`).
 

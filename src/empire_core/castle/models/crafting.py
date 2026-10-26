@@ -22,7 +22,7 @@ from pydantic import (
 )
 
 from empire_core.enums import BuildingState, CraftingSlotType, Kingdom
-from empire_core.gamedata import EnumOrInt, EnumOrStr
+from empire_core.gamedata import ConstructionItemRecipeId, CraftingQueueId, CraftingRecipeId, EnumOrInt, EnumOrStr
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, EmpireModel
 from empire_core.protocol.js import js_int, js_parse_int, js_truthy
 
@@ -53,9 +53,9 @@ class CraftingSlot(EmpireModel):
     """
     One slot of a crafting queue.
 
-    The permanent slots come first, then the temporary ones, which craft only while unlocked. The game data
-    that counts each queue's slots is not loaded here, so the slots are the ones the server lists, and the
-    temporary ones are the last of them, one per unlock time sent.
+    The permanent slots come first, then the temporary ones, which craft only while unlocked. The slots are
+    the ones the server lists, and the temporary ones are the last of them, one per unlock time sent;
+    ``GameData.crafting_queues`` counts each queue's.
 
     Client: ``CraftingQueueVO.parseServerData`` (bundle line 29278); ``CraftingSlotVO.isFilled`` and
     ``isLocked`` (bundle lines 17002-17003)
@@ -65,7 +65,9 @@ class CraftingSlot(EmpireModel):
 
     index: int = Field(description="The slot's place among the slots of its kind, from 0")
     slot_type: CraftingSlotType = Field(description="Whether the slot crafts now or waits")
-    recipe_id: int | None = Field(default=None, description="The crafting recipe in the slot; None while empty")
+    recipe_id: CraftingRecipeId | None = Field(
+        default=None, description="The crafting recipe in the slot; None while empty"
+    )
     remaining_seconds: int | None = Field(
         default=None, description="Seconds until the craft is done; None when not sent, the recipe's full time"
     )
@@ -127,7 +129,9 @@ class CraftingQueue(BasePayload):
     building_state: BuildingState = Field(
         validation_alias="S", default=BuildingState.INITIAL, description="What the crafting building is doing"
     )
-    queue_id: int = Field(validation_alias="CQID", description="The crafting queue, one per kind of crafting building")
+    queue_id: CraftingQueueId = Field(
+        validation_alias="CQID", description="The crafting queue, one per kind of crafting building"
+    )
     object_id: int = Field(validation_alias="OID", description="The crafting building's object id in the castle")
     production: tuple[CraftingSlot, ...] = Field(
         validation_alias="PS", default=(), description="The slots crafting now, from the first"
@@ -248,7 +252,7 @@ class StartCraftingRequest(BaseRequest):
     castle_id: int = Field(validation_alias="AID", description="The castle")
     object_id: int = Field(validation_alias="OID", description="The crafting building")
     pay_with_rubies: int = Field(validation_alias="PWR", default=0, description="Always 0")
-    recipe_id: int = Field(validation_alias="CRID", description="The crafting recipe")
+    recipe_id: CraftingRecipeId = Field(validation_alias="CRID", description="The crafting recipe")
 
 
 class StartCraftingResponse(_CraftingQueueReply):
@@ -449,9 +453,7 @@ class CraftConstructionItemRequest(BaseRequest):
 
     command = "cic"
 
-    recipe_id: int = Field(
-        validation_alias="RID", description="The recipe, a ``ConstructionItemRecipeDef.recipe_id`` of the game data"
-    )
+    recipe_id: ConstructionItemRecipeId = Field(validation_alias="RID", description="The construction item recipe")
     kingdom: Kingdom = Field(validation_alias="KID", description="The castle's kingdom")
     castle_id: int = Field(validation_alias="AID", description="The castle")
 

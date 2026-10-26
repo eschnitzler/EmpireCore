@@ -50,17 +50,20 @@ and are not in the library.
 
 ```python
 client.castle.get_kingdoms()                       # kpi; also updates client.castle.kingdoms
-client.castle.unlock_kingdom(Kingdom.ICE, 4, KingdomDirection.NORTH)
+client.castle.unlock_kingdom(PrebuiltCastle.ICE_SIMPLE_CASTLE, KingdomDirection.NORTH)
 client.castle.relocate(300, 400)                   # the first relocation is free
 client.castle.relocate(300, 400, spend_rubies=True)  # later ones cost 5000, 20000, then 35000 rubies
 client.castle.leave_area()                         # laa; the game waits for no reply
 ```
 
-`unlock_kingdom` takes one of the kingdom's prebuilt castles (the items
-`prebuiltcastles` table) and the side of the map to place it on; only the Storm
-Islands go without a direction. The castle priced in rubies only needs
-`ruby_castle=True` and `spend_rubies=True`; `spend_rubies` alone pays any
-missing resources with rubies. `relocate` moves your main castle in the green
+`unlock_kingdom` takes one of the kingdom's prebuilt castles, a `PrebuiltCastle`
+(`GameData.prebuilt_castles` has its row), and the side of the map to place it on;
+only the Storm Islands go without a direction. The castle names its kingdom and
+price: one priced in rubies only is bought with them and needs `spend_rubies=True`;
+one priced in resources is bought with those, or with `ruby_price=True` (and
+`spend_rubies=True`) at its ruby price. Buying with resources, `spend_rubies` pays
+the missing ones with rubies. A castle
+above your level is refused. `relocate` moves your main castle in the green
 kingdom; a relocation that costs rubies, or one whose price is not known yet
 (no `gri` arrived), needs `spend_rubies`.
 
@@ -313,7 +316,7 @@ Each row is a `HorseStats`: the speed bonus percent for troops
 (`unit_boost`), traders (`market_boost`) and spies (`spy_boost`), the coin and
 ruby cost multipliers (`cost_factor_c1`, `cost_factor_c2`), and
 `is_instant_spy_horse`, a horse that can be paid with rubies or, sent with
-`feathers=True`, with feathers. Pass a horse's `wod_id` as `horse_booster_id`
+`feathers=True`, with feathers. Pass a `Horse` as `horse_booster_id`
 to `send_resources`, `send_support`, `send_troops`, `client.attack.send_attack`
 or the spy missions. A horse whose `cost_factor_c2` is above 0, unless paid with
 feathers, and any slowdown cost rubies and need `spend_rubies=True`.

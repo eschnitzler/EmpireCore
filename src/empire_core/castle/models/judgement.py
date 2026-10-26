@@ -8,14 +8,17 @@ Commands:
 
 from __future__ import annotations
 
-from typing import ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from empire_core.enums import JudgementOption
 from empire_core.gamedata import EnumOrInt
 from empire_core.protocol.base import BaseRequest, BaseResponse
-from empire_core.protocol.js import ClientInt
+from empire_core.protocol.js import js_parse_int
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import Judgement
 
 
 class JudgementStarted(BaseResponse):
@@ -23,14 +26,20 @@ class JudgementStarted(BaseResponse):
     A citizen judgement started; one already open ends.
 
     Client: ``SJCCommand.executeCommand`` (bundle line 124681), ``CastleJudgementData.parse_SJC`` and
-    ``startNewJudgement`` (bundle lines 134465, 134467), which look the id up in the ``judgements`` table
+    ``startNewJudgement`` (bundle lines 134465, 134467), which look ``parseInt(JID)`` up in the ``judgements``
+    table and open none for an id it lacks
     """
 
     command: ClassVar[str] = "sjc"
 
-    judgement_id: ClientInt = Field(
-        validation_alias="JID", default=0, description="The judgement's row in the judgements table"
+    judgement_id: EnumOrInt["Judgement"] | None = Field(
+        validation_alias="JID", default=None, description="The judgement that started; None when the push names none"
     )
+
+    @field_validator("judgement_id", mode="before")
+    @classmethod
+    def _judgement(cls, value: Any) -> Any:
+        return None if value is None else js_parse_int(value)
 
 
 class JudgeCitizenRequest(BaseRequest):

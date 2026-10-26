@@ -16,6 +16,7 @@ from empire_core.enums import (
 from empire_core.utils.lazy import lazy_exports
 
 from .models import (
+    NO_HORSE,
     CancelMovementRequest,
     CancelMovementResponse,
     CreateMarketMovementRequest,
@@ -24,6 +25,7 @@ from .models import (
     GetMovementsResponse,
     GetTravelInfoRequest,
     GetTravelInfoResponse,
+    HorseBoosterId,
     KingdomGoodsTransferRequest,
     KingdomGoodsTransferResponse,
     KingdomSkipTransferRequest,
@@ -69,6 +71,8 @@ if TYPE_CHECKING:
     from empire_core.gamedata import Currency, Horse, Title, Tool, Unit
 
 __all__ = [
+    "NO_HORSE",
+    "HorseBoosterId",
     "Currency",
     "Kingdom",
     "KingdomTransferType",

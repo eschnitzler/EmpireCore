@@ -10,13 +10,14 @@ from empire_core.exceptions import (
     EventNotRunningError,
     PacketError,
 )
+from empire_core.gamedata import PrebuiltCastle
 from empire_core.gamedata.ids.events import Event
 from empire_core.state.manager import GameState
-from tests.service_helpers import conn, make_client, xt_packet
+from tests.service_helpers import conn, logged_in_state, make_client, with_prebuilt_castles, xt_packet
 
 
 def berimond_client(script=None):
-    client = make_client(script or {}, state=GameState())
+    client = with_prebuilt_castles(make_client(script or {}, state=logged_in_state()))
     client._on_packet(xt_packet("sei", {"E": [{"EID": 3, "RS": 600, "UL": 1}]}))
     conn(client).on_packet = client._on_packet
     return client
@@ -105,37 +106,46 @@ def test_points_refusal_raises():
 
 def test_join_sends_the_camp_for_berimond():
     client = berimond_client({"fsc": xt_packet("fsc", {})})
-    client.events.join_berimond(2, timeout=0.2)
-    assert conn(client).request_payloads == [("fsc", {"ID": 2, "PWR": 0, "OC2": 0, "SID": 10})]
+    client.events.join_berimond(PrebuiltCastle.BERIMOND_SIMPLE_CAMP, timeout=0.2)
+    assert conn(client).request_payloads == [("fsc", {"ID": 1, "PWR": 0, "OC2": 0, "SID": 10})]
 
 
-def test_ruby_camp_sends_no_resource_payment():
+def test_the_ruby_only_camp_goes_as_bought_with_rubies():
     client = berimond_client({"fsc": xt_packet("fsc", {})})
-    client.events.join_berimond(3, ruby_camp=True, spend_rubies=True, timeout=0.2)
+    client.events.join_berimond(PrebuiltCastle.BERIMOND_WARLORDS_CAMP, spend_rubies=True, timeout=0.2)
     assert conn(client).request_payloads == [("fsc", {"ID": 3, "PWR": 0, "OC2": 1, "SID": 10})]
 
 
 def test_spend_rubies_pays_missing_resources():
     client = berimond_client({"fsc": xt_packet("fsc", {})})
-    client.events.join_berimond(2, spend_rubies=True, timeout=0.2)
-    assert conn(client).request_payloads == [("fsc", {"ID": 2, "PWR": 1, "OC2": 0, "SID": 10})]
+    client.events.join_berimond(PrebuiltCastle.BERIMOND_SIMPLE_CAMP, spend_rubies=True, timeout=0.2)
+    assert conn(client).request_payloads == [("fsc", {"ID": 1, "PWR": 1, "OC2": 0, "SID": 10})]
 
 
-def test_ruby_camp_needs_consent_before_sending():
+def test_the_ruby_only_camp_needs_consent_before_sending():
     client = berimond_client()
-    with pytest.raises(ValueError, match="spend_rubies"):
-        client.events.join_berimond(3, ruby_camp=True)
+    with pytest.raises(ValueError, match="49000 rubies"):
+        client.events.join_berimond(PrebuiltCastle.BERIMOND_WARLORDS_CAMP)
+    assert conn(client).request_payloads == []
+
+
+def test_a_camp_of_another_map_is_refused():
+    client = berimond_client()
+    with pytest.raises(ValueError, match="no Battle for Berimond camp"):
+        client.events.join_berimond(PrebuiltCastle.UNDERWORLD_SIMPLE_CAMP)
     assert conn(client).request_payloads == []
 
 
 def test_join_refused_during_last_man_standing_raises():
     client = berimond_client({"fsc": xt_packet("fsc", error_code=353)})
     with pytest.raises(CommandError) as refused:
-        client.events.join_berimond(2, timeout=0.1)
+        client.events.join_berimond(PrebuiltCastle.BERIMOND_SIMPLE_CAMP, timeout=0.1)
     assert refused.value.error is GGEError.FACTION_LAST_MAN_STANDING_ACTIVE
 
 
-@pytest.mark.parametrize("method,args", [("get_berimond_points", ()), ("join_berimond", (2,))])
+@pytest.mark.parametrize(
+    "method,args", [("get_berimond_points", ()), ("join_berimond", (PrebuiltCastle.BERIMOND_SIMPLE_CAMP,))]
+)
 def test_points_and_join_need_the_running_event(method, args):
     client = make_client({}, state=GameState())
     with pytest.raises(EventNotRunningError):

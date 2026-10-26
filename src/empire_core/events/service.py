@@ -35,7 +35,7 @@ from empire_core.ranking.models import (
 from empire_core.services.base import BaseService
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import RaidBoss
+    from empire_core.gamedata import PrebuiltCastle, RaidBoss
 
 from .berimond_models import (
     BerimondBalance,
@@ -539,10 +539,10 @@ class EventsService(BaseService):
 
     def select_special_server_castle(
         self,
-        castle_id: int,
+        castle: PrebuiltCastle,
         server_type: ServerType,
         *,
-        ruby_castle: bool = False,
+        ruby_price: bool = False,
         spend_rubies: bool = False,
         timeout: float = 5.0,
     ) -> None:
@@ -552,16 +552,20 @@ class EventsService(BaseService):
         Sent on the main server while the server's event runs. Then enter the server with
         ``client.connect_to_special_server(server_type)``, as the client connects once the pick is accepted.
 
+        The server's castle selection prices the castle; one that costs rubies is bought at that price
+        (``OC2``) and needs ``spend_rubies``. As in the client, a castle that costs nothing goes as bought
+        with rubies, at 0 of them.
+
         Args:
-            castle_id: The pre-built castle's id, from the server's castle selection
+            castle: The pre-built castle, one of the server's castle selection
             server_type: ``ServerType.OUTER_REALMS`` or ``ServerType.HORIZON``
-            ruby_castle: The castle is priced in rubies (``OC2`` 1), as the client sends for a castle whose
-                costs hold rubies; needs ``spend_rubies``
-            spend_rubies: Consent to the rubies a ``ruby_castle`` costs
+            ruby_price: Buy the castle at its ruby price; it is anyway when the selection prices it in rubies
+            spend_rubies: Allow spending the rubies the castle costs
             timeout: Timeout in seconds
 
         Raises:
-            ValueError: ``server_type`` is the normal server, or ``ruby_castle`` without ``spend_rubies``
+            ValueError: ``server_type`` is the normal server, the server offers no such castle, it has no
+                ruby price for ``ruby_price``, or it costs rubies without ``spend_rubies``
             EventNotRunningError: The server's event is not running
             CommandError: The server refused the pick
 
@@ -570,10 +574,24 @@ class EventsService(BaseService):
         """
         if server_type not in _SPECIAL_SERVER_EVENTS:
             raise ValueError("a castle is picked for a Outer Realms or Beyond the Horizon server")
-        self._require_spend_rubies(spend_rubies, "the ruby castle costs rubies" if ruby_castle else None)
+        game_data = self._require_game_data()
+        selections = (
+            game_data.outer_realms_prebuilt_castles
+            if server_type is ServerType.OUTER_REALMS
+            else game_data.horizon_prebuilt_castles
+        )
+        selection, row = selections.get(castle), game_data.prebuilt_castles.get(castle)
+        if selection is None or row is None:
+            raise ValueError(f"prebuilt castle {int(castle)} is not in {server_type.name}'s castle selection")
+        rubies = selection.cost_rubies(row)
+        if ruby_price and rubies <= 0:
+            raise ValueError(f"prebuilt castle {int(castle)} has no ruby price")
+        self._require_spend_rubies(spend_rubies, f"the castle costs {rubies} rubies" if rubies else None)
         self._require_running(_SPECIAL_SERVER_EVENTS[server_type])
         self.request(
-            SelectSpecialServerCastleRequest(castle_id=castle_id, ruby_castle=ruby_castle, server_type=server_type),
+            SelectSpecialServerCastleRequest(
+                castle_id=row.prebuilt_castle_id, ruby_castle=selection.is_ruby_castle(row), server_type=server_type
+            ),
             SelectSpecialServerCastleResponse,
             timeout=timeout,
         )
@@ -653,27 +671,30 @@ class EventsService(BaseService):
         self._require_running(Event.BATTLE_FOR_BERIMOND)
         return self.request(GetBerimondPointsRequest(), BerimondPoints, timeout=timeout)
 
-    def join_berimond(
-        self, camp_id: int, *, ruby_camp: bool = False, spend_rubies: bool = False, timeout: float = 5.0
-    ) -> None:
-        """Join Battle for Berimond with one of its prebuilt camps.
+    def join_berimond(self, camp: PrebuiltCastle, *, spend_rubies: bool = False, timeout: float = 5.0) -> None:
+        """Join Battle for Berimond with one of its prebuilt camps, e.g. ``PrebuiltCastle.BERIMOND_SIMPLE_CAMP``.
 
-        ``ruby_camp`` takes the camp whose only price is rubies, and needs ``spend_rubies``.
-        Otherwise ``spend_rubies`` pays any missing resources with rubies.
+        A camp whose only price is rubies is bought with them and needs ``spend_rubies``; any other is
+        bought with its resources, the client's join offering no ruby price for it, and there
+        ``spend_rubies`` pays the missing resources with rubies.
 
         Raises:
             EventNotRunningError: Battle for Berimond is not running
-            ValueError: ``ruby_camp`` without ``spend_rubies``
+            ValueError: The camp is not Berimond's, needs a higher level, or costs rubies without ``spend_rubies``
             CommandError: The server refused, e.g. ``FACTION_LAST_MAN_STANDING_ACTIVE``
 
-        Client: ``FactionEventJoinSublayer.buyCamp`` (bundle 95197),
-        ``CastleResourceWaitDialogProperties.getResourceSkipCommand`` (35237),
-        ``PrebuiltCastleItemVO.isPremium`` (142354), ``FSCCommand`` (127885).
+        Client: ``FactionEventJoinSublayer.buyCamp`` (bundle 95197) sends ``OC2`` for a camp that
+        ``PrebuiltCastleItemVO.isPremium`` (142354); ``CastleResourceWaitDialogProperties.getResourceSkipCommand``
+        (35237) sends ``PWR``; ``FSCCommand`` (127885).
         """
         self._require_running(Event.BATTLE_FOR_BERIMOND)
-        self._require_spend_rubies(spend_rubies, "the ruby camp costs rubies" if ruby_camp else None)
+        row = self._prebuilt_castle(camp)
+        if Kingdom.BERIMOND not in row.space_ids:
+            raise ValueError(f"prebuilt castle {int(camp)} is no Battle for Berimond camp")
+        rubies = self._castle_rubies(row, ruby_price=False)
+        self._require_spend_rubies(spend_rubies, f"the camp costs {rubies} rubies" if rubies else None)
         request = SelectBerimondCampRequest(
-            camp_id=camp_id, pay_with_rubies=spend_rubies and not ruby_camp, ruby_camp=ruby_camp
+            camp_id=row.prebuilt_castle_id, pay_with_rubies=spend_rubies and not rubies, ruby_camp=rubies > 0
         )
         self.execute(request, timeout=timeout)
 
@@ -697,34 +718,36 @@ class EventsService(BaseService):
         self.execute(JoinSeasonCampRequest(map_id=self._season_map(event)), timeout=timeout)
 
     def unlock_season_camp(
-        self,
-        prebuilt_camp_id: int,
-        space_id: int,
-        *,
-        ruby_camp: bool = False,
-        spend_rubies: bool = False,
-        timeout: float = 5.0,
+        self, camp: PrebuiltCastle, *, ruby_price: bool = False, spend_rubies: bool = False, timeout: float = 5.0
     ) -> None:
-        """Start on a season event's map with one of its prebuilt camps.
+        """Start on a season event's map with one of its prebuilt camps, e.g. ``PrebuiltCastle.UNDERWORLD_SIMPLE_CAMP``.
 
-        The camps are rows of the items ``prebuiltcastles`` table; ``space_id`` is the first of the
-        row's ``spaceIDs``, which the client sends. ``ruby_camp`` takes the camp priced in rubies only
-        and needs ``spend_rubies``; otherwise ``spend_rubies`` pays any missing resources with rubies.
+        The camp names the map: the first of its spaces. A camp whose only price is rubies is bought with
+        them; one priced in resources is bought with those, or with ``ruby_price`` at its ruby price, as the
+        client's two buttons offer. Rubies spent need ``spend_rubies``; buying with resources,
+        ``spend_rubies`` pays any missing ones with rubies.
 
         Raises:
-            ValueError: ``ruby_camp`` without ``spend_rubies``
+            ValueError: The camp starts a kingdom, not a season event's map, needs a higher level, has no ruby
+                price for ``ruby_price``, or costs rubies without ``spend_rubies``
             CommandError: The server refused
 
-        Client: ``AUnlockPrebuiltCastle.buyPrebuiltCastle`` (bundle line 55482),
-        ``CastleResourceWaitDialogProperties.getResourceSkipCommand`` (bundle line 35238),
-        ``PrebuiltCastleItemVO.isPremium`` (bundle line 142354), ``CSCCommand`` (bundle line 128343).
+        Client: ``AUnlockPrebuiltCastle.buyPrebuiltCastle`` (bundle line 55482) sends ``csc`` for a castle with
+        no space in ``WorldConst.WORLD_IDS``; ``UnlockPrebuiltCastleForRubies`` (bundle line 55514) sets ``OC2``
+        for the castle ``CastleKingdomCastleDetails.getSublayerForCastle`` (bundle line 97911) shows as premium;
+        ``CastleResourceWaitDialogProperties.getResourceSkipCommand`` (bundle line 35238) sends ``PWR``;
+        ``CSCCommand`` (bundle line 128343).
         """
-        self._require_spend_rubies(spend_rubies, "the ruby camp costs rubies" if ruby_camp else None)
+        row = self._prebuilt_castle(camp)
+        if row.kingdom is not None or not row.space_ids:
+            raise ValueError(f"prebuilt castle {int(camp)} is no season camp")
+        rubies = self._castle_rubies(row, ruby_price)
+        self._require_spend_rubies(spend_rubies, f"the camp costs {rubies} rubies" if rubies else None)
         request = SelectSeasonCampRequest(
-            prebuilt_camp_id=prebuilt_camp_id,
-            pay_with_rubies=spend_rubies and not ruby_camp,
-            ruby_camp=ruby_camp,
-            space_id=space_id,
+            prebuilt_camp_id=row.prebuilt_castle_id,
+            pay_with_rubies=spend_rubies and not rubies,
+            ruby_camp=rubies > 0,
+            space_id=row.space_ids[0],
         )
         self.execute(request, timeout=timeout)
 

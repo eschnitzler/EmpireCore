@@ -25,7 +25,7 @@ from empire_core.messages.models import (
     SpyReportResponse,
     SystemNotificationEvent,
 )
-from empire_core.movements.models import MovementRecord
+from empire_core.movements.models import NO_HORSE, MovementRecord
 from empire_core.player.titles import held_titles
 from empire_core.protocol.base import parse_response
 from empire_core.protocol.packet import Packet
@@ -57,6 +57,7 @@ from .risk import (
 
 if TYPE_CHECKING:
     from empire_core.client.client import EmpireClient
+    from empire_core.gamedata import Horse
     from empire_core.spy.models import MaxSpiesResponse, PlagueDoctorInfoResponse
 
 logger = logging.getLogger(__name__)
@@ -453,7 +454,7 @@ class SpyService(BaseService):
         spy_type: SpyType,
         spies: int,
         accuracy_or_damage: int,
-        horse_booster_id: int = -1,
+        horse_booster_id: Horse | None = None,
         feathers: bool = False,
         slowdown: int = 0,
         spend_rubies: bool = False,
@@ -472,7 +473,7 @@ class SpyService(BaseService):
             spy_type: MILITARY, ECO or SABOTAGE; plague doctors are not sent this way
             spies: How many spies to send
             accuracy_or_damage: Accuracy percent (50-100), or damage percent (10-50) for sabotage
-            horse_booster_id: A horse's wod id to speed the spies up (-1 = none)
+            horse_booster_id: A horse to speed the spies up, None for none
             feathers: Use the instant spy horse and pay for it with feathers; wins over ``horse_booster_id``
             slowdown: Seconds to delay the arrival by; costs rubies
             spend_rubies: Allow a horse or slowdown that costs rubies
@@ -496,7 +497,7 @@ class SpyService(BaseService):
             spy_count=spies,
             spy_type=spy_type,
             accuracy_or_damage=accuracy_or_damage,
-            horse_booster_id=horse_booster_id,
+            horse_booster_id=NO_HORSE if horse_booster_id is None else horse_booster_id,
             target_kingdom=target_kingdom,
             feathers=1 if feathers else 0,
             slowdown=slowdown,
@@ -556,7 +557,7 @@ class SpyService(BaseService):
         accuracy: int = MAX_ACCURACY,
         *,
         spy_type: SpyType = SpyType.MILITARY,
-        horse_booster_id: int = -1,
+        horse_booster_id: Horse | None = None,
         feathers: bool = False,
         slowdown: int = 0,
         spend_rubies: bool = False,
@@ -579,7 +580,7 @@ class SpyService(BaseService):
             risk_tolerance: Ceiling on the chance of being caught, as a percentage
             accuracy: Spy accuracy (50-100)
             spy_type: MILITARY or ECO
-            horse_booster_id: A horse's wod id to speed the spies up (-1 = none)
+            horse_booster_id: A horse to speed the spies up, None for none
             feathers: Use the instant spy horse and pay for it with feathers
             slowdown: Seconds to delay the arrival by; costs rubies
             spend_rubies: Allow a horse or slowdown that costs rubies; see "Spending rubies" in the guides
@@ -744,7 +745,7 @@ class SpyService(BaseService):
         accuracy: int = MAX_ACCURACY,
         *,
         spy_type: SpyType = SpyType.MILITARY,
-        horse_booster_id: int = -1,
+        horse_booster_id: Horse | None = None,
         feathers: bool = False,
         slowdown: int = 0,
         spend_rubies: bool = False,
@@ -809,8 +810,8 @@ class SpyService(BaseService):
                 the same risk but return a less complete report.
             spy_type: MILITARY for the army, ECO for the resources. The client
                 offers ECO only for castles and other players' outposts.
-            horse_booster_id: A horse's wod id to speed the spies up (-1 = none);
-                sent as -1 whenever feathers are used, as the client does
+            horse_booster_id: A horse to speed the spies up, None for none; sent as none whenever
+                feathers are used, as the client does
             feathers: Use the instant spy horse and pay for it with feathers
             slowdown: Seconds to delay the arrival by; costs rubies
             spend_rubies: Allow a horse or slowdown that costs rubies
@@ -857,7 +858,7 @@ class SpyService(BaseService):
         damage: int = MIN_DAMAGE,
         risk_tolerance: int | None = None,
         *,
-        horse_booster_id: int = -1,
+        horse_booster_id: Horse | None = None,
         feathers: bool = False,
         slowdown: int = 0,
         spend_rubies: bool = False,
@@ -879,7 +880,7 @@ class SpyService(BaseService):
             target_kingdom: Target kingdom
             damage: Damage percent, 10 up to ``max_sabotage_damage(owner_level)``
             risk_tolerance: Ceiling on the chance of being caught, as a percentage
-            horse_booster_id: A horse's wod id to speed the spies up (-1 = none)
+            horse_booster_id: A horse to speed the spies up, None for none
             feathers: Use the instant spy horse and pay for it with feathers
             slowdown: Seconds to delay the arrival by; costs rubies
             spend_rubies: Allow a horse or slowdown that costs rubies; see "Spending rubies" in the guides

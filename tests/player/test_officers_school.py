@@ -147,7 +147,7 @@ class TestHero:
     def test_minus_one_means_none_is_picked(self):
         reply = parse_response("hdc", {"HID": -1})
         assert isinstance(reply, HeroDecisionResponse)
-        assert reply.hero_id == -1 and reply.hero is None
+        assert reply.hero is None
 
     def test_the_state_keeps_the_hero(self):
         state = GameState()

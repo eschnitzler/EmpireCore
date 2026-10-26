@@ -9,7 +9,7 @@ import pytest
 from empire_core.combat import FilledAttack, WaveCapacity
 from empire_core.enums import Kingdom
 from empire_core.exceptions import AttackBelowMinimumError, CommandError, UnknownCastleError
-from empire_core.gamedata import EMPTY_SLOT, Unit, WodAmount
+from empire_core.gamedata import EMPTY_SLOT, Horse, Unit, WodAmount
 from empire_core.protocol.models import AttackType, Commander, CreateAttackRequest, CreateAttackResponse, MapItemType
 from tests.service_helpers import (
     COIN_HORSE,
@@ -375,7 +375,9 @@ class TestAttackService:
     def test_feathers_force_the_horse_field_to_minus_one(self):
         client = make_client(castles=OWN)
 
-        client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 3, horse_booster_id=2, feathers=True)
+        client.attack.send_attack(
+            500, 510, 700, 710, [wave(units=[[487, 1]])], 3, horse_booster_id=Horse.COURSER_STABLE1, feathers=True
+        )
 
         payload = conn(client).request_payloads[0][1]
         assert (payload["PTT"], payload["HBW"]) == (1, -1)

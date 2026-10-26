@@ -266,7 +266,7 @@ class SellStoredDecorationRequest(BaseRequest):
 
     command = "sds"
 
-    wod_id: int = Field(validation_alias="WID", description="The decoration's type")
+    wod_id: EnumOrInt["Building"] = Field(validation_alias="WID", description="The decoration's type")
     amount: int = Field(validation_alias="AMT", description="How many to sell")
     unique_id: int = Field(validation_alias="UID", default=-1, description="A unique decoration's id, -1 for none")
 

@@ -17,7 +17,7 @@ from empire_core.castle import (
 )
 from empire_core.enums import BuildingState, Kingdom
 from empire_core.exceptions import CommandError, UnknownCastleError
-from empire_core.gamedata import ConstructionItem, Currency
+from empire_core.gamedata import ConstructionItem, ConstructionItemRecipeId, CraftingRecipeId, Currency
 from empire_core.protocol.models import parse_response
 from tests.service_helpers import conn, logged_in_state, make_client, xt_packet
 
@@ -66,7 +66,7 @@ class TestReplies:
             CraftingSlot(
                 index=0,
                 slot_type=CraftingSlotType.PRODUCTION,
-                recipe_id=12,
+                recipe_id=CraftingRecipeId(12),
                 remaining_seconds=300,
                 booster_value=5,
             ),
@@ -115,7 +115,7 @@ class TestCraftingQueue:
         client = state_client({"crin": xt_packet("crin", QUEUE), "crst": xt_packet("crst", after)})
         (known,) = client.castle.get_crafting_queues()
 
-        started = client.castle.start_crafting(known, 14)
+        started = client.castle.start_crafting(known, CraftingRecipeId(14))
 
         assert conn(client).request_payloads[-1] == ("crst", {"KID": 0, "AID": 5001, "OID": 77, "PWR": 0, "CRID": 14})
         assert [slot.recipe_id for slot in started.queue] == [13, 14]
@@ -125,7 +125,7 @@ class TestCraftingQueue:
     def test_a_full_queue_raises(self):
         client = make_client({"crst": xt_packet("crst", error_code=63)})
         with pytest.raises(CommandError):
-            client.castle.start_crafting(queue(), 14)
+            client.castle.start_crafting(queue(), CraftingRecipeId(14))
 
     def test_a_building_not_working_sends_nothing(self):
         client = make_client()
@@ -195,13 +195,13 @@ class TestConstructionCrafting:
 
     def test_cic_sends_the_recipe_and_the_castle(self):
         client = make_client(castles=[(5001, Kingdom.FIRE)])
-        client.castle.craft_construction_item(5001, 301)
+        client.castle.craft_construction_item(5001, ConstructionItemRecipeId(301))
         assert conn(client).request_payloads == [("cic", {"RID": 301, "KID": 3, "AID": 5001})]
 
     def test_cic_for_a_castle_not_yours_sends_nothing(self):
         client = make_client(castles=[(5001, Kingdom.GREEN)])
         with pytest.raises(UnknownCastleError):
-            client.castle.craft_construction_item(9, 301)
+            client.castle.craft_construction_item(9, ConstructionItemRecipeId(301))
         assert conn(client).request_payloads == []
 
     def test_sci_sends_a_minute_skip_key_without_rubies(self):

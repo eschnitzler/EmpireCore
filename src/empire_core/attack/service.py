@@ -117,6 +117,7 @@ from empire_core.exceptions import (
 from empire_core.gamedata import WodAmount, WodAmountMapping
 from empire_core.gamedata.ids.events import Event
 from empire_core.map.models.items import MapAreaItem
+from empire_core.movements.models import NO_HORSE
 from empire_core.protocol.base import BaseResponse
 from empire_core.protocol.text import SMARTFOX_INVALID_CHARS, is_smartfox_valid
 from empire_core.services.base import BaseService
@@ -125,7 +126,7 @@ from empire_core.utils import callbacks
 if TYPE_CHECKING:
     from empire_core.attack.models.counter import AttackCounterResponse
     from empire_core.client.client import EmpireClient
-    from empire_core.gamedata import Currency, CurrencyId, GameData, GlobalEffect, Tool
+    from empire_core.gamedata import Currency, CurrencyId, GameData, GlobalEffect, Horse, Tool
 
 logger = logging.getLogger(__name__)
 
@@ -263,7 +264,7 @@ class AttackService(BaseService):
         kingdom_id: Kingdom | None = None,
         attack_type: AttackType = AttackType.ATTACK,
         wait_time: int = 0,
-        horse_booster_id: int = -1,
+        horse_booster_id: Horse | None = None,
         feathers: bool = False,
         use_premium_commander: bool = False,
         share_battle_view: bool = False,
@@ -326,7 +327,7 @@ class AttackService(BaseService):
                 ``client.commanders.get_commanders()``
             attack_type: See AttackType (default: a normal attack)
             wait_time: Wait time before the troops return
-            horse_booster_id: Horse type for the speed bonus (-1 = none)
+            horse_booster_id: The horse for the speed bonus, None for none
             feathers: Use feathers for the speed boost
             use_premium_commander: Lead with the premium commander (``commander_id``
                 -14). It uses one of your free premium commanders, or costs rubies
@@ -432,7 +433,7 @@ class AttackService(BaseService):
             commander_id=commander_id,
             attack_type=attack_type,
             wait_time=wait_time,
-            horse_booster_id=-1 if feathers else horse_booster_id,
+            horse_booster_id=NO_HORSE if feathers or horse_booster_id is None else horse_booster_id,
             feathers=1 if feathers else 0,
             use_premium_commander=1 if use_premium_commander else 0,
             share_battle_view=1 if share_battle_view else 0,
@@ -462,7 +463,7 @@ class AttackService(BaseService):
         node_id: int,
         waves: list[AttackWave],
         commander_id: int,
-        horse_booster_id: int = -1,
+        horse_booster_id: Horse | None = None,
         feathers: bool = False,
         use_premium_commander: bool = False,
         *,
@@ -484,7 +485,7 @@ class AttackService(BaseService):
             waves: Attack waves, front to back
             commander_id: Commander to lead the attack, a ``Commander.commander_id`` from
                 ``client.commanders.get_commanders()``
-            horse_booster_id: Horse type for the speed bonus (-1 = none); sent as -1 with feathers
+            horse_booster_id: The horse for the speed bonus, None for none; sent as none with feathers
             feathers: Pay for the horse with feathers
             use_premium_commander: Lead with the premium commander (``commander_id`` -14)
             spend_rubies: Send even when the premium commander or the horse costs rubies
@@ -508,7 +509,7 @@ class AttackService(BaseService):
         self._require_spend_rubies(spend_rubies, self._travel_ruby_cost(horse_booster_id, feathers, 0))
         request = TreasureHuntAttackRequest(
             commander_id=commander_id,
-            horse_booster_id=-1 if feathers else horse_booster_id,
+            horse_booster_id=NO_HORSE if feathers or horse_booster_id is None else horse_booster_id,
             use_premium_commander=1 if use_premium_commander else 0,
             map_id=map_id,
             node_id=node_id,

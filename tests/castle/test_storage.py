@@ -49,7 +49,8 @@ class TestModels:
     def test_requests_send_the_client_keys(self):
         assert MarkStorageSeenRequest(storage_id=2).to_payload() == {"SID": 2}
         assert StoreBuildingRequest(object_id=9).to_payload() == {"OID": 9}
-        assert SellStoredDecorationRequest(wod_id=300, amount=2).to_payload() == {"WID": 300, "AMT": 2, "UID": -1}
+        sell = SellStoredDecorationRequest(wod_id=300, amount=2)
+        assert sell.to_payload() == {"WID": 300, "AMT": 2, "UID": -1} and sell.wod_id is Building.DECO_FLAGPOLE_L1
         assert PlaceStoredDecorationRequest(decoration_id=55, x=4, y=6, rotation=1).to_payload() == {
             "COID": 55,
             "X": 4,
@@ -126,7 +127,7 @@ class TestService:
     def test_selling_nothing_sends_nothing(self):
         client = make_client()
         with pytest.raises(ValueError):
-            client.castle.sell_stored_decoration(300, 0)
+            client.castle.sell_stored_decoration(Building.DECO_FLAGPOLE_L1, 0)
         assert conn(client).request_payloads == []
 
     def test_district_moves_return_the_row(self):

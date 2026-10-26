@@ -13,7 +13,7 @@ from empire_core.castle.models.collect import (
 from empire_core.commanders import CommanderEffect
 from empire_core.enums import GGEError, Kingdom, KingdomTransferType, MarketScope, Resource, ResourceCartType
 from empire_core.exceptions import CommandError, UnsendableGoodsError
-from empire_core.gamedata import Currency, Tool, Unit, WodAmount
+from empire_core.gamedata import Currency, Horse, Tool, Unit, WodAmount
 from empire_core.movements.models.market import (
     CreateMarketMovementRequest,
     CreateMarketMovementResponse,
@@ -109,7 +109,9 @@ class TestSendResources:
 
     def test_feathers_send_no_horse(self):
         client = make_client(castles=[(1234, Kingdom.GREEN)])
-        client.movements.send_resources(1234, 10, 20, {Resource.WOOD: 1}, horse_booster_id=5, feathers=True)
+        client.movements.send_resources(
+            1234, 10, 20, {Resource.WOOD: 1}, horse_booster_id=Horse.COURSER_STABLE1, feathers=True
+        )
         payload = conn(client).request_payloads[0][1]
         assert (payload["HBW"], payload["PTT"]) == (-1, 1)
 
@@ -435,7 +437,9 @@ class TestSendTroops:
 
     def test_feathers_send_no_horse(self):
         client = make_client()
-        client.movements.send_troops(100, 200, 110, 205, {620: 1}, commander_id=5, horse_booster_id=3, feathers=True)
+        client.movements.send_troops(
+            100, 200, 110, 205, {620: 1}, commander_id=5, horse_booster_id=Horse.COURSER_STABLE1, feathers=True
+        )
         payload = conn(client).request_payloads[0][1]
         assert (payload["HBW"], payload["PTT"]) == (-1, 1)
 
@@ -451,7 +455,7 @@ class TestSendTroops:
             kingdom_id=Kingdom.ICE,
             use_premium_commander=True,
             spend_rubies=True,
-            horse_booster_id=3,
+            horse_booster_id=Horse.COURSER_STABLE1,
             slowdown=60,
         )
         payload = conn(client).request_payloads[0][1]
@@ -459,7 +463,7 @@ class TestSendTroops:
             2,
             -14,
             1,
-            3,
+            1003,
             0,
             60,
         )

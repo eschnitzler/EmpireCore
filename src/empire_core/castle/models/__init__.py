@@ -127,7 +127,6 @@ from .districts import (
     RemoveFromDistrictResponse,
 )
 from .fusion_forge import (
-    DECORATION_FORGE_ID,
     ConvertCatalystRequest,
     ConvertCatalystResponse,
     FuseDecorationRequest,
@@ -311,7 +310,6 @@ __all__ = [
     "StartCraftingResponse",
     "UnlockCraftingSlotsRequest",
     "UnlockCraftingSlotsResponse",
-    "DECORATION_FORGE_ID",
     "ConvertCatalystRequest",
     "ConvertCatalystResponse",
     "FuseDecorationRequest",

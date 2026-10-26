@@ -18,7 +18,14 @@ from pydantic import ConfigDict, Field, ValidatorFunctionWrapHandler, field_vali
 from empire_core.enums import Kingdom, SpyType
 from empire_core.map.models import KingdomProtection, MapAreaItem, MapObject, parse_area_rows
 from empire_core.messages.models import SpyReportResponse
-from empire_core.movements.models import MovementOwner, MovementSpy, MovementWrapper, SentMovementResponse
+from empire_core.movements.models import (
+    NO_HORSE,
+    HorseBoosterId,
+    MovementOwner,
+    MovementSpy,
+    MovementWrapper,
+    SentMovementResponse,
+)
 from empire_core.protocol.base import (
     BasePayload,
     BaseRequest,
@@ -81,10 +88,10 @@ class SendSpyRequest(BaseRequest):
         default=100,
         description="Damage percent for a sabotage mission, accuracy percent for any other",
     )
-    horse_booster_id: int = Field(
+    horse_booster_id: HorseBoosterId = Field(
         validation_alias="HBW",
-        default=-1,
-        description="The horse booster's wod id, -1 for none or when paid with feathers",
+        default=NO_HORSE,
+        description="The horse booster, NO_HORSE for none or when paid with feathers",
     )
     target_kingdom: Kingdom = Field(validation_alias="KID", default=Kingdom.GREEN, description="The target's kingdom")
     feathers: int = Field(
@@ -98,7 +105,7 @@ class SendSpyRequest(BaseRequest):
     def _feathers_send_no_horse(self) -> SendSpyRequest:
         # Client: HBW=int(u?-1:l), PTT=int(u?1:0)
         if self.feathers:
-            self.horse_booster_id = -1
+            self.horse_booster_id = NO_HORSE
             self.feathers = 1
         return self
 

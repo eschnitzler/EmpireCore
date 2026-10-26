@@ -139,6 +139,15 @@ IDS_PAYLOAD: dict[str, Any] = {
     ],
     "allianceCoatColors": [{"allianceCoatColorID": "1", "color": "0xDBDACA"}],
     "mainquests": [{"mainQuestID": "3", "IDsForAnnounced": "93", "IDsForRunning": "95", "IDsForDone": "106"}],
+    "prebuiltcastles": [
+        {"preBuiltCastleID": "4", "comment1": "IceKingdom", "comment2": "CheapCamp", "spaceIDs": "2", "minLevel": 25},
+        {"preBuiltCastleID": "22", "comment1": "Underworld", "comment2": "CheapCamp", "spaceIDs": "23"},
+        {"preBuiltCastleID": "31", "comment1": "temp Server", "comment2": "PreCampLevel11", "spaceIDs": "0"},
+    ],
+    "tempServerPreBuiltCastles": [{"preBuiltCastleID": "31", "startPlayerLevel": "11", "startResourceID": "1"}],
+    "privateVillages": [{"villageID": "41", "type": "wood", "villageLevel": "1", "kID": "2", "effects": "600&2"}],
+    "fusionSystems": [{"id": "1", "energyRechargeIntervalInSeconds": "21600"}],
+    "judgements": [{"judgementID": "0", "visualName": "wolfs", "spawnSpot": "resourceFood"}],
 }
 
 # Which GameData table each enum's values index.
@@ -174,6 +183,10 @@ TABLE_OF: dict[str, str] = {
     "Title": "titles",
     "AllianceCrestLayout": "alliance_crest_layouts",
     "AllianceCrestColor": "alliance_crest_colors",
+    "PrebuiltCastle": "prebuilt_castles",
+    "PrivateVillageType": "private_villages",
+    "FusionForgeId": "fusion_systems",
+    "Judgement": "judgements",
 }
 """Which GameData table each enum's values index; ``Currency`` keys and ``MainQuest`` (no table) aside."""
 

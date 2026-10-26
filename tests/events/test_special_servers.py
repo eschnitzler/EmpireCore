@@ -14,10 +14,10 @@ from empire_core.events import (
     SpecialServerCastles,
 )
 from empire_core.exceptions import CommandError, EventNotRunningError
-from empire_core.gamedata import Effect, Event
+from empire_core.gamedata import Effect, Event, PrebuiltCastle
 from empire_core.protocol.base import parse_response
 from empire_core.state.manager import GameState
-from tests.service_helpers import conn, make_client, xt_packet
+from tests.service_helpers import conn, make_client, with_prebuilt_castles, xt_packet
 
 
 def _running(client, *event_ids: int) -> None:
@@ -27,61 +27,105 @@ def _running(client, *event_ids: int) -> None:
 
 class TestSelectCastle:
     def test_keys_follow_the_client_order(self):
-        request = SelectSpecialServerCastleRequest(castle_id=34, server_type=ServerType.HORIZON)
+        request = SelectSpecialServerCastleRequest(
+            castle_id=PrebuiltCastle.HORIZON_PIONEERS_OUTPOST, server_type=ServerType.HORIZON
+        )
         assert request.to_payload() == {"ID": 34, "OC2": 0, "PWR": 0, "GST": 3}
         assert list(request.to_payload()) == ["ID", "OC2", "PWR", "GST"]
 
-    def test_the_free_pick_sends_no_rubies(self):
-        client = make_client()
+    def test_a_free_castle_goes_as_bought_with_0_rubies_as_the_client_sends_it(self):
+        client = with_prebuilt_castles(make_client())
         _running(client, 106)
 
-        client.events.select_special_server_castle(5, ServerType.OUTER_REALMS)
+        client.events.select_special_server_castle(
+            PrebuiltCastle.OUTER_REALMS_PIONEERS_OUTPOST, ServerType.OUTER_REALMS
+        )
 
-        assert conn(client).request_payloads == [("tsc", {"ID": 5, "OC2": 0, "PWR": 0, "GST": 2})]
+        assert conn(client).request_payloads == [("tsc", {"ID": 31, "OC2": 1, "PWR": 0, "GST": 2})]
 
     def test_a_ruby_castle_with_consent_sends_oc2(self):
-        client = make_client()
+        client = with_prebuilt_castles(make_client())
         _running(client, 113)
 
-        client.events.select_special_server_castle(5, ServerType.HORIZON, ruby_castle=True, spend_rubies=True)
+        client.events.select_special_server_castle(
+            PrebuiltCastle.HORIZON_BATTALIONS_KEEP, ServerType.HORIZON, spend_rubies=True
+        )
 
-        assert conn(client).request_payloads == [("tsc", {"ID": 5, "OC2": 1, "PWR": 0, "GST": 3})]
+        assert conn(client).request_payloads == [("tsc", {"ID": 35, "OC2": 1, "PWR": 0, "GST": 3})]
 
     def test_a_ruby_castle_without_consent_raises(self):
-        client = make_client()
+        client = with_prebuilt_castles(make_client())
         _running(client, 113)
 
-        with pytest.raises(ValueError, match="spend_rubies"):
-            client.events.select_special_server_castle(5, ServerType.HORIZON, ruby_castle=True)
+        with pytest.raises(ValueError, match="19999 rubies"):
+            client.events.select_special_server_castle(PrebuiltCastle.HORIZON_BATTALIONS_KEEP, ServerType.HORIZON)
         assert conn(client).request_payloads == []
 
-    def test_consent_alone_sends_no_ruby_castle(self):
-        client = make_client()
+    def test_a_castle_priced_in_passage_tokens_sends_no_ruby_flag(self):
+        client = with_prebuilt_castles(make_client())
         _running(client, 106)
 
-        client.events.select_special_server_castle(5, ServerType.OUTER_REALMS, spend_rubies=True)
+        client.events.select_special_server_castle(
+            PrebuiltCastle.OUTER_REALMS_CASTLE_TRANSPORTATION, ServerType.OUTER_REALMS
+        )
 
-        assert conn(client).request_payloads == [("tsc", {"ID": 5, "OC2": 0, "PWR": 0, "GST": 2})]
+        assert conn(client).request_payloads == [("tsc", {"ID": 40, "OC2": 0, "PWR": 0, "GST": 2})]
 
-    @pytest.mark.parametrize("server_type,event_id", [(ServerType.OUTER_REALMS, 113), (ServerType.HORIZON, 106)])
-    def test_the_servers_event_must_run(self, server_type, event_id):
-        client = make_client()
+    def test_ruby_price_on_a_castle_without_one_is_refused(self):
+        client = with_prebuilt_castles(make_client())
+        _running(client, 106)
+
+        with pytest.raises(ValueError, match="no ruby price"):
+            client.events.select_special_server_castle(
+                PrebuiltCastle.OUTER_REALMS_PIONEERS_OUTPOST, ServerType.OUTER_REALMS, ruby_price=True
+            )
+        assert conn(client).request_payloads == []
+
+    def test_ruby_price_on_a_ruby_castle_still_needs_consent(self):
+        client = with_prebuilt_castles(make_client())
+        _running(client, 113)
+
+        with pytest.raises(ValueError, match="19999 rubies"):
+            client.events.select_special_server_castle(
+                PrebuiltCastle.HORIZON_BATTALIONS_KEEP, ServerType.HORIZON, ruby_price=True
+            )
+        assert conn(client).request_payloads == []
+
+    def test_a_castle_the_server_does_not_offer_is_refused(self):
+        client = with_prebuilt_castles(make_client())
+        _running(client, 113)
+
+        with pytest.raises(ValueError, match="castle selection"):
+            client.events.select_special_server_castle(PrebuiltCastle.OUTER_REALMS_ROYAL_KEEP_32, ServerType.HORIZON)
+        assert conn(client).request_payloads == []
+
+    @pytest.mark.parametrize(
+        "castle,server_type,event_id",
+        [
+            (PrebuiltCastle.OUTER_REALMS_PIONEERS_OUTPOST, ServerType.OUTER_REALMS, 113),
+            (PrebuiltCastle.HORIZON_BATTALIONS_KEEP, ServerType.HORIZON, 106),
+        ],
+    )
+    def test_the_servers_event_must_run(self, castle, server_type, event_id):
+        client = with_prebuilt_castles(make_client())
         _running(client, event_id)
 
         with pytest.raises(EventNotRunningError):
-            client.events.select_special_server_castle(5, server_type)
+            client.events.select_special_server_castle(castle, server_type, spend_rubies=True)
         assert conn(client).request_payloads == []
 
     def test_the_normal_server_has_no_castle_pick(self):
         client = make_client()
         with pytest.raises(ValueError):
-            client.events.select_special_server_castle(5, ServerType.NORMAL)
+            client.events.select_special_server_castle(PrebuiltCastle.OUTER_REALMS_PIONEERS_OUTPOST, ServerType.NORMAL)
 
     def test_a_refusal_raises(self):
-        client = make_client({"tsc": xt_packet("tsc", error_code=145)})
+        client = with_prebuilt_castles(make_client({"tsc": xt_packet("tsc", error_code=145)}))
         _running(client, 106)
         with pytest.raises(CommandError):
-            client.events.select_special_server_castle(5, ServerType.OUTER_REALMS)
+            client.events.select_special_server_castle(
+                PrebuiltCastle.OUTER_REALMS_PIONEERS_OUTPOST, ServerType.OUTER_REALMS
+            )
 
 
 class TestServerKind:

@@ -13,11 +13,11 @@ from typing import TYPE_CHECKING
 from pydantic import Field, field_serializer
 
 from empire_core.enums import KingdomTransferType
-from empire_core.gamedata import EnumOrStr
+from empire_core.gamedata import EnumOrInt, EnumOrStr
 from empire_core.protocol.base import BaseRequest, BaseResponse
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import Currency
+    from empire_core.gamedata import Currency, PrebuiltCastle
 
 
 class JoinSeasonCampRequest(BaseRequest):
@@ -56,8 +56,8 @@ class SelectSeasonCampRequest(BaseRequest):
     Command: csc
     Payload: {"ID": prebuilt_camp_id, "PWR": 0 or 1, "OC2": 0 or 1, "SID": space_id}
 
-    Keys follow the client's order. ``OC2`` takes the camp whose only price is rubies; ``PWR`` pays the
-    missing resources with rubies, which the client sends only from its resource wait dialog.
+    Keys follow the client's order. ``OC2`` buys the camp at its ruby price; ``PWR`` pays the missing
+    resources with rubies, which the client sends only from its resource wait dialog.
 
     Client: ``C2SSelectSeasonCampVO`` (bundle line 47722), sent by ``AUnlockPrebuiltCastle.buyPrebuiltCastle``
     (bundle line 55482) with the camp's first ``spaceIDs`` entry, and by
@@ -66,14 +66,12 @@ class SelectSeasonCampRequest(BaseRequest):
 
     command = "csc"
 
-    prebuilt_camp_id: int = Field(
-        validation_alias="ID", description="The prebuilt camp, a row of the items prebuiltcastles table"
-    )
+    prebuilt_camp_id: EnumOrInt["PrebuiltCastle"] = Field(validation_alias="ID", description="The prebuilt camp")
     pay_with_rubies: bool = Field(
         validation_alias="PWR", default=False, description="Pay the missing resources with rubies"
     )
-    ruby_camp: bool = Field(validation_alias="OC2", default=False, description="The camp is the one bought with rubies")
-    space_id: int = Field(validation_alias="SID", description="The first of the camp's spaceIDs in that table")
+    ruby_camp: bool = Field(validation_alias="OC2", default=False, description="The camp is bought at its ruby price")
+    space_id: int = Field(validation_alias="SID", description="The season event map the camp starts, its first space")
 
     @field_serializer("pay_with_rubies", "ruby_camp")
     def _flag(self, value: bool) -> int:

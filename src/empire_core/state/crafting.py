@@ -4,6 +4,7 @@ from typing import Any
 
 from empire_core.castle.models.crafting import CraftingInfoResponse, CraftingQueue
 from empire_core.castle.models.fusion_forge import FusionForge, FusionForgesResponse
+from empire_core.gamedata import FusionForgeId
 from empire_core.state.base import StateBase, read_section
 
 CRAFTING_QUEUE_REPLIES = ("crst", "crca", "crqm", "crsk", "crun")
@@ -51,7 +52,7 @@ class CraftingState(StateBase):
         with self._lock:
             return None if self.crafting_queues is None else tuple(self.crafting_queues.values())
 
-    def get_fusion_forges(self) -> dict[int, FusionForge] | None:
+    def get_fusion_forges(self) -> dict[FusionForgeId | int, FusionForge] | None:
         """The fusion forges by id, as the last ``ffi`` that listed each left it; None until one arrived.
 
         Their recharge progress is as of that packet.

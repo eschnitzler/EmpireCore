@@ -21,13 +21,7 @@ from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse
 from empire_core.protocol.js import ClientInt
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import Building, CurrencyId
-
-DECORATION_FORGE_ID = 1
-"""The decoration fusion forge, the one fusion forge the client opens.
-
-Client: ``FusionConst.DECORATION_FORGE_ID`` (dll line 19373)
-"""
+    from empire_core.gamedata import Building, CurrencyId, FusionForgeId
 
 
 class FusionForge(BasePayload):
@@ -39,7 +33,7 @@ class FusionForge(BasePayload):
 
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
-    forge_id: ClientInt = Field(validation_alias="FID", description="The fusion forge")
+    forge_id: EnumOrInt["FusionForgeId"] = Field(validation_alias="FID", description="The fusion forge")
     level: ClientInt = Field(validation_alias="FL", default=-1, description="The forge's level")
     energy: ClientInt = Field(validation_alias="FE", default=0, description="The energy fusions spend")
     recharge_progress_seconds: ClientInt = Field(
@@ -69,7 +63,9 @@ class GetFusionForgesRequest(BaseRequest):
 
     command = "ffi"
 
-    forge_ids: tuple[int, ...] = Field(validation_alias="FIDS", description="The fusion forges asked for")
+    forge_ids: tuple[EnumOrInt["FusionForgeId"], ...] = Field(
+        validation_alias="FIDS", description="The fusion forges asked for"
+    )
 
 
 class FusionForgesResponse(BaseResponse):
@@ -101,7 +97,7 @@ class LevelUpFusionForgeRequest(BaseRequest):
 
     command = "ffl"
 
-    forge_id: int = Field(validation_alias="FID", description="The fusion forge")
+    forge_id: EnumOrInt["FusionForgeId"] = Field(validation_alias="FID", description="The fusion forge")
 
 
 class LevelUpFusionForgeResponse(BaseResponse):
@@ -117,7 +113,7 @@ class LevelUpFusionForgeResponse(BaseResponse):
 
     command = "ffl"
 
-    forge_id: ClientInt = Field(validation_alias="FID", description="The fusion forge")
+    forge_id: EnumOrInt["FusionForgeId"] = Field(validation_alias="FID", description="The fusion forge")
     level: ClientInt = Field(validation_alias="FL", description="Its level now")
 
 
@@ -135,7 +131,7 @@ class RefillFusionForgeRequest(BaseRequest):
 
     command = "fsr"
 
-    forge_id: int = Field(validation_alias="FID", description="The fusion forge")
+    forge_id: EnumOrInt["FusionForgeId"] = Field(validation_alias="FID", description="The fusion forge")
     with_rubies: bool = Field(validation_alias="FSRP", default=True, description="Always True: refilled for rubies")
 
     @field_serializer("with_rubies")
@@ -156,7 +152,7 @@ class RefillFusionForgeResponse(BaseResponse):
 
     command = "fsr"
 
-    forge_id: ClientInt = Field(validation_alias="FID", description="The fusion forge")
+    forge_id: EnumOrInt["FusionForgeId"] = Field(validation_alias="FID", description="The fusion forge")
     energy: ClientInt = Field(validation_alias="FE", default=0, description="The energy added")
 
 
@@ -173,7 +169,7 @@ class ConvertCatalystRequest(BaseRequest):
 
     command = "fcc"
 
-    forge_id: int = Field(validation_alias="FID", description="The fusion forge")
+    forge_id: EnumOrInt["FusionForgeId"] = Field(validation_alias="FID", description="The fusion forge")
     direction: CatalystConversion = Field(validation_alias="FCCD", description="Assemble or disassemble")
     catalyst_id: EnumOrInt["CurrencyId"] = Field(validation_alias="FCID", description="The catalyst, a currency")
     amount: int = Field(validation_alias="FCCA", description="How many catalysts")
@@ -192,7 +188,7 @@ class ConvertCatalystResponse(BaseResponse):
 
     command = "fcc"
 
-    forge_id: ClientInt = Field(validation_alias="FID", description="The fusion forge")
+    forge_id: EnumOrInt["FusionForgeId"] = Field(validation_alias="FID", description="The fusion forge")
     direction: CatalystConversion = Field(validation_alias="FCCD", description="Assembled or disassembled")
     catalyst_id: EnumOrInt["CurrencyId"] = Field(validation_alias="FCID", description="The catalyst, a currency")
     amount: ClientInt = Field(validation_alias="FCCA", description="How many catalysts")
@@ -332,7 +328,6 @@ class FuseDecorationResponse(BaseResponse):
 
 
 __all__ = [
-    "DECORATION_FORGE_ID",
     "ConvertCatalystRequest",
     "ConvertCatalystResponse",
     "FuseDecorationRequest",

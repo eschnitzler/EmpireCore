@@ -10,7 +10,8 @@ import pytest
 from empire_core import AttackInProgressError
 from empire_core.enums import Kingdom
 from empire_core.exceptions import CommandError, PremiumCommanderCostError
-from empire_core.gamedata import CurrencyId
+from empire_core.gamedata import CurrencyId, Horse
+from empire_core.movements import NO_HORSE
 from empire_core.protocol.base import parse_response
 from empire_core.protocol.models import (
     AttackWave,
@@ -182,6 +183,12 @@ class TestTreasureHuntModels:
         ]  # fmt: skip
         assert list(request.to_payload())[-1] == "A"
 
+    def test_the_horse_is_a_horse_and_none_goes_as_minus_one(self):
+        horse = TreasureHuntAttackRequest(commander_id=7, horse_booster_id=Horse.WARHORSE_STABLE1, map_id=3, node_id=12)
+        assert horse.horse_booster_id is Horse.WARHORSE_STABLE1 and horse.to_payload()["BT"] == 1002
+        default = TreasureHuntAttackRequest(commander_id=7, map_id=3, node_id=12)
+        assert default.horse_booster_id == NO_HORSE and default.to_payload()["BT"] == -1
+
     def test_the_reply_carries_the_movement_currencies_and_units(self):
         reply = parse_response(
             "thm",
@@ -222,7 +229,9 @@ class TestTreasureHuntAttack:
     def test_feathers_send_no_horse(self):
         client = make_client()
 
-        client.attack.send_treasure_hunt_attack(3, 12, [wave(units=[[487, 5]])], 7, horse_booster_id=4, feathers=True)
+        client.attack.send_treasure_hunt_attack(
+            3, 12, [wave(units=[[487, 5]])], 7, horse_booster_id=Horse.WARHORSE_STABLE1, feathers=True
+        )
 
         payload = conn(client).request_payloads[0][1]
         assert (payload["BT"], payload["PTT"]) == (-1, 1)
