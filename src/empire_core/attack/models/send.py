@@ -20,7 +20,13 @@ from empire_core.army.models.units import AttackWave, UnitInventoryBlock
 from empire_core.commanders.models.roster import Commander
 from empire_core.enums import AttackType, AutoSkipCooldownType, Kingdom, LootPriority
 from empire_core.gamedata import CurrencyAmounts, SupportToolSlots, WodAmountSlots
-from empire_core.movements.models import MovementOwner, MovementWrapper, SentMovementResponse
+from empire_core.movements.models import (
+    NO_HORSE,
+    HorseBoosterId,
+    MovementOwner,
+    MovementWrapper,
+    SentMovementResponse,
+)
 from empire_core.protocol.base import BaseRequest, BaseResponse, CurrencyBlock, read_or_none, readable_list
 from empire_core.protocol.js import js_truthy, movement_targets
 
@@ -47,10 +53,10 @@ class _ArmyAttackRequest(BaseRequest):
         ),
     )
     wait_time: int = Field(validation_alias="WT", default=0, description="Wait time the attack is sent with")
-    horse_booster_id: int = Field(
+    horse_booster_id: HorseBoosterId = Field(
         validation_alias="HBW",
-        default=-1,
-        description="The horse booster's wod id, -1 for none or when paid with feathers",
+        default=NO_HORSE,
+        description="The horse booster, NO_HORSE for none or when paid with feathers",
     )
     use_premium_commander: int = Field(
         validation_alias="BPC",
@@ -437,10 +443,10 @@ class TreasureHuntAttackRequest(BaseRequest):
             "0 is the free starting commander, -14 the premium one"
         ),
     )
-    horse_booster_id: int = Field(
+    horse_booster_id: HorseBoosterId = Field(
         validation_alias="BT",
-        default=-1,
-        description="The horse booster's wod id, -1 for none or when paid with feathers",
+        default=NO_HORSE,
+        description="The horse booster, NO_HORSE for none or when paid with feathers",
     )
     use_premium_commander: int = Field(
         validation_alias="BPC", default=0, description="1 when the premium commander leads"

@@ -5,7 +5,7 @@ Army movement models: gam, the recall (mcm), and the movement wrappers pushed wi
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Annotated, Any, Literal
 
 from pydantic import Field, ValidatorFunctionWrapHandler, field_validator, model_validator
 
@@ -39,6 +39,15 @@ if TYPE_CHECKING:
     from empire_core.gamedata import Horse, Title
 
 logger = logging.getLogger(__name__)
+
+NO_HORSE = -1
+"""The horse a movement request names when it takes none, or pays for its horse with feathers."""
+
+HorseBoosterId = Annotated[Literal[-1] | EnumOrInt["Horse"], Field(union_mode="left_to_right")]
+"""A movement request's ``HBW``: a ``Horse``, or ``NO_HORSE``.
+
+Client: ``BasicMapmovementVO`` (bundle lines 19383, 15445) reads -1 as no horse
+"""
 
 
 class GetMovementsRequest(BaseRequest):

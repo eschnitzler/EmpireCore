@@ -6,6 +6,7 @@ kingdom transfers and transfers to a season's treasure map.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 from empire_core.enums import Kingdom, KingdomTransferType, Resource
 from empire_core.events.models import SeasonEvent
@@ -13,6 +14,7 @@ from empire_core.events.season_models import MinuteSkipSeasonTransferRequest
 from empire_core.exceptions import CommandError, UnsendableGoodsError
 from empire_core.gamedata import Currency, WodAmount, WodAmountMapping
 from empire_core.movements.models import (
+    NO_HORSE,
     CancelMovementRequest,
     CancelMovementResponse,
     CreateMarketMovementRequest,
@@ -40,6 +42,9 @@ from empire_core.movements.models import (
 )
 from empire_core.movements.tracked import Movement
 from empire_core.services.base import BaseService
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import Horse
 
 _CLASSIC_GOODS = (Resource.WOOD.value, Resource.STONE.value, Resource.FOOD.value)
 _GOODS_TABS = (
@@ -161,7 +166,7 @@ class MovementsService(BaseService):
         target_y: int,
         goods: dict[Resource, int],
         *,
-        horse_booster_id: int = -1,
+        horse_booster_id: Horse | None = None,
         feathers: bool = False,
         slowdown: int = 0,
         spend_rubies: bool = False,
@@ -194,8 +199,8 @@ class MovementsService(BaseService):
             target_y: Map y of the target castle
             goods: Amount per resource, all from one tab, such as
                 ``{Resource.WOOD: 1000, Resource.STONE: 500}`` or ``{Resource.COAL: 500, Resource.OIL: 500}``
-            horse_booster_id: The horse's wod id, -1 for none; sent as -1 whenever
-                feathers are used, as the client does
+            horse_booster_id: The horse, None for none; sent as none whenever feathers are used, as the
+                client does
             feathers: Pay for the horse with feathers
             slowdown: Seconds to delay the arrival by; costs rubies
             spend_rubies: Allow a horse or slowdown that costs rubies
@@ -224,7 +229,7 @@ class MovementsService(BaseService):
             source_castle_id=source_castle_id,
             target_x=target_x,
             target_y=target_y,
-            horse_booster_id=-1 if feathers else horse_booster_id,
+            horse_booster_id=NO_HORSE if feathers or horse_booster_id is None else horse_booster_id,
             feathers=1 if feathers else 0,
             slowdown=slowdown,
             goods=amounts,
@@ -283,7 +288,7 @@ class MovementsService(BaseService):
         commander_id: int,
         wait_time: int = 12,
         use_premium_commander: bool = False,
-        horse_booster_id: int = -1,
+        horse_booster_id: Horse | None = None,
         feathers: bool = False,
         slowdown: int = 0,
         *,
@@ -318,8 +323,8 @@ class MovementsService(BaseService):
             use_premium_commander: Lead with the premium commander (``commander_id``
                 -14). It uses one of your free premium commanders, or costs rubies
                 when none is left and no premium account runs
-            horse_booster_id: Type of horses for speed bonus (-1 = none, default: -1);
-                sent as -1 whenever feathers are used, as the client does
+            horse_booster_id: The horse, None for none; sent as none whenever feathers are used, as the
+                client does
             feathers: Pay for the movement with feathers
             slowdown: Movement slowdown modifier (0 = none, default: 0); costs rubies
             alliance_tower: The target is a Beyond the Horizon tower: sent as ``tde``,
@@ -348,7 +353,7 @@ class MovementsService(BaseService):
             units=WodAmount.slots(units),
             wait_time=wait_time,
             use_premium_commander=1 if use_premium_commander else 0,
-            horse_booster_id=-1 if feathers else horse_booster_id,
+            horse_booster_id=NO_HORSE if feathers or horse_booster_id is None else horse_booster_id,
             feathers=1 if feathers else 0,
             slowdown=slowdown,
             commander_id=commander_id,
@@ -410,7 +415,7 @@ class MovementsService(BaseService):
         kingdom_id: Kingdom = Kingdom.GREEN,
         use_premium_commander: bool = False,
         spend_rubies: bool = False,
-        horse_booster_id: int = -1,
+        horse_booster_id: Horse | None = None,
         feathers: bool = False,
         slowdown: int = 0,
         timeout: float = 5.0,
@@ -455,8 +460,8 @@ class MovementsService(BaseService):
                 -14). It uses one of your free premium commanders, or costs rubies
                 when none is left and no premium account runs
             spend_rubies: Send even when the premium commander, the horse or the slowdown costs rubies
-            horse_booster_id: The horse's wod id, -1 for none; sent as -1 whenever
-                feathers are used, as the client does
+            horse_booster_id: The horse, None for none; sent as none whenever feathers are used, as the
+                client does
             feathers: Pay for the horse with feathers
             slowdown: Seconds to delay the arrival by; costs rubies
             timeout: Timeout in seconds
@@ -477,7 +482,7 @@ class MovementsService(BaseService):
             target_y=target_y,
             kingdom_id=kingdom_id,
             commander_id=commander_id,
-            horse_booster_id=-1 if feathers else horse_booster_id,
+            horse_booster_id=NO_HORSE if feathers or horse_booster_id is None else horse_booster_id,
             use_premium_commander=1 if use_premium_commander else 0,
             feathers=1 if feathers else 0,
             slowdown=slowdown,

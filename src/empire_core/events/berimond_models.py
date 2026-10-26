@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from pydantic import Field, field_serializer, field_validator
 
 from empire_core.enums import FactionProtectionStatus, Kingdom
+from empire_core.gamedata import EnumOrInt
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, enum_or_none
 from empire_core.protocol.js import ClientInt, ClientNumber, js_loose_equals
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import PrebuiltCastle
 
 
 class BerimondTarget(BasePayload):
@@ -93,11 +97,13 @@ class SelectBerimondCampRequest(BaseRequest):
     """
 
     command: ClassVar[str] = "fsc"
-    camp_id: int = Field(validation_alias="ID", description="The prebuilt camp to start with")
+    camp_id: EnumOrInt["PrebuiltCastle"] = Field(validation_alias="ID", description="The prebuilt camp to start with")
     pay_with_rubies: bool = Field(
         validation_alias="PWR", default=False, description="Pay the missing resources with rubies"
     )
-    ruby_camp: bool = Field(validation_alias="OC2", default=False, description="The camp is the one bought with rubies")
+    ruby_camp: bool = Field(
+        validation_alias="OC2", default=False, description="The camp is the one priced in rubies only"
+    )
     kingdom_id: Kingdom = Field(validation_alias="SID", default=Kingdom.BERIMOND, description="Berimond's kingdom")
 
     @field_serializer("pay_with_rubies", "ruby_camp")

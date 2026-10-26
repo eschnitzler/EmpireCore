@@ -7,7 +7,6 @@ from typing import Any
 import pytest
 
 from empire_core.castle import (
-    DECORATION_FORGE_ID,
     CatalystConversion,
     FuseDecorationResponse,
     FusionDecoration,
@@ -15,7 +14,7 @@ from empire_core.castle import (
 )
 from empire_core.enums import Kingdom
 from empire_core.exceptions import CommandError
-from empire_core.gamedata import CurrencyId
+from empire_core.gamedata import Building, CurrencyId, FusionForgeId
 from empire_core.protocol.models import parse_response
 from tests.service_helpers import conn, logged_in_state, make_client, xt_packet
 
@@ -41,7 +40,8 @@ class TestForges:
 
         (forge,) = client.castle.get_fusion_forges()
 
-        assert conn(client).request_payloads == [("ffi", {"FIDS": [DECORATION_FORGE_ID]})]
+        assert conn(client).request_payloads == [("ffi", {"FIDS": [1]})]
+        assert forge.forge_id is FusionForgeId.DECORATIONS
         assert (forge.level, forge.energy, forge.recharge_progress_seconds, forge.used_ruby_refills) == (3, 450, 120, 2)
         assert client.castle.fusion_forges == {1: forge}
 
@@ -87,7 +87,7 @@ class TestFusion:
         client = make_client({"dff": xt_packet("dff", reply)})
         area = targets()
 
-        fused = client.castle.fuse_decoration(600, 88, area, area.decorations[0], 100001)
+        fused = client.castle.fuse_decoration(Building(600), 88, area, area.decorations[0], 100001)
 
         assert conn(client).request_payloads == [
             (
@@ -113,20 +113,20 @@ class TestFusion:
         client = make_client()
         area = targets()
         with pytest.raises(ValueError, match="spend_rubies"):
-            client.castle.fuse_decoration(600, 88, area, area.decorations[0], 100001, pay_with_rubies=True)
+            client.castle.fuse_decoration(Building(600), 88, area, area.decorations[0], 100001, pay_with_rubies=True)
         assert conn(client).request_payloads == []
 
     def test_a_target_outside_the_area_sends_nothing(self):
         client = make_client()
         stranger = FusionDecoration.model_validate({"WID": 512, "OID": 99, "UID": 3})
         with pytest.raises(ValueError, match="not in area"):
-            client.castle.fuse_decoration(600, 88, targets(), stranger, 100001)
+            client.castle.fuse_decoration(Building(600), 88, targets(), stranger, 100001)
 
     def test_a_refused_fusion_raises(self):
         client = make_client({"dff": xt_packet("dff", error_code=1)})
         area = targets()
         with pytest.raises(CommandError):
-            client.castle.fuse_decoration(600, 88, area, area.decorations[0], 100001)
+            client.castle.fuse_decoration(Building(600), 88, area, area.decorations[0], 100001)
 
     def test_dff_reply_parses_alone(self):
         reply = parse_response("dff", {"WID": 512, "OID": 31, "FXP": 10, "UID": 7, "SID": 3, "AID": 9})

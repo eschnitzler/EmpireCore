@@ -18,7 +18,7 @@ from empire_core.enums import Kingdom
 from empire_core.gamedata import WodAmounts, WodAmountSlots
 from empire_core.map.models.areas import MapObject
 from empire_core.map.models.items import TargetRow
-from empire_core.movements.models.movement import SentMovementResponse
+from empire_core.movements.models.movement import NO_HORSE, HorseBoosterId, SentMovementResponse
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, CommanderEffects
 from empire_core.protocol.js import js_truthy, movement_targets
 
@@ -80,10 +80,10 @@ class SendSupportRequest(BaseRequest):
         ),
     )
     wait_time: int = Field(validation_alias="WT", default=12, ge=0, le=12)
-    horse_booster_id: int = Field(
+    horse_booster_id: HorseBoosterId = Field(
         validation_alias="HBW",
-        default=-1,
-        description="The horse booster's wod id, -1 for none or when paid with feathers",
+        default=NO_HORSE,
+        description="The horse booster, NO_HORSE for none or when paid with feathers",
     )
     use_premium_commander: int = Field(
         validation_alias="BPC", default=0, description="1 when the premium commander leads"
@@ -285,10 +285,10 @@ class SendTroopsRequest(BaseRequest):
         ),
     )
     wait_time: int = Field(validation_alias="WT", default=0, description="Wait time at the target")
-    horse_booster_id: int = Field(
+    horse_booster_id: HorseBoosterId = Field(
         validation_alias="HBW",
-        default=-1,
-        description="The horse booster's wod id, -1 for none or when paid with feathers",
+        default=NO_HORSE,
+        description="The horse booster, NO_HORSE for none or when paid with feathers",
     )
     use_premium_commander: int = Field(
         validation_alias="BPC", default=0, description="1 when the premium commander leads"

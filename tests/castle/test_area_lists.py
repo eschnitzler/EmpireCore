@@ -12,7 +12,7 @@ from empire_core.castle import (
 )
 from empire_core.enums import Kingdom, MapItemType
 from empire_core.exceptions import CommandError
-from empire_core.gamedata import Unit
+from empire_core.gamedata import PrivateVillageType, Unit
 from empire_core.state.manager import GameState
 from tests.service_helpers import conn, logged_in_state, make_client, xt_packet
 
@@ -24,7 +24,7 @@ ISLE_ROW = [24, 130, 230, 801, 7, 4, "Isle", -1, 3, 0]
 UNITS = [[int(Unit.SWORDMAN), 30]]
 GKL = {"AI": [[TOWER_ROW, UNITS], "bad"]}
 GML = {"AI": [[MONUMENT_ROW]]}
-KGV = {"VI": [[VILLAGE_ROW, UNITS], [ISLE_ROW, []]], "PV": [{"VID": 9, "XID": 3}, {"VID": 10, "XID": 999}]}
+KGV = {"VI": [[VILLAGE_ROW, UNITS], [ISLE_ROW, []]], "PV": [{"VID": 9, "XID": "41"}, {"VID": 10, "XID": 999}]}
 
 
 def test_kings_tower_and_monument_rows_read_map_row_and_units():
@@ -39,7 +39,8 @@ def test_villages_read_both_lists_and_keep_unknown_private_village_types():
     villages = VillageListResponse.model_validate(KGV)
     assert [v.location.item_type for v in villages.villages] == [MapItemType.VILLAGE, MapItemType.ISLE_RESOURCE]
     assert villages.villages[0].units == {Unit.SWORDMAN: 30}
-    assert [(p.village_id, p.village_type_id) for p in villages.private_villages] == [(9, 3), (10, 999)]
+    assert [(p.village_id, p.village_type_id) for p in villages.private_villages] == [(9, 41), (10, 999)]
+    assert villages.private_villages[0].village_type_id is PrivateVillageType.ICE_PRIVATE_WOOD_VILLAGE_L1
     assert VillageListResponse.model_validate({"VI": []}).private_villages == []
 
 

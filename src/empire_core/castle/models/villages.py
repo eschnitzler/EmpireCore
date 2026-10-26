@@ -1,7 +1,7 @@
 """
 Your villages: the resource villages and islands you hold, and your private resource villages,
-villages bought with resource village tokens and held off the world map. A private village type
-is named by its id in the game data's ``privateVillages`` table.
+villages bought with resource village tokens and held off the world map. A private village's
+kind, kingdom and level is a ``PrivateVillageType``.
 
 Commands:
 - kgv: Your villages, a login section of ``gbd`` and a reply
@@ -13,14 +13,18 @@ Commands:
 from __future__ import annotations
 
 import logging
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from pydantic import ConfigDict, Field, field_validator
 
+from empire_core.gamedata import EnumOrInt
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, readable_list
 from empire_core.protocol.js import ClientInt
 
 from .landmarks import OwnArea
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import PrivateVillageType
 
 logger = logging.getLogger(__name__)
 
@@ -59,8 +63,8 @@ class PrivateVillage(BasePayload):
     """
 
     village_id: ClientInt = Field(validation_alias="VID", description="The village's own id")
-    village_type_id: ClientInt = Field(
-        validation_alias="XID", description="The village's row in the items privateVillages table"
+    village_type_id: EnumOrInt["PrivateVillageType"] = Field(
+        validation_alias="XID", description="The village's kind, kingdom and level"
     )
 
 
@@ -102,7 +106,7 @@ class VillageListResponse(BaseResponse):
         )
 
 
-_VILLAGE_TYPE = "The village type's id in the game data's privateVillages table"
+_VILLAGE_TYPE = "The village's kind, kingdom and level"
 _VILLAGE = "Your private village's id, as in PrivateVillage.village_id"
 
 
@@ -119,7 +123,7 @@ class BuyPrivateVillageRequest(BaseRequest):
 
     command = "bpv"
 
-    village_type_id: int = Field(validation_alias="XID", description=_VILLAGE_TYPE)
+    village_type_id: EnumOrInt["PrivateVillageType"] = Field(validation_alias="XID", description=_VILLAGE_TYPE)
 
 
 class BuyPrivateVillageResponse(BaseResponse):
@@ -149,7 +153,9 @@ class UpgradePrivateVillageRequest(BaseRequest):
 
     command = "upv"
 
-    village_type_id: int = Field(validation_alias="XID", description=f"{_VILLAGE_TYPE}, of its current level")
+    village_type_id: EnumOrInt["PrivateVillageType"] = Field(
+        validation_alias="XID", description=f"{_VILLAGE_TYPE}, of its current level"
+    )
     village_id: int = Field(validation_alias="VID", description=_VILLAGE)
 
 

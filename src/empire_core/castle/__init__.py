@@ -48,7 +48,6 @@ from empire_core.enums import (
 from empire_core.utils.lazy import lazy_exports
 
 from .models import (
-    DECORATION_FORGE_ID,
     FREE_SLOT,
     FULL_SKIP,
     LOCKED_SLOT,
@@ -272,7 +271,20 @@ from .models import (
 from .service import CastleService
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import Building, ConstructionItem, Currency, CurrencyId, Horse, Research, Tool, Unit
+    from empire_core.gamedata import (
+        Building,
+        ConstructionItem,
+        Currency,
+        CurrencyId,
+        FusionForgeId,
+        Horse,
+        Judgement,
+        PrebuiltCastle,
+        PrivateVillageType,
+        Research,
+        Tool,
+        Unit,
+    )
 
 __all__ = [
     "HunterInfo",
@@ -303,7 +315,6 @@ __all__ = [
     "StartCraftingResponse",
     "UnlockCraftingSlotsRequest",
     "UnlockCraftingSlotsResponse",
-    "DECORATION_FORGE_ID",
     "CatalystConversion",
     "ConvertCatalystRequest",
     "ConvertCatalystResponse",
@@ -540,7 +551,11 @@ __all__ = [
     "ConstructionItem",
     "CurrencyId",
     "Currency",
+    "FusionForgeId",
     "Horse",
+    "Judgement",
+    "PrebuiltCastle",
+    "PrivateVillageType",
     "Tool",
     "Unit",
 ]
@@ -550,5 +565,18 @@ if not TYPE_CHECKING:
     __getattr__ = lazy_exports(
         __name__,
         "empire_core.gamedata.ids",
-        ("Building", "ConstructionItem", "Currency", "CurrencyId", "Horse", "Research", "Tool", "Unit"),
+        (
+            "Building",
+            "ConstructionItem",
+            "Currency",
+            "CurrencyId",
+            "FusionForgeId",
+            "Horse",
+            "Judgement",
+            "PrebuiltCastle",
+            "PrivateVillageType",
+            "Research",
+            "Tool",
+            "Unit",
+        ),
     )

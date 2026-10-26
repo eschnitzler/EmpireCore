@@ -101,9 +101,10 @@ and missing or malformed successful payloads raise `PacketError`.
 `get_berimond_points()` returns `BerimondPoints`, the `red_points` and `blue_points` of
 the two factions.
 
-`join_berimond(camp_id)` joins the event with one of its prebuilt camps. The camp whose
-only price is rubies needs `ruby_camp=True` and `spend_rubies=True`; `spend_rubies` also
-pays any missing resources with rubies. A refusal, such as
+`join_berimond(camp)` joins the event with one of its prebuilt camps, a `PrebuiltCastle`
+such as `PrebuiltCastle.BERIMOND_SIMPLE_CAMP`. The camp whose only price is rubies is bought
+with them and needs `spend_rubies=True`; any other is bought with its resources, the game
+offering no ruby price for it, and `spend_rubies` pays the missing ones with rubies. A refusal, such as
 `FACTION_LAST_MAN_STANDING_ACTIVE`, raises `CommandError`.
 
 `berimond_kingdom_status` sends nothing: it is the last `BerimondKingdomStatus` (`fki`),
@@ -116,9 +117,10 @@ you still take part, and which capital is open to attack.
 ## Season event maps
 
 `join_season_camp(event)` enters a running season event's map (the Thorn King, the Blade
-Coast, the Underworld) at your camp there. `unlock_season_camp(prebuilt_camp_id, space_id)`
-starts on the map with one of its prebuilt camps, with the same ruby consent as
-`join_berimond`. The transfers to the map and their skips are on `client.movements`
+Coast, the Underworld) at your camp there. `unlock_season_camp(camp)`
+starts on the map with one of its prebuilt camps (`PrebuiltCastle.UNDERWORLD_SIMPLE_CAMP`), the
+camp naming its map, with the same ruby consent as `join_berimond`; `ruby_price=True`
+(with `spend_rubies=True`) buys a camp priced in resources at its ruby price instead. The transfers to the map and their skips are on `client.movements`
 (`skip_treasure_map_transfer_time(map_id, transfer_type, minute_skip)` among them).
 
 ::: empire_core.events.season_models

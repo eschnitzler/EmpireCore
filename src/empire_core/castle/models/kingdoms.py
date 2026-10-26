@@ -8,7 +8,7 @@ Commands:
 
 from __future__ import annotations
 
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from pydantic import ConfigDict, Field, field_serializer, field_validator
 
@@ -16,6 +16,9 @@ from empire_core.enums import CollectableKind, Kingdom, KingdomDirection
 from empire_core.gamedata import Collectable, CollectableRows, EnumOrInt
 from empire_core.protocol.base import BaseRequest, BaseResponse, TimedPayload, readable_list
 from empire_core.protocol.js import ClientInt, ClientNumber, js_int, js_loose_equals, js_truthy
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import PrebuiltCastle
 
 
 class KingdomUnlock(TimedPayload):
@@ -192,9 +195,9 @@ class SelectKingdomCastleRequest(BaseRequest):
     Command: ksc
     Payload: {"ID": prebuilt_castle_id, "D": direction, "PWR": 0 or 1, "OC2": 0 or 1, "SID": kingdom_id}
 
-    Keys follow the client's order. ``OC2`` takes the castle whose only price is rubies; ``PWR`` pays the
-    missing resources with rubies, which the client sends only from its resource wait dialog. The Storm
-    Islands castle choice sends a direction of 0.
+    Keys follow the client's order. ``OC2`` buys the castle at its ruby price; ``PWR`` pays the missing
+    resources with rubies, which the client sends only from its resource wait dialog. The Storm Islands
+    castle choice sends a direction of 0.
 
     Client: ``C2SSelectKingdomCastleVO`` (bundle line 34224), sent by ``AUnlockPrebuiltCastle.buyPrebuiltCastle``
     (bundle line 55479), ``CastleSpecialServerPreBuildCastleSelectionDialog.onConfirmed`` (bundle line 27956)
@@ -203,9 +206,7 @@ class SelectKingdomCastleRequest(BaseRequest):
 
     command = "ksc"
 
-    prebuilt_castle_id: int = Field(
-        validation_alias="ID", description="The prebuilt castle, a row of the items prebuiltcastles table"
-    )
+    prebuilt_castle_id: EnumOrInt["PrebuiltCastle"] = Field(validation_alias="ID", description="The prebuilt castle")
     direction: EnumOrInt[KingdomDirection] = Field(
         validation_alias="D", default=0, description="The side of the map the castle is placed on; 0 for none"
     )
@@ -213,7 +214,7 @@ class SelectKingdomCastleRequest(BaseRequest):
         validation_alias="PWR", default=False, description="Pay the missing resources with rubies"
     )
     ruby_castle: bool = Field(
-        validation_alias="OC2", default=False, description="The castle is the one bought with rubies"
+        validation_alias="OC2", default=False, description="The castle is bought at its ruby price"
     )
     kingdom_id: Kingdom = Field(validation_alias="SID", description="The kingdom to unlock")
 

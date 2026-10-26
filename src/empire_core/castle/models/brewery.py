@@ -8,13 +8,17 @@ Commands:
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, field_serializer, field_validator
 
 from empire_core.enums import Kingdom
+from empire_core.gamedata import EnumOrInt
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse
 from empire_core.protocol.js import ClientNumber, js_truthy
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import Building
 
 
 class MeadShare(BasePayload):
@@ -56,7 +60,7 @@ class GetBreweryProductionRequest(BaseRequest):
 
     kingdom_id: Kingdom = Field(validation_alias="KID", description="The castle's kingdom")
     castle_id: int = Field(validation_alias="AID", description="The castle's id")
-    wod_id: int = Field(validation_alias="WID", description="The brewery's wod id")
+    wod_id: EnumOrInt["Building"] = Field(validation_alias="WID", description="The brewery's building type")
     object_id: int = Field(validation_alias="OID", description="The brewery's object id")
 
 
@@ -76,7 +80,7 @@ class SetBreweryProductionRequest(BaseRequest):
 
     kingdom_id: Kingdom = Field(validation_alias="KID", description="The castle's kingdom")
     castle_id: int = Field(validation_alias="AID", description="The castle's id")
-    wod_id: int = Field(validation_alias="WID", description="The brewery's wod id")
+    wod_id: EnumOrInt["Building"] = Field(validation_alias="WID", description="The brewery's building type")
     object_id: int = Field(validation_alias="OID", description="The brewery's object id")
     share: MeadShare = Field(validation_alias="PA", description="The share producing mead")
     stops: BreweryStops = Field(validation_alias="MS", description="The stocks at which production stops")

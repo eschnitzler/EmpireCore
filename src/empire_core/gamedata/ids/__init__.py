@@ -19,7 +19,8 @@ member, e.g. ``game_data.units[Unit.MEAD_RANGER_L6]``.
 
 Enums whose rows the game names by a text (units, tools, currencies,
 researches, generals, legend and sceat skills, events, gems, achievements,
-titles, crest layouts, main quests) have ``display_name(lang="en")``, the
+titles, crest layouts, main quests, prebuilt castles, private villages,
+fusion forges, judgements) have ``display_name(lang="en")``, the
 name the game shows: ``Unit.MEAD_RANGER_L6.display_name("de")``. It reads the
 language file, fetched on first use and cached (:mod:`empire_core.texts`).
 
@@ -55,6 +56,7 @@ if TYPE_CHECKING:
     from .effects import Effect
     from .equipment_groups import EquipmentGroup
     from .events import Event
+    from .fusion_forges import FusionForgeId
     from .gem_colors import GemColor
     from .gems import Gem
     from .general_abilities import GeneralAbility
@@ -64,10 +66,13 @@ if TYPE_CHECKING:
     from .generals_hub_characters import GeneralsHubCharacter
     from .global_effects import GlobalEffect
     from .horses import Horse
+    from .judgements import Judgement
     from .legend_skills import LegendSkill
     from .loot_box_types import LootBoxType
     from .loot_boxes import LootBox
     from .main_quests import MainQuest
+    from .prebuilt_castles import PrebuiltCastle
+    from .private_villages import PrivateVillageType
     from .quests import QuestId
     from .raid_bosses import RaidBoss
     from .researches import Research
@@ -94,6 +99,7 @@ _MODULES = {
     "EffectType": "effect_types",
     "EquipmentGroup": "equipment_groups",
     "Event": "events",
+    "FusionForgeId": "fusion_forges",
     "Gem": "gems",
     "GemColor": "gem_colors",
     "General": "generals",
@@ -103,10 +109,13 @@ _MODULES = {
     "GeneralsHubCharacter": "generals_hub_characters",
     "GlobalEffect": "global_effects",
     "Horse": "horses",
+    "Judgement": "judgements",
     "LegendSkill": "legend_skills",
     "LootBox": "loot_boxes",
     "LootBoxType": "loot_box_types",
     "MainQuest": "main_quests",
+    "PrebuiltCastle": "prebuilt_castles",
+    "PrivateVillageType": "private_villages",
     "QuestId": "quests",
     "RaidBoss": "raid_bosses",
     "Research": "researches",
@@ -154,6 +163,7 @@ __all__ = [
     "EffectType",
     "EquipmentGroup",
     "Event",
+    "FusionForgeId",
     "Gem",
     "GemColor",
     "General",
@@ -164,10 +174,13 @@ __all__ = [
     "GlobalEffect",
     "Horse",
     "ITEMS_VERSION",
+    "Judgement",
     "LegendSkill",
     "LootBox",
     "LootBoxType",
     "MainQuest",
+    "PrebuiltCastle",
+    "PrivateVillageType",
     "QuestId",
     "RaidBoss",
     "Research",

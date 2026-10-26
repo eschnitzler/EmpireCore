@@ -126,7 +126,6 @@ from empire_core.castle.models.districts import (
     RemoveFromDistrictResponse,
 )
 from empire_core.castle.models.fusion_forge import (
-    DECORATION_FORGE_ID,
     ConvertCatalystRequest,
     ConvertCatalystResponse,
     FuseDecorationRequest,
@@ -254,7 +253,7 @@ from empire_core.enums import (
     ResourceCartType,
 )
 from empire_core.exceptions import CommandError, EmpireError, PacketError, ReplyMismatchError, UnknownCastleError
-from empire_core.gamedata import BuildingDef, Currency, HorseStats, Research
+from empire_core.gamedata import BuildingDef, Currency, FusionForgeId, HorseStats, Research
 from empire_core.map.models.items import MapAreaItem
 from empire_core.protocol.base import BaseResponse
 from empire_core.protocol.js import js_truthy
@@ -266,7 +265,15 @@ if TYPE_CHECKING:
     from empire_core.castle.models.permanent import PermanentCastle
     from empire_core.castle.models.wishing_well import WishingWellResponse
     from empire_core.client.client import EmpireClient
-    from empire_core.gamedata import Building, ConstructionItem
+    from empire_core.gamedata import (
+        Building,
+        ConstructionItem,
+        ConstructionItemRecipeId,
+        CraftingRecipeId,
+        Judgement,
+        PrebuiltCastle,
+        PrivateVillageType,
+    )
     from empire_core.state.models import Castle, JoinedArea
 
 _ConstructionResponse = TypeVar("_ConstructionResponse", bound=BaseResponse)
@@ -798,8 +805,8 @@ class CastleService(BaseService):
         return self.request(SetHunterRequest(food_boost=food_boost), HunterInfo, timeout=timeout)
 
     @property
-    def judgement_id(self) -> int | None:
-        """The open citizen judgement's row in the judgements table, from the last ``sjc``; None while none is open."""
+    def judgement_id(self) -> Judgement | int | None:
+        """The open citizen judgement, from the last ``sjc``; None while none is open."""
         return self.client.state.get_judgement_id()
 
     def judge_citizen(self, option: JudgementOption, *, timeout: float = 5.0) -> None:
@@ -894,49 +901,65 @@ class CastleService(BaseService):
 
     def unlock_kingdom(
         self,
-        kingdom_id: Kingdom,
-        prebuilt_castle_id: int,
+        castle: PrebuiltCastle,
         direction: KingdomDirection | None = None,
         *,
-        ruby_castle: bool = False,
+        ruby_price: bool = False,
         spend_rubies: bool = False,
         timeout: float = 5.0,
     ) -> None:
         """
-        Unlock a kingdom with one of its prebuilt castles.
+        Unlock a kingdom with one of its prebuilt castles, e.g. ``PrebuiltCastle.ICE_KNIGHTLY_CASTLE``.
 
-        Each kingdom offers prebuilt castles in the items ``prebuiltcastles`` table, whose ``spaceIDs``
-        name the kingdom: a cheap one, one priced in resources and one whose only price is rubies.
-        ``ruby_castle`` takes that last one and needs ``spend_rubies``; otherwise ``spend_rubies`` pays
-        any missing resources with rubies.
+        The castle names its kingdom and price. One whose only price is rubies is bought with them; one
+        priced in resources is bought with those, or with ``ruby_price`` at its ruby price, as the client's
+        two buttons offer. Rubies spent need ``spend_rubies``; buying with resources, ``spend_rubies`` pays
+        any missing ones with rubies. On the Storm Islands the islands' castle selection prices it.
 
         Args:
-            kingdom_id: The kingdom to unlock
-            prebuilt_castle_id: The prebuilt castle's ``preBuiltCastleID``
-            direction: The side of the map to place the castle on; only the Storm Islands may go without
-            ruby_castle: The castle is the one priced in rubies only
+            castle: The prebuilt castle
+            direction: The side of the map to place the castle on; the Storm Islands take none
+            ruby_price: Buy the castle at its ruby price (``OC2``)
             spend_rubies: Allow spending rubies
             timeout: Timeout in seconds
 
         Raises:
-            ValueError: No direction outside the Storm Islands, or ``ruby_castle`` without ``spend_rubies``
+            ValueError: The castle starts no kingdom (Battle for Berimond's camps join with
+                ``client.events.join_berimond``), needs a higher level, has no direction outside the Storm
+                Islands, has no ruby price for ``ruby_price``, or costs rubies without ``spend_rubies``
             CommandError: The server refused
 
-        Client: ``AUnlockPrebuiltCastle.buyPrebuiltCastle`` (bundle line 55479) asks the direction
-        (``CastleKingdomChooseLocalizationDialog``) and ``getCosts`` prices it; the Storm Islands castle
-        choice sends a direction of 0 (``CastleSpecialServerPreBuildCastleSelectionDialog.onConfirmed``,
+        Client: ``AUnlockPrebuiltCastle.buyPrebuiltCastle`` (bundle line 55479) sends the castle's first space
+        and asks the direction (``CastleKingdomChooseLocalizationDialog``); ``UnlockPrebuiltCastleForRubies``
+        (bundle line 55514) sets ``OC2`` for the castle ``CastleKingdomCastleDetails.getSublayerForCastle``
+        (bundle line 97911) shows as premium; the Storm Islands castle selection sends a direction of 0 and
+        ``OC2`` when its costs hold rubies (``CastleSpecialServerPreBuildCastleSelectionDialog.onConfirmed``,
         bundle line 27956); ``CastleResourceWaitDialogProperties.getResourceSkipCommand`` (bundle line 35239)
-        sends ``PWR``; ``PrebuiltCastleItemVO.isPremium`` (bundle line 142354)
+        sends ``PWR``
         """
-        if direction is None and kingdom_id != Kingdom.STORM:
-            raise ValueError(f"unlocking {Kingdom(kingdom_id).name} needs a direction")
-        self._require_spend_rubies(spend_rubies, "the ruby castle costs rubies" if ruby_castle else None)
+        row = self._prebuilt_castle(castle)
+        kingdom = row.kingdom
+        if kingdom is None or kingdom in (Kingdom.GREEN, Kingdom.BERIMOND):
+            raise ValueError(f"prebuilt castle {int(castle)} starts no kingdom")
+        if kingdom is Kingdom.STORM:
+            selection = self._require_game_data().storm_islands_prebuilt_castles.get(castle)
+            if selection is None:
+                raise ValueError(f"prebuilt castle {int(castle)} is not in the Storm Islands' castle selection")
+            ruby_castle, rubies = selection.is_ruby_castle(row), selection.cost_rubies(row)
+            if ruby_price and rubies <= 0:
+                raise ValueError(f"prebuilt castle {int(castle)} has no ruby price")
+        else:
+            if direction is None:
+                raise ValueError(f"unlocking {kingdom.name} needs a direction")
+            rubies = self._castle_rubies(row, ruby_price)
+            ruby_castle = rubies > 0
+        self._require_spend_rubies(spend_rubies, f"the castle costs {rubies} rubies" if rubies else None)
         request = SelectKingdomCastleRequest(
-            prebuilt_castle_id=prebuilt_castle_id,
+            prebuilt_castle_id=row.prebuilt_castle_id,
             direction=0 if direction is None else direction,
             pay_with_rubies=spend_rubies and not ruby_castle,
             ruby_castle=ruby_castle,
-            kingdom_id=kingdom_id,
+            kingdom_id=kingdom,
         )
         self.execute(request, timeout=timeout)
 
@@ -1778,7 +1801,7 @@ class CastleService(BaseService):
         return self.request(StoreBuildingRequest(object_id=object_id), StoreBuildingResponse, timeout=timeout)
 
     def sell_stored_decoration(
-        self, wod_id: Building | int, amount: int = 1, *, unique_id: int = -1, timeout: float = 5.0
+        self, wod_id: Building, amount: int = 1, *, unique_id: int = -1, timeout: float = 5.0
     ) -> SellStoredDecorationResponse:
         """
         Sell decorations from the storage for coins; they are gone for good.
@@ -1902,12 +1925,12 @@ class CastleService(BaseService):
     # Private resource villages
     # =========================================================================
 
-    def buy_private_village(self, village_type_id: int, *, timeout: float = 5.0) -> None:
+    def buy_private_village(self, village_type_id: PrivateVillageType, *, timeout: float = 5.0) -> None:
         """
         Buy a private resource village with resource village tokens.
 
         Args:
-            village_type_id: The village type's id in the game data's ``privateVillages`` table
+            village_type_id: The village, e.g. ``PrivateVillageType.ICE_PRIVATE_WOOD_VILLAGE_L1``
 
         Client: ``PrivateResourceVillageBuyDialog.onConfirm`` (bundle line 81673) sends
         ``C2SBuyPrivateResourceVillageVO`` once ``APrivateResourceVillageActionDialog.onClick`` (bundle line
@@ -1915,12 +1938,14 @@ class CastleService(BaseService):
         """
         self.execute(BuyPrivateVillageRequest(village_type_id=village_type_id), timeout=timeout)
 
-    def upgrade_private_village(self, village_type_id: int, village_id: int, *, timeout: float = 5.0) -> None:
+    def upgrade_private_village(
+        self, village_type_id: PrivateVillageType, village_id: int, *, timeout: float = 5.0
+    ) -> None:
         """
         Upgrade one of your private resource villages to the next level, with resource village tokens.
 
         Args:
-            village_type_id: The type of the village's current level, in the game data's ``privateVillages``
+            village_type_id: The village's current level, ``PrivateVillage.village_type_id``
             village_id: Your private village's id, ``PrivateVillage.village_id``
 
         Client: ``PrivateResourceVillageUpgradeDialog.onConfirm`` (bundle line 81600) sends
@@ -1946,7 +1971,7 @@ class CastleService(BaseService):
     # =========================================================================
 
     def get_upgradable_buildings(
-        self, wod_id: Building | int, *, prime_sale_upgrade: bool = True, timeout: float = 5.0
+        self, wod_id: Building, *, prime_sale_upgrade: bool = True, timeout: float = 5.0
     ) -> ShowUpgradableBuildingsResponse:
         """
         Find your castles holding a building of one type that a prime sale can upgrade.
@@ -2313,7 +2338,9 @@ class CastleService(BaseService):
         """
         return self.request(GetCraftingInfoRequest(), CraftingInfoResponse, timeout=timeout).queues
 
-    def start_crafting(self, queue: CraftingQueue, recipe_id: int, *, timeout: float = 5.0) -> CraftingQueue:
+    def start_crafting(
+        self, queue: CraftingQueue, recipe_id: CraftingRecipeId, *, timeout: float = 5.0
+    ) -> CraftingQueue:
         """
         Start a recipe in a crafting queue, paying its costs.
 
@@ -2322,7 +2349,7 @@ class CastleService(BaseService):
 
         Args:
             queue: A queue of :attr:`crafting_queues` or :meth:`get_crafting_queues`
-            recipe_id: The crafting recipe
+            recipe_id: The crafting recipe, a key of ``GameData.crafting_recipes``
             timeout: Timeout in seconds
 
         Raises:
@@ -2469,13 +2496,15 @@ class CastleService(BaseService):
         """
         return self.request(GetConstructionCraftingRequest(), ConstructionCraftingResponse, timeout=timeout)
 
-    def craft_construction_item(self, castle_id: int, recipe_id: int, *, timeout: float = 5.0) -> None:
+    def craft_construction_item(
+        self, castle_id: int, recipe_id: ConstructionItemRecipeId, *, timeout: float = 5.0
+    ) -> None:
         """
         Craft a construction item from a recipe, paying its costs; one craft runs at a time.
 
         Args:
             castle_id: One of your castles; the client crafts in the joined castle, else the kingdom's main castle
-            recipe_id: A ``ConstructionItemRecipeDef.recipe_id`` of the game data
+            recipe_id: The recipe, a key of ``GameData.construction_item_recipes``
             timeout: Timeout in seconds
 
         Raises:
@@ -2539,12 +2568,12 @@ class CastleService(BaseService):
     # =========================================================================
 
     @property
-    def fusion_forges(self) -> dict[int, FusionForge] | None:
+    def fusion_forges(self) -> dict[FusionForgeId | int, FusionForge] | None:
         """The fusion forges by id, as the last ``ffi`` left them; None until one arrived."""
         return self.client.state.get_fusion_forges()
 
     def get_fusion_forges(
-        self, forge_ids: Sequence[int] = (DECORATION_FORGE_ID,), *, timeout: float = 5.0
+        self, forge_ids: Sequence[FusionForgeId] = (FusionForgeId.DECORATIONS,), *, timeout: float = 5.0
     ) -> tuple[FusionForge, ...]:
         """
         Fusion forges' level and energy; the reply also reaches :attr:`fusion_forges`.
@@ -2555,7 +2584,9 @@ class CastleService(BaseService):
         request = GetFusionForgesRequest(forge_ids=tuple(forge_ids))
         return self.request(request, FusionForgesResponse, timeout=timeout).forges
 
-    def level_up_fusion_forge(self, forge_id: int = DECORATION_FORGE_ID, *, timeout: float = 5.0) -> int:
+    def level_up_fusion_forge(
+        self, forge_id: FusionForgeId = FusionForgeId.DECORATIONS, *, timeout: float = 5.0
+    ) -> int:
         """
         Level a fusion forge up for decoration dust, and return its new level.
 
@@ -2566,13 +2597,17 @@ class CastleService(BaseService):
         return self.request(request, LevelUpFusionForgeResponse, timeout=timeout).level
 
     def refill_fusion_forge(
-        self, forge_id: int = DECORATION_FORGE_ID, *, spend_rubies: bool = False, timeout: float = 5.0
+        self,
+        forge_id: FusionForgeId = FusionForgeId.DECORATIONS,
+        *,
+        spend_rubies: bool = False,
+        timeout: float = 5.0,
     ) -> int:
         """
         Refill a fusion forge's energy for rubies, and return the energy added.
 
-        The price rises with each refill (``FusionForge.used_ruby_refills``) by the game data's fusion
-        system, which the library does not load.
+        The price rises with each refill (``FusionForge.used_ruby_refills``) by the forge's
+        ``GameData.fusion_systems`` row (``refill_cost_rubies``, ``refill_cost_factor``).
 
         Raises:
             ValueError: ``spend_rubies`` is False
@@ -2589,7 +2624,7 @@ class CastleService(BaseService):
         catalyst_id: CurrencyId | int,
         amount: int,
         direction: CatalystConversion,
-        forge_id: int = DECORATION_FORGE_ID,
+        forge_id: FusionForgeId = FusionForgeId.DECORATIONS,
         *,
         timeout: float = 5.0,
     ) -> ConvertCatalystResponse:
@@ -2611,7 +2646,7 @@ class CastleService(BaseService):
 
     def fuse_decoration(
         self,
-        source_wod_id: int,
+        source_wod_id: Building,
         source_unique_id: int,
         target_area: FusionTargetArea,
         target: FusionDecoration,

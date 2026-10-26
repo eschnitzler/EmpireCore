@@ -23,7 +23,7 @@ from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, Ti
 from empire_core.protocol.js import ClientInt, ClientNumber, js_int, js_loose_equals, js_truthy
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import Effect
+    from empire_core.gamedata import Effect, PrebuiltCastle
 
 
 class SelectSpecialServerCastleRequest(BaseRequest):
@@ -37,8 +37,10 @@ class SelectSpecialServerCastleRequest(BaseRequest):
 
     command: ClassVar[str] = "tsc"
 
-    castle_id: int = Field(validation_alias="ID", description="The pre-built castle's id")
-    ruby_castle: bool = Field(validation_alias="OC2", default=False, description="The castle is priced in rubies")
+    castle_id: EnumOrInt["PrebuiltCastle"] = Field(validation_alias="ID", description="The pre-built castle")
+    ruby_castle: bool = Field(
+        validation_alias="OC2", default=False, description="The castle's selection costs hold rubies, even 0 of them"
+    )
     pay_with_rubies: Literal[0] = Field(
         validation_alias="PWR", default=0, description="Always 0: missing resources are never paid with rubies"
     )

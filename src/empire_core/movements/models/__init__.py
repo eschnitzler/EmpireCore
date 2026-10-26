@@ -8,10 +8,12 @@ from .market import (
     MarketInfoResponse,
 )
 from .movement import (
+    NO_HORSE,
     CancelMovementRequest,
     CancelMovementResponse,
     GetMovementsRequest,
     GetMovementsResponse,
+    HorseBoosterId,
     MovementArea,
     MovementArmy,
     MovementMarket,
@@ -57,6 +59,8 @@ from .treasure_transfers import (
 )
 
 __all__ = [
+    "NO_HORSE",
+    "HorseBoosterId",
     "CancelMovementRequest",
     "CancelMovementResponse",
     "CreateMarketMovementRequest",

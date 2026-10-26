@@ -6,7 +6,7 @@ import threading
 import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from pydantic import BaseModel
 
@@ -51,6 +51,7 @@ from empire_core.events.models import ShuttingDownEvents, SpecialEvent
 from empire_core.events.special_server_models import CurrentServer, SpecialServerCastles
 from empire_core.events.status_models import RiftRaidStatus
 from empire_core.exceptions import StateNotLoadedError
+from empire_core.gamedata import CraftingQueueId
 from empire_core.map.models.treasure_maps import TreasureMap
 from empire_core.map.models.world import ServerInfoResponse
 from empire_core.messages.models import MessageInfo, MessagesSentToday
@@ -84,6 +85,9 @@ from empire_core.rewards.models import ActivityChestInfo
 from empire_core.spy.models import MaxSpiesResponse, PlagueDoctorInfoResponse
 from empire_core.state.models import Castle, JoinedArea, Player
 from empire_core.utils.callbacks import BoundEvent, Registry
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import FusionForgeId, Judgement
 
 logger = logging.getLogger(__name__)
 
@@ -203,7 +207,7 @@ class StateBase:
         # The officers' school's programs, the hunter, the open citizen judgement and your hero; each replaced
         self.training_programs: TrainingProgramsResponse | None = None
         self.hunter: HunterInfo | None = None
-        self.judgement_id: int | None = None
+        self.judgement_id: Judgement | int | None = None
         self.hero: HeroDecisionResponse | None = None
 
         # Your coat of arms and its symbols, credentials, name change, account deletion, message counts; each replaced
@@ -274,8 +278,8 @@ class StateBase:
         self.treasure_hunt_map_id: int | None = None
         self.storm_islands: StormIslandsInfo | None = None
         # The crafting queues by queue id, kingdom and castle, and the fusion forges by id; swapped, never edited
-        self.crafting_queues: dict[tuple[int, Kingdom, int], CraftingQueue] | None = None
-        self.fusion_forges: dict[int, FusionForge] | None = None
+        self.crafting_queues: dict[tuple[CraftingQueueId, Kingdom, int], CraftingQueue] | None = None
+        self.fusion_forges: dict[FusionForgeId | int, FusionForge] | None = None
         self.horizon_performance: tuple[HorizonMemberPerformance, ...] | None = None
 
         # Freshness bookkeeping (see the GameState docstring). Wall-clock seconds.

@@ -39,7 +39,7 @@ class ShowUpgradableBuildingsRequest(BaseRequest):
 
     command = "sub"
 
-    wod_id: int = Field(validation_alias="WOD", description="The building type the sale is for")
+    wod_id: EnumOrInt["Building"] = Field(validation_alias="WOD", description="The building type the sale is for")
     prime_sale_upgrade: bool = Field(
         validation_alias="PSU", default=True, description="The sale discounts the upgrade of every level"
     )

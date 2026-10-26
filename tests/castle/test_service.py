@@ -10,6 +10,7 @@ from pydantic import ValidationError
 
 from empire_core.enums import Kingdom, Resource
 from empire_core.exceptions import CommandError, GameDataNotLoadedError, UnknownCastleError
+from empire_core.gamedata import Horse
 from tests.service_helpers import (
     COIN_HORSE,
     GOLDEN_GCL,
@@ -274,7 +275,9 @@ class TestCastleActions:
 
     def test_send_support_with_feathers_sends_no_horses(self):
         client = make_client()
-        client.movements.send_support(12345, 700, 710, {487: 1}, commander_id=5, horse_booster_id=3, feathers=True)
+        client.movements.send_support(
+            12345, 700, 710, {487: 1}, commander_id=5, horse_booster_id=Horse.COURSER_STABLE1, feathers=True
+        )
         payload = conn(client).request_payloads[0][1]
         assert (payload["HBW"], payload["PTT"]) == (-1, 1)
 

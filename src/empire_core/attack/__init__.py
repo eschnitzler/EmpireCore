@@ -89,7 +89,7 @@ from .models import (
 from .service import AttackService
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import Currency, CurrencyId, Event, LegendSkill, Tool
+    from empire_core.gamedata import Currency, CurrencyId, Event, Horse, LegendSkill, Tool
 
 __all__ = [
     "ActivateAttackAdvisorRequest",
@@ -174,6 +174,7 @@ __all__ = [
     "Currency",
     "Event",
     "CurrencyId",
+    "Horse",
     "LegendSkill",
     "Tool",
 ]
@@ -181,5 +182,5 @@ __all__ = [
 
 if not TYPE_CHECKING:
     __getattr__ = lazy_exports(
-        __name__, "empire_core.gamedata.ids", ("Currency", "CurrencyId", "Event", "LegendSkill", "Tool")
+        __name__, "empire_core.gamedata.ids", ("Currency", "CurrencyId", "Event", "Horse", "LegendSkill", "Tool")
     )

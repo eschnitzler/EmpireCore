@@ -19,6 +19,7 @@ from pydantic import Field, ValidationInfo, field_validator, model_validator
 from empire_core.enums import (
     BuildingGroundType,
     BuildingGroup,
+    CollectableKind,
     EquipmentSlot,
     Kingdom,
     MapItemType,
@@ -28,7 +29,7 @@ from empire_core.enums import (
     TitleSystem,
     WearerType,
 )
-from empire_core.protocol.js import js_falsy, js_int, js_number_or_none, js_parse_int, js_string
+from empire_core.protocol.js import js_falsy, js_int, js_number_or_none, js_parse_float, js_parse_int, js_string
 
 from .collectables import _XML_COST_PREFIX, Collectable
 from .lenient import GameDataId, GameDataKey
@@ -47,11 +48,15 @@ if TYPE_CHECKING:
         DifficultyType,
         EquipmentGroup,
         Event,
+        FusionForgeId,
         GemColor,
         GeneralRarity,
         GeneralsHubCharacter,
+        Judgement,
         LootBox,
         LootBoxType,
+        PrebuiltCastle,
+        PrivateVillageType,
         QuestId,
         Research,
         SceatSkill,
@@ -76,6 +81,30 @@ PackageId = NewType("PackageId", int)
 """The id of a ``packages`` row, an event package that :attr:`GameData.packages` describes.
 
 The rows have no name the game shows, so no generated enum names them; this type marks the id space instead.
+"""
+
+ConstructionItemRecipeId = NewType("ConstructionItemRecipeId", int)
+"""The id of a ``constructionItemRecipes`` row, a recipe that :attr:`GameData.construction_item_recipes` describes.
+
+The rows have no name, so no generated enum names them; this type marks the id space instead.
+"""
+
+CraftingRecipeId = NewType("CraftingRecipeId", int)
+"""The id of a ``craftingRecipes`` row, a recipe that :attr:`GameData.crafting_recipes` describes.
+
+The rows have no name, so no generated enum names them; this type marks the id space instead.
+"""
+
+CraftingQueueId = NewType("CraftingQueueId", int)
+"""The ``queueTypeId`` of a ``craftingQueues`` row, the crafting queue :attr:`GameData.crafting_queues` describes.
+
+The rows have no name, so no generated enum names them; this type marks the id space instead.
+"""
+
+StartResourcesId = NewType("StartResourcesId", int)
+"""The id of a ``startResources`` row, the goods :attr:`GameData.start_resources` gives a special server's castle.
+
+The rows have no name, so no generated enum names them; this type marks the id space instead.
 """
 
 
@@ -1338,7 +1367,7 @@ class ConstructionItemRecipeDef(_Row):
     ``ConstructionItemBlueprintData.parseFromXml`` (bundle line 141026)
     """
 
-    recipe_id: int = Field(
+    recipe_id: ConstructionItemRecipeId = Field(
         validation_alias="constructionItemRecipeID",
         description="The recipe, as a research unlocks it",
     )
@@ -1357,6 +1386,519 @@ class ConstructionItemRecipeDef(_Row):
     @classmethod
     def _int_column(cls, value: object) -> int:
         return _parse_int_or_default(value, 0)
+
+
+_KINGDOM_IDS = frozenset(int(kingdom) for kingdom in Kingdom)
+"""``WorldConst.WORLD_IDS`` (dll line 19996): the kingdoms' ids, the spaces a prebuilt castle unlocks a kingdom in."""
+
+_NO_RUBIES = Collectable(kind=CollectableKind.RUBIES, key=CollectableKind.RUBIES.server_key, amount=0)
+
+
+def _goods_costs(row: dict[str, object], currency_ids: dict[str, int]) -> tuple[Collectable, ...]:
+    """The non-zero ``cost`` columns of a row, as ``PrebuiltCastleItemVO.parseCosts`` (bundle line 142342) keeps."""
+    return tuple(cost for cost in Collectable.from_columns(row, _XML_COST_PREFIX, currency_ids) if cost.amount)
+
+
+def _rubies(costs: tuple[Collectable, ...]) -> int:
+    return sum(int(cost.amount) for cost in costs if cost.kind is CollectableKind.RUBIES)
+
+
+def is_cost_column(column: str) -> bool:
+    """Whether an items column is a ``cost<name>`` column."""
+    return column.startswith(_XML_COST_PREFIX)
+
+
+class PrebuiltCastleDef(_Row):
+    """
+    A castle or camp you start a kingdom, a season event's map or a special server with, and its price.
+
+    ``costs`` are its non-zero ``cost`` columns: resources, coins and rubies.
+
+    Client: ``PrebuiltCastleItemVO.parseXML`` and ``parseCosts`` (bundle lines 142341-142342), keyed by id
+    and by space in ``PrebuiltCastleData.parsePreBuiltCastles`` (bundle line 142274)
+    """
+
+    prebuilt_castle_id: GameDataId["PrebuiltCastle"] = Field(
+        validation_alias="preBuiltCastleID", description="The prebuilt castle"
+    )
+    space_ids: tuple[int, ...] = Field(
+        validation_alias="spaceIDs",
+        default=(),
+        description="Where it is offered: a kingdom, or a season event's map; 0 for a special server's",
+    )
+    min_level: int = Field(validation_alias="minLevel", default=0, description="Player level it needs")
+    shown_discount: int = Field(
+        validation_alias="shownDiscount", default=0, description="The discount in percent its offer shows"
+    )
+    is_main_castle_copy: bool = Field(
+        validation_alias="isMainCastleCopy",
+        default=False,
+        description="It copies your main castle's buildings, as the Outer Realms castle transport does",
+    )
+    costs: tuple[Collectable, ...] = Field(default=(), description="What it costs; empty for a free one")
+    area_label: str = Field(
+        validation_alias="comment1", default="", description="Designer label the game does not read, e.g. Underworld"
+    )
+    label: str = Field(
+        validation_alias="comment2", default="", description="Designer label the game does not read, e.g. C2Camp"
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _read_costs(cls, row: object, info: ValidationInfo) -> object:
+        if not isinstance(row, dict) or "costs" in row:
+            return row
+        return {**row, "costs": _goods_costs(row, (info.context or {}).get("currency_ids", {}))}
+
+    @field_validator("area_label", "label", mode="before")
+    @classmethod
+    def _text_column(cls, value: object) -> str:
+        return _text(value)
+
+    @field_validator("prebuilt_castle_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator("space_ids", mode="before")
+    @classmethod
+    def _spaces(cls, value: object) -> list[int]:
+        return _int_list(value)
+
+    @field_validator("min_level", "shown_discount", mode="before")
+    @classmethod
+    def _int_column(cls, value: object) -> int:
+        return _parse_int_or_default(value, 0)
+
+    @field_validator("is_main_castle_copy", mode="before")
+    @classmethod
+    def _flag(cls, value: object) -> bool:
+        return _is_one(value)
+
+    @property
+    def cost_rubies(self) -> int:
+        """The rubies among its costs; 0 when it costs none."""
+        return _rubies(self.costs)
+
+    @property
+    def is_free(self) -> bool:
+        """Whether it costs nothing. Client: ``PrebuiltCastleItemVO.isFree`` (bundle line 142353)"""
+        return not self.costs
+
+    @property
+    def is_premium(self) -> bool:
+        """Whether rubies are its only price. Client: ``PrebuiltCastleItemVO.isPremium`` (bundle line 142354)"""
+        return len(self.costs) == 1 and self.cost_rubies > 0
+
+    @property
+    def primary_costs(self) -> tuple[Collectable, ...]:
+        """
+        What it costs bought without its ruby price: all of a premium castle's costs, else those but the rubies.
+
+        Client: ``PrebuiltCastleItemVO.primaryCosts`` (bundle line 142357)
+        """
+        if self.is_premium:
+            return self.costs
+        return tuple(cost for cost in self.costs if cost.kind is not CollectableKind.RUBIES)
+
+    @property
+    def kingdom(self) -> Kingdom | None:
+        """
+        The kingdom it starts, the first of its spaces that is one; None for a season camp.
+
+        Client: ``AUnlockPrebuiltCastle.buyPrebuiltCastle`` (bundle line 55479) unlocks a kingdom for a castle
+        with a space in ``WorldConst.WORLD_IDS``
+        """
+        return next((Kingdom(space) for space in self.space_ids if space in _KINGDOM_IDS), None)
+
+
+class SpecialServerPrebuiltCastleDef(_Row):
+    """
+    A prebuilt castle as a special server's castle selection offers it: the Outer Realms, Beyond the Horizon or
+    the Storm Islands, each with a table of its own.
+
+    ``costs`` are its ``cost`` columns, rubies or castle passage tokens; :meth:`selection_costs` is what the
+    selection charges. The ``questsToFinish`` column is not read: the client reads it nowhere.
+
+    Client: ``SpecialServerPreBuiltCastleVO.parseXML`` (bundle line 40289), keyed by id in
+    ``CastleTempServerData`` (bundle line 140201), ``CastleAllianceBattleGroundData`` (bundle line 144847)
+    and ``CastleKingdomData`` (bundle line 134581)
+    """
+
+    prebuilt_castle_id: GameDataId["PrebuiltCastle"] = Field(
+        validation_alias="preBuiltCastleID", description="The prebuilt castle"
+    )
+    start_resources_id: StartResourcesId = Field(
+        validation_alias="startResourceID", default=StartResourcesId(0), description="The resources you start with"
+    )
+    start_level: int = Field(validation_alias="startPlayerLevel", default=0, description="Your level there")
+    start_legendary_level: int = Field(
+        validation_alias="startPlayerLegendLevel", default=0, description="Your legendary level there; 0 for none"
+    )
+    passage_token_package_id: PackageId = Field(
+        validation_alias="castlePassageTokenPackageID",
+        default=PackageId(0),
+        description="The package that sells the castle passage tokens it costs; 0 for none",
+    )
+    costs: tuple[Collectable, ...] = Field(default=(), description="What it costs; empty when the row names none")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _read_costs(cls, row: object, info: ValidationInfo) -> object:
+        if not isinstance(row, dict) or "costs" in row:
+            return row
+        currency_ids = (info.context or {}).get("currency_ids", {})
+        return {**row, "costs": Collectable.from_columns(row, _XML_COST_PREFIX, currency_ids)}
+
+    @field_validator("prebuilt_castle_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator(
+        "start_resources_id", "start_level", "start_legendary_level", "passage_token_package_id", mode="before"
+    )
+    @classmethod
+    def _int_column(cls, value: object) -> int:
+        return _parse_int_or_default(value, 0)
+
+    def selection_costs(self, castle: PrebuiltCastleDef) -> tuple[Collectable, ...]:
+        """
+        What the castle selection charges for it: its own costs; with none, the castle's primary costs, or else
+        0 rubies, which the client keeps as the price of a free castle.
+
+        Client: ``SpecialServerPreBuiltCastleVO.parseXML`` (bundle line 40289) with
+        ``CollectableParserX2CEventPackages.createCostList`` (bundle line 62852)
+        """
+        costs = self.costs or (_NO_RUBIES,)
+        if len(costs) == 1 and costs[0].amount == 0 and castle.primary_costs:
+            return castle.primary_costs
+        return costs
+
+    def is_ruby_castle(self, castle: PrebuiltCastleDef) -> bool:
+        """
+        Whether its selection is sent as bought with rubies (``OC2``): its selection costs hold rubies, even
+        the 0 rubies of a free castle.
+
+        Client: ``CastleSpecialServerPreBuildCastleSelectionDialog.onConfirmed`` (bundle line 27954),
+        ``CollectableList.containsType`` (bundle line 1830)
+        """
+        return any(cost.kind is CollectableKind.RUBIES for cost in self.selection_costs(castle))
+
+    def cost_rubies(self, castle: PrebuiltCastleDef) -> int:
+        """The rubies its selection costs; 0 when it costs none."""
+        return _rubies(self.selection_costs(castle))
+
+
+class StartResourcesDef(_Row):
+    """
+    The goods a special server's prebuilt castle starts with.
+
+    Client: ``StartResourcesVO.parseXML`` (bundle line 145059), keyed by id in
+    ``CastleAllianceBattleGroundData`` (bundle line 144845)
+    """
+
+    start_resources_id: StartResourcesId = Field(validation_alias="startResourceID", description="The start resources")
+    resources: tuple[Collectable, ...] = Field(default=(), description="What you start with")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _read_resources(cls, row: object, info: ValidationInfo) -> object:
+        if not isinstance(row, dict) or "resources" in row:
+            return row
+        currency_ids = (info.context or {}).get("currency_ids", {})
+        return {**row, "resources": Collectable.from_reward_row(row, currency_ids)}
+
+    @field_validator("start_resources_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+
+class PrivateVillageDef(EffectSpecRow):
+    """
+    One level of a private resource village, bought with resource village tokens.
+
+    Client: ``PrivateResourceVillageInfoVO.fillFromParamXML`` (bundle line 143715), keyed by id in
+    ``CastlePrivateResourceVillageData.parse`` (bundle line 143686)
+    """
+
+    village_type_id: GameDataId["PrivateVillageType"] = Field(
+        validation_alias="villageID", description="The village type and level"
+    )
+    resource: str = Field(validation_alias="type", default="", description="What it produces: wood, stone or food")
+    level: int = Field(validation_alias="villageLevel", default=0, description="Village level")
+    kingdom: GameDataId[Kingdom] = Field(validation_alias="kID", default=Kingdom.GREEN, description="Its kingdom")
+    token_cost: int = Field(
+        validation_alias="costResourceVillageTokenLevel",
+        default=0,
+        description="Resource village tokens this level costs",
+    )
+    total_token_cost: int = Field(
+        validation_alias="costResourceVillageToken",
+        default=0,
+        description="Resource village tokens it costs up to this level",
+    )
+
+    @field_validator("village_type_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator("level", "kingdom", "token_cost", "total_token_cost", mode="before")
+    @classmethod
+    def _int_column(cls, value: object) -> int:
+        return _parse_int_or_default(value, 0)
+
+    @field_validator("resource", mode="before")
+    @classmethod
+    def _text_column(cls, value: object) -> str:
+        return _text(value)
+
+
+class CraftingRecipeDef(_Row):
+    """
+    A recipe a crafting queue crafts.
+
+    Client: ``CraftingRecipeVO.fillFromParamXml`` (bundle line 111526), kept by id in ``CastleCraftingData``
+    (bundle line 111381), which leaves out a recipe whose rewards give nothing
+    """
+
+    recipe_id: CraftingRecipeId = Field(validation_alias="craftingRecipeId", description="The recipe")
+    queue_id: CraftingQueueId = Field(
+        validation_alias="queueTypeId", default=CraftingQueueId(0), description="The crafting queue it is crafted in"
+    )
+    recipe_group_id: int = Field(
+        validation_alias="recipeGroupID", default=0, description="The group the recipe's levels share"
+    )
+    research_group_id: int = Field(
+        validation_alias="researchGroupID", default=0, description="The research group that unlocks it; 0 for none"
+    )
+    level: int = Field(default=0, description="Recipe level")
+    recipe_type: str = Field(validation_alias="type", default="", description="short, long or ruby")
+    crafting_seconds: int = Field(validation_alias="craftingDuration", default=0, description="Seconds it crafts")
+    skip_cost_rubies: int = Field(validation_alias="skipCostC2", default=0, description="Rubies that finish it")
+    costs: tuple[Collectable, ...] = Field(default=(), description="What it costs to start")
+    reward_ids: tuple[RewardId, ...] = Field(validation_alias="rewardIDs", default=(), description="What it crafts")
+    required_buildings: tuple[GameDataId["Building"], ...] = Field(
+        validation_alias="requiredCraftingBuildings", default=(), description="The buildings it needs"
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _read_costs(cls, row: object, info: ValidationInfo) -> object:
+        if not isinstance(row, dict) or "costs" in row:
+            return row
+        currency_ids = (info.context or {}).get("currency_ids", {})
+        return {**row, "costs": Collectable.from_columns(row, _XML_COST_PREFIX, currency_ids)}
+
+    @field_validator("recipe_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator(
+        "queue_id", "recipe_group_id", "research_group_id", "level", "crafting_seconds", "skip_cost_rubies",
+        mode="before",
+    )  # fmt: skip
+    @classmethod
+    def _int_column(cls, value: object) -> int:
+        return _parse_int_or_default(value, 0)
+
+    @field_validator("recipe_type", mode="before")
+    @classmethod
+    def _type(cls, value: object) -> str:
+        return _text(value).lower()
+
+    @field_validator("reward_ids", "required_buildings", mode="before")
+    @classmethod
+    def _ids(cls, value: object) -> list[int]:
+        return _int_list(value)
+
+
+class CraftingQueueDef(_Row):
+    """
+    A crafting queue's slots: those it always has, and the temporary ones coins unlock for a while.
+
+    Client: ``CraftingQueueXML.fillFromParamXml`` (bundle line 111498), keyed by ``queueTypeId`` in
+    ``CastleCraftingData`` (bundle line 111381), the ``CQID`` a queue is sent with
+    """
+
+    queue_id: CraftingQueueId = Field(validation_alias="queueTypeId", description="The crafting queue")
+    permanent_production_slots: int = Field(
+        validation_alias="permanentProductionSlots", default=0, description="Slots that always craft"
+    )
+    production_slot_unlock_coins: tuple[int, ...] = Field(
+        validation_alias="productionSlotUnlockCostC1",
+        default=(),
+        description="Coins each temporary crafting slot unlocks for, one per slot",
+    )
+    production_slot_unlock_seconds: int = Field(
+        validation_alias="productionSlotUnlockDuration",
+        default=0,
+        description="Seconds a temporary crafting slot stays unlocked",
+    )
+    permanent_queue_slots: int = Field(
+        validation_alias="permanentQueueSlots", default=0, description="Waiting slots it always has"
+    )
+    queue_slot_unlock_coins: tuple[int, ...] = Field(
+        validation_alias="queueSlotUnlockCostC1",
+        default=(),
+        description="Coins each temporary waiting slot unlocks for, one per slot",
+    )
+    queue_slot_unlock_seconds: int = Field(
+        validation_alias="queueSlotUnlockDuration",
+        default=0,
+        description="Seconds a temporary waiting slot stays unlocked",
+    )
+
+    @field_validator("queue_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator(
+        "permanent_production_slots", "production_slot_unlock_seconds", "permanent_queue_slots",
+        "queue_slot_unlock_seconds", mode="before",
+    )  # fmt: skip
+    @classmethod
+    def _int_column(cls, value: object) -> int:
+        return _parse_int_or_default(value, 0)
+
+    @field_validator("production_slot_unlock_coins", "queue_slot_unlock_coins", mode="before")
+    @classmethod
+    def _coins(cls, value: object) -> list[int]:
+        return _int_list(value)
+
+
+class FusionSystemDef(_Row):
+    """
+    A fusion forge's energy and fusion rules.
+
+    The client builds one forge per row, with the row's id (``FusionForgeData.init``, bundle line 141977),
+    and looks both tables up by that id (``FusionConst.DECORATION_FORGE_ID``, bundle lines 24974, 78008, 78074).
+
+    Client: ``XmlFusionSystemVO.parseXml`` (bundle line 142170)
+    """
+
+    forge_id: GameDataId["FusionForgeId"] = Field(validation_alias="id", description="The fusion forge")
+    energy_recharge_seconds: int = Field(
+        validation_alias="energyRechargeIntervalInSeconds", default=0, description="Seconds between energy recharges"
+    )
+    assemble_catalyst_energy: int = Field(
+        validation_alias="assembleCatalystEnergyCost", default=0, description="Energy one assembled catalyst takes"
+    )
+    disassemble_catalyst_energy: int = Field(
+        validation_alias="disassembleCatalystEnergyCost",
+        default=0,
+        description="Energy one disassembled catalyst takes",
+    )
+    base_bonus_xp_chance: int = Field(
+        validation_alias="baseBonusFusionXPChance", default=0, description="Percent chance of bonus fusion XP"
+    )
+    premium_bonus_xp_chance: int = Field(
+        validation_alias="premiumBonusFusionXPChance",
+        default=0,
+        description="Percent chance of bonus fusion XP with a premium catalyst",
+    )
+    refill_cost_rubies: int = Field(
+        validation_alias="skipRechargeHardCurrencyCost", default=0, description="Rubies the first energy refill costs"
+    )
+    refill_cost_factor: float = Field(
+        validation_alias="skipRechargeHardCurrencyCostFactor",
+        default=0.0,
+        description="What each refill bought multiplies the next one's price by",
+    )
+
+    @field_validator("forge_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator(
+        "energy_recharge_seconds", "assemble_catalyst_energy", "disassemble_catalyst_energy", "base_bonus_xp_chance",
+        "premium_bonus_xp_chance", "refill_cost_rubies", mode="before",
+    )  # fmt: skip
+    @classmethod
+    def _int_column(cls, value: object) -> int:
+        return _parse_int_or_default(value, 0)
+
+    @field_validator("refill_cost_factor", mode="before")
+    @classmethod
+    def _factor(cls, value: object) -> float:
+        return 0.0 if js_falsy(value) else js_parse_float(value)
+
+
+class FusionForgeDef(_Row):
+    """
+    A fusion forge's dust and daily minute skips.
+
+    Client: ``XmlFusionForgeVO.parseXml`` (bundle line 142155)
+    """
+
+    forge_id: GameDataId["FusionForgeId"] = Field(validation_alias="forgeID", description="The fusion forge")
+    dust_currency_id: GameDataId["CurrencyId"] = Field(
+        validation_alias="dustCurrencyID", default=0, description="The dust its fusions and level-ups spend"
+    )
+    minute_skips_per_day: int = Field(
+        validation_alias="usableMinuteSkipsPerDay", default=0, description="Minute skips it takes a day"
+    )
+
+    @field_validator("forge_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator("dust_currency_id", "minute_skips_per_day", mode="before")
+    @classmethod
+    def _int_column(cls, value: object) -> int:
+        return _parse_int_or_default(value, 0)
+
+
+class JudgementDef(_Row):
+    """
+    A citizen judgement: where it appears, and what each verdict asks and gives.
+
+    The requirements and rewards are the kinds of goods the client looks up, e.g. ``units`` or ``wood``.
+
+    Client: ``JudgementVO.fillFromParamXML`` (bundle line 134514), keyed by id in ``CastleJudgementData``
+    (bundle line 134451)
+    """
+
+    judgement_id: GameDataId["Judgement"] = Field(validation_alias="judgementID", description="The judgement")
+    visual_name: str = Field(validation_alias="visualName", default="", description="The figure it shows, e.g. wolfs")
+    spawn_spot: str = Field(validation_alias="spawnSpot", default="", description="Where it appears, e.g. keep")
+    option_a_requirements: tuple[str, ...] = Field(
+        validation_alias="conditionTypeA", default=(), description="What verdict A asks for"
+    )
+    option_b_requirements: tuple[str, ...] = Field(
+        validation_alias="conditionTypeB", default=(), description="What verdict B asks for"
+    )
+    option_a_rewards: tuple[str, ...] = Field(
+        validation_alias="rewardTypeA", default=(), description="What verdict A gives"
+    )
+    option_b_rewards: tuple[str, ...] = Field(
+        validation_alias="rewardTypeB", default=(), description="What verdict B gives"
+    )
+
+    @field_validator("judgement_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator("visual_name", "spawn_spot", mode="before")
+    @classmethod
+    def _text_column(cls, value: object) -> str:
+        return _text(value)
+
+    @field_validator(
+        "option_a_requirements", "option_b_requirements", "option_a_rewards", "option_b_rewards", mode="before"
+    )
+    @classmethod
+    def _kinds(cls, value: object) -> tuple[str, ...]:
+        if isinstance(value, list | tuple):
+            return tuple(value)
+        return tuple(part for part in _text(value).split("#") if part)
 
 
 class CoatOfArmsSymbolDef(_Row):
@@ -1654,6 +2196,20 @@ class RewardDef(_Row):
 
 __all__ = [
     "row_id",
+    "is_cost_column",
+    "ConstructionItemRecipeId",
+    "CraftingQueueDef",
+    "CraftingQueueId",
+    "CraftingRecipeDef",
+    "CraftingRecipeId",
+    "FusionForgeDef",
+    "FusionSystemDef",
+    "JudgementDef",
+    "PrebuiltCastleDef",
+    "PrivateVillageDef",
+    "SpecialServerPrebuiltCastleDef",
+    "StartResourcesDef",
+    "StartResourcesId",
     "CoatOfArmsSymbolDef",
     "CoatOfArmsSymbolId",
     "PackageDef",

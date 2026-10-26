@@ -18,6 +18,7 @@ from empire_core.castle.models.updates import (
     SlumLevel,
 )
 from empire_core.enums import Kingdom, ResourceCartType
+from empire_core.gamedata import Judgement
 from empire_core.map.models.world import MapSize, ServerInfoResponse
 from empire_core.protocol.base import enum_or_none, read_or_none
 from empire_core.protocol.js import js_truthy
@@ -242,7 +243,7 @@ class AreaState(StateBase):
         with self._lock:
             return self.hunter
 
-    def get_judgement_id(self) -> int | None:
+    def get_judgement_id(self) -> Judgement | int | None:
         """The open citizen judgement, from the last ``sjc``; None while none is open."""
         with self._lock:
             return self.judgement_id

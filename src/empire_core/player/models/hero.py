@@ -7,14 +7,14 @@ Commands:
 
 from __future__ import annotations
 
-from typing import ClassVar
+from typing import Any, ClassVar
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from empire_core.enums import Hero
-from empire_core.gamedata.lenient import known
+from empire_core.gamedata import EnumOrInt
 from empire_core.protocol.base import BaseRequest, BaseResponse
-from empire_core.protocol.js import ClientInt
+from empire_core.protocol.js import js_int
 
 
 class HeroDecisionRequest(BaseRequest):
@@ -40,14 +40,14 @@ class HeroDecisionResponse(BaseResponse):
 
     command: ClassVar[str] = "hdc"
 
-    hero_id: ClientInt = Field(
-        validation_alias="HID", default=0, description="Your hero's id; -1 while you have yet to pick one"
+    hero: EnumOrInt[Hero] | None = Field(
+        validation_alias="HID", default=None, description="Your hero; None while you have yet to pick one"
     )
 
-    @property
-    def hero(self) -> Hero | int | None:
-        """Your hero, None while you have yet to pick one."""
-        return known(Hero, self.hero_id) if self.hero_id > 0 else None
+    @field_validator("hero", mode="before")
+    @classmethod
+    def _hero(cls, value: Any) -> Any:
+        return value if js_int(value) > 0 else None
 
 
 __all__ = ["HeroDecisionRequest", "HeroDecisionResponse"]

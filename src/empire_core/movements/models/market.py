@@ -25,6 +25,8 @@ from empire_core.protocol.base import (
 )
 from empire_core.protocol.js import ClientInt
 
+from .movement import NO_HORSE, HorseBoosterId
+
 logger = logging.getLogger(__name__)
 
 
@@ -90,10 +92,10 @@ class CreateMarketMovementRequest(BaseRequest):
     )
     target_x: int = Field(validation_alias="TX", description="Map x of the target castle")
     target_y: int = Field(validation_alias="TY", description="Map y of the target castle")
-    horse_booster_id: int = Field(
+    horse_booster_id: HorseBoosterId = Field(
         validation_alias="HBW",
-        default=-1,
-        description="The horse booster's wod id, -1 for none or when paid with feathers",
+        default=NO_HORSE,
+        description="The horse booster, NO_HORSE for none or when paid with feathers",
     )
     feathers: int = Field(
         validation_alias="PTT",

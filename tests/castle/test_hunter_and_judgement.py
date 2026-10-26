@@ -7,6 +7,7 @@ import pytest
 from empire_core.castle import HunterInfo, JudgementStarted
 from empire_core.enums import JudgementOption
 from empire_core.exceptions import CommandError
+from empire_core.gamedata import Judgement
 from empire_core.protocol.base import parse_response
 from empire_core.state.manager import GameState
 from tests.service_helpers import conn, make_client, xt_packet
@@ -52,21 +53,28 @@ class TestHunter:
 class TestJudgement:
     def test_a_started_judgement_is_kept(self):
         state = GameState()
-        state.update_from_packet("sjc", {"JID": 14})
-        assert state.get_judgement_id() == 14
-        assert isinstance(parse_response("sjc", {"JID": 14}), JudgementStarted)
+        state.update_from_packet("sjc", {"JID": 3})
+        assert state.get_judgement_id() is Judgement.SQUABBLERS
+        started = parse_response("sjc", {"JID": "0"})
+        assert isinstance(started, JudgementStarted) and started.judgement_id is Judgement.WOLVES_OUTSIDE_THE_CASTLE
+
+    def test_a_push_without_a_judgement_only_ends_the_open_one(self):
+        state = GameState()
+        state.update_from_packet("sjc", {"JID": 3})
+        state.update_from_packet("sjc", {})
+        assert state.get_judgement_id() is None
 
     def test_the_verdict_ends_it(self):
         state = GameState()
-        state.update_from_packet("sjc", {"JID": 14})
+        state.update_from_packet("sjc", {"JID": 3})
         state.update_from_packet("jjc", {"CO": 1})
         assert state.get_judgement_id() is None
 
     def test_a_refused_verdict_keeps_it(self):
         state = GameState()
-        state.update_from_packet("sjc", {"JID": 14})
+        state.update_from_packet("sjc", {"JID": 3})
         state.update_from_packet("jjc", {}, error_code=1)
-        assert state.get_judgement_id() == 14
+        assert state.get_judgement_id() is Judgement.SQUABBLERS
 
     @pytest.mark.parametrize("option", list(JudgementOption))
     def test_judge_sends_the_option(self, option):

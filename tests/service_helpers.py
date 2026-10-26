@@ -15,7 +15,7 @@ from empire_core.config import EmpireConfig
 from empire_core.enums import Kingdom
 from empire_core.events.models import SpecialEvent
 from empire_core.exceptions import EmpireTimeoutError, StateNotLoadedError
-from empire_core.gamedata import GameData
+from empire_core.gamedata import GameData, Horse
 from empire_core.map.models.world import MapSize, ServerInfoResponse
 from empire_core.network.connection import ResponseWaiter
 from empire_core.player import BoosterInfoResponse
@@ -334,19 +334,76 @@ class StubState:
         self.events.append("reset")
 
 
-COIN_HORSE = 1001
+COIN_HORSE = Horse.HORSE_STABLE1
 """A horse paid in coins, as items 786.03 has it."""
-RUBY_HORSE = 1002
+RUBY_HORSE = Horse.WARHORSE_STABLE1
 """A horse paid in rubies, as items 786.03 has it."""
 
 
 def with_horses(client: EmpireClient) -> EmpireClient:
     """Give ``client`` game data with :data:`COIN_HORSE` and :data:`RUBY_HORSE`."""
     rows = [
-        {"wodID": str(COIN_HORSE), "costFactorC1": "1", "costFactorC2": "0.0"},
-        {"wodID": str(RUBY_HORSE), "costFactorC1": "0", "costFactorC2": "1.0"},
+        {"wodID": str(int(COIN_HORSE)), "costFactorC1": "1", "costFactorC2": "0.0"},
+        {"wodID": str(int(RUBY_HORSE)), "costFactorC1": "0", "costFactorC2": "1.0"},
     ]
     client.game_data = GameData.parse("test", {"horses": rows})
+    return client
+
+
+PREBUILT_CASTLE_ITEMS: dict[str, Any] = {
+    "prebuiltcastles": [
+        {"preBuiltCastleID": "1", "comment1": "FactionKingdom", "comment2": "CheapCamp", "spaceIDs": "10",
+         "minLevel": 15, "costWood": "900", "costStone": "900"},
+        {"preBuiltCastleID": "3", "comment1": "FactionKingdom", "comment2": "C2Camp", "spaceIDs": "10",
+         "minLevel": 15, "costC2": "49000"},
+        {"preBuiltCastleID": "4", "comment1": "IceKingdom", "comment2": "CheapCamp", "spaceIDs": "2", "minLevel": 25,
+         "costWood": "7000", "costStone": "7000", "costFood": "5000", "costC1": "5000", "costC2": "10000"},
+        {"preBuiltCastleID": "6", "comment1": "IceKingdom", "comment2": "C2Camp", "spaceIDs": "2", "minLevel": 18,
+         "costC2": "29000", "shownDiscount": "50"},
+        {"preBuiltCastleID": "8", "comment1": "DessertKingdom", "comment2": "ResourceCamp", "spaceIDs": "1",
+         "minLevel": 40, "costWood": "39000", "costStone": "39000", "costC2": "50000"},
+        {"preBuiltCastleID": "11", "comment1": "VulcanoKingdom", "comment2": "ResourceCamp", "spaceIDs": "3",
+         "minLevel": 50, "costWood": "79000", "costC2": "80000"},
+        {"preBuiltCastleID": "16", "comment1": "Storm Island", "comment2": "CheapCamp", "spaceIDs": "4",
+         "minLevel": 35, "costWood": "10000", "costC1": "5000"},
+        {"preBuiltCastleID": "18", "comment1": "Storm Island", "comment2": "C2Camp", "spaceIDs": "4",
+         "minLevel": 35, "costC2": "59000"},
+        {"preBuiltCastleID": "22", "comment1": "Underworld", "comment2": "CheapCamp", "spaceIDs": "23",
+         "minLevel": 30, "costWood": "10000", "costC2": "10000"},
+        {"preBuiltCastleID": "24", "comment1": "Underworld", "comment2": "C2Camp", "spaceIDs": "23", "minLevel": 30,
+         "costC2": "29000"},
+        {"preBuiltCastleID": "28", "comment1": "Bladecoast", "comment2": "CheapCamp", "spaceIDs": "22,27,28",
+         "minLevel": 30, "costWood": "10000"},
+        {"preBuiltCastleID": "31", "comment1": "temp Server", "comment2": "PreCampLevel11", "spaceIDs": "0",
+         "costWood": "0", "costC1": "0"},
+        {"preBuiltCastleID": "32", "comment1": "temp Server", "comment2": "PreCampLevel11C2", "spaceIDs": "0",
+         "costC2": "20000"},
+        {"preBuiltCastleID": "35", "comment1": "ABG", "comment2": "PreCampLevel11C2", "spaceIDs": "0", "minLevel": 15,
+         "costC2": "19999"},
+        {"preBuiltCastleID": "40", "comment1": "Temp Server", "comment2": "Castle Transportation", "spaceIDs": "0",
+         "minLevel": 6, "isMainCastleCopy": "1"},
+    ],
+    "tempServerPreBuiltCastles": [
+        {"preBuiltCastleID": "31", "startPlayerLevel": "11", "startResourceID": "1"},
+        {"preBuiltCastleID": "32", "startPlayerLevel": "11", "startResourceID": "2", "costC2": "19999"},
+        {"preBuiltCastleID": "40", "startPlayerLevel": "70", "startPlayerLegendLevel": "800", "startResourceID": "6",
+         "costCastlePassageToken": "1", "castlePassageTokenPackageID": "2358"},
+    ],
+    "allianceBattleGroundPreBuiltCastles": [
+        {"preBuiltCastleID": "35", "startPlayerLevel": "15", "startResourceID": "3", "costC2": "19999"},
+    ],
+    "islandPreBuiltCastles": [
+        {"preBuiltCastleID": "16", "startPlayerLevel": "35", "startResourceID": "7"},
+        {"preBuiltCastleID": "18", "startPlayerLevel": "35", "startResourceID": "9", "costC2": "59000"},
+    ],
+    "currencies": [{"currencyID": "8", "Name": "CastlePassageToken"}],
+}  # fmt: skip
+"""Prebuilt castle rows as items 788.02 has them, trimmed to the columns the tests read."""
+
+
+def with_prebuilt_castles(client: EmpireClient) -> EmpireClient:
+    """Give ``client`` game data with :data:`PREBUILT_CASTLE_ITEMS`."""
+    client.game_data = GameData.parse("test", PREBUILT_CASTLE_ITEMS)
     return client
 
 

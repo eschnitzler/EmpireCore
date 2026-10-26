@@ -211,7 +211,7 @@ from .service import EventsService
 from .titles import get_event_titles
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import Currency, Effect, Event, GlobalEffect, QuestId, RaidBoss
+    from empire_core.gamedata import Currency, Effect, Event, GlobalEffect, PrebuiltCastle, QuestId, RaidBoss
 
 __all__ = [
     "AllianceCampInfo",
@@ -409,6 +409,7 @@ __all__ = [
     "Effect",
     "Event",
     "GlobalEffect",
+    "PrebuiltCastle",
     "QuestId",
     "RaidBoss",
 ]
@@ -416,5 +417,7 @@ __all__ = [
 
 if not TYPE_CHECKING:
     __getattr__ = lazy_exports(
-        __name__, "empire_core.gamedata.ids", ("Currency", "Effect", "Event", "GlobalEffect", "QuestId", "RaidBoss")
+        __name__,
+        "empire_core.gamedata.ids",
+        ("Currency", "Effect", "Event", "GlobalEffect", "PrebuiltCastle", "QuestId", "RaidBoss"),
     )

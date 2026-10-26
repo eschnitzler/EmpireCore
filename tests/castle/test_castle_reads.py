@@ -28,7 +28,7 @@ from empire_core.castle.models.brewery import BreweryStops, MeadShare
 from empire_core.enums import Kingdom, TaxStatus
 from empire_core.events import SeasonEventResponse
 from empire_core.exceptions import CommandError, UnknownCastleError
-from empire_core.gamedata import Building
+from empire_core.gamedata import Building, PrivateVillageType
 from empire_core.protocol.models import parse_response
 from empire_core.state.manager import GameState
 from tests.service_helpers import conn, make_client, xt_packet
@@ -41,6 +41,7 @@ class TestBrewery:
     def test_requests_send_the_client_keys(self):
         get = GetBreweryProductionRequest(kingdom_id=Kingdom.ICE, castle_id=7, wod_id=1959, object_id=42)
         assert get.to_payload() == {"KID": 2, "AID": 7, "WID": 1959, "OID": 42}
+        assert get.wod_id is Building.RELIC_BREWERY_L1
         set_ = SetBreweryProductionRequest(
             kingdom_id=Kingdom.ICE,
             castle_id=7,
@@ -92,32 +93,41 @@ class TestBrewery:
         assert conn(client).request_payloads == []
 
 
+WOOD_L1 = PrivateVillageType.ICE_PRIVATE_WOOD_VILLAGE_L1
+
+
 class TestPrivateVillages:
     def test_requests_send_the_client_keys(self):
-        assert BuyPrivateVillageRequest(village_type_id=3).to_payload() == {"XID": 3}
-        assert UpgradePrivateVillageRequest(village_type_id=3, village_id=90).to_payload() == {"XID": 3, "VID": 90}
+        assert BuyPrivateVillageRequest(village_type_id=WOOD_L1).to_payload() == {"XID": 41}
+        upgrade = UpgradePrivateVillageRequest(village_type_id=WOOD_L1, village_id=90)
+        assert upgrade.to_payload() == {"XID": 41, "VID": 90}
+        assert upgrade.village_type_id is WOOD_L1
         assert RemovePrivateVillageRequest(village_id=90).to_payload() == {"VID": 90}
+
+    def test_the_type_carries_its_kingdom_resource_and_level(self):
+        assert (WOOD_L1.kingdom_id, WOOD_L1.resource, WOOD_L1.level) == (Kingdom.ICE, "wood", 1)
 
     def test_service(self):
         client = make_client()
-        client.castle.buy_private_village(3)
-        client.castle.upgrade_private_village(3, 90)
+        client.castle.buy_private_village(WOOD_L1)
+        client.castle.upgrade_private_village(WOOD_L1, 90)
         client.castle.remove_private_village(90)
         assert conn(client).request_payloads == [
-            ("bpv", {"XID": 3}),
-            ("upv", {"XID": 3, "VID": 90}),
+            ("bpv", {"XID": 41}),
+            ("upv", {"XID": 41, "VID": 90}),
             ("rpv", {"VID": 90}),
         ]
 
     def test_a_refused_buy_raises(self):
         client = make_client({"bpv": xt_packet("bpv", error_code=21)})
         with pytest.raises(CommandError):
-            client.castle.buy_private_village(3)
+            client.castle.buy_private_village(WOOD_L1)
 
 
 class TestLookups:
     def test_upgradable_buildings(self):
-        assert ShowUpgradableBuildingsRequest(wod_id=101).to_payload() == {"WOD": 101, "PSU": True}
+        request = ShowUpgradableBuildingsRequest(wod_id=101)
+        assert request.to_payload() == {"WOD": 101, "PSU": True} and request.wod_id is Building.WOODCUTTER_L2
         reply = parse_response("sub", {"WOD": 101, "UD": [[2, 7, 42], [0, 8]], "BE": 1})
         assert isinstance(reply, ShowUpgradableBuildingsResponse)
         first, second = reply.buildings
@@ -139,7 +149,7 @@ class TestLookups:
             }
         )
 
-        upgradable = client.castle.get_upgradable_buildings(101, prime_sale_upgrade=False)
+        upgradable = client.castle.get_upgradable_buildings(Building.WOODCUTTER_L2, prime_sale_upgrade=False)
         transported = client.castle.get_transportation_buildings()
         discount = client.castle.get_feast_cost_reduction()
 
