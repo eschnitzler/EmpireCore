@@ -554,7 +554,7 @@ class EventsService(BaseService):
         ``client.connect_to_special_server(server_type)``, as the client connects once the pick is accepted.
 
         The server's castle selection prices the castle; one that costs rubies is bought at that price
-        (``OC2``) and needs ``spend_rubies``. As in the client, a castle that costs nothing goes as bought
+        and needs ``spend_rubies``. As in the client, a castle that costs nothing goes as bought
         with rubies, at 0 of them.
 
         Args:
@@ -567,6 +567,7 @@ class EventsService(BaseService):
         Raises:
             ValueError: ``server_type`` is the normal server, the server offers no such castle, it has no
                 ruby price for ``ruby_price``, or it costs rubies without ``spend_rubies``
+            GameDataNotLoadedError: The game data cannot be loaded
             EventNotRunningError: The server's event is not running
             CommandError: The server refused the pick
 
@@ -682,6 +683,8 @@ class EventsService(BaseService):
         Raises:
             EventNotRunningError: Battle for Berimond is not running
             ValueError: The camp is not Berimond's, needs a higher level, or costs rubies without ``spend_rubies``
+            GameDataNotLoadedError: The game data cannot be loaded
+            StateNotLoadedError: No login has brought your level
             CommandError: The server refused, e.g. ``FACTION_LAST_MAN_STANDING_ACTIVE``
 
         Client: ``FactionEventJoinSublayer.buyCamp`` (bundle 95197) sends ``OC2`` for a camp that
@@ -731,6 +734,8 @@ class EventsService(BaseService):
         Raises:
             ValueError: The camp starts a kingdom, not a season event's map, needs a higher level, has no ruby
                 price for ``ruby_price``, or costs rubies without ``spend_rubies``
+            GameDataNotLoadedError: The game data cannot be loaded
+            StateNotLoadedError: No login has brought your level
             CommandError: The server refused
 
         Client: ``AUnlockPrebuiltCastle.buyPrebuiltCastle`` (bundle line 55482) sends ``csc`` for a castle with

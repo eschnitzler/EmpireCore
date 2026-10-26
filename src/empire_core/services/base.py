@@ -166,13 +166,14 @@ class BaseService:
         game_data = self.client.game_data
         return game_data if game_data is not None else GameData.require()
 
-    def _prebuilt_castle(self, castle: PrebuiltCastle | int) -> PrebuiltCastleDef:
+    def _prebuilt_castle(self, castle: PrebuiltCastle | int, *, level_gated: bool = True) -> PrebuiltCastleDef:
         """
-        A prebuilt castle's row, refused above your level.
+        A prebuilt castle's row; a ``level_gated`` one is refused above your level.
 
         Raises:
             ValueError: The game data lacks the castle, or your level is below its ``min_level``
             GameDataNotLoadedError: The game data cannot be loaded
+            StateNotLoadedError: ``level_gated`` and no login has brought your level
 
         Client: ``CastleKingdomCastleDetails.findNextSelectableCastleIndex`` (bundle line 97897) and
         ``PrebuiltCastleSelector.validateSelection`` (bundle line 54604) offer only a castle whose ``minLevel``
@@ -181,6 +182,8 @@ class BaseService:
         row = self._require_game_data().prebuilt_castles.get(castle)
         if row is None:
             raise ValueError(f"prebuilt castle {int(castle)} is not in the game data")
+        if not level_gated:
+            return row
         level = self.client.state.get_local_player().level
         if 0 < level < row.min_level:
             raise ValueError(f"prebuilt castle {int(castle)} needs level {row.min_level}; you are level {level}")

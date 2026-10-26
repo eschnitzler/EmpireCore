@@ -95,7 +95,7 @@ class LenientEnum:
 if TYPE_CHECKING:
     EnumOrInt = Union[_E, _F, int]
     EnumOrStr = Union[_E, str]
-    GameDataId = Union[_E, int]
+    GameDataId = Union[_E, _F, int]
     GameDataKey = Union[_E, str]
 else:
 
@@ -115,9 +115,12 @@ else:
             return Annotated[str, PlainValidator(LenientEnum(enum, str))]
 
     class GameDataId:
-        """``GameDataId[E]``: ``EnumOrInt[E]`` for an id inside the items tables, kept without a warning."""
+        """``GameDataId[E]``: ``EnumOrInt[E]`` for an id inside the items tables, kept without a warning.
 
-        def __class_getitem__(cls, enum: type[Enum] | str) -> Any:
+        ``GameDataId[E, F]`` looks the id up in ``E``, then in ``F``.
+        """
+
+        def __class_getitem__(cls, enum: type[Enum] | str | tuple[type[Enum] | str, ...]) -> Any:
             return Annotated[int, PlainValidator(LenientEnum(enum, int, warn=False))]
 
     class GameDataKey:

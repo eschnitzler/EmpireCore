@@ -318,6 +318,13 @@ JUDGEMENT_NAME = DisplayName(
     "judgement_{value}_name", "``EventJudgementVO.getInfoTooltipLine1`` (bundle line 49629)", when_known=True
 )
 
+ALLIANCE_TOWER_EFFECT_NAME = DisplayName(
+    "{text_id}",
+    "``CastleABGTowerEffectsDialogItem.fill`` (bundle line 71074)",
+    optional=True,
+    shown="dialog_beyondTheHorizon_AllianceTower_<effect name>_name",
+)
+
 FUSION_FORGE_TEXT_IDS = {1: "dialog_fusionHub_fusionForges_deco"}
 """``FusionForgeHubDialogMainItem.getNameTextId`` (bundle line 78081), by ``FusionConst.DECORATION_FORGE_ID``."""
 
@@ -569,22 +576,75 @@ def event_rows(data: GameData, texts: Texts | None) -> list[Row]:
     return rows
 
 
+SEASON_EVENT_TYPES = frozenset({"Thornking", "Seaqueen", "Underworld"})
+"""
+The event types whose ``<eventType>EventVO`` (``CastleSpecialEventFactory.createByEventType``, bundle line 61625)
+is an ``ASeasonEventVO`` (bundle lines 118013, 118492, 118716): the season events.
+"""
+
+
+@dataclass(frozen=True)
+class SeasonMap:
+    event: str
+    """The season event's member name base, its in-game title."""
+    difficulty: str
+    """The map's ``comment1`` note, e.g. ``HARDMODE``."""
+    is_first: bool
+    """The event's first map, the one ``ASeasonEventVO.parseEventXmlNode`` (bundle line 31385) takes as its own."""
+
+
+def season_maps(data: GameData, texts: Texts | None) -> dict[int, SeasonMap]:
+    """The season events' maps by id, as the events' ``mapID`` lists them."""
+    events = {int(row.value): row.base for row in event_rows(data, texts)}
+    maps = {}
+    for e in data.events.values():
+        if e.event_type not in SEASON_EVENT_TYPES:
+            continue
+        for index, map_id in enumerate(e.map_ids):
+            row = data.treasure_maps.get(map_id)
+            maps[int(map_id)] = SeasonMap(events[int(e.event_id)], to_snake(row.label) if row else "", index == 0)
+    return maps
+
+
 def treasure_map_rows(data: GameData, texts: Texts | None) -> list[Row]:
     """
-    ``treasuremap_chest_<mapID>_title`` without a leading "The", else the ``comment2`` and ``comment1`` notes: the
-    season maps have no title, and ``comment1`` names their difficulty (``THORNKING_HARDMODE``); a note that
-    already starts with the other is taken alone (``UNDERWORLD_LOW_LEVEL``).
+    ``treasuremap_chest_<mapID>_title`` without a leading "The"; a season map, which has no title, by its season
+    event's in-game name and its ``comment1`` difficulty (``THORN_KING_HARDMODE``); else the ``comment2`` and
+    ``comment1`` notes, a note that already starts with the other taken alone (``UNDERWORLD_LOW_LEVEL``).
     """
+    seasons = season_maps(data, texts)
     rows = []
     for m in data.treasure_maps.values():
         map_id = int(m.map_id)
         title = named(texts, TREASURE_MAP_TITLE(value=map_id))
+        season = seasons.get(map_id)
         if title:
             base = re.sub(r"^The\s+", "", title)
+        elif season is not None:
+            base = "_".join(part for part in (season.event, season.difficulty) if part)
         else:
             label, note = to_snake(m.label), to_snake(m.note)
             base = label if label.startswith(note) else "_".join(part for part in (note, label) if part)
         rows.append(Row(base or f"MAP_{map_id}", map_id, id_text(map_id), (int(m.map_type),)))
+    return rows
+
+
+def alliance_tower_effect_rows(data: GameData, texts: Texts | None) -> list[Row]:
+    """
+    ``dialog_beyondTheHorizon_AllianceTower_<effect name>_name``, as the tower's effect list titles each, else
+    the effect's name.
+
+    Client: ``CastleABGTowerEffectsDialogItem.fill`` (bundle line 71074), whose effect is the row's
+    (``ABGAllianceTowerEffectVO.parseServerParams``, bundle line 144981)
+    """
+    rows = []
+    for t in data.alliance_tower_effects.values():
+        effect_id = int(t.tower_effect_id)
+        effect = data.effects.get(t.effect_id)
+        text_id = f"dialog_beyondTheHorizon_AllianceTower_{effect.name}_name" if effect else ""
+        name = named(texts, text_id) if text_id else None
+        base = name or (to_snake(effect.name) if effect else f"TOWER_EFFECT_{effect_id}")
+        rows.append(Row(base, effect_id, id_text(effect_id), (text_id,)))
     return rows
 
 
@@ -603,14 +663,17 @@ def building_rows(data: GameData) -> list[Row]:
 def prebuilt_castle_rows(data: GameData, texts: Texts | None) -> list[Row]:
     """
     The castle's English name, after the area that offers it: the kingdom, the special server (none when both
-    special servers offer it) or else the ``comment1`` note, e.g. a season event's map. Without a name, the
-    ``comment2`` note.
+    special servers offer it), the season event by its in-game name (and the map's difficulty, off the event's
+    first map), else the ``comment1`` note. Without a name, the ``comment2`` note. A name that already starts
+    with its area is not prefixed again (``STORM_BASTION``).
 
     A special server's selection names a castle ``dialog_chooseCastle_preBuiltCastle_<id>``
     (``SpecialServerPreBuiltCastleVO.getNameText``, bundle line 40296), a kingdom's details
-    ``dialog_prebuiltCastle<id>_name`` (``CastleKingdomCastleDetails.update``, bundle line 97888).
+    ``dialog_prebuiltCastle<id>_name`` (``CastleKingdomCastleDetails.update``, bundle line 97888). A season camp's
+    first space is its map (``AUnlockPrebuiltCastle.buyPrebuiltCastle``, bundle line 55482).
     """
     outer_realms, horizon = set(data.outer_realms_prebuilt_castles), set(data.horizon_prebuilt_castles)
+    seasons = season_maps(data, texts)
     rows = []
     for castle in data.prebuilt_castles.values():
         castle_id = int(castle.prebuilt_castle_id)
@@ -618,6 +681,7 @@ def prebuilt_castle_rows(data: GameData, texts: Texts | None) -> list[Row]:
         text_id = next((t for t in candidates if texts is not None and texts.get(t)), "")
         name = named(texts, text_id) if text_id else None
         kingdom = castle.kingdom
+        season = seasons.get(castle.space_ids[0]) if castle.space_ids else None
         if kingdom is not None and kingdom is not Kingdom.GREEN:
             area = kingdom.name
         elif castle_id in outer_realms or castle_id in horizon:
@@ -626,9 +690,14 @@ def prebuilt_castle_rows(data: GameData, texts: Texts | None) -> list[Row]:
                 if castle_id in outer_realms and castle_id in horizon
                 else ("OUTER_REALMS" if castle_id in outer_realms else "HORIZON")
             )
+        elif season is not None:
+            area = identifier(season.event if season.is_first else f"{season.event}_{season.difficulty}", "")
         else:
             area = to_snake(castle.area_label)
-        base = "_".join(part for part in (area, name or to_snake(castle.label)) if part) or f"CASTLE_{castle_id}"
+        own = identifier(name, "") if name else to_snake(castle.label)
+        if area and (own == area or own.startswith(f"{area}_")):
+            area = ""
+        base = "_".join(part for part in (area, own) if part) or f"CASTLE_{castle_id}"
         rows.append(Row(base, castle_id, id_text(castle_id), (text_id,)))
     return rows
 
@@ -1193,9 +1262,11 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
             "TreasureMapId",
             "M",
             "Treasure map ids from the ``tmaps`` table: the season events' maps and the treasure hunt's, named from "
-            "the game's English title, else the ``comment2`` and ``comment1`` notes.",
+            "the game's English title; a season map by its event's in-game name and its ``comment1`` difficulty; "
+            "else the ``comment2`` and ``comment1`` notes.",
             "``TreasureMapVO.fillFromParamXML`` (bundle line 140567); names from ``CastleTreasureMapDialog."
-            "onMapLoaded`` (bundle line 43848)",
+            "onMapLoaded`` (bundle line 43848), a season map's event from the events' ``mapID`` "
+            "(``ASeasonEventVO.parseEventXmlNode``, bundle line 31385)",
             treasure_map_rows(data, texts),
             (Attr("map_type", "int", "What the map is for, a ``TreasureMapType`` value."),),
             display=TREASURE_MAP_TITLE,
@@ -1205,18 +1276,12 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
             "AllianceTowerEffect",
             "T",
             "Beyond the Horizon's alliance tower effect ids from the ``allianceTowerEffects`` table, named from the "
-            "effect each gives: the game shows no name of their own.",
-            "``ABGAllianceTowerEffectXmlVO.parseXML`` (bundle line 145007)",
-            [
-                Row(
-                    to_snake(effect.name)
-                    if (effect := data.effects.get(t.effect_id))
-                    else f"TOWER_EFFECT_{t.tower_effect_id}",
-                    int(t.tower_effect_id),
-                    id_text(t.tower_effect_id),
-                )
-                for t in data.alliance_tower_effects.values()
-            ],
+            "game's English name, else the effect each gives.",
+            "``ABGAllianceTowerEffectXmlVO.parseXML`` (bundle line 145007); names from "
+            "``CastleABGTowerEffectsDialogItem.fill`` (bundle line 71074)",
+            alliance_tower_effect_rows(data, texts),
+            (TEXT_ID,),
+            display=ALLIANCE_TOWER_EFFECT_NAME,
         ),
         Table(
             "difficulty_types",

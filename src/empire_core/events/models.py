@@ -30,7 +30,17 @@ from empire_core.events.progression_models import (
 )
 from empire_core.events.status_models import GrandTournamentQuestStatus, RiftRaidStatus
 from empire_core.exceptions import ReplyMismatchError
-from empire_core.gamedata import EnumOrInt, RewardId, WheelOfFortuneRewardSetId, WheelOfFortuneWinClassId
+from empire_core.gamedata import (
+    AllianceInvasionCampId,
+    DonationSettingId,
+    EnumOrInt,
+    EventDifficultyId,
+    OuterRealmsSettingId,
+    RewardId,
+    ScalingCampId,
+    WheelOfFortuneRewardSetId,
+    WheelOfFortuneWinClassId,
+)
 from empire_core.gamedata.ids.events import Event
 from empire_core.map.models.areas import KingdomProtection, MapObject
 from empire_core.protocol.base import BaseRequest, BaseResponse, EmpireModel, GGECommand
@@ -447,14 +457,15 @@ class ScoredEvent(SpecialEvent, _ScoreFields):
     """
     An event with a score of your own.
 
-    Client: ``AScoreEventVO.parseBasicsFromParamObject`` (bundle line 14967), defaults at bundle line
-    14965; ``setRankAndPoints`` (bundle line 15044) for a ``pep``
+    Client: ``AScoreEventVO.parseBasicsFromParamObject`` (bundle line 14975), defaults at bundle line
+    14973; ``setRankAndPoints`` (bundle line 15052) for a ``pep``
     """
 
-    difficulty_id: int = Field(
-        default=-1,
+    difficulty_id: EventDifficultyId = Field(
+        default=EventDifficultyId(-1),
         validation_alias="EDID",
-        description="The difficulty chosen, -1 before one is; 0 without difficulty scaling",
+        description="The difficulty chosen, a GameData.event_difficulties row; -1 before one is, 0 without "
+        "difficulty scaling",
     )
     difficulty_scaling: bool = Field(
         default=False,
@@ -703,9 +714,8 @@ class NomadInvasionEvent(InvasionEvent):
     The nomad invasion: ``SP`` and ``A`` (rebuilt from an entry that has them) and, while the khan
     camp runs (``ACE``), the camp's score ``AC``.
 
-    The client shows the khan camp's level (from the items' ``allianceInvasionCamps`` row of
-    ``khan_camp_id``) as that part's points; the state has no game data, so ``parts["AC"]``
-    keeps the points the entry sent.
+    The client shows the khan camp's level (from the game data's row of ``khan_camp_id``) as that part's
+    points; the state has no game data, so ``parts["AC"]`` keeps the points the entry sent.
 
     Client: ``AllianceNomadInvasionEventVO.parseData`` (bundle lines 114287-114288), whose constructor
     (bundle line 114286) starts both scores; ``setRankAndPoints`` (bundle line 114310)
@@ -714,7 +724,11 @@ class NomadInvasionEvent(InvasionEvent):
     alliance_rage: int = Field(default=0, description="The khan camp's alliance rage")
     player_rage: int = Field(default=0, description="Your current rage points on the khan camp")
     player_total_rage: int = Field(default=0, description="Your total rage points on the khan camp")
-    khan_camp_id: int | None = Field(default=None, description="The khan camp, None before one is sent")
+    khan_camp_id: AllianceInvasionCampId | ScalingCampId | None = Field(
+        default=None,
+        description="The khan camp: a GameData.scaling_camps row when difficulty_id is above 0, else a "
+        "GameData.alliance_invasion_camps row; None before one is sent",
+    )
 
     @classmethod
     def _read(
@@ -883,7 +897,7 @@ class OuterRealmsEvent(SpecialEvent):
     """
     the Outer Realms.
 
-    Client: ``TempServerEventVO.parseParamObject`` (bundle line 118162), defaults at bundle line 118161
+    Client: ``TempServerEventVO.parseParamObject`` (bundle line 118200), defaults at bundle line 118199
     """
 
     _reads_kl = False
@@ -893,7 +907,9 @@ class OuterRealmsEvent(SpecialEvent):
         validation_alias="RD",
         description="When the daily scores reset, in time.monotonic() seconds",
     )
-    setting_id: int | None = Field(default=None, validation_alias="TSID", description="The server's settings")
+    setting_id: OuterRealmsSettingId | None = Field(
+        default=None, validation_alias="TSID", description="The run's settings, a GameData.outer_realms_settings row"
+    )
     castle_bought: bool = Field(default=False, validation_alias="IPS", description="Whether you have a castle there")
     is_cross_play: bool = Field(
         default=False,
@@ -919,12 +935,15 @@ class ImperialPatronageEvent(SpecialEvent):
     """
     Imperial patronage.
 
-    Client: ``DonationEventEventVO.parseParamObject`` (bundle line 115502)
+    Client: ``DonationEventEventVO.parseParamObject`` (bundle line 115540), which looks the settings up by
+    ``CastleDonationEventData.getSettingVOByID`` (bundle line 58868)
     """
 
     _reads_kl = False
 
-    setting_id: int | None = Field(default=None, validation_alias="DSI", description="The donation settings")
+    setting_id: DonationSettingId | None = Field(
+        default=None, validation_alias="DSI", description="The run's settings, a GameData.donation_settings row"
+    )
     leaderboard_reward_set_id: int | None = Field(
         default=None, validation_alias="LRSI", description="The leaderboard's reward set"
     )
@@ -1303,12 +1322,12 @@ class SeasonEvent(SpecialEvent):
 
     _reads_kl = False
 
-    unlocked: bool = Field(default=False, description="Whether the event is open to you, from UL.UL")
+    unlocked: bool = Field(default=False, description="Whether the event is open to you")
     reward_id: RewardId | None = Field(
         default=None, validation_alias="RID", description="The reward the event's end gives"
     )
     finished: bool = Field(default=False, validation_alias="F", description="Whether you have finished the event")
-    map_id: EnumOrInt["TreasureMapId"] | None = Field(default=None, description="The event's treasure map, from UL.MID")
+    map_id: EnumOrInt["TreasureMapId"] | None = Field(default=None, description="The event's treasure map")
 
     @classmethod
     def _read(

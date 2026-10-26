@@ -45,12 +45,21 @@ def test_storm_islands_go_without_a_direction_priced_by_their_selection():
     client = unlock_client()
     client.castle.unlock_kingdom(PrebuiltCastle.STORM_TIDE_OUTPOST)
     with pytest.raises(ValueError, match="59000 rubies"):
-        client.castle.unlock_kingdom(PrebuiltCastle.STORM_STORM_BASTION)
-    client.castle.unlock_kingdom(PrebuiltCastle.STORM_STORM_BASTION, spend_rubies=True)
+        client.castle.unlock_kingdom(PrebuiltCastle.STORM_BASTION)
+    client.castle.unlock_kingdom(PrebuiltCastle.STORM_BASTION, spend_rubies=True)
     assert [payload for _, payload in conn(client).request_payloads] == [
         {"ID": 16, "D": 0, "PWR": 0, "OC2": 0, "SID": 4},
         {"ID": 18, "D": 0, "PWR": 0, "OC2": 1, "SID": 4},
     ]
+
+
+def test_storm_islands_refuse_a_direction_and_ask_for_no_level():
+    # onConfirmed always sends D 0; the island selection checks no minLevel (35 for these castles)
+    client = unlock_client(level=10)
+    with pytest.raises(ValueError, match="no direction"):
+        client.castle.unlock_kingdom(PrebuiltCastle.STORM_TIDE_OUTPOST, KingdomDirection.NORTH)
+    client.castle.unlock_kingdom(PrebuiltCastle.STORM_TIDE_OUTPOST)
+    assert conn(client).request_payloads == [("ksc", {"ID": 16, "D": 0, "PWR": 0, "OC2": 0, "SID": 4})]
 
 
 def test_another_kingdom_needs_a_direction():

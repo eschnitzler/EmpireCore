@@ -38,7 +38,7 @@ def test_a_refused_join_raises():
 
 def test_select_season_camp_keeps_the_client_key_order_and_int_flags():
     payload = SelectSeasonCampRequest(
-        prebuilt_camp_id=PrebuiltCastle.THORNKING_SIMPLE_CAMP, ruby_camp=True, space_id=21
+        prebuilt_camp_id=PrebuiltCastle.THORN_KING_SIMPLE_CAMP, ruby_camp=True, space_id=21
     ).to_payload()
     assert list(payload) == ["ID", "PWR", "OC2", "SID"]
     assert payload == {"ID": 13, "PWR": 0, "OC2": 1, "SID": 21}
@@ -51,7 +51,7 @@ def test_unlock_season_camp_sends_its_first_space_and_its_ruby_consent():
         client.events.unlock_season_camp(PrebuiltCastle.UNDERWORLD_WARLORDS_CAMP)
     client.events.unlock_season_camp(PrebuiltCastle.UNDERWORLD_WARLORDS_CAMP, spend_rubies=True)
     client.events.unlock_season_camp(PrebuiltCastle.UNDERWORLD_SIMPLE_CAMP, spend_rubies=True)
-    client.events.unlock_season_camp(PrebuiltCastle.BLADECOAST_SIMPLE_CAMP)
+    client.events.unlock_season_camp(PrebuiltCastle.BLADE_COAST_SIMPLE_CAMP)
     assert [payload for _, payload in conn(client).request_payloads] == [
         {"ID": 22, "PWR": 0, "OC2": 0, "SID": 23},
         {"ID": 24, "PWR": 0, "OC2": 1, "SID": 23},
@@ -66,7 +66,7 @@ def test_ruby_price_buys_a_camp_at_its_ruby_price():
         client.events.unlock_season_camp(PrebuiltCastle.UNDERWORLD_SIMPLE_CAMP, ruby_price=True)
     client.events.unlock_season_camp(PrebuiltCastle.UNDERWORLD_SIMPLE_CAMP, ruby_price=True, spend_rubies=True)
     with pytest.raises(ValueError, match="no ruby price"):
-        client.events.unlock_season_camp(PrebuiltCastle.BLADECOAST_SIMPLE_CAMP, ruby_price=True, spend_rubies=True)
+        client.events.unlock_season_camp(PrebuiltCastle.BLADE_COAST_SIMPLE_CAMP, ruby_price=True, spend_rubies=True)
     assert conn(client).request_payloads == [("csc", {"ID": 22, "PWR": 0, "OC2": 1, "SID": 23})]
 
 

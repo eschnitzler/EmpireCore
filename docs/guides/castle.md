@@ -63,7 +63,9 @@ price: one priced in rubies only is bought with them and needs `spend_rubies=Tru
 one priced in resources is bought with those, or with `ruby_price=True` (and
 `spend_rubies=True`) at its ruby price. Buying with resources, `spend_rubies` pays
 the missing ones with rubies. A castle
-above your level is refused. `relocate` moves your main castle in the green
+above your level is refused. A Storm Islands castle is priced by the islands'
+castle selection only (`GameData.storm_islands_prebuilt_castles`) and needs no
+level; its direction stays None. `relocate` moves your main castle in the green
 kingdom; a relocation that costs rubies, or one whose price is not known yet
 (no `gri` arrived), needs `spend_rubies`.
 

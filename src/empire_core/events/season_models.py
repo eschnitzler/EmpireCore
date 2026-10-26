@@ -73,7 +73,9 @@ class SelectSeasonCampRequest(BaseRequest):
         validation_alias="PWR", default=False, description="Pay the missing resources with rubies"
     )
     ruby_camp: bool = Field(validation_alias="OC2", default=False, description="The camp is bought at its ruby price")
-    space_id: int = Field(validation_alias="SID", description="The season event map the camp starts, its first space")
+    space_id: EnumOrInt["TreasureMapId"] = Field(
+        validation_alias="SID", description="The season event map the camp starts, its first space"
+    )
 
     @field_serializer("pay_with_rubies", "ruby_camp")
     def _flag(self, value: bool) -> int:

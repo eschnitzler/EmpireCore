@@ -29,7 +29,7 @@ class TestBuyTools:
         client = make_client({"ibt": xt_packet("ibt", REPLY)}, castles=[(2001, Kingdom.GREEN, 5, 6)])
 
         client.attack.buy_tools(
-            2001, 614, 1, map_id=TreasureMapId.THORNKING_NORMAL, package_id=PackageId(88), spend_rubies=True
+            2001, 614, 1, map_id=TreasureMapId.THORN_KING_NORMAL, package_id=PackageId(88), spend_rubies=True
         )
 
         assert conn(client).request_payloads == [

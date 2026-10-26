@@ -914,35 +914,47 @@ class CastleService(BaseService):
         The castle names its kingdom and price. One whose only price is rubies is bought with them; one
         priced in resources is bought with those, or with ``ruby_price`` at its ruby price, as the client's
         two buttons offer. Rubies spent need ``spend_rubies``; buying with resources, ``spend_rubies`` pays
-        any missing ones with rubies. On the Storm Islands the islands' castle selection prices it.
+        any missing ones with rubies. A Storm Islands castle is priced by the islands' castle selection
+        alone and asks for no level.
 
         Args:
             castle: The prebuilt castle
-            direction: The side of the map to place the castle on; the Storm Islands take none
-            ruby_price: Buy the castle at its ruby price (``OC2``)
+            direction: The side of the map to place the castle on; None for the Storm Islands, which take none
+            ruby_price: Buy the castle at its ruby price
             spend_rubies: Allow spending rubies
             timeout: Timeout in seconds
 
         Raises:
             ValueError: The castle starts no kingdom (Battle for Berimond's camps join with
-                ``client.events.join_berimond``), needs a higher level, has no direction outside the Storm
-                Islands, has no ruby price for ``ruby_price``, or costs rubies without ``spend_rubies``
+                ``client.events.join_berimond``, season camps unlock with ``client.events.unlock_season_camp``,
+                special-server castles with ``client.events.select_special_server_castle``), needs a higher
+                level, has no direction outside the Storm Islands or one on them, has no ruby price for
+                ``ruby_price``, or costs rubies without ``spend_rubies``
+            GameDataNotLoadedError: The game data cannot be loaded
+            StateNotLoadedError: Outside the Storm Islands, no login has brought your level
             CommandError: The server refused
 
         Client: ``AUnlockPrebuiltCastle.buyPrebuiltCastle`` (bundle line 55479) sends the castle's first space
-        and asks the direction (``CastleKingdomChooseLocalizationDialog``); ``UnlockPrebuiltCastleForRubies``
+        and asks the direction (``CastleKingdomChooseLocalizationDialog``), offering only a castle your level
+        reaches (``PrebuiltCastleSelector.validateSelection``, bundle line 54604); ``UnlockPrebuiltCastleForRubies``
         (bundle line 55514) sets ``OC2`` for the castle ``CastleKingdomCastleDetails.getSublayerForCastle``
-        (bundle line 97911) shows as premium; the Storm Islands castle selection sends a direction of 0 and
-        ``OC2`` when its costs hold rubies (``CastleSpecialServerPreBuildCastleSelectionDialog.onConfirmed``,
-        bundle line 27956); ``CastleResourceWaitDialogProperties.getResourceSkipCommand`` (bundle line 35239)
-        sends ``PWR``
+        (bundle line 97911) shows as premium; the Storm Islands castle selection, which checks no level, always
+        sends a direction of 0 and ``OC2`` when its costs hold rubies
+        (``CastleSpecialServerPreBuildCastleSelectionDialog.onConfirmed``, bundle line 27956);
+        ``CastleResourceWaitDialogProperties.getResourceSkipCommand`` (bundle line 35239) sends ``PWR``
         """
-        row = self._prebuilt_castle(castle)
+        selection = self._require_game_data().storm_islands_prebuilt_castles.get(castle)
+        row = self._prebuilt_castle(castle, level_gated=selection is None)
         kingdom = row.kingdom
         if kingdom is None or kingdom in (Kingdom.GREEN, Kingdom.BERIMOND):
-            raise ValueError(f"prebuilt castle {int(castle)} starts no kingdom")
+            raise ValueError(
+                f"prebuilt castle {int(castle)} starts no kingdom; join Battle for Berimond with "
+                "client.events.join_berimond, a season map with client.events.unlock_season_camp, a special "
+                "server with client.events.select_special_server_castle"
+            )
         if kingdom is Kingdom.STORM:
-            selection = self._require_game_data().storm_islands_prebuilt_castles.get(castle)
+            if direction is not None:
+                raise ValueError("the Storm Islands take no direction")
             if selection is None:
                 raise ValueError(f"prebuilt castle {int(castle)} is not in the Storm Islands' castle selection")
             ruby_castle, rubies = selection.is_ruby_castle(row), selection.cost_rubies(row)
@@ -956,7 +968,7 @@ class CastleService(BaseService):
         self._require_spend_rubies(spend_rubies, f"the castle costs {rubies} rubies" if rubies else None)
         request = SelectKingdomCastleRequest(
             prebuilt_castle_id=row.prebuilt_castle_id,
-            direction=0 if direction is None else direction,
+            direction=direction or 0,
             pay_with_rubies=spend_rubies and not ruby_castle,
             ruby_castle=ruby_castle,
             kingdom_id=kingdom,

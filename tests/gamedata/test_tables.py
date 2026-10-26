@@ -26,6 +26,7 @@ from empire_core.gamedata import (
     BuildingDef,
     DailyQuestDef,
     DonationItemId,
+    DonationSettingId,
     Effect,
     EffectDef,
     EffectValue,
@@ -365,6 +366,7 @@ class TestEventTables:
             {"partPayPriceID": "164", "wood": "160", "stone": "160", "food": "0", "currency2": "68", "mode": "fixed"}
         ],
         "donationItems": [{"donationItemID": "2", "donationItemSetID": "1", "currencyID": "15", "ratio": "1"}],
+        "donationSettings": [{"donationSettingID": "3", "donationItemSetID": "3", "rewardSetID": "4"}],
         "officersSchoolEffects": [{"id": "1", "effectID": "276", "eventID": "72", "c1Cost": "80000", "c2Cost": "700"}],
         "eventAutoScalingDifficulties": [
             {"difficultyID": "311", "eventID": "72", "difficultyTypeID": "2", "isLocked": "1", "rentC2Cost": "55000"}
@@ -396,8 +398,8 @@ class TestEventTables:
     def test_treasure_maps_and_their_nodes(self):
         data = GameData.parse("788.02", self.ITEMS)
 
-        season = data.treasure_maps[ids.TreasureMapId.THORNKING_HARDMODE]
-        assert season.map_id is ids.TreasureMapId.THORNKING_HARDMODE
+        season = data.treasure_maps[ids.TreasureMapId.THORN_KING_HARDMODE]
+        assert season.map_id is ids.TreasureMapId.THORN_KING_HARDMODE
         assert (season.node_ids, season.end_node_id, season.package_ids) == ((122, 123), 123, (213, 214))
         assert (season.map_type, season.kingdom) == (TreasureMapType.SEASON, -1)
         assert (season.travel_seconds, season.skip_cost_rubies) == (7200, 240)
@@ -430,6 +432,8 @@ class TestEventTables:
         data = GameData.parse("788.02", self.ITEMS)
 
         assert data.donation_items[DonationItemId(2)].currency_id == 15
+        setting = data.donation_settings[DonationSettingId(3)]
+        assert (setting.item_set_id, setting.reward_set_id) == (3, 4)
         program = data.training_programs[TrainingProgramId(1)]
         assert (program.event_id, program.cost_coins, program.cost_rubies) == (ids.Event.NOMAD_INVASION_72, 80000, 700)
         difficulty = data.event_difficulties[EventDifficultyId(311)]
@@ -451,11 +455,11 @@ class TestEventTables:
         horizon = data.horizon_settings[HorizonSettingId(15)]
         assert (horizon.max_alliance_size, horizon.currency_id) == (65, 115)
         assert horizon.tower_effects == (
-            ids.AllianceTowerEffect.WALL_BONUS_TOWER,
-            ids.AllianceTowerEffect.GATE_BONUS_TOWER,
+            ids.AllianceTowerEffect.SHRINE_WALL_BOOST,
+            ids.AllianceTowerEffect.SHRINE_GATE_BOOST,
             9,
         )
-        effect = data.alliance_tower_effects[ids.AllianceTowerEffect.WALL_BONUS_TOWER]
+        effect = data.alliance_tower_effects[ids.AllianceTowerEffect.SHRINE_WALL_BOOST]
         assert (effect.effect_id, effect.start_value, effect.increase) == (141, 1.0, 2.5)
 
     def test_alliance_invasion_camps_by_id(self):
@@ -487,9 +491,12 @@ def test_quests_and_buildings_name_their_season_maps():
     quest = QuestDef.model_validate({"questID": "1", "mapID": "25"})
     building = BuildingDef.model_validate({"wodID": "171", "mapIDs": "21,30"})
 
-    assert quest.map_id is ids.TreasureMapId.THORNKING_HARDMODE
+    assert quest.map_id is ids.TreasureMapId.THORN_KING_HARDMODE
     assert QuestDef.model_validate({"questID": "2"}).map_id == -1
-    assert building.available_in_map_ids == (ids.TreasureMapId.THORNKING_NORMAL, ids.TreasureMapId.UNDERWORLD_LOW_LEVEL)
+    assert building.available_in_map_ids == (
+        ids.TreasureMapId.THORN_KING_NORMAL,
+        ids.TreasureMapId.UNDERWORLD_LOW_LEVEL,
+    )
 
 
 def test_berimond_invasion_camp_rows_name_their_faction():

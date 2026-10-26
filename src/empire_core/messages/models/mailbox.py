@@ -35,7 +35,7 @@ from empire_core.gamedata import CollectableRows, EnumOrInt
 from empire_core.gamedata.ids.events import Event
 from empire_core.gamedata.ids.treasure_maps import TreasureMapId
 from empire_core.gamedata.lenient import known
-from empire_core.map.models import MapObject
+from empire_core.map.models import MapObject, TreasureMapOrNone
 from empire_core.protocol.base import (
     BasePayload,
     BaseRequest,
@@ -556,7 +556,8 @@ class SpyReportArea(BasePayload):
     (22058), ``VillageMapobjectVO`` (22627), ``ABGAllianceTowerMapobjectVO``
     (32282), ``ResourceIsleMapobjectVO`` (34610), ``AAlienInvasionMapobjectVO``
     (41548); ``CastleSpyLogVO.parseSpyLog`` (bundle line 60579) for ``DP``,
-    ``DL`` and ``RT``
+    ``DL`` and ``RT``; ``MID`` sets ``BasicMapobjectVO.mapID`` (bundle line 8783), a treasure map id
+    (``CastleMinuteSkipDialog.onRefreshTreasureMap``, bundle line 7681)
     """
 
     area_type: MapItemType = Field(validation_alias="AT", description="The area's type")
@@ -568,7 +569,11 @@ class SpyReportArea(BasePayload):
         default="",
         description="The area's name; empty for an NPC area the game names",
     )
-    map_id: int | None = Field(validation_alias="MID", default=None, description="Map id")
+    map_id: TreasureMapOrNone | None = Field(
+        validation_alias="MID",
+        default=None,
+        description="The treasure map the area lies on, NO_TREASURE_MAP (-1) for none; None when the report names none",
+    )
     skin_id: ClientInt = Field(
         validation_alias="EID",
         default=0,
