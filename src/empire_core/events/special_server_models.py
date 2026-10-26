@@ -13,12 +13,12 @@ Commands:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, ClassVar, Literal
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Literal
 
-from pydantic import Field, field_serializer, field_validator, model_validator
+from pydantic import BeforeValidator, Field, field_serializer, field_validator, model_validator
 
 from empire_core.enums import ServerType
-from empire_core.gamedata import EnumOrInt
+from empire_core.gamedata import EnumOrInt, HorizonSettingId, OuterRealmsSettingId
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, TimedPayload
 from empire_core.protocol.js import ClientInt, ClientNumber, js_int, js_loose_equals, js_truthy
 
@@ -268,7 +268,7 @@ class GetPreviousSpecialServerRunsRequest(BaseRequest):
 
 class PreviousSpecialServerRun(TimedPayload):
     """
-    A special server's last run: when it ended and its settings.
+    A special server's last run: when it ended.
 
     Client: ``GlobalServerPreviousRunInfoVO.parseParams`` (bundle line 128906)
     """
@@ -276,11 +276,40 @@ class PreviousSpecialServerRun(TimedPayload):
     seconds_since_end: ClientNumber = Field(
         validation_alias="ET", default=0, description="Seconds since the run ended when the values were read"
     )
-    setting_id: ClientInt = Field(validation_alias="TSID", default=0, description="The run's server settings")
 
     def ended_seconds_ago(self, now: float | None = None) -> float:
         """Seconds since the run ended."""
         return self.seconds_since_end + self._elapsed(now)
+
+
+class PreviousOuterRealmsRun(PreviousSpecialServerRun):
+    """
+    The Outer Realms' last run: when it ended and its settings.
+
+    Client: ``GlobalServerPreviousRunInfoVO.parseParams`` (bundle line 128906) looks ``TSID`` up in
+    ``tempServerData.getConfigVOByID``
+    """
+
+    setting_id: Annotated[OuterRealmsSettingId, BeforeValidator(js_int)] = Field(
+        validation_alias="TSID",
+        default=OuterRealmsSettingId(0),
+        description="The run's settings, a GameData.outer_realms_settings row",
+    )
+
+
+class PreviousHorizonRun(PreviousSpecialServerRun):
+    """
+    Beyond the Horizon's last run: when it ended and its settings.
+
+    Client: ``GlobalServerPreviousRunInfoVO.parseParams`` (bundle line 128906) looks ``TSID`` up in
+    ``allianceBattlegroundData.getConfigVOByID``
+    """
+
+    setting_id: Annotated[HorizonSettingId, BeforeValidator(js_int)] = Field(
+        validation_alias="TSID",
+        default=HorizonSettingId(0),
+        description="The run's settings, a GameData.horizon_settings row",
+    )
 
 
 class PreviousSpecialServerRuns(BaseResponse):
@@ -293,10 +322,10 @@ class PreviousSpecialServerRuns(BaseResponse):
 
     command: ClassVar[str] = "gpr"
 
-    outer_realms: PreviousSpecialServerRun | None = Field(
+    outer_realms: PreviousOuterRealmsRun | None = Field(
         validation_alias="TS", default=None, description="The Outer Realms' last run; None for none"
     )
-    horizon: PreviousSpecialServerRun | None = Field(
+    horizon: PreviousHorizonRun | None = Field(
         validation_alias="ABG", default=None, description="Beyond the Horizon's last run; None for none"
     )
 
@@ -315,6 +344,8 @@ __all__ = [
     "GetChargeCampEffectsRequest",
     "GetPreviousSpecialServerRunsRequest",
     "GetOuterRealmsCollectorPointsRequest",
+    "PreviousHorizonRun",
+    "PreviousOuterRealmsRun",
     "PreviousSpecialServerRun",
     "PreviousSpecialServerRuns",
     "RerollChargeCampEffectRequest",

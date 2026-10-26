@@ -20,7 +20,7 @@ member, e.g. ``game_data.units[Unit.MEAD_RANGER_L6]``.
 Enums whose rows the game names by a text (units, tools, currencies,
 researches, generals, legend and sceat skills, events, gems, achievements,
 titles, crest layouts, main quests, prebuilt castles, private villages,
-fusion forges, judgements) have ``display_name(lang="en")``, the
+fusion forges, judgements, treasure maps) have ``display_name(lang="en")``, the
 name the game shows: ``Unit.MEAD_RANGER_L6.display_name("de")``. It reads the
 language file, fetched on first use and cached (:mod:`empire_core.texts`).
 
@@ -47,6 +47,7 @@ if TYPE_CHECKING:
 
     from .achievements import Achievement
     from .alliance_crests import AllianceCrestColor, AllianceCrestLayout
+    from .alliance_tower_effects import AllianceTowerEffect
     from .buildings import Building
     from .construction_items import ConstructionItem
     from .currencies import Currency, CurrencyId
@@ -79,6 +80,7 @@ if TYPE_CHECKING:
     from .sceat_skills import SceatSkill
     from .titles import Title
     from .tools import Tool
+    from .treasure_maps import TreasureMapId
     from .units import Unit
 
 ITEMS_VERSION = "788.02"
@@ -89,6 +91,7 @@ _MODULES = {
     "Achievement": "achievements",
     "AllianceCrestColor": "alliance_crests",
     "AllianceCrestLayout": "alliance_crests",
+    "AllianceTowerEffect": "alliance_tower_effects",
     "Building": "buildings",
     "ConstructionItem": "construction_items",
     "Currency": "currencies",
@@ -122,6 +125,7 @@ _MODULES = {
     "SceatSkill": "sceat_skills",
     "Title": "titles",
     "Tool": "tools",
+    "TreasureMapId": "treasure_maps",
     "Unit": "units",
 }
 
@@ -153,6 +157,7 @@ __all__ = [
     "Achievement",
     "AllianceCrestColor",
     "AllianceCrestLayout",
+    "AllianceTowerEffect",
     "Building",
     "ConstructionItem",
     "Currency",
@@ -187,6 +192,7 @@ __all__ = [
     "SceatSkill",
     "Title",
     "Tool",
+    "TreasureMapId",
     "Unit",
     "is_current",
 ]

@@ -223,7 +223,15 @@ from .models.membership import (
 from .service import AllianceHelpUpdate, AllianceService
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import AllianceCrestColor, AllianceCrestLayout, Currency, Effect, Event, Gem
+    from empire_core.gamedata import (
+        AllianceCrestColor,
+        AllianceCrestLayout,
+        AllianceTowerEffect,
+        Currency,
+        Effect,
+        Event,
+        Gem,
+    )
 
 __all__ = [
     "AllianceSearchListItem",
@@ -437,6 +445,7 @@ __all__ = [
     "Event",
     "Gem",
     "PerformanceStatistic",
+    "AllianceTowerEffect",
 ]
 
 
@@ -444,5 +453,5 @@ if not TYPE_CHECKING:
     __getattr__ = lazy_exports(
         __name__,
         "empire_core.gamedata.ids",
-        ("AllianceCrestColor", "AllianceCrestLayout", "Currency", "Effect", "Event", "Gem"),
+        ("AllianceCrestColor", "AllianceCrestLayout", "AllianceTowerEffect", "Currency", "Effect", "Event", "Gem"),
     )

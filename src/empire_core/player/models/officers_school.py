@@ -10,13 +10,13 @@ Commands:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar
 
-from pydantic import Field, field_serializer, field_validator
+from pydantic import BeforeValidator, Field, field_serializer, field_validator
 
-from empire_core.gamedata import EnumOrInt
+from empire_core.gamedata import EnumOrInt, TrainingProgramId
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, readable_list
-from empire_core.protocol.js import ClientInt, ClientNumber, js_truthy
+from empire_core.protocol.js import ClientInt, ClientNumber, js_int, js_truthy
 
 from .account import OfficerBonus
 
@@ -35,8 +35,8 @@ class TrainingProgram(BasePayload):
     prices slot 1 in coins, slot 2 in the day's event currency and slot 3 in rubies
     """
 
-    program_id: ClientInt = Field(
-        validation_alias="TE", default=0, description="The program's row in the officers' school effects table"
+    program_id: Annotated[TrainingProgramId, BeforeValidator(js_int)] = Field(
+        validation_alias="TE", default=TrainingProgramId(0), description="The program, a GameData.training_programs row"
     )
     slot_id: ClientInt = Field(validation_alias="S", default=0, description="The offer slot the program is in")
     duration_seconds: ClientNumber = Field(validation_alias="D", default=0, description="Seconds the program runs")

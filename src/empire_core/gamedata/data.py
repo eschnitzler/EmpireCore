@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple, TypeVar
 
 from pydantic import ConfigDict, Field, PrivateAttr
 
-from empire_core.enums import Kingdom, UnitRole
+from empire_core.enums import BerimondFaction, Kingdom, UnitRole
 from empire_core.exceptions import AmbiguousLookupError, GameDataNotLoadedError, NetworkError
 from empire_core.protocol.base import EmpireModel
 
@@ -78,6 +78,9 @@ from .tables import (
     AchievementDef,
     AllianceCrestColorDef,
     AllianceCrestLayoutDef,
+    AllianceInvasionCampDef,
+    AllianceInvasionCampId,
+    AllianceTowerEffectDef,
     BuildingDef,
     CoatOfArmsSymbolDef,
     CoatOfArmsSymbolId,
@@ -89,19 +92,32 @@ from .tables import (
     CraftingRecipeId,
     DailyQuestDef,
     DaimyoContractDef,
+    DaimyoContractId,
     DifficultyTypeDef,
+    DonationItemDef,
+    DonationItemId,
     EquipmentGroupDef,
     EventDef,
+    EventDifficultyDef,
+    EventDifficultyId,
     FusionForgeDef,
     FusionSystemDef,
+    GachaDef,
+    GachaId,
     GemColorDef,
     GeneralRarityDef,
     GeneralsHubCharacterDef,
+    HorizonSettingDef,
+    HorizonSettingId,
     JudgementDef,
     LootBoxDef,
     LootBoxTypeDef,
+    OuterRealmsSettingDef,
+    OuterRealmsSettingId,
     PackageDef,
     PackageId,
+    PartPayPriceDef,
+    PartPayPriceId,
     PlayerNameChangeDef,
     PrebuiltCastleDef,
     PrivateVillageDef,
@@ -111,10 +127,20 @@ from .tables import (
     RewardDef,
     RewardId,
     ScalingCampDef,
+    ScalingCampId,
     SpecialServerPrebuiltCastleDef,
     StartResourcesDef,
     StartResourcesId,
     TitleDef,
+    TrainingProgramDef,
+    TrainingProgramId,
+    TreasureMapDef,
+    TreasureMapNodeDef,
+    TreasureMapNodeId,
+    WheelOfFortuneRewardSetDef,
+    WheelOfFortuneRewardSetId,
+    WheelOfFortuneWinClassDef,
+    WheelOfFortuneWinClassId,
     is_cost_column,
     is_research_cost_column,
     row_id,
@@ -125,6 +151,7 @@ if TYPE_CHECKING:
         Achievement,
         AllianceCrestColor,
         AllianceCrestLayout,
+        AllianceTowerEffect,
         Building,
         ConstructionItem,
         CurrencyId,
@@ -156,6 +183,7 @@ if TYPE_CHECKING:
         SceatSkill,
         Title,
         Tool,
+        TreasureMapId,
         Unit,
     )
     from .stacks import WodAmount
@@ -224,6 +252,19 @@ _CACHED_MODELS = (
     FusionSystemDef,
     FusionForgeDef,
     JudgementDef,
+    TreasureMapDef,
+    TreasureMapNodeDef,
+    PartPayPriceDef,
+    DonationItemDef,
+    TrainingProgramDef,
+    EventDifficultyDef,
+    GachaDef,
+    WheelOfFortuneRewardSetDef,
+    WheelOfFortuneWinClassDef,
+    OuterRealmsSettingDef,
+    HorizonSettingDef,
+    AllianceTowerEffectDef,
+    AllianceInvasionCampDef,
     DaimyoContractDef,
     AchievementCondition,
     AchievementDef,
@@ -449,14 +490,24 @@ _TABLES: dict[str, _TableSource] = {
     "rewards": _TableSource("rewards", RewardDef, "reward_id", reads=is_reward_column),
     "daimyo_castle_contracts": _TableSource("daimyoCastleAllianceContracts", DaimyoContractDef, "contract_id"),
     "daimyo_township_contracts": _TableSource("daimyoTownshipAllianceContracts", DaimyoContractDef, "contract_id"),
+    "treasure_maps": _TableSource("tmaps", TreasureMapDef, "map_id"),
+    "treasure_map_nodes": _TableSource("tmapnodes", TreasureMapNodeDef, "node_id"),
+    "part_pay_prices": _TableSource("partpayprices", PartPayPriceDef, "part_price_id", reads=is_reward_column),
+    "donation_items": _TableSource("donationItems", DonationItemDef, "donation_item_id"),
+    "training_programs": _TableSource("officersSchoolEffects", TrainingProgramDef, "program_id"),
+    "event_difficulties": _TableSource("eventAutoScalingDifficulties", EventDifficultyDef, "difficulty_id"),
+    "gachas": _TableSource("gachaEvents", GachaDef, "gacha_id"),
+    "wheel_of_fortune_reward_sets": _TableSource("luckywheelrewardsets", WheelOfFortuneRewardSetDef, "reward_set_id"),
+    "wheel_of_fortune_win_classes": _TableSource("luckywheelclasses", WheelOfFortuneWinClassDef, "win_class_id"),
+    "outer_realms_settings": _TableSource("tempServerSettings", OuterRealmsSettingDef, "setting_id"),
+    "horizon_settings": _TableSource("allianceBattleGroundSettings", HorizonSettingDef, "setting_id"),
+    "alliance_tower_effects": _TableSource("allianceTowerEffects", AllianceTowerEffectDef, "tower_effect_id"),
+    "alliance_invasion_camps": _TableSource("allianceInvasionCamps", AllianceInvasionCampDef, "camp_id"),
 }
 """The GameData tables read lazily, by attribute name: each a :class:`Table` built from these rows."""
 
 
 BERIMOND_INVASION_CAMP_TABLE = "factioninvasioncamps"
-
-# FactionConst.BLUE_FACTION (dll line 19333); RED_FACTION is 1.
-BLUE_FACTION = 0
 
 # Camp tables that share the NpcCampDefence shape.
 CAMP_TABLES = (
@@ -551,9 +602,9 @@ class GameData(EmpireModel):
     lacks (items newer than the enums) is keyed by its plain int, and as the
     enums are IntEnums, a plain id from a packet indexes every table.
 
-    The tables keyed by id enums, ``titles``, ``construction_item_recipes``, ``scaling_camps``, ``rewards`` and
-    the two daimyo contract tables are read-only :class:`~empire_core.gamedata.table.Table` mappings that
-    validate a row the first time it is read, so loading costs no validation for them.
+    The tables keyed by an id enum or an id type (``RewardId``, ``PackageId``, ``TreasureMapNodeId``, ...) are
+    read-only :class:`~empire_core.gamedata.table.Table` mappings that validate a row the first time it is read,
+    so loading costs no validation for them.
     """
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="ignore")
@@ -746,7 +797,7 @@ class GameData(EmpireModel):
         return self._table("construction_item_recipes")
 
     @cached_property
-    def scaling_camps(self) -> Table[int, ScalingCampDef]:
+    def scaling_camps(self) -> Table[ScalingCampId, ScalingCampDef]:
         """The ``eventAutoScalingCamps`` rows, by the scaling camp id a map row names."""
         return self._table("scaling_camps")
 
@@ -831,7 +882,7 @@ class GameData(EmpireModel):
         return {row.name: row.currency_id for row in self.currencies.values()}
 
     @cached_property
-    def daimyo_castle_contracts(self) -> Table[int, DaimyoContractDef]:
+    def daimyo_castle_contracts(self) -> Table[DaimyoContractId, DaimyoContractDef]:
         """
         The daimyo castles' alliance contracts by id, in the items' order.
 
@@ -840,13 +891,82 @@ class GameData(EmpireModel):
         return self._table("daimyo_castle_contracts")
 
     @cached_property
-    def daimyo_township_contracts(self) -> Table[int, DaimyoContractDef]:
+    def daimyo_township_contracts(self) -> Table[DaimyoContractId, DaimyoContractDef]:
         """
         The daimyo townships' alliance contracts by id, in the items' order.
 
         Client: ``SamuraiDaimyoDataXml.daimyoTownshipAllianceContracts`` (bundle line 13914)
         """
         return self._table("daimyo_township_contracts")
+
+    @cached_property
+    def treasure_maps(self) -> Table[GameDataId["TreasureMapId"], TreasureMapDef]:
+        """Treasure maps by ``TreasureMapId``: the season events' maps and the treasure hunt's."""
+        return self._table("treasure_maps")
+
+    @cached_property
+    def treasure_map_nodes(self) -> Table[TreasureMapNodeId, TreasureMapNodeDef]:
+        """The ``tmapnodes`` rows, by the node id a treasure map names."""
+        return self._table("treasure_map_nodes")
+
+    @cached_property
+    def part_pay_prices(self) -> Table[PartPayPriceId, PartPayPriceDef]:
+        """
+        The ``partpayprices`` rows, by the id an obstacle, a treasure map node or a slum level is priced by.
+
+        Client: ``PartpaypriceVO.fillFromParamXml`` (bundle line 142257)
+        """
+        return self._table("part_pay_prices", context={"currency_ids": self._currency_ids()})
+
+    @cached_property
+    def donation_items(self) -> Table[DonationItemId, DonationItemDef]:
+        """The ``donationItems`` rows, by the item id a donation names."""
+        return self._table("donation_items")
+
+    @cached_property
+    def training_programs(self) -> Table[TrainingProgramId, TrainingProgramDef]:
+        """The officers' school's training programs (``officersSchoolEffects``), by the program id ``gtp`` names."""
+        return self._table("training_programs")
+
+    @cached_property
+    def event_difficulties(self) -> Table[EventDifficultyId, EventDifficultyDef]:
+        """The ``eventAutoScalingDifficulties`` rows, by the difficulty id an event is played at."""
+        return self._table("event_difficulties")
+
+    @cached_property
+    def gachas(self) -> Table[GachaId, GachaDef]:
+        """The ``gachaEvents`` rows, the gacha events' levels, by the gacha id a pull names."""
+        return self._table("gachas")
+
+    @cached_property
+    def wheel_of_fortune_reward_sets(self) -> Table[WheelOfFortuneRewardSetId, WheelOfFortuneRewardSetDef]:
+        """The Wheel of Fortune's jackpot sets (``luckywheelrewardsets``), by the set id a wheel reply names."""
+        return self._table("wheel_of_fortune_reward_sets")
+
+    @cached_property
+    def wheel_of_fortune_win_classes(self) -> Table[WheelOfFortuneWinClassId, WheelOfFortuneWinClassDef]:
+        """The Wheel of Fortune's win classes (``luckywheelclasses``), by the win class a wheel reply names."""
+        return self._table("wheel_of_fortune_win_classes")
+
+    @cached_property
+    def outer_realms_settings(self) -> Table[OuterRealmsSettingId, OuterRealmsSettingDef]:
+        """The Outer Realms' run settings (``tempServerSettings``), by setting id."""
+        return self._table("outer_realms_settings")
+
+    @cached_property
+    def horizon_settings(self) -> Table[HorizonSettingId, HorizonSettingDef]:
+        """Beyond the Horizon's run settings (``allianceBattleGroundSettings``), by setting id."""
+        return self._table("horizon_settings")
+
+    @cached_property
+    def alliance_tower_effects(self) -> Table[GameDataId["AllianceTowerEffect"], AllianceTowerEffectDef]:
+        """Beyond the Horizon's alliance tower effects by ``AllianceTowerEffect``."""
+        return self._table("alliance_tower_effects")
+
+    @cached_property
+    def alliance_invasion_camps(self) -> Table[AllianceInvasionCampId, AllianceInvasionCampDef]:
+        """The ``allianceInvasionCamps`` rows, by the camp id an ``aic`` push names."""
+        return self._table("alliance_invasion_camps")
 
     @cached_property
     def rewards(self) -> Table[RewardId, RewardDef]:
@@ -980,7 +1100,7 @@ class GameData(EmpireModel):
         """One rank of a daimyo castle (``daimyoCastles``) or township (``daimyoTownships``)."""
         return self.event_camps.get(table, {}).get(camp_id)
 
-    def scaling_camp_level(self, scaling_camp_id: int) -> int | None:
+    def scaling_camp_level(self, scaling_camp_id: ScalingCampId) -> int | None:
         """
         The level an event's difficulty scaling gives a camp.
 
@@ -990,23 +1110,23 @@ class GameData(EmpireModel):
         camp = self.scaling_camps.get(scaling_camp_id) if scaling_camp_id > 0 else None
         return camp.level if camp is not None else None
 
-    def berimond_invasion_camp(self, level: int, faction_id: int) -> NpcCampDefence | None:
+    def berimond_invasion_camp(self, level: int, faction_id: BerimondFaction | int) -> NpcCampDefence | None:
         """
         A Berimond invasion camp's row: the one for its level and its owner's faction.
 
         The table has a row per faction at each level, its ``count_victory`` being the
-        camp's level; ``faction_id`` 0 is blue and any other red. A camp's wall, gate
+        camp's level; any faction but ``BerimondFaction.URSIDAE`` (blue) reads as red. A camp's wall, gate
         and cooldown come from this row.
 
         Client: ``CastleFactionInvasionCampData.parseXML`` and ``getFactionInvasion``
         (bundle lines 111903-111912), used by ``FactionInvasionCampMapObjectVO`` (bundle lines 76367-76380)
         """
-        blue = faction_id == BLUE_FACTION
+        blue = faction_id == BerimondFaction.URSIDAE
         return next(
             (
                 camp
                 for camp in reversed(self.camps.get(BERIMOND_INVASION_CAMP_TABLE, []))
-                if camp.count_victory == level and (camp.faction_id == BLUE_FACTION) == blue
+                if camp.count_victory == level and (camp.faction_id == BerimondFaction.URSIDAE) == blue
             ),
             None,
         )

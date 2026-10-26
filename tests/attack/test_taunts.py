@@ -46,6 +46,7 @@ class TestRagePoints:
         push = parse_response("rpr", {"EID": 72, "PCRP": 40, "PTRP": "90"})
         assert isinstance(push, RagePointsResponse)
         assert (push.event_id, push.player_rage, push.player_total_rage) == (72, 40, 90)
+        assert push.event_id is Event.NOMAD_INVASION_72
 
     def test_updates_the_nomad_invasion(self):
         state = logged_in_state()

@@ -13,8 +13,9 @@ from typing import TYPE_CHECKING
 from pydantic import Field, field_serializer, field_validator
 
 from empire_core.enums import Kingdom, MapItemType
-from empire_core.gamedata import EnumOrStr
+from empire_core.gamedata import EnumOrStr, TreasureMapNodeId
 from empire_core.map.models.items import MapAreaItem
+from empire_core.map.models.treasure_maps import NO_TREASURE_MAP, NO_TREASURE_MAP_NODE, TreasureMapOrNone
 from empire_core.protocol.base import BaseRequest, BaseResponse
 from empire_core.protocol.js import js_number_or_none
 
@@ -101,15 +102,15 @@ class MinuteSkipDungeonRequest(BaseRequest):
 
     x: int = Field(validation_alias="X", description="Dungeon map x")
     y: int = Field(validation_alias="Y", description="Dungeon map y")
-    map_id: int = Field(
+    map_id: TreasureMapOrNone = Field(
         validation_alias="MID",
-        default=-1,
-        description="Treasure-map id, -1 for an ordinary dungeon",
+        default=NO_TREASURE_MAP,
+        description="The treasure map, -1 for an ordinary dungeon",
     )
-    node_id: int = Field(
+    node_id: TreasureMapNodeId = Field(
         validation_alias="NID",
-        default=-1,
-        description="Treasure-map node id, -1 for an ordinary dungeon",
+        default=NO_TREASURE_MAP_NODE,
+        description="The treasure map's node, -1 for an ordinary dungeon",
     )
     minute_skip: EnumOrStr["Currency"] = Field(
         validation_alias="MST",
@@ -163,15 +164,15 @@ class SkipDungeonCooldownRequest(BaseRequest):
     x: int = Field(validation_alias="X", description="Dungeon map x")
     y: int = Field(validation_alias="Y", description="Dungeon map y")
     kingdom_id: Kingdom = Field(validation_alias="KID", description="Kingdom id")
-    map_id: int = Field(
+    map_id: TreasureMapOrNone = Field(
         validation_alias="MID",
-        default=-1,
-        description="Treasure-map id, -1 for an ordinary dungeon",
+        default=NO_TREASURE_MAP,
+        description="The treasure map, -1 for an ordinary dungeon",
     )
-    node_id: int = Field(
+    node_id: TreasureMapNodeId = Field(
         validation_alias="NID",
-        default=-1,
-        description="Treasure-map node id, -1 for an ordinary dungeon",
+        default=NO_TREASURE_MAP_NODE,
+        description="The treasure map's node, -1 for an ordinary dungeon",
     )
 
     def accepts_reply(self, payload: object) -> bool:

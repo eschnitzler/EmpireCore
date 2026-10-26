@@ -12,6 +12,7 @@ from empire_core.alliance.models.horizon import (
 )
 from empire_core.enums import AllianceRank, MapItemType, PerformanceStatistic
 from empire_core.exceptions import CommandError, NotInAllianceError
+from empire_core.gamedata import AllianceTowerEffect
 from empire_core.gamedata.ids.effects import Effect
 from empire_core.gamedata.ids.events import Event
 from tests.alliance.test_auto_join import player_state, wired
@@ -149,7 +150,10 @@ def test_tower_castles_with_their_owners():
 def test_tower_buffs_are_read():
     client = make_client({"tbi": xt_packet("tbi", BUFFS)})
     buffs = client.alliance.get_tower_buffs(10, 20, 301, timeout=0.2)
-    assert [(buff.tower_effect_id, buff.level) for buff in buffs.buffs] == [(4, 2), (5, 0)]
+    assert [(buff.tower_effect_id, buff.level) for buff in buffs.buffs] == [
+        (AllianceTowerEffect.MELEE_BONUS_TOWER, 2),
+        (AllianceTowerEffect.RANGE_BONUS_TOWER, 0),
+    ]
     assert buffs.is_active is True
     assert conn(client).request_payloads == [("tbi", {"XPOS": 10, "YPOS": 20, "AID": 301})]
 

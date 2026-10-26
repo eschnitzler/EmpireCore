@@ -5,7 +5,7 @@ import json
 import pytest
 from pydantic import ValidationError
 
-from empire_core.gamedata import EMPTY_SLOT, Currency, CurrencyId, Tool, Unit, WodAmount
+from empire_core.gamedata import EMPTY_SLOT, Currency, CurrencyId, Tool, TreasureMapNodeId, Unit, WodAmount
 from empire_core.protocol.base import json_text
 from empire_core.protocol.models import (
     AttackPreset,
@@ -42,7 +42,12 @@ class TestDungeonCooldownSkips:
 
     def test_minute_skip_on_a_treasure_map_node(self):
         request = MinuteSkipDungeonRequest(
-            minute_skip=Currency.SKIP_1_MINUTE, kingdom_id=Kingdom.GREEN, x=5, y=6, map_id=3, node_id=12
+            minute_skip=Currency.SKIP_1_MINUTE,
+            kingdom_id=Kingdom.GREEN,
+            x=5,
+            y=6,
+            map_id=3,
+            node_id=TreasureMapNodeId(12),
         )
         assert request.to_payload()["MID"] == 3
         assert request.to_payload()["NID"] == 12
@@ -60,7 +65,9 @@ class TestDungeonCooldownSkips:
         assert list(request.to_payload().items()) == [("X", 100), ("Y", 200), ("KID", 2), ("MID", -1), ("NID", -1)]
 
     def test_full_skip_on_a_treasure_map_node(self):
-        payload = SkipDungeonCooldownRequest(x=1, y=2, kingdom_id=Kingdom.GREEN, map_id=7, node_id=4).to_payload()
+        payload = SkipDungeonCooldownRequest(
+            x=1, y=2, kingdom_id=Kingdom.GREEN, map_id=7, node_id=TreasureMapNodeId(4)
+        ).to_payload()
         assert (payload["MID"], payload["NID"]) == (7, 4)
 
     def test_replies_carry_the_dungeon_row(self):

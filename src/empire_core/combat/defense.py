@@ -14,9 +14,9 @@ from typing import NamedTuple, Protocol
 
 from empire_core.army.spy_army import SpyArmy
 from empire_core.commanders.models.roster import Commander
-from empire_core.enums import CombatEffectType, Flank, Kingdom, MapItemType, NPCOwner
-from empire_core.gamedata import GameData, NpcCampDefence, ToolStats
-from empire_core.gamedata.data import BERIMOND_INVASION_CAMP_TABLE, BLUE_FACTION
+from empire_core.enums import BerimondFaction, CombatEffectType, Flank, Kingdom, MapItemType, NPCOwner
+from empire_core.gamedata import GameData, NpcCampDefence, ScalingCampId, ToolStats
+from empire_core.gamedata.data import BERIMOND_INVASION_CAMP_TABLE
 from empire_core.gamedata.ids.events import Event
 from empire_core.map.models.items import MapAreaItem
 
@@ -63,7 +63,7 @@ DAIMYO_CASTLE_TABLE = "daimyoCastles"
 class BerimondInvasionSide(NamedTuple):
     """What a Berimond invasion camp's owner decides: its faction, and the sub type of its event league."""
 
-    faction_id: int
+    faction_id: BerimondFaction
     sub_type: int
 
 
@@ -80,8 +80,8 @@ class LeagueScore(Protocol):
 # The blue faction king owns the blue camps; the client takes any other owner as red.
 # Client: CastleNPCOwnerFactory.generateBlueFactionNPC / generateRedFactionNPC (bundle lines 14591, 14587),
 # FactionConst (dll line 19333), EventConst.LEAGUETYPE_EVENT_SUBTYPE_FACTION_INVASION_BLUE / _RED (dll line 19291)
-BLUE_BERIMOND_INVASION = BerimondInvasionSide(faction_id=BLUE_FACTION, sub_type=2)
-RED_BERIMOND_INVASION = BerimondInvasionSide(faction_id=1, sub_type=3)
+BLUE_BERIMOND_INVASION = BerimondInvasionSide(faction_id=BerimondFaction.URSIDAE, sub_type=2)
+RED_BERIMOND_INVASION = BerimondInvasionSide(faction_id=BerimondFaction.GERBRANDT, sub_type=3)
 
 
 def berimond_invasion_side(owner_id: int | None) -> BerimondInvasionSide:
@@ -161,7 +161,7 @@ def invasion_camp_level(
             base = league.victory_min if league is not None else None
         return None if base is None else base + field
 
-    scaled = game_data.scaling_camp_level(item.scaling_camp_id or -1)
+    scaled = game_data.scaling_camp_level(item.scaling_camp_id or ScalingCampId(-1))
     if scaled is not None:
         return scaled
 
@@ -578,7 +578,11 @@ def robber_baron_camp_defense(
 
 
 def event_camp_defense(
-    table: str, victories: int, *, faction_id: int | None = None, game_data: GameData | None = None
+    table: str,
+    victories: int,
+    *,
+    faction_id: BerimondFaction | int | None = None,
+    game_data: GameData | None = None,
 ) -> dict[Flank, DefenderFlankEffects] | None:
     """
     What defends an event camp, per flank.

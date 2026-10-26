@@ -33,6 +33,7 @@ from empire_core.commanders.models.roster import Castellan
 from empire_core.enums import BattleLogAttackType, Kingdom, LogResult, MapItemType, MessageType, SpyLogType
 from empire_core.gamedata import CollectableRows, EnumOrInt
 from empire_core.gamedata.ids.events import Event
+from empire_core.gamedata.ids.treasure_maps import TreasureMapId
 from empire_core.gamedata.lenient import known
 from empire_core.map.models import MapObject
 from empire_core.protocol.base import (
@@ -331,7 +332,7 @@ class BattleLogHeader:
     area_type: int | None
     attack_type: BattleLogAttackType | None
     result: LogResult | None
-    treasure_map_id: int | None = -1
+    treasure_map_id: TreasureMapId | int | None = -1
     treasure_map_area_type: int | None = -1
     kingdom_id: int | None = None
     owner_id: int | None = None
@@ -353,11 +354,12 @@ class BattleLogHeader:
         area = meta.split("#")[0].split("+")
         raw_attack = js_parse_int(subtypes[1]) if len(subtypes) > 1 else None
         raw_result = js_parse_int(subtypes[2]) if len(subtypes) > 2 else None
+        raw_map = js_parse_int(subtypes[3]) if len(subtypes) > 3 else -1
         return cls(
             area_type=js_parse_int(subtypes[0]),
             attack_type=None if raw_attack is None else enum_or_none(BattleLogAttackType, raw_attack),
             result=None if raw_result is None else enum_or_none(LogResult, raw_result),
-            treasure_map_id=js_parse_int(subtypes[3]) if len(subtypes) > 3 else -1,
+            treasure_map_id=None if raw_map is None else known(TreasureMapId, raw_map, warn=False),
             treasure_map_area_type=js_parse_int(subtypes[4]) if len(subtypes) > 4 else -1,
             kingdom_id=js_parse_int(area[0]),
             owner_id=js_parse_int(area[1]) if len(area) > 1 else None,

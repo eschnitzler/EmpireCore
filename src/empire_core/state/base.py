@@ -38,7 +38,7 @@ from empire_core.castle.models.mercenaries import MercenaryMissionsResponse
 from empire_core.castle.models.objects import BuildingConstructionItems
 from empire_core.castle.models.permanent import PermanentCastle
 from empire_core.castle.models.research import ResearchInfoResponse
-from empire_core.castle.models.storage import DecorationStorage
+from empire_core.castle.models.storage import DecorationStorage, DecorationStorageKey
 from empire_core.castle.models.tax import TaxInfo
 from empire_core.castle.models.upkeep import ConstructionItemExpiryResponse, ResourcePoolResponse
 from empire_core.castle.models.villages import VillageListResponse
@@ -87,7 +87,7 @@ from empire_core.state.models import Castle, JoinedArea, Player
 from empire_core.utils.callbacks import BoundEvent, Registry
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import FusionForgeId, Judgement
+    from empire_core.gamedata import FusionForgeId, Judgement, TreasureMapId
 
 logger = logging.getLogger(__name__)
 
@@ -265,7 +265,7 @@ class StateBase:
         self.construction_item_expiry: ConstructionItemExpiryResponse | None = None
         self.resource_pool: ResourcePoolResponse | None = None
         # The decoration storages by storage id, each replaced whole by the sin that names it
-        self.decoration_storages: dict[int, DecorationStorage] = {}
+        self.decoration_storages: dict[DecorationStorageKey, DecorationStorage] = {}
         self.laboratories: LaboratoryListResponse | None = None
         self.laboratory_reset: LaboratoryResetResponse | None = None
         self.kings_towers: KingsTowerListResponse | None = None
@@ -274,8 +274,8 @@ class StateBase:
         self.villages: VillageListResponse | None = None
         self.aqua_points: int | float | None = None
         # Treasure maps by map id, swapped, never edited; the treasure hunt's current map
-        self.treasure_maps: dict[int, TreasureMap] | None = None
-        self.treasure_hunt_map_id: int | None = None
+        self.treasure_maps: dict[TreasureMapId | int, TreasureMap] | None = None
+        self.treasure_hunt_map_id: TreasureMapId | int | None = None
         self.storm_islands: StormIslandsInfo | None = None
         # The crafting queues by queue id, kingdom and castle, and the fusion forges by id; swapped, never edited
         self.crafting_queues: dict[tuple[CraftingQueueId, Kingdom, int], CraftingQueue] | None = None

@@ -10,7 +10,7 @@ import pytest
 from empire_core import AttackInProgressError
 from empire_core.enums import Kingdom
 from empire_core.exceptions import CommandError, PremiumCommanderCostError
-from empire_core.gamedata import CurrencyId, Horse
+from empire_core.gamedata import CurrencyId, Horse, TreasureMapNodeId
 from empire_core.movements import NO_HORSE
 from empire_core.protocol.base import parse_response
 from empire_core.protocol.models import (
@@ -174,8 +174,8 @@ class TestOuterRealmsAttack:
 class TestTreasureHuntModels:
     def test_keys_follow_the_client_order(self):
         request = TreasureHuntAttackRequest(
-            commander_id=7, horse_booster_id=-1, use_premium_commander=0, map_id=3, node_id=12, feathers=1,
-            waves=[AttackWave()],
+            commander_id=7, horse_booster_id=-1, use_premium_commander=0, map_id=3, node_id=TreasureMapNodeId(12),
+            feathers=1, waves=[AttackWave()],
         )  # fmt: skip
         # C2SCreateTreasureHuntMovementVO initialises LID, BT, BPC, MID, NID, PTT, then sets A
         assert list(request.to_payload().items())[:6] == [
@@ -184,9 +184,11 @@ class TestTreasureHuntModels:
         assert list(request.to_payload())[-1] == "A"
 
     def test_the_horse_is_a_horse_and_none_goes_as_minus_one(self):
-        horse = TreasureHuntAttackRequest(commander_id=7, horse_booster_id=Horse.WARHORSE_STABLE1, map_id=3, node_id=12)
+        horse = TreasureHuntAttackRequest(
+            commander_id=7, horse_booster_id=Horse.WARHORSE_STABLE1, map_id=3, node_id=TreasureMapNodeId(12)
+        )
         assert horse.horse_booster_id is Horse.WARHORSE_STABLE1 and horse.to_payload()["BT"] == 1002
-        default = TreasureHuntAttackRequest(commander_id=7, map_id=3, node_id=12)
+        default = TreasureHuntAttackRequest(commander_id=7, map_id=3, node_id=TreasureMapNodeId(12))
         assert default.horse_booster_id == NO_HORSE and default.to_payload()["BT"] == -1
 
     def test_the_reply_carries_the_movement_currencies_and_units(self):
@@ -211,7 +213,7 @@ class TestTreasureHuntAttack:
         client = with_horses(make_client({"thm": xt_packet("thm", {"TM": wrapper(51)})}))
 
         reply = client.attack.send_treasure_hunt_attack(
-            3, 12, [wave(units=[[487, 5]]), wave()], commander_id=7, horse_booster_id=COIN_HORSE
+            3, TreasureMapNodeId(12), [wave(units=[[487, 5]]), wave()], commander_id=7, horse_booster_id=COIN_HORSE
         )
 
         command, payload = conn(client).request_payloads[0]
@@ -230,7 +232,12 @@ class TestTreasureHuntAttack:
         client = make_client()
 
         client.attack.send_treasure_hunt_attack(
-            3, 12, [wave(units=[[487, 5]])], 7, horse_booster_id=Horse.WARHORSE_STABLE1, feathers=True
+            3,
+            TreasureMapNodeId(12),
+            [wave(units=[[487, 5]])],
+            7,
+            horse_booster_id=Horse.WARHORSE_STABLE1,
+            feathers=True,
         )
 
         payload = conn(client).request_payloads[0][1]
@@ -240,7 +247,9 @@ class TestTreasureHuntAttack:
         client = with_horses(make_client())
 
         with pytest.raises(ValueError, match="spend_rubies"):
-            client.attack.send_treasure_hunt_attack(3, 12, [wave(units=[[487, 5]])], 7, horse_booster_id=RUBY_HORSE)
+            client.attack.send_treasure_hunt_attack(
+                3, TreasureMapNodeId(12), [wave(units=[[487, 5]])], 7, horse_booster_id=RUBY_HORSE
+            )
 
         assert conn(client).request_payloads == []
 
@@ -248,7 +257,9 @@ class TestTreasureHuntAttack:
         client = make_client()
 
         with pytest.raises(PremiumCommanderCostError):
-            client.attack.send_treasure_hunt_attack(3, 12, [wave(units=[[487, 5]])], -14, use_premium_commander=True)
+            client.attack.send_treasure_hunt_attack(
+                3, TreasureMapNodeId(12), [wave(units=[[487, 5]])], -14, use_premium_commander=True
+            )
 
         assert conn(client).request_payloads == []
 
@@ -256,7 +267,7 @@ class TestTreasureHuntAttack:
         client = make_client()
 
         with pytest.raises(ValueError, match="no units"):
-            client.attack.send_treasure_hunt_attack(3, 12, [wave()], 7)
+            client.attack.send_treasure_hunt_attack(3, TreasureMapNodeId(12), [wave()], 7)
 
         assert conn(client).request_payloads == []
 
@@ -272,7 +283,7 @@ class TestTreasureHuntAttack:
 
         client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], 3)
         clock[0] = 101.0
-        client.attack.send_treasure_hunt_attack(3, 12, [wave(units=[[487, 5]])], 7)
+        client.attack.send_treasure_hunt_attack(3, TreasureMapNodeId(12), [wave(units=[[487, 5]])], 7)
 
         assert slept == [3.0]
 
@@ -281,7 +292,7 @@ class TestTreasureHuntAttack:
         client = make_client({"thm": xt_packet("thm", None, error_code=90)})
 
         with pytest.raises(CommandError):
-            client.attack.send_treasure_hunt_attack(3, 12, [wave(units=[[487, 5]])], 7)
+            client.attack.send_treasure_hunt_attack(3, TreasureMapNodeId(12), [wave(units=[[487, 5]])], 7)
 
 
 class TestDaimyoTaunt:

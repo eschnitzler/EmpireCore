@@ -16,8 +16,9 @@ from typing import TYPE_CHECKING, Annotated, Any
 
 from pydantic import BeforeValidator, Field, field_validator, model_validator
 
-from empire_core.enums import DecorationStorageId
+from empire_core.enums import DecorationStorageId, Kingdom
 from empire_core.gamedata import EnumOrInt
+from empire_core.gamedata.ids.treasure_maps import TreasureMapId
 from empire_core.gamedata.lenient import known
 from empire_core.protocol.base import (
     DEFAULT_ZONE,
@@ -37,6 +38,17 @@ if TYPE_CHECKING:
     from empire_core.gamedata import Building
 
 logger = logging.getLogger(__name__)
+
+DecorationStorageKey = DecorationStorageId | Kingdom | TreasureMapId | int
+"""
+A decoration storage: the main one or a castle's area inventory, else the event kingdom whose own it is,
+Berimond's or a season event's map.
+
+Client: ``DecorationConst.getStorageID`` (dll line 19001) names a season map's storage by its map id and
+Berimond's by its kingdom id
+"""
+
+_STORAGE_ENUMS = (DecorationStorageId, Kingdom, TreasureMapId)
 
 
 def _row(*names: str) -> Any:
@@ -109,10 +121,7 @@ class DecorationStorage(BasePayload):
     Client: ``DecoStorageData.parseSIN`` and ``DecoStorageVO.parseSIN`` (bundle lines 141430, 141501)
     """
 
-    storage_id: DecorationStorageId | int = Field(
-        validation_alias="SID",
-        description="Which storage; a kingdom or map id for an event kingdom's own",
-    )
+    storage_id: DecorationStorageKey = Field(validation_alias="SID", description="Which storage")
     decorations: list[StoredDecoration] = Field(
         validation_alias="RD", default_factory=list, description="Regular decorations, by type"
     )
@@ -125,8 +134,8 @@ class DecorationStorage(BasePayload):
 
     @field_validator("storage_id", mode="before")
     @classmethod
-    def _storage_id(cls, value: Any) -> DecorationStorageId | int:
-        return known(DecorationStorageId, js_int(value), warn=False)
+    def _storage_id(cls, value: Any) -> DecorationStorageKey:
+        return known(_STORAGE_ENUMS, js_int(value), warn=False)
 
     @field_validator("decorations", mode="before")
     @classmethod
@@ -203,9 +212,7 @@ class MarkStorageSeenRequest(BaseRequest):
 
     command = "mbs"
 
-    storage_id: int = Field(
-        validation_alias="SID", description="The storage, a DecorationStorageId or an event kingdom's own id"
-    )
+    storage_id: DecorationStorageKey = Field(validation_alias="SID", description="The storage")
 
 
 class MarkStorageSeenResponse(BaseResponse):
@@ -333,6 +340,7 @@ class PlaceStoredDecorationResponse(BaseResponse):
 
 __all__ = [
     "DecorationStorage",
+    "DecorationStorageKey",
     "DecorationStorageResponse",
     "DecorationStorages",
     "MarkStorageSeenRequest",

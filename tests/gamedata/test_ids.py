@@ -148,6 +148,15 @@ IDS_PAYLOAD: dict[str, Any] = {
     "privateVillages": [{"villageID": "41", "type": "wood", "villageLevel": "1", "kID": "2", "effects": "600&2"}],
     "fusionSystems": [{"id": "1", "energyRechargeIntervalInSeconds": "21600"}],
     "judgements": [{"judgementID": "0", "visualName": "wolfs", "spawnSpot": "resourceFood"}],
+    "tmaps": [
+        {"mapID": "25", "comment1": "hardmode", "comment2": "Thornking", "tmapnodeIDs": "122+123", "maptype": "0"},
+        {"mapID": "30", "comment1": "UnderworldLowLevel", "comment2": "Underworld", "maptype": "2"},
+        {"mapID": "51", "comment1": "Swineking", "comment2": "TreasureMap", "kID": "0", "maptype": "1"},
+    ],
+    "allianceTowerEffects": [
+        {"allianceTowerEffectID": "1", "effectID": "1", "effectBasePrice": "100", "effectMaxLevel": "60"},
+        {"allianceTowerEffectID": "9", "effectID": "999", "effectBasePrice": "100", "effectMaxLevel": "60"},
+    ],
 }
 
 # Which GameData table each enum's values index.
@@ -187,6 +196,8 @@ TABLE_OF: dict[str, str] = {
     "PrivateVillageType": "private_villages",
     "FusionForgeId": "fusion_systems",
     "Judgement": "judgements",
+    "TreasureMapId": "treasure_maps",
+    "AllianceTowerEffect": "alliance_tower_effects",
 }
 """Which GameData table each enum's values index; ``Currency`` keys and ``MainQuest`` (no table) aside."""
 
@@ -541,6 +552,12 @@ class TestGenerator:
         assert self.members(items, "AllianceCrestLayout") == {"FREE": 1, "NOMAD": 9}
         assert self.members(items, "AllianceCrestColor") == {"COLOR_1": 1}
         assert self.members(items, "MainQuest") == {"MAIN_QUEST_3": 3}
+        assert self.members(items, "TreasureMapId") == {
+            "THORNKING_HARDMODE": 25,
+            "UNDERWORLD_LOW_LEVEL": 30,
+            "TREASURE_MAP_SWINEKING": 51,
+        }
+        assert self.members(items, "AllianceTowerEffect") == {"FAME_DEFENSE_BONUS": 1, "TOWER_EFFECT_9": 9}
 
     def test_unnamed_tables_are_named_from_the_text_the_game_shows(self):
         texts = {
@@ -551,6 +568,7 @@ class TestGenerator:
             "playerTitle_0": "Knight",
             "allianceCoat_Layout_name_9": "Nomad's Wrath Emblem",
             "mainquest_3_title": "The lovely Beatrice",
+            "treasuremap_chest_51_title": "The Swine King",
         }
         named = {
             "Gem": {"LIZARDS_EYE": 12, "GEM_OF_THE_GLORIOUS_DEFENDER_L6": 55},
@@ -559,6 +577,7 @@ class TestGenerator:
             "Title": {"KNIGHT": 0},
             "AllianceCrestLayout": {"FREE": 1, "NOMADS_WRATH_EMBLEM": 9},
             "MainQuest": {"THE_LOVELY_BEATRICE": 3},
+            "TreasureMapId": {"THORNKING_HARDMODE": 25, "UNDERWORLD_LOW_LEVEL": 30, "SWINE_KING": 51},
         }
         for enum, members in named.items():
             assert self.text_members(IDS_PAYLOAD, texts, enum) == members, enum

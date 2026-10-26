@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Annotated, Any, ClassVar
 from pydantic import BeforeValidator, Field, field_validator
 
 from empire_core.enums import AllianceBuffType, AllianceChronicleAction, DiplomacyStatus
-from empire_core.gamedata import GameData
+from empire_core.gamedata import DaimyoContractId, GameData
 from empire_core.gamedata.lenient import EnumOrInt, known
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, readable_list
 from empire_core.protocol.js import ClientInt, js_int, js_loose_equals, js_number_or_none, js_parse_int, js_string
@@ -255,12 +255,13 @@ class ChronicleDaimyoContract:
         Action.DAIMYO_ALLIANCE_TOWNSHIP_CONTRACT_COMPLETED,
     )
 
-    contract_id: int | None
+    contract_id: DaimyoContractId | None
     """The contract, ``AV[0]``."""
 
     @classmethod
     def from_values(cls, values: list[Any]) -> ChronicleDaimyoContract:
-        return cls(js_parse_int(_at(values, 0)))
+        contract_id = js_parse_int(_at(values, 0))
+        return cls(None if contract_id is None else DaimyoContractId(contract_id))
 
     def series_position(self, *, game_data: GameData | None = None) -> tuple[DaimyoContractDef, int, int]:
         """

@@ -7,6 +7,7 @@ import pytest
 from empire_core.attack import BuyToolsResponse
 from empire_core.enums import Kingdom
 from empire_core.exceptions import CommandError, PacketError, UnknownCastleError
+from empire_core.gamedata import PackageId, TreasureMapId
 from empire_core.protocol.base import parse_response
 from tests.service_helpers import conn, logged_in_state, make_client, xt_packet
 
@@ -27,10 +28,12 @@ class TestBuyTools:
     def test_an_event_camp_and_package(self):
         client = make_client({"ibt": xt_packet("ibt", REPLY)}, castles=[(2001, Kingdom.GREEN, 5, 6)])
 
-        client.attack.buy_tools(2001, 614, 1, map_id=3, package_id=88, spend_rubies=True)
+        client.attack.buy_tools(
+            2001, 614, 1, map_id=TreasureMapId.THORNKING_NORMAL, package_id=PackageId(88), spend_rubies=True
+        )
 
         assert conn(client).request_payloads == [
-            ("ibt", {"W": 614, "A": 1, "CX": 5, "CY": 6, "MID": 3, "KID": 0, "PID": 88})
+            ("ibt", {"W": 614, "A": 1, "CX": 5, "CY": 6, "MID": 21, "KID": 0, "PID": 88})
         ]
 
     def test_needs_ruby_consent(self):

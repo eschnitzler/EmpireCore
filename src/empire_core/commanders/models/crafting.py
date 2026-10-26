@@ -18,10 +18,10 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from pydantic import ConfigDict, Field, field_serializer, field_validator, model_validator
 
 from empire_core.enums import PackageBuyType
-from empire_core.gamedata import EnumOrInt
+from empire_core.gamedata import EnumOrInt, PackageId
 from empire_core.gamedata.ids.events import Event
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, readable_list
-from empire_core.protocol.js import ClientInt, js_int, js_loose_equals, js_parse_int_or_zero, js_truthy
+from empire_core.protocol.js import js_int, js_loose_equals, js_parse_int_or_zero, js_truthy
 
 from .equipment import Equipment, RelicGem
 from .inventory import InventorySpace
@@ -308,7 +308,9 @@ class _MerchantPurchase(BaseResponse):
     """Client: ``BEQCommand``, ``BGMCommand`` and ``BRICommand`` (bundle lines 123711, 123772, 123798) read
     ``PID``, ``TID`` and ``BT`` with ``parseInt``."""
 
-    package_id: ClientInt = Field(validation_alias="PID", default=0, description="The merchant package bought")
+    package_id: PackageId = Field(
+        validation_alias="PID", default=PackageId(0), description="The merchant package bought"
+    )
     event_id: EnumOrInt[Event] = Field(
         validation_alias="TID", default=0, description="The event whose merchant sold it"
     )
@@ -316,7 +318,7 @@ class _MerchantPurchase(BaseResponse):
         validation_alias="BT", default=PackageBuyType.EVENT, description="Where the package was bought"
     )
 
-    @field_validator("event_id", "buy_type", mode="before")
+    @field_validator("package_id", "event_id", "buy_type", mode="before")
     @classmethod
     def _parse_int(cls, value: Any) -> int:
         return js_parse_int_or_zero(value)

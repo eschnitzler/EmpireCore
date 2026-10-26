@@ -17,9 +17,9 @@ from empire_core.castle import (
     ShowInventoryRequest,
     StoreBuildingRequest,
 )
-from empire_core.enums import DecorationStorageId
+from empire_core.enums import DecorationStorageId, Kingdom
 from empire_core.exceptions import CommandError
-from empire_core.gamedata import Building
+from empire_core.gamedata import Building, TreasureMapId
 from empire_core.protocol.models import parse_response
 from empire_core.state.manager import GameState
 from tests.service_helpers import conn, make_client, xt_packet
@@ -31,11 +31,13 @@ ROW = [300, 9, 4, 6, 0, 0, 0, 100, 100, 100, 0, 0, 0, 0, 0]
 
 class TestModels:
     def test_a_storage_list_reads_each_kind_of_decoration(self):
-        reply = parse_response("sin", [MAIN, {"SID": 10}])
+        reply = parse_response("sin", [MAIN, {"SID": 10}, {"SID": "23"}, {"SID": 99}])
         assert isinstance(reply, DecorationStorageResponse)
-        main, kingdom = reply.storages
+        main, kingdom, season_map, unknown = reply.storages
         assert main.storage_id is DecorationStorageId.GLOBAL
-        assert kingdom.storage_id == 10
+        assert kingdom.storage_id is Kingdom.BERIMOND
+        assert season_map.storage_id is TreasureMapId.UNDERWORLD_NORMAL
+        assert unknown.storage_id == 99
         (regular,) = main.decorations
         assert (regular.wod_id, regular.amount, regular.new_amount) == (Building(300), 3, 1)
         (custom,) = main.custom_decorations
@@ -48,6 +50,7 @@ class TestModels:
 
     def test_requests_send_the_client_keys(self):
         assert MarkStorageSeenRequest(storage_id=2).to_payload() == {"SID": 2}
+        assert MarkStorageSeenRequest(storage_id=TreasureMapId.THORNKING_NORMAL).to_payload() == {"SID": 21}
         assert StoreBuildingRequest(object_id=9).to_payload() == {"OID": 9}
         sell = SellStoredDecorationRequest(wod_id=300, amount=2)
         assert sell.to_payload() == {"WID": 300, "AMT": 2, "UID": -1} and sell.wod_id is Building.DECO_FLAGPOLE_L1

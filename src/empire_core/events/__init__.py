@@ -2,7 +2,14 @@
 
 from typing import TYPE_CHECKING
 
-from empire_core.enums import FactionProtectionStatus, Kingdom, KingdomTransferType, RankingType, ServerType
+from empire_core.enums import (
+    BerimondFaction,
+    FactionProtectionStatus,
+    Kingdom,
+    KingdomTransferType,
+    RankingType,
+    ServerType,
+)
 from empire_core.enums.events import (
     GachaRarity,
     PerformanceStatistic,
@@ -111,6 +118,8 @@ from empire_core.events.special_server_models import (
     GetOuterRealmsCollectorPointsRequest,
     GetPreviousSpecialServerRunsRequest,
     OuterRealmsCollectorPoints,
+    PreviousHorizonRun,
+    PreviousOuterRealmsRun,
     PreviousSpecialServerRun,
     PreviousSpecialServerRuns,
     RerollChargeCampEffectRequest,
@@ -211,7 +220,16 @@ from .service import EventsService
 from .titles import get_event_titles
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import Currency, Effect, Event, GlobalEffect, PrebuiltCastle, QuestId, RaidBoss
+    from empire_core.gamedata import (
+        Currency,
+        Effect,
+        Event,
+        GlobalEffect,
+        PrebuiltCastle,
+        QuestId,
+        RaidBoss,
+        TreasureMapId,
+    )
 
 __all__ = [
     "AllianceCampInfo",
@@ -230,6 +248,8 @@ __all__ = [
     "UnlockEventRequest",
     "UnlockEventResponse",
     "GetPreviousSpecialServerRunsRequest",
+    "PreviousHorizonRun",
+    "PreviousOuterRealmsRun",
     "PreviousSpecialServerRun",
     "PreviousSpecialServerRuns",
     "BerimondBalance",
@@ -412,6 +432,8 @@ __all__ = [
     "PrebuiltCastle",
     "QuestId",
     "RaidBoss",
+    "TreasureMapId",
+    "BerimondFaction",
 ]
 
 
@@ -419,5 +441,5 @@ if not TYPE_CHECKING:
     __getattr__ = lazy_exports(
         __name__,
         "empire_core.gamedata.ids",
-        ("Currency", "Effect", "Event", "GlobalEffect", "PrebuiltCastle", "QuestId", "RaidBoss"),
+        ("Currency", "Effect", "Event", "GlobalEffect", "PrebuiltCastle", "QuestId", "RaidBoss", "TreasureMapId"),
     )

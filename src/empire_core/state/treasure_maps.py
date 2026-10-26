@@ -1,11 +1,16 @@
 """Treasure maps (tmp) and the treasure hunt's current map (thi)."""
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 from empire_core.events.models import SeasonEvent, SpecialEvent
 from empire_core.map.models.treasure_maps import TreasureHuntInfoResponse, TreasureMap, TreasureMapsResponse
 from empire_core.protocol.js import js_truthy
 from empire_core.state.base import StateBase, read_section
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import TreasureMapId
 
 TREASURE_MAP_SECTIONS = ("tmp", "thi")
 
@@ -56,12 +61,12 @@ class TreasureMapState(StateBase):
         if isinstance(event, SeasonEvent) and self.treasure_maps and event.map_id in self.treasure_maps:
             self.treasure_maps = {key: value for key, value in self.treasure_maps.items() if key != event.map_id}
 
-    def get_treasure_maps(self) -> dict[int, TreasureMap] | None:
+    def get_treasure_maps(self) -> dict[TreasureMapId | int, TreasureMap] | None:
         """Your treasure maps by map id, from every ``tmp`` so far; None until one arrived. A copy."""
         with self._lock:
             return None if self.treasure_maps is None else dict(self.treasure_maps)
 
-    def get_treasure_hunt_map_id(self) -> int | None:
+    def get_treasure_hunt_map_id(self) -> TreasureMapId | int | None:
         """The treasure hunt's current map, -1 once no map is left, from the last ``thi``; None until one arrived."""
         with self._lock:
             return self.treasure_hunt_map_id

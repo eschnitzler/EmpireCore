@@ -73,7 +73,6 @@ ALLOWED: dict[str, str] = {
     "gamedata.models.ToolStats.slot_types": "attack-screen slot types: the client names none of them",
     "gamedata.tables.GeneralRarityDef.upgrade_costs": "shard costs, one per star level; not ids",
     "gamedata.tables.GeneralRarityDef.xp_requirements": "xp totals, one per level; not ids",
-    "gamedata.tables.BuildingDef.available_in_map_ids": "map ids: no items table names maps",
     "gamedata.tables.BuildingDef.construction_item_group_ids": "construction item groups have no name",
     "gamedata.tables.BuildingDef.low_level_build_durations": "durations in seconds, not ids",
     "gamedata.tables.BuildingDef.low_level_main_castle_cost_rubies": "ruby amounts, not ids",
@@ -134,7 +133,6 @@ GAME_DATA_SCALAR_IDS: dict[str, str] = {
     "gamedata.models.LegendSkillDef.skill_group_id": "skill groups have no table",
     "gamedata.models.LegendSkillDef.skill_tree_id": "skill trees have no table",
     "gamedata.models.NpcCampDefence.lord_id": "a default commander id, which has no enum",
-    "gamedata.models.NpcCampDefence.faction_id": "a Berimond faction, 0 blue or 1 red; FactionConst has no enum",
     "gamedata.models.RelicEffectDef.relic_effect_id": "relic effects have no name to make an enum of",
     "gamedata.models.SceatSkillDef.skill_group_id": "skill groups have no table",
     "gamedata.models.SceatSkillDef.skill_tree_id": "skill trees have no table",
@@ -148,16 +146,12 @@ GAME_DATA_SCALAR_IDS: dict[str, str] = {
     "gamedata.tables.ConstructionItemRecipeDef.blueprint_id": "blueprints have no table; their recipes name them",
     "gamedata.tables.CraftingRecipeDef.recipe_group_id": "recipe groups have no table",
     "gamedata.tables.CraftingRecipeDef.research_group_id": "research groups have no table",
-    "gamedata.tables.DaimyoContractDef.contract_id": "daimyo contracts have no name to make an enum of",
-    "gamedata.tables.DaimyoContractDef.next_contract_id": "daimyo contracts have no name to make an enum of",
     "gamedata.tables.LootBoxDef.key_tombola_id": "tombolas have no name to make an enum of",
     "gamedata.tables.LootBoxDef.tombola_id": "tombolas have no name to make an enum of",
-    "gamedata.tables.QuestDef.map_id": "no items table names maps",
     "gamedata.tables.QuestDef.quest_giver_id": "quest givers: the client names only the selected hero",
     "gamedata.tables.QuestDef.questbook_tab_id": "quest book tabs have no table",
     "gamedata.tables.QuestDef.series_id": "quest series have no table",
     "gamedata.tables.ResearchDef.group_id": "research groups have no table",
-    "gamedata.tables.ScalingCampDef.scaling_camp_id": "scaling camps have no name to make an enum of",
 }
 """Game-data row fields named ``*_id`` that hold a plain int, each with why no enum types it."""
 

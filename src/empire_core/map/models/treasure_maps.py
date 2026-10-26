@@ -11,12 +11,12 @@ Commands:
 
 from __future__ import annotations
 
-from typing import Annotated, Any, ClassVar
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar
 
-from pydantic import BeforeValidator, ConfigDict, Field, field_validator
+from pydantic import BeforeValidator, ConfigDict, Field, ValidatorFunctionWrapHandler, WrapValidator, field_validator
 
 from empire_core.enums import TreasureMapProgress
-from empire_core.gamedata import CollectableRows, EnumOrInt, WodAmounts
+from empire_core.gamedata import CollectableRows, EnumOrInt, TreasureMapNodeId, WodAmounts
 from empire_core.protocol.base import (
     BasePayload,
     BaseRequest,
@@ -27,20 +27,43 @@ from empire_core.protocol.base import (
 )
 from empire_core.protocol.js import ClientInt, ClientNumber, js_int, js_loose_equals, js_truthy
 
+if TYPE_CHECKING:
+    from empire_core.gamedata import TreasureMapId
+
+NO_TREASURE_MAP = -1
+"""No treasure map: what the treasure hunt names once no map is left, and what asks for none in particular.
+
+Client: ``CastleTreasureMapData.NO_MORE_MAPS`` (bundle line 140486)
+"""
+
+
+def _no_map_or(value: Any, handler: ValidatorFunctionWrapHandler) -> Any:
+    return NO_TREASURE_MAP if js_loose_equals(value, NO_TREASURE_MAP) else handler(value)
+
+
+TreasureMapOrNone = Annotated[EnumOrInt["TreasureMapId"], WrapValidator(_no_map_or)]
+"""A treasure map, or ``NO_TREASURE_MAP`` (-1) for none."""
+
+NO_TREASURE_MAP_NODE = TreasureMapNodeId(-1)
+"""No treasure map node: what a dungeon cooldown skip names for a camp on the world map."""
+
+_NodeId = Annotated[TreasureMapNodeId, BeforeValidator(js_int)]
+
 
 class TreasureMapNode(TimedPayload):
     """
     One node of a treasure map as the server sends it, an entry of a map's ``N``.
 
-    The node's place, level and unlock rules come from the game's ``tmapnodes`` data, which the
-    library does not read.
+    The node's place, level and unlock rules are its row in ``GameData.treasure_map_nodes``.
 
     Client: ``TreasureMapVO.loadFromParamObject`` (bundle line 140557) marks a node with ``A`` 1 as
     defeated; ``TMapNodeVO.parseParamObject`` (bundle line 26940) reads the rest. The ruby prices pay
     the parts of the node's obstacle (``CastleTreasureMapUnlockObstacleDialog``, bundle line 67833)
     """
 
-    node_id: ClientInt = Field(validation_alias="NID", default=0, description="The node on the treasure map")
+    node_id: _NodeId = Field(
+        validation_alias="NID", default=TreasureMapNodeId(0), description="The node on the treasure map"
+    )
     defeated: bool = Field(validation_alias="A", default=False, description="Whether the node has fallen")
     cooldown_seconds: ClientNumber = Field(
         validation_alias="CD",
@@ -140,13 +163,12 @@ class TreasureMap(TimedPayload):
     """
     One treasure map's progress, an entry of a ``tmp``'s ``TM``.
 
-    The map's pieces, node layout and costs come from the game's ``tmaps`` data, which the library
-    does not read.
+    The map's pieces, node layout and costs are its row in ``GameData.treasure_maps``.
 
     Client: ``TreasureMapVO.loadFromParamObject`` (bundle line 140557)
     """
 
-    map_id: ClientInt = Field(validation_alias="MID", default=0, description="The treasure map")
+    map_id: EnumOrInt["TreasureMapId"] = Field(validation_alias="MID", description="The treasure map")
     nodes: tuple[TreasureMapNode, ...] = Field(
         validation_alias="N", default=(), description="The nodes the server sent, in its order"
     )
@@ -191,7 +213,7 @@ class TreasureMap(TimedPayload):
     def _storage(cls, value: Any) -> Any:
         return value if js_truthy(value) and isinstance(value, dict | TreasureMapStorage) else {}
 
-    def node(self, node_id: int) -> TreasureMapNode | None:
+    def node(self, node_id: TreasureMapNodeId) -> TreasureMapNode | None:
         """One node, None when the server sent none for it."""
         return next((node for node in self.nodes if node.node_id == node_id), None)
 
@@ -219,8 +241,10 @@ class GetTreasureMapsRequest(BaseRequest):
 
     command = "tmp"
 
-    map_id: int = Field(
-        validation_alias="MID", default=-1, description="A season's treasure map; -1 for none in particular"
+    map_id: TreasureMapOrNone = Field(
+        validation_alias="MID",
+        default=NO_TREASURE_MAP,
+        description="A season's treasure map; -1 for none in particular",
     )
 
 
@@ -280,8 +304,10 @@ class TreasureHuntInfoResponse(BaseResponse):
 
     command = "thi"
 
-    map_id: ClientInt = Field(
-        validation_alias="MID", default=0, description="The treasure hunt's current map; -1 once no map is left"
+    map_id: TreasureMapOrNone = Field(
+        validation_alias="MID",
+        default=NO_TREASURE_MAP,
+        description="The treasure hunt's current map; -1 once no map is left",
     )
 
 
@@ -300,7 +326,7 @@ class BuyTreasureMapPiecesRequest(BaseRequest):
     command = "tbm"
 
     amount: int = Field(validation_alias="A", description="Pieces to buy")
-    map_id: int = Field(validation_alias="MID", description="The treasure map")
+    map_id: EnumOrInt["TreasureMapId"] = Field(validation_alias="MID", description="The treasure map")
 
 
 class BuyTreasureMapPiecesResponse(BaseResponse):
@@ -331,7 +357,7 @@ class FinishTreasureMapRequest(BaseRequest):
 
     command = "tfm"
 
-    map_id: int = Field(validation_alias="MID", description="The treasure map")
+    map_id: EnumOrInt["TreasureMapId"] = Field(validation_alias="MID", description="The treasure map")
 
 
 class FinishTreasureMapResponse(BaseResponse):
@@ -380,10 +406,13 @@ __all__ = [
     "FinishTreasureMapRequest",
     "FinishTreasureMapResponse",
     "GetTreasureMapsRequest",
+    "NO_TREASURE_MAP",
+    "NO_TREASURE_MAP_NODE",
     "TreasureHuntInfoResponse",
     "TreasureMap",
     "TreasureMapGoodsTransfer",
     "TreasureMapNode",
+    "TreasureMapOrNone",
     "TreasureMapStorage",
     "TreasureMapUnitTransfer",
     "TreasureMapsBlock",

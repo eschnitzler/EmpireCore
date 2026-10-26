@@ -12,7 +12,7 @@ from empire_core.enums import Kingdom, KingdomTransferType, Resource
 from empire_core.events.models import SeasonEvent
 from empire_core.events.season_models import MinuteSkipSeasonTransferRequest
 from empire_core.exceptions import CommandError, UnsendableGoodsError
-from empire_core.gamedata import Currency, WodAmount, WodAmountMapping
+from empire_core.gamedata import Currency, TreasureMapId, WodAmount, WodAmountMapping
 from empire_core.movements.models import (
     NO_HORSE,
     CancelMovementRequest,
@@ -656,7 +656,7 @@ class MovementsService(BaseService):
 
     def transfer_goods_to_treasure_map(
         self,
-        map_id: int,
+        map_id: TreasureMapId | int,
         source_castle_id: int,
         goods: dict[Resource, int],
         *,
@@ -701,7 +701,7 @@ class MovementsService(BaseService):
 
     def transfer_units_to_treasure_map(
         self,
-        map_id: int,
+        map_id: TreasureMapId | int,
         source_castle_id: int,
         units: WodAmountMapping | Sequence[WodAmount],
         *,
@@ -741,7 +741,7 @@ class MovementsService(BaseService):
 
     def skip_treasure_map_transfer(
         self,
-        map_id: int,
+        map_id: TreasureMapId | int,
         transfer_type: KingdomTransferType,
         *,
         spend_rubies: bool = False,
@@ -773,7 +773,7 @@ class MovementsService(BaseService):
 
     def skip_treasure_map_transfer_time(
         self,
-        map_id: int,
+        map_id: TreasureMapId | int,
         transfer_type: KingdomTransferType,
         minute_skip: Currency | str,
         *,
@@ -801,7 +801,7 @@ class MovementsService(BaseService):
         request = MinuteSkipSeasonTransferRequest(map_id=map_id, transfer_type=transfer_type, minute_skip=minute_skip)
         self.execute(request, timeout=timeout)
 
-    def _running_season(self, map_id: int) -> SeasonEvent:
+    def _running_season(self, map_id: TreasureMapId | int) -> SeasonEvent:
         for event in self.client.state.get_events().values():
             if isinstance(event, SeasonEvent) and event.map_id == map_id:
                 return event

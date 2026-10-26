@@ -29,6 +29,21 @@ class PerformanceStatistic(IntEnum):
     AQUAMARINE_FIRST_POINTS_TIMESTAMP = 21
 
 
+class BerimondFaction(IntEnum):
+    """
+    A side of the Battle for Berimond, by the name the game shows it: the blue House of Ursidae and the red House of
+    Gerbrandt.
+
+    Client: ``FactionConst.BLUE_FACTION`` and ``RED_FACTION`` (dll line 19333); names from the ``blue_faction`` and
+    ``red_faction`` texts
+    """
+
+    URSIDAE = 0
+    """The House of Ursidae, the blue faction."""
+    GERBRANDT = 1
+    """The House of Gerbrandt, the red faction."""
+
+
 class RaidBossCardStatus(IntEnum):
     """Client: ``AllianceRaidConst`` (dll.pretty lines 78938-78942)."""
 

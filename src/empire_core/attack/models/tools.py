@@ -11,12 +11,16 @@ from typing import TYPE_CHECKING, Any
 from pydantic import Field, field_validator
 
 from empire_core.enums import Kingdom
-from empire_core.gamedata import EnumOrInt
+from empire_core.gamedata import EnumOrInt, PackageId
+from empire_core.map.models.treasure_maps import NO_TREASURE_MAP, TreasureMapOrNone
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, CurrencyBlock, object_or_none
 from empire_core.protocol.js import ClientInt
 
 if TYPE_CHECKING:
     from empire_core.gamedata import Tool
+
+NO_PACKAGE = PackageId(-1)
+"""No event package: tools bought at their own price."""
 
 
 class BuyToolsRequest(BaseRequest):
@@ -39,10 +43,12 @@ class BuyToolsRequest(BaseRequest):
     amount: int = Field(validation_alias="A", description="How many to buy")
     x: int = Field(validation_alias="CX", description="Map x of the castle the tools go to")
     y: int = Field(validation_alias="CY", description="Map y of the castle the tools go to")
-    map_id: int = Field(validation_alias="MID", default=-1, description="The treasure map of an event camp, else -1")
+    map_id: TreasureMapOrNone = Field(
+        validation_alias="MID", default=NO_TREASURE_MAP, description="The treasure map of an event camp, else -1"
+    )
     kingdom: Kingdom = Field(validation_alias="KID", description="The castle's kingdom")
-    package_id: int = Field(
-        validation_alias="PID", default=-1, description="The event package whose price applies, else -1"
+    package_id: PackageId = Field(
+        validation_alias="PID", default=NO_PACKAGE, description="The event package whose price applies, else -1"
     )
 
 
@@ -76,4 +82,4 @@ class BuyToolsResponse(BaseResponse):
         return object_or_none(value)
 
 
-__all__ = ["BoughtTools", "BuyToolsRequest", "BuyToolsResponse"]
+__all__ = ["NO_PACKAGE", "BoughtTools", "BuyToolsRequest", "BuyToolsResponse"]

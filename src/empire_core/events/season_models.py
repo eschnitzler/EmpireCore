@@ -17,7 +17,7 @@ from empire_core.gamedata import EnumOrInt, EnumOrStr
 from empire_core.protocol.base import BaseRequest, BaseResponse
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import Currency, PrebuiltCastle
+    from empire_core.gamedata import Currency, PrebuiltCastle, TreasureMapId
 
 
 class JoinSeasonCampRequest(BaseRequest):
@@ -34,7 +34,9 @@ class JoinSeasonCampRequest(BaseRequest):
 
     command = "jea"
 
-    map_id: int = Field(validation_alias="MID", description="The event's treasure map, SeasonEvent.map_id")
+    map_id: EnumOrInt["TreasureMapId"] = Field(
+        validation_alias="MID", description="The event's treasure map, SeasonEvent.map_id"
+    )
 
 
 class JoinSeasonCampResponse(BaseResponse):
@@ -106,7 +108,9 @@ class MinuteSkipSeasonTransferRequest(BaseRequest):
 
     command = "msm"
 
-    map_id: int = Field(validation_alias="MID", description="The event's treasure map, SeasonEvent.map_id")
+    map_id: EnumOrInt["TreasureMapId"] = Field(
+        validation_alias="MID", description="The event's treasure map, SeasonEvent.map_id"
+    )
     transfer_type: KingdomTransferType = Field(
         validation_alias="TT", description="Whether the transfer carries units or goods"
     )

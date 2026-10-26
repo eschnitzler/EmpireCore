@@ -50,6 +50,7 @@ from .combat import (
 from .commanders import EquipmentSlot, EquipmentType, Rareness, WearerType
 from .errors import GGEError
 from .events import (
+    BerimondFaction,
     GachaRarity,
     PackageBuyType,
     PerformanceStatistic,
@@ -80,6 +81,7 @@ from .map import (
     PeaceModeDuration,
     PeaceModeStatus,
     TreasureMapProgress,
+    TreasureMapType,
 )
 from .messages import BattleLogAttackType, LogResult, MessageType
 from .movements import MovementType
@@ -103,6 +105,7 @@ if TYPE_CHECKING:
         Achievement,
         AllianceCrestColor,
         AllianceCrestLayout,
+        AllianceTowerEffect,
         Building,
         ConstructionItem,
         Currency,
@@ -136,6 +139,7 @@ if TYPE_CHECKING:
         SceatSkill,
         Title,
         Tool,
+        TreasureMapId,
         Unit,
     )
 
@@ -145,6 +149,7 @@ __all__ = [
     "PackageBuyType",
     "PerformanceStatistic",
     "WheelOfFortuneType",
+    "BerimondFaction",
     "GachaRarity",
     "WorldCupVote",
     # Map / kingdom
@@ -156,6 +161,7 @@ __all__ = [
     "PeaceModeDuration",
     "FactionProtectionStatus",
     "TreasureMapProgress",
+    "TreasureMapType",
     # Movement
     "MovementType",
     # Attack / combat
@@ -246,6 +252,7 @@ __all__ = [
     "Achievement",
     "AllianceCrestColor",
     "AllianceCrestLayout",
+    "AllianceTowerEffect",
     "Building",
     "ConstructionItem",
     "Currency",
@@ -279,6 +286,7 @@ __all__ = [
     "SceatSkill",
     "Title",
     "Tool",
+    "TreasureMapId",
     "Unit",
 ]
 
