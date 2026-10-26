@@ -243,12 +243,16 @@ class AllianceCampInfo(BasePayload):
     An alliance invasion camp's state, an entry of an ``aic``'s ``AC``.
 
     Client: ``AICCommand.executeCommand`` (bundle line 128188) with the ``CommKeys`` ``EVENT_ID``,
-    ``ALLIANCE_CAMP_ID`` and ``ALLIANCE_RAGE`` (``EID``, ``ACID``, ``AR``)
+    ``ALLIANCE_CAMP_ID`` and ``ALLIANCE_RAGE`` (``EID``, ``ACID``, ``AR``); the camp is looked up by
+    ``CastleAllianceInvasionCampData.getAllianceCamp`` (bundle line 111182), as a scaling camp when the event's
+    ``isDifficultyScalingActivated`` (bundle line 128192)
     """
 
     event_id: EnumOrInt[Event] = Field(validation_alias="EID", description="The event the camp belongs to")
-    camp_id: Annotated[AllianceInvasionCampId, BeforeValidator(js_int)] = Field(
-        validation_alias="ACID", description="The camp, a GameData.alliance_invasion_camps row"
+    camp_id: Annotated[AllianceInvasionCampId | ScalingCampId, BeforeValidator(js_int)] = Field(
+        validation_alias="ACID",
+        description="The camp: a GameData.scaling_camps row when its event has a difficulty chosen, else a "
+        "GameData.alliance_invasion_camps row",
     )
     alliance_rage: ClientInt = Field(validation_alias="AR", default=0, description="The camp's alliance rage")
 

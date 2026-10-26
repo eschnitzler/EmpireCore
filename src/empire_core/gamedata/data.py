@@ -96,6 +96,8 @@ from .tables import (
     DifficultyTypeDef,
     DonationItemDef,
     DonationItemId,
+    DonationSettingDef,
+    DonationSettingId,
     EquipmentGroupDef,
     EventDef,
     EventDifficultyDef,
@@ -256,6 +258,7 @@ _CACHED_MODELS = (
     TreasureMapNodeDef,
     PartPayPriceDef,
     DonationItemDef,
+    DonationSettingDef,
     TrainingProgramDef,
     EventDifficultyDef,
     GachaDef,
@@ -494,6 +497,7 @@ _TABLES: dict[str, _TableSource] = {
     "treasure_map_nodes": _TableSource("tmapnodes", TreasureMapNodeDef, "node_id"),
     "part_pay_prices": _TableSource("partpayprices", PartPayPriceDef, "part_price_id", reads=is_reward_column),
     "donation_items": _TableSource("donationItems", DonationItemDef, "donation_item_id"),
+    "donation_settings": _TableSource("donationSettings", DonationSettingDef, "setting_id"),
     "training_programs": _TableSource("officersSchoolEffects", TrainingProgramDef, "program_id"),
     "event_difficulties": _TableSource("eventAutoScalingDifficulties", EventDifficultyDef, "difficulty_id"),
     "gachas": _TableSource("gachaEvents", GachaDef, "gacha_id"),
@@ -924,6 +928,11 @@ class GameData(EmpireModel):
         return self._table("donation_items")
 
     @cached_property
+    def donation_settings(self) -> Table[DonationSettingId, DonationSettingDef]:
+        """The ``donationSettings`` rows, by the setting id a running donation event names."""
+        return self._table("donation_settings")
+
+    @cached_property
     def training_programs(self) -> Table[TrainingProgramId, TrainingProgramDef]:
         """The officers' school's training programs (``officersSchoolEffects``), by the program id ``gtp`` names."""
         return self._table("training_programs")
@@ -965,7 +974,10 @@ class GameData(EmpireModel):
 
     @cached_property
     def alliance_invasion_camps(self) -> Table[AllianceInvasionCampId, AllianceInvasionCampDef]:
-        """The ``allianceInvasionCamps`` rows, by the camp id an ``aic`` push names."""
+        """
+        The ``allianceInvasionCamps`` rows by camp id: the camp an ``aic`` push names while its event scales no
+        difficulty; with a difficulty chosen, the push names a :attr:`scaling_camps` row.
+        """
         return self._table("alliance_invasion_camps")
 
     @cached_property

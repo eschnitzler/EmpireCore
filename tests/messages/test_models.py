@@ -6,7 +6,7 @@ import pytest
 
 from empire_core.army import SpyArmy
 from empire_core.enums import Kingdom, LogResult, MapItemType, MessageType, SpyLogType
-from empire_core.gamedata import Event, WodAmount
+from empire_core.gamedata import Event, TreasureMapId, WodAmount
 from empire_core.messages.models import (
     SPY_VALIDITY,
     EventAnnouncementHeader,
@@ -175,6 +175,15 @@ class TestSpyReportResponse:
 
         assert area is not None
         assert (area.daimyo_rank, area.daimyo_camp_id) == (3, 12)
+
+    def test_the_area_names_its_treasure_map(self):
+        payload = copy.deepcopy(BSD_NPC_CAMP_REPORT)
+        payload["AI"]["MID"] = 23
+
+        area = SpyReportResponse.model_validate(payload).area
+
+        assert area is not None
+        assert area.map_id is TreasureMapId.UNDERWORLD_NORMAL
 
     def test_an_unreadable_area_costs_only_itself(self):
         payload = {**BSD_NPC_CAMP_REPORT, "AI": {"AT": "junk"}}

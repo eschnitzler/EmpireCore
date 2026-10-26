@@ -33,7 +33,7 @@ from empire_core.enums import (
 )
 from empire_core.protocol.js import js_falsy, js_int, js_number_or_none, js_parse_float, js_parse_int, js_string
 
-from .collectables import _XML_COST_PREFIX, Collectable
+from .collectables import _GOODS, _XML_COST_PREFIX, Collectable
 from .lenient import GameDataId, GameDataKey
 from .models import READING_CACHE, EffectSpecRow, EffectValue, _parse_int_or_default, _Row
 
@@ -123,6 +123,10 @@ PartPayPriceId = NewType("PartPayPriceId", int)
 
 DonationItemId = NewType("DonationItemId", int)
 """The id of a ``donationItems`` row, what a donation event takes, that :attr:`GameData.donation_items` describes."""
+
+DonationSettingId = NewType("DonationSettingId", int)
+"""The id of a ``donationSettings`` row, a donation event's run settings, that :attr:`GameData.donation_settings`
+describes."""
 
 TrainingProgramId = NewType("TrainingProgramId", int)
 """The id of an ``officersSchoolEffects`` row, a training program that :attr:`GameData.training_programs` describes."""
@@ -610,7 +614,8 @@ class EventDef(_Row):
     """
     An event: who sees it and where.
 
-    Client: ``ASpecialEventVO.parseBasicsFromXmlNode`` (bundle lines 2959-2974)
+    Client: ``ASpecialEventVO.parseBasicsFromXmlNode`` (bundle lines 2959-2974); a season event's own map is the
+    first of ``mapID`` (``ASeasonEventVO.parseEventXmlNode``, bundle line 31385)
     """
 
     event_id: GameDataId["Event"] = Field(validation_alias="eventID", description="The event")
@@ -655,6 +660,11 @@ class EventDef(_Row):
         default=(MapItemType.CASTLE,),
         description="The castle types it counts in",
     )
+    map_ids: tuple[GameDataId["TreasureMapId"], ...] = Field(
+        validation_alias="mapID",
+        default=(),
+        description="The treasure maps it runs on, e.g. a season event's, whose first is its own map",
+    )
 
     @field_validator("event_id", mode="before")
     @classmethod
@@ -682,6 +692,11 @@ class EventDef(_Row):
     @classmethod
     def _area_types(cls, value: object) -> list[int]:
         return _int_list(value, "1")
+
+    @field_validator("map_ids", mode="before")
+    @classmethod
+    def _map_ids(cls, value: object) -> list[int]:
+        return _int_list(value)
 
     @field_validator("event_type", mode="before")
     @classmethod
@@ -1450,8 +1465,14 @@ _NO_RUBIES = Collectable(kind=CollectableKind.RUBIES, key=CollectableKind.RUBIES
 
 
 def _goods_costs(row: dict[str, object], currency_ids: dict[str, int]) -> tuple[Collectable, ...]:
-    """The non-zero ``cost`` columns of a row, as ``PrebuiltCastleItemVO.parseCosts`` (bundle line 142342) keeps."""
-    return tuple(cost for cost in Collectable.from_columns(row, _XML_COST_PREFIX, currency_ids) if cost.amount)
+    """
+    The non-zero goods among a row's ``cost`` columns: resources, coins and rubies.
+
+    Client: ``PrebuiltCastleItemVO.parseCosts`` (bundle line 142342) reads ``ClientConstCollectable.GROUP_LIST_GOODS``
+    (bundle line 3073)
+    """
+    costs = Collectable.from_columns(row, _XML_COST_PREFIX, currency_ids)
+    return tuple(cost for cost in costs if cost.kind in _GOODS and cost.amount)
 
 
 def _rubies(costs: tuple[Collectable, ...]) -> int:
@@ -1467,7 +1488,7 @@ class PrebuiltCastleDef(_Row):
     """
     A castle or camp you start a kingdom, a season event's map or a special server with, and its price.
 
-    ``costs`` are its non-zero ``cost`` columns: resources, coins and rubies.
+    ``costs`` are its non-zero goods ``cost`` columns: resources, coins and rubies; the client reads no other.
 
     Client: ``PrebuiltCastleItemVO.parseXML`` and ``parseCosts`` (bundle lines 142341-142342), keyed by id
     and by space in ``PrebuiltCastleData.parsePreBuiltCastles`` (bundle line 142274)
@@ -1476,10 +1497,10 @@ class PrebuiltCastleDef(_Row):
     prebuilt_castle_id: GameDataId["PrebuiltCastle"] = Field(
         validation_alias="preBuiltCastleID", description="The prebuilt castle"
     )
-    space_ids: tuple[int, ...] = Field(
+    space_ids: tuple[GameDataId[Kingdom, "TreasureMapId"], ...] = Field(
         validation_alias="spaceIDs",
         default=(),
-        description="Where it is offered: a kingdom, or a season event's map; 0 for a special server's",
+        description="Where it is offered: a kingdom, or a season event's map; Kingdom.GREEN for a special server's",
     )
     min_level: int = Field(validation_alias="minLevel", default=0, description="Player level it needs")
     shown_discount: int = Field(
@@ -1715,8 +1736,10 @@ class CraftingRecipeDef(_Row):
     """
     A recipe a crafting queue crafts.
 
+    The table keeps every row; the client, when it loads the table, drops a recipe whose rewards give nothing.
+
     Client: ``CraftingRecipeVO.fillFromParamXml`` (bundle line 111526), kept by id in ``CastleCraftingData``
-    (bundle line 111381), which leaves out a recipe whose rewards give nothing
+    (bundle line 111386) only when its ``output`` is not empty
     """
 
     recipe_id: CraftingRecipeId = Field(validation_alias="craftingRecipeId", description="The recipe")
@@ -2425,6 +2448,34 @@ class DonationItemDef(_Row):
         return _parse_int_or_default(value, -1)
 
 
+class DonationSettingDef(_Row):
+    """
+    A donation event's run settings: which donation items it takes and which rewards it gives.
+
+    The items and rewards are named by set: the ``donationItems`` rows and the ``donationRewards`` rows that
+    share the set id.
+
+    Client: ``DonationSettingVO.parseXmlNode`` (bundle line 111773), keyed by id in
+    ``CastleDonationEventData.parseXml`` (bundle line 58833)
+    """
+
+    setting_id: DonationSettingId = Field(validation_alias="donationSettingID", description="The settings")
+    item_set_id: int = Field(
+        validation_alias="donationItemSetID", default=-1, description="The set of donation items it takes"
+    )
+    reward_set_id: int = Field(validation_alias="rewardSetID", default=-1, description="The set of rewards it gives")
+
+    @field_validator("setting_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator("item_set_id", "reward_set_id", mode="before")
+    @classmethod
+    def _int_column(cls, value: object) -> int:
+        return _parse_int_or_default(value, -1)
+
+
 class TrainingProgramDef(_Row):
     """
     A training program of the officers' school: the bonus it gives against one event's targets, and its prices.
@@ -2696,12 +2747,15 @@ class AllianceTowerEffectDef(_Row):
 
 class AllianceInvasionCampDef(_Row):
     """
-    An alliance invasion camp, by the id an ``aic`` push names it with.
+    An alliance invasion camp, by the id an ``aic`` push names it with while its event scales no difficulty; with a
+    difficulty chosen, that id is a scaling camp's (``GameData.scaling_camps``).
 
     The camp's defence, as the combat code reads it, is in ``GameData.camps["allianceInvasionCamps"]``.
 
     Client: ``CastleAllianceInvasionCampNodeVO.parseXML`` (bundle line 111195), keyed by id in
-    ``CastleAllianceInvasionCampData`` (bundle line 111180)
+    ``CastleAllianceInvasionCampData`` (bundle line 111180), whose ``getAllianceCamp`` (bundle line 111182) looks up
+    a scaling camp instead when the event's difficulty scaling is on (``AICCommand.executeCommand``, bundle line
+    128192)
     """
 
     camp_id: AllianceInvasionCampId = Field(validation_alias="allianceInvasionCampID", description="The camp")
@@ -2751,6 +2805,8 @@ __all__ = [
     "DaimyoContractId",
     "DonationItemDef",
     "DonationItemId",
+    "DonationSettingDef",
+    "DonationSettingId",
     "EventDifficultyDef",
     "EventDifficultyId",
     "GachaDef",

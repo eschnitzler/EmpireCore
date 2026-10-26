@@ -10,10 +10,12 @@ from empire_core.texts import has_text, text
 class TreasureMapId(IntEnum):
     """
     Treasure map ids from the ``tmaps`` table: the season events' maps and the treasure hunt's, named from the game's
-    English title, else the ``comment2`` and ``comment1`` notes.
+    English title; a season map by its event's in-game name and its ``comment1`` difficulty; else the ``comment2`` and
+    ``comment1`` notes.
 
     Client: ``TreasureMapVO.fillFromParamXML`` (bundle line 140567); names from ``CastleTreasureMapDialog.onMapLoaded``
-    (bundle line 43848)
+    (bundle line 43848), a season map's event from the events' ``mapID`` (``ASeasonEventVO.parseEventXmlNode``, bundle
+    line 31385)
     """
 
     _value_: int
@@ -45,13 +47,13 @@ class TreasureMapId(IntEnum):
         return text(self.text_id, lang=lang) if has_text(self.text_id, lang) else None
 
     KING_OF_THE_SCORPIONS = 9, 1
-    THORNKING_NORMAL = 21, 0
-    BLADECOAST_NORMAL = 22, 0
+    THORN_KING_NORMAL = 21, 0
+    BLADE_COAST_NORMAL = 22, 0
     UNDERWORLD_NORMAL = 23, 0
     UNDERWORLD_HARDMODE = 24, 0
-    THORNKING_HARDMODE = 25, 0
-    BLADECOAST_HARDMODE = 27, 0
-    BLADECOAST_HARDMODEPLUS = 28, 0
+    THORN_KING_HARDMODE = 25, 0
+    BLADE_COAST_HARDMODE = 27, 0
+    BLADE_COAST_HARDMODEPLUS = 28, 0
     UNDERWORLD_LOW_LEVEL = 30, 2
     LOST_TREASURE_FOUND = 50, 1
     SWINE_KING = 51, 1

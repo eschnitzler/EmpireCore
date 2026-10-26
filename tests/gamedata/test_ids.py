@@ -71,7 +71,10 @@ def no_live_texts(monkeypatch: pytest.MonkeyPatch) -> None:
 # Rows of the tables GameData does not model, as the items payload has them, from v786.03.
 IDS_PAYLOAD: dict[str, Any] = {
     **LOOKUP_PAYLOAD,
-    "effects": [{"effectID": "1", "name": "fameDefenseBonus", "effectTypeID": "0", "capID": "0", "sortOrder": "6.9.1"}],
+    "effects": [
+        {"effectID": "1", "name": "fameDefenseBonus", "effectTypeID": "0", "capID": "0", "sortOrder": "6.9.1"},
+        {"effectID": "141", "name": "wallBonusTower", "effectTypeID": "6", "capID": "99", "sortOrder": "2.1.8"},
+    ],
     "buildings": [
         {"wodID": 171, "name": "Keep", "level": "1", "group": "Building", "type": "Level1"},
         {"wodID": 172, "name": "Keep", "level": "2", "group": "Building", "type": "Level2"},
@@ -154,7 +157,7 @@ IDS_PAYLOAD: dict[str, Any] = {
         {"mapID": "51", "comment1": "Swineking", "comment2": "TreasureMap", "kID": "0", "maptype": "1"},
     ],
     "allianceTowerEffects": [
-        {"allianceTowerEffectID": "1", "effectID": "1", "effectBasePrice": "100", "effectMaxLevel": "60"},
+        {"allianceTowerEffectID": "1", "effectID": "141", "effectBasePrice": "100", "effectMaxLevel": "60"},
         {"allianceTowerEffectID": "9", "effectID": "999", "effectBasePrice": "100", "effectMaxLevel": "60"},
     ],
 }
@@ -557,7 +560,7 @@ class TestGenerator:
             "UNDERWORLD_LOW_LEVEL": 30,
             "TREASURE_MAP_SWINEKING": 51,
         }
-        assert self.members(items, "AllianceTowerEffect") == {"FAME_DEFENSE_BONUS": 1, "TOWER_EFFECT_9": 9}
+        assert self.members(items, "AllianceTowerEffect") == {"WALL_BONUS_TOWER": 1, "TOWER_EFFECT_9": 9}
 
     def test_unnamed_tables_are_named_from_the_text_the_game_shows(self):
         texts = {
@@ -596,6 +599,48 @@ class TestGenerator:
             "gem_unique_6": "Not its name",
         }
         assert self.text_members(payload, texts, "Gem") == {"GEM_OF_GLORY_L3": 5, "LIZARDS_EYE": 6}
+
+    def test_season_maps_and_camps_are_named_after_their_events_in_game_name(self):
+        payload = {
+            "events": [
+                {"eventID": "2", "eventType": "Thornking", "mapID": "21,25"},
+                {"eventID": "43", "eventType": "UnitDealer", "mapID": "21,25"},
+            ],
+            "tmaps": [
+                {"mapID": "21", "comment1": "normal", "comment2": "Thornking", "maptype": "0"},
+                {"mapID": "25", "comment1": "hardmode", "comment2": "Thornking", "maptype": "0"},
+                {"mapID": "30", "comment1": "UnderworldLowLevel", "comment2": "Underworld", "maptype": "2"},
+            ],
+            "prebuiltcastles": [
+                {"preBuiltCastleID": "13", "comment1": "Thornking", "comment2": "CheapCamp", "spaceIDs": "21"},
+                {"preBuiltCastleID": "19", "comment1": "Thornking (hard)", "comment2": "CheapCamp", "spaceIDs": "25"},
+                {"preBuiltCastleID": "18", "comment1": "Storm Island", "comment2": "C2Camp", "spaceIDs": "4"},
+            ],
+        }
+        texts = {
+            "event_title_2": "The Thorn King",
+            "dialog_prebuiltCastle13_name": "Simple camp",
+            "dialog_prebuiltCastle19_name": "Simple camp",
+            "dialog_chooseCastle_preBuiltCastle_18": "Storm Bastion",
+        }
+        assert self.text_members(payload, texts, "TreasureMapId") == {
+            "THORN_KING_NORMAL": 21,
+            "THORN_KING_HARDMODE": 25,
+            "UNDERWORLD_LOW_LEVEL": 30,
+        }
+        assert self.text_members(payload, texts, "PrebuiltCastle") == {
+            "THORN_KING_SIMPLE_CAMP": 13,
+            "STORM_BASTION": 18,
+            "THORN_KING_HARDMODE_SIMPLE_CAMP": 19,
+        }
+
+    def test_tower_effects_are_named_from_the_tower_dialog(self):
+        payload = {
+            "effects": [{"effectID": "141", "name": "wallBonusTower", "effectTypeID": "6"}],
+            "allianceTowerEffects": [{"allianceTowerEffectID": "1", "effectID": "141"}],
+        }
+        texts = {"dialog_beyondTheHorizon_AllianceTower_wallBonusTower_name": "Shrine wall boost"}
+        assert self.text_members(payload, texts, "AllianceTowerEffect") == {"SHRINE_WALL_BOOST": 1}
 
     def test_research_names_are_unique_by_group_and_level(self):
         # Two groups share a note; group and level keep them apart, and a row without a note still gets a name

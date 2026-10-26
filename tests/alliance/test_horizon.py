@@ -151,8 +151,8 @@ def test_tower_buffs_are_read():
     client = make_client({"tbi": xt_packet("tbi", BUFFS)})
     buffs = client.alliance.get_tower_buffs(10, 20, 301, timeout=0.2)
     assert [(buff.tower_effect_id, buff.level) for buff in buffs.buffs] == [
-        (AllianceTowerEffect.MELEE_BONUS_TOWER, 2),
-        (AllianceTowerEffect.RANGE_BONUS_TOWER, 0),
+        (AllianceTowerEffect.SHRINE_MELEE_DEFENDERS_BOOST, 2),
+        (AllianceTowerEffect.SHRINE_RANGED_DEFENDERS_BOOST, 0),
     ]
     assert buffs.is_active is True
     assert conn(client).request_payloads == [("tbi", {"XPOS": 10, "YPOS": 20, "AID": 301})]

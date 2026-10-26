@@ -18,6 +18,7 @@ from empire_core.gamedata import (
     PrivateVillageType,
     RewardId,
     StartResourcesId,
+    TreasureMapId,
 )
 from tests.service_helpers import PREBUILT_CASTLE_ITEMS
 
@@ -103,7 +104,8 @@ class TestPrebuiltCastles:
     def test_a_row_reads_its_spaces_level_and_non_zero_costs(self):
         castle = game_data().prebuilt_castles[PrebuiltCastle.ICE_SIMPLE_CASTLE]
         assert castle.prebuilt_castle_id is PrebuiltCastle.ICE_SIMPLE_CASTLE
-        assert (castle.space_ids, castle.min_level, castle.kingdom) == ((2,), 25, Kingdom.ICE)
+        assert (castle.space_ids, castle.min_level, castle.kingdom) == ((Kingdom.ICE,), 25, Kingdom.ICE)
+        assert castle.space_ids[0] is Kingdom.ICE
         assert kinds(castle.costs) == [
             (CollectableKind.WOOD, 7000),
             (CollectableKind.STONE, 7000),
@@ -114,6 +116,12 @@ class TestPrebuiltCastles:
         assert not castle.is_premium and not castle.is_free and castle.cost_rubies == 10000
         assert CollectableKind.RUBIES not in [cost.kind for cost in castle.primary_costs]
 
+    def test_a_cost_column_other_than_goods_is_not_read(self):
+        # parseCosts reads only GROUP_LIST_GOODS: resources, coins and rubies
+        row = {"preBuiltCastleID": "4", "spaceIDs": "2", "costWood": "100", "costCastlePassageToken": "1"}
+        castle = GameData.parse("test", {**ITEMS, "prebuiltcastles": [row]}).prebuilt_castles[4]
+        assert kinds(castle.costs) == [(CollectableKind.WOOD, 100)]
+
     def test_a_castle_priced_only_in_rubies_is_premium(self):
         castle = game_data().prebuilt_castles[PrebuiltCastle.ICE_LORDLY_CASTLE]
         assert castle.is_premium and kinds(castle.primary_costs) == [(CollectableKind.RUBIES, 29000)]
@@ -123,8 +131,9 @@ class TestPrebuiltCastles:
         assert castle.is_free and castle.kingdom is Kingdom.GREEN
 
     def test_a_season_camp_names_no_kingdom(self):
-        castle = game_data().prebuilt_castles[PrebuiltCastle.BLADECOAST_SIMPLE_CAMP]
+        castle = game_data().prebuilt_castles[PrebuiltCastle.BLADE_COAST_SIMPLE_CAMP]
         assert castle.space_ids == (22, 27, 28) and castle.kingdom is None
+        assert castle.space_ids[0] is TreasureMapId.BLADE_COAST_NORMAL
 
     def test_the_main_castle_copy_flag(self):
         assert game_data().prebuilt_castles[PrebuiltCastle.OUTER_REALMS_CASTLE_TRANSPORTATION].is_main_castle_copy

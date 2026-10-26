@@ -50,7 +50,7 @@ class TestModels:
 
     def test_requests_send_the_client_keys(self):
         assert MarkStorageSeenRequest(storage_id=2).to_payload() == {"SID": 2}
-        assert MarkStorageSeenRequest(storage_id=TreasureMapId.THORNKING_NORMAL).to_payload() == {"SID": 21}
+        assert MarkStorageSeenRequest(storage_id=TreasureMapId.THORN_KING_NORMAL).to_payload() == {"SID": 21}
         assert StoreBuildingRequest(object_id=9).to_payload() == {"OID": 9}
         sell = SellStoredDecorationRequest(wod_id=300, amount=2)
         assert sell.to_payload() == {"WID": 300, "AMT": 2, "UID": -1} and sell.wod_id is Building.DECO_FLAGPOLE_L1
