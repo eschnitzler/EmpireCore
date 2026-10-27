@@ -37,6 +37,13 @@ movements in state, again without a request. A commander leading one of your
 movements is travelling until that movement leaves state, its way home
 included, as in the game client; the rest are idle.
 
+One step goes beyond the game client. An attack leaves state when it lands,
+and its army's way home is a new movement the server can send a moment later.
+The client offers the commander again in that gap, but the server refuses a
+send it leads with `GGEError.LORD_IS_USED`. The library keeps the commander
+travelling until its way home is in state, or for `LANDED_COMMANDER_HOLD` (10)
+seconds after the landing.
+
 ```python
 idle = client.commanders.idle_commanders
 if idle:
