@@ -44,7 +44,7 @@ from empire_core.map.models.items import MapAreaItem
 from empire_core.protocol.base import BaseRequest
 
 if TYPE_CHECKING:
-    from empire_core.attack.service import AttackService
+    from empire_core.attack.service.sending import SendingMixin
 
 logger = logging.getLogger(__name__)
 
@@ -210,7 +210,7 @@ def _merged(*inventories: dict[int, int]) -> dict[int, int]:
     return total
 
 
-def _read_target(service: AttackService, target: "_Target", *, castle_id: int, timeout: float) -> None:
+def _read_target(service: SendingMixin, target: "_Target", *, castle_id: int, timeout: float) -> None:
     """
     Fill in whatever the caller did not supply about a target.
 
@@ -308,7 +308,7 @@ def _take_scanned_row(target: "_Target", area: GetMapAreaResponse | None) -> Non
         target.area_type = row_item.item_type
 
 
-def _scan_tile(service: AttackService, target: "_Target", *, timeout: float) -> GetMapAreaResponse | None:
+def _scan_tile(service: SendingMixin, target: "_Target", *, timeout: float) -> GetMapAreaResponse | None:
     """The map's own record of the target's tile; None, noted in ``target.unread``, when the server refuses it."""
     try:
         return service.client.map.scan_map_area(
@@ -325,7 +325,7 @@ def _scan_tile(service: AttackService, target: "_Target", *, timeout: float) -> 
         return None
 
 
-def _read_precalculation(service: AttackService, target: "_Target", *, timeout: float) -> None:
+def _read_precalculation(service: SendingMixin, target: "_Target", *, timeout: float) -> None:
     """Take the target's row, defenders, castellan, legend skills and area effects from its pre-calculation.
 
     The defender's legend skills come with the spy report only, as in

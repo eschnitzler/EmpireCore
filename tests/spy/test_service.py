@@ -16,6 +16,8 @@ from empire_core.gamedata import Horse
 from empire_core.protocol.packet import Packet
 from empire_core.spy import service as spy_module
 from empire_core.spy.service import SpyHandle
+from empire_core.spy.service import missions as missions_module
+from empire_core.spy.service import tracking as tracking_module
 from tests.service_helpers import COIN_HORSE, RUBY_HORSE, conn, make_client, with_horses, xt_packet
 from tests.spy.payloads import BSD_NPC_CAMP_REPORT, CSM_REPLY
 
@@ -340,7 +342,7 @@ class TestOnlyThisMissionsReportCounts:
         assert result.outcome is SpyOutcome.TIMEOUT
 
     def test_a_disconnect_ends_the_wait(self, no_sleep, monkeypatch):
-        monkeypatch.setattr(spy_module, "_POLL_SECONDS", 0.01)
+        monkeypatch.setattr(tracking_module, "_POLL_SECONDS", 0.01)
         client = spy_client(sne=[])
         conn(client).connected = False
 
@@ -481,7 +483,7 @@ class TestSpyFailurePaths:
 
     def test_waiting_for_spies_asks_again_until_the_limit(self, monkeypatch):
         slept: list[float] = []
-        monkeypatch.setattr(spy_module, "sleep_unless_cancelled", lambda seconds, cancel: slept.append(seconds))
+        monkeypatch.setattr(missions_module, "sleep_unless_cancelled", lambda seconds, cancel: slept.append(seconds))
         client = spy_client(ssi=xt_packet("ssi", {"AS": 0}))
 
         result = client.spy.execute_instant_spy(12345, 700, 710, wait_for_spies=8)
@@ -684,7 +686,7 @@ class TestReportWait:
         original = spy_module.SpyService._read_report
 
         def record(self: Any, handle: Any, mission: Any, deadline: float) -> Any:
-            deadlines.append(deadline - spy_module.time.monotonic())
+            deadlines.append(deadline - tracking_module.time.monotonic())
             return original(self, handle, mission, deadline)
 
         monkeypatch.setattr(spy_module.SpyService, "_read_report", record)
@@ -1019,7 +1021,7 @@ def push_sne(client: EmpireClient, *packets: Packet) -> None:
 def pass_time(client: EmpireClient, handle: SpyHandle, past_due: float) -> None:
     """Move ``handle``'s arrival so its report was due ``past_due`` seconds ago, and let an sne push settle it."""
     assert handle.arrival_eta is not None
-    handle.arrival_eta -= handle.arrival_eta - time.monotonic() + spy_module._REPORT_MARGIN + past_due
+    handle.arrival_eta -= handle.arrival_eta - time.monotonic() + tracking_module._REPORT_MARGIN + past_due
     push_sne(client, xt_packet("sne", {"MSG": []}))
 
 
@@ -1138,7 +1140,7 @@ class TestCancellingAMission:
             cancel.set()
             return True
 
-        monkeypatch.setattr(spy_module, "sleep_unless_cancelled", cancel_during_the_pause)
+        monkeypatch.setattr(missions_module, "sleep_unless_cancelled", cancel_during_the_pause)
         client = spy_client(ssi=xt_packet("ssi", {"AS": 0}))
 
         result = client.spy.execute_instant_spy(12345, 700, 710, wait_for_spies=8, cancel=cancel)
@@ -1292,9 +1294,9 @@ class TestAwaitingAHandle:
         client = spy_client(sne=[])
         handle = client.spy.send_instant_spy(12345, 700, 710)
 
-        pass_time(client, handle, spy_module._ABANDONED_SECONDS - 1)
+        pass_time(client, handle, tracking_module._ABANDONED_SECONDS - 1)
         assert len(conn(client).subscribers["sne"]) == 1
-        pass_time(client, handle, spy_module._ABANDONED_SECONDS + 1)
+        pass_time(client, handle, tracking_module._ABANDONED_SECONDS + 1)
 
         assert conn(client).subscribers["sne"] == []
         assert client.spy.await_report(handle).outcome is SpyOutcome.TIMEOUT

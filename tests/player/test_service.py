@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from empire_core.exceptions import CommandError, EmpireTimeoutError
-from empire_core.player import service as player_module
 from empire_core.player.models.info import GetPlayerInfoRequest
+from empire_core.player.service import players as player_module
 from tests.service_helpers import conn, make_client, xt_packet
 
 

@@ -98,6 +98,7 @@ plugins:
             extensions:
               - docs/griffe_extensions.py:MarkdownDocstrings
               - docs/griffe_extensions.py:CallbackDeclarations
+              - docs/griffe_extensions.py:ServiceSections
               - griffe_pydantic:
                   schema: false
             filters: ["!^_", "!^command$", "!^response_command$"]

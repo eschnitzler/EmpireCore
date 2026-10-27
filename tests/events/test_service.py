@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from empire_core.events import service as events_module
 from empire_core.events.models import NobilityContestEvent, SpecialEventInfoRequest
+from empire_core.events.service import scores as events_module
 from empire_core.exceptions import EventNotRunningError
 from empire_core.gamedata.ids.events import Event
 from empire_core.state.manager import GameState

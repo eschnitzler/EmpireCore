@@ -3,7 +3,7 @@
 Every import counts: module level, inside functions and under TYPE_CHECKING.
 
 - An area may import only areas of a strictly lower rank (RANK), plus the plumbing. An area's
-  ``service`` module may also name the client under TYPE_CHECKING, to type its constructor, and
+  ``service`` module or package may also name the client under TYPE_CHECKING, to type its constructor, and
   the state's snapshot models (``state.models``), to type the reads it hands out.
 - The plumbing imports no area, no combat and nothing above the areas. The one exception
   is ``services.base``, which may name the client and the state under TYPE_CHECKING.
@@ -108,7 +108,7 @@ def _area_violations() -> list[str]:
         if src not in RANK or src == dst:
             continue
         if (
-            importer == f"empire_core.{src}.service"
+            importer.split(".")[:3] == ["empire_core", src, "service"]
             and type_only
             and module
             in (

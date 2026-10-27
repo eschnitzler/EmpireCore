@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from empire_core.spy import service as spy_module
+from empire_core.spy.service import missions as spy_module
 
 # =============================================================================
 # SpyService
