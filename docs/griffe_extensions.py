@@ -1,4 +1,5 @@
-"""Griffe extensions: the source's reST-flavoured docstrings as Markdown, and callback declarations as methods."""
+"""Griffe extensions: the source's reST-flavoured docstrings as Markdown, callback declarations as methods, and a
+service's section mixins as members of the service."""
 
 import re
 
@@ -158,3 +159,29 @@ class CallbackDeclarations(griffe.Extension):
                     ),
                 ),
             )
+
+
+class ServiceSections(griffe.Extension):
+    """Show a service split into section mixins (``<area>.service.<section>``) as the one class callers use."""
+
+    def on_package(self, *, pkg: griffe.Module, **kwargs: object) -> None:
+        for module in _modules(pkg):
+            if not module.path.endswith(".service"):
+                continue
+            for cls in module.classes.values():
+                if cls.is_alias:
+                    continue
+                for base in cls.mro():
+                    if not base.module.path.startswith(f"{module.path}."):
+                        continue
+                    for name, member in base.members.items():
+                        if name not in cls.members:
+                            cls.set_member(name, griffe.Alias(name, member, parent=cls))
+
+
+def _modules(module: griffe.Module) -> list[griffe.Module]:
+    found = [module]
+    for child in module.modules.values():
+        if not child.is_alias:
+            found += _modules(child)
+    return found

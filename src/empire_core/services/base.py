@@ -278,4 +278,11 @@ class BaseService:
         self.client._register_handler(command, handler)
 
 
+# A section of a service split into a package: typed as the service, a plain mixin at runtime.
+if TYPE_CHECKING:
+    ServiceMixin = BaseService
+else:
+    ServiceMixin = object
+
+
 __all__ = ["BaseService"]

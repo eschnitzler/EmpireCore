@@ -32,7 +32,7 @@ def _state_readers() -> set[str]:
 def _fronted() -> set[str]:
     """The readers a public service member hands out as they are: its body returns the state read."""
     fronted: set[str] = set()
-    for path in PACKAGE.glob("*/service.py"):
+    for path in [*PACKAGE.glob("*/service.py"), *PACKAGE.glob("*/service/*.py")]:
         for node in ast.walk(ast.parse(path.read_text())):
             if not isinstance(node, ast.FunctionDef) or node.name.startswith("_"):
                 continue
@@ -61,8 +61,8 @@ def test_each_property_hands_out_what_state_holds() -> None:
     from tests.service_helpers import logged_in_state, make_client
 
     client = make_client(state=logged_in_state())
-    services = {type(s).__name__: s for s in vars(client).values() if isinstance(s, BaseService)}
-    for path in PACKAGE.glob("*/service.py"):
+    services = {k.__name__: s for s in vars(client).values() if isinstance(s, BaseService) for k in type(s).__mro__}
+    for path in [*PACKAGE.glob("*/service.py"), *PACKAGE.glob("*/service/*.py")]:
         for cls in [n for n in ast.parse(path.read_text()).body if isinstance(n, ast.ClassDef)]:
             for node in cls.body:
                 if not (

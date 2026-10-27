@@ -17,7 +17,8 @@ src/empire_core/
 │   └── ...
 ├── castle/
 │   ├── models/            #   castles, details, actions, buildings, support
-│   └── service.py         #   CastleService, where the area has a service
+│   └── service/           #   CastleService, where the area has a service
+│                          #   (service.py, or a package of section mixins)
 ├── ...                    # commanders, army, movements, messages, defense,
 │                          # player, attack, spy, alliance, ranking, events
 ├── combat/                # Wave solver, capacity and bonus math
@@ -233,6 +234,13 @@ A service lives in its area's `service.py`, one service per area. The example
 below is a hypothetical new `bookmarks` area; for an area that already has a
 service (`client.map`, `client.castle`, ...), add the method to that class
 instead.
+
+A service past ~500 lines is a package, `<area>/service/`: one module per
+section (or group of related sections) holding a mixin on `ServiceMixin`
+(`services/base.py`), which type-checks as the service and is a plain mixin at
+runtime. `service/__init__.py` defines the service from the mixins, with its
+`__init__`, events and handlers; helpers several sections use go in a shared
+base mixin. Add a method to the mixin of its section.
 
 ```python
 # bookmarks/service.py

@@ -164,7 +164,8 @@ def _ruby_senders(service: type[BaseService]) -> dict[str, set[str]]:
     direct: dict[str, set[str]] = {}
     calls: dict[str, set[str]] = {}
     for name, member in inspect.getmembers(service, inspect.isfunction):
-        if member.__qualname__.split(".")[0] != service.__name__:
+        owner = next(klass for klass in service.__mro__ if name in vars(klass))
+        if owner is not service and issubclass(owner, BaseService):
             continue
         tree = ast.parse(textwrap.dedent(inspect.getsource(member)))
         direct[name], calls[name] = _called_names(tree)
