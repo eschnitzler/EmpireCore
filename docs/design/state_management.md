@@ -155,6 +155,12 @@ the container.
   login, or an attack reported late) is not an arrival and does not alert.
 * An army's way home is a separate movement: a new `MID`, typed TRAVEL, with
   `D == 1` and source and target swapped.
+* The way home can come a moment after the arrival, and the server refuses a
+  send led by that army's commander (`LORD_IS_USED`) until it does. Going
+  beyond the client, which frees the commander at the arrival, state holds the
+  commander of your own arrived movement as away (`get_away_commanders()`)
+  until a returning movement it leads is stored, or for `LANDED_COMMANDER_HOLD`
+  seconds; `reset()` drops the hold.
 
 ## Reactive Callbacks
 

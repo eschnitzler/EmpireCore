@@ -9,8 +9,8 @@ from empire_core.state.manager import GameState
 
 PACKAGE = Path(empire_core.__file__).parent
 
-# Readers that stay on client.state: freshness bookkeeping, and get_event, whose per-event
-# overloads a service property cannot carry under every type checker
+# Readers that stay on client.state: freshness bookkeeping, get_event, whose per-event
+# overloads a service property cannot carry under every type checker, and readers a service resolves
 STATE_ONLY = {
     "get_castle_last_updated": "freshness of one castle's details",
     "get_castle_age": "freshness of one castle's details",
@@ -19,6 +19,7 @@ STATE_ONLY = {
     "get_last_packet_time": "freshness of one packet kind",
     "get_packet_times": "freshness of every packet kind",
     "get_event": "typed per event by overloads; client.events.running holds them all",
+    "get_away_commanders": "client.commanders.travelling_commanders reads it as roster rows",
 }
 
 

@@ -22,6 +22,7 @@ from empire_core.enums import (
 from empire_core.gamedata import Currency, GameData
 from empire_core.movements.tracked import Movement
 from empire_core.state.manager import GameState
+from empire_core.state.movements import LANDED_COMMANDER_HOLD
 from tests.state.state_helpers import arrive, gam_payload, later, login, push_payload, wait_for
 
 
@@ -1838,6 +1839,93 @@ class TestSentMovements:
         login(state, self.ME)
         state.update_from_packet("cra", {**SENT_ATTACK, "AAM": {**SENT_ATTACK["AAM"], "UM": "junk"}})
         assert [m.movement_id for m in state.get_outgoing_movements()] == [self.MID]
+
+
+class TestLandedCommanders:
+    """A landed movement's commander stays away until its way home is stored or the hold runs out."""
+
+    ME = 1001
+
+    @classmethod
+    def led(
+        cls, state: GameState, mid: int, commander_id: int, *, oid: int = ME, direction: int = 0, tt: int = 600
+    ) -> float:
+        """Store a movement ``commander_id`` leads; return its estimated arrival."""
+        payload = gam_payload(mid, oid=oid, extra={"D": direction, "TT": tt})
+        payload["M"][0]["UM"] = {"L": {"ID": commander_id}}
+        state.update_from_packet("gam", payload)
+        return state.movements[mid].estimated_arrival
+
+    @staticmethod
+    def away(state: GameState) -> list[int]:
+        return sorted(c.commander_id for c in state.get_away_commanders())
+
+    def test_held_right_after_landing_with_no_way_home_yet(self, state):
+        login(state, self.ME)
+        self.led(state, 1, commander_id=4)
+        arrive(state, 1)
+
+        assert state.movements == {}
+        assert self.away(state) == [4]
+
+    def test_released_once_the_way_home_is_stored_and_away_through_it(self, state):
+        login(state, self.ME)
+        self.led(state, 1, commander_id=4)
+        arrive(state, 1)
+        self.led(state, 2, commander_id=4, direction=1)
+
+        assert self.away(state) == [4]
+        arrive(state, 2)
+        assert self.away(state) == []
+
+    def test_released_once_the_hold_runs_out(self, state):
+        login(state, self.ME)
+        arrival = self.led(state, 1, commander_id=4)
+        arrive(state, 1)
+
+        with later(arrival - time.time() + LANDED_COMMANDER_HOLD - 0.5):
+            assert self.away(state) == [4]
+        with later(arrival - time.time() + LANDED_COMMANDER_HOLD + 0.5):
+            assert self.away(state) == []
+
+    def test_a_way_home_stored_before_the_landing_frees_the_commander_when_it_gets_home(self, state):
+        login(state, self.ME)
+        landing = self.led(state, 1, commander_id=4)
+        home = self.led(state, 2, commander_id=4, direction=1, tt=602)
+
+        with later(landing - time.time() + 0.5):
+            assert self.away(state) == [4]
+        with later(home - time.time() + 0.5):
+            assert self.away(state) == []
+
+    def test_a_way_home_landing_holds_nothing(self, state):
+        login(state, self.ME)
+        self.led(state, 1, commander_id=4, direction=1)
+        arrive(state, 1)
+
+        assert self.away(state) == []
+
+    def test_other_players_movements_hold_nothing(self, state):
+        login(state, self.ME)
+        self.led(state, 1, commander_id=4, oid=2002)
+        arrive(state, 1)
+
+        assert self.away(state) == []
+
+    def test_a_movement_without_a_commander_holds_nothing(self, state):
+        login(state, self.ME)
+        state.update_from_packet("gam", gam_payload(1, oid=self.ME))
+        arrive(state, 1)
+
+        assert self.away(state) == []
+
+    def test_reset_drops_the_hold(self, state):
+        login(state, self.ME)
+        self.led(state, 1, commander_id=4)
+        arrive(state, 1)
+        state.reset()
+
+        assert self.away(state) == []
 
 
 class TestCallbackOrdering:
