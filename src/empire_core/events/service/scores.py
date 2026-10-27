@@ -290,8 +290,8 @@ class ScoresMixin(ServiceMixin):
         return [
             GameEvent(
                 event_id=eid,
-                event=event.event,
-                display_name=titles.get(eid) or (event.event.name if event.event is not None else str(eid)),
+                display_name=titles.get(eid)
+                or (event.event_id.name if isinstance(event.event_id, Event) else str(eid)),
                 details=event,
             )
             for eid, event in events.items()

@@ -32,9 +32,9 @@ or of its stronghold.
 ## Recruitment
 
 ```python
-from empire_core.army import ProductionListId, SlotType
+from empire_core.army import ProductionListId, SlotType, Unit
 
-client.army.produce_units(12345, ProductionListId.SOLDIERS, wod_id=620, amount=50)
+client.army.produce_units(12345, ProductionListId.SOLDIERS, wod_id=Unit.SWORDMAN, amount=50)
 
 production = client.army.get_production_list(12345, ProductionListId.SOLDIERS)
 for slot in production.queue:
@@ -78,7 +78,7 @@ hospital = client.army.get_production_list(12345, ProductionListId.HOSPITAL)
 for slot in hospital.hospital_slots:
     print(slot.position)
 
-client.army.heal_units(12345, wod_id=620, amount=10)
+client.army.heal_units(12345, wod_id=Unit.SWORDMAN, amount=10)
 client.army.cancel_heal(12345, position=hospital.hospital_slots[0].position)
 ```
 

@@ -9,7 +9,7 @@ their own command and neither arrives with the commander list.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Annotated, Any, Literal
 
 from pydantic import Field, field_validator, model_validator
 
@@ -20,7 +20,7 @@ from empire_core.protocol.js import ClientInt, js_loose_equals
 from .roster import CommanderRoster, SelectedAbility
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import GeneralSkill, LegendSkill, SceatSkill
+    from empire_core.gamedata import CurrencyId, General, GeneralSkill, LegendSkill, SceatSkill
     from empire_core.gamedata.models import GeneralDef
 
 logger = logging.getLogger(__name__)
@@ -58,7 +58,9 @@ class OwnedGeneral(BasePayload):
     Client: ``GeneralVO.parseData`` (bundle line 26666)
     """
 
-    general_id: int = Field(validation_alias="GID", default=-1, description="General id")
+    general_id: Annotated[Literal[-1] | EnumOrInt["General"], Field(union_mode="left_to_right")] = Field(
+        validation_alias="GID", default=-1, description="The general; -1 when not sent"
+    )
     experience: int = Field(validation_alias="XP", default=0, description="Experience, 0 when missing")
     star_level: int = Field(
         validation_alias="ST",
@@ -167,7 +169,7 @@ class AssignGeneralRequest(BaseRequest):
         validation_alias="LID",
         description="The commander to give the general to, from client.commanders.get_commanders()",
     )
-    general_id: int = Field(
+    general_id: Annotated[Literal[-1] | EnumOrInt["General"], Field(union_mode="left_to_right")] = Field(
         validation_alias="GID",
         default=-1,
         description=(
@@ -212,7 +214,7 @@ class SetGeneralAbilitiesRequest(BaseRequest):
 
     command = "gaae"
 
-    general_id: int = Field(
+    general_id: EnumOrInt["General"] = Field(
         validation_alias="GID",
         description=(
             "The general whose abilities are chosen, an OwnedGeneral.general_id from client.commanders.get_generals()"
@@ -238,7 +240,7 @@ class UnlockGeneralSkillRequest(BaseRequest):
 
     command = "guse"
 
-    skill_id: int = Field(validation_alias="ID", description="The skill to unlock")
+    skill_id: EnumOrInt["GeneralSkill"] = Field(validation_alias="ID", description="The skill to unlock")
 
 
 class ResetGeneralSkillsRequest(BaseRequest):
@@ -255,7 +257,7 @@ class ResetGeneralSkillsRequest(BaseRequest):
 
     command = "grs"
 
-    general_id: int = Field(
+    general_id: EnumOrInt["General"] = Field(
         validation_alias="GID",
         description=(
             "The general whose skills are reset, an OwnedGeneral.general_id from client.commanders.get_generals()"
@@ -277,11 +279,11 @@ class AddGeneralXpRequest(BaseRequest):
 
     command = "gaxp"
 
-    general_id: int = Field(
+    general_id: EnumOrInt["General"] = Field(
         validation_alias="GID",
         description=("The general to give xp to, an OwnedGeneral.general_id from client.commanders.get_generals()"),
     )
-    currency_id: int = Field(validation_alias="CID", description="The xp item, a currency")
+    currency_id: EnumOrInt["CurrencyId"] = Field(validation_alias="CID", description="The xp item")
     amount: int = Field(validation_alias="AMT", description="How many of the xp item to use")
 
 
@@ -307,7 +309,7 @@ class GetGeneralsResponse(BaseResponse):
     def _readable_generals(cls, value: Any) -> Any:
         return readable_list(OwnedGeneral, value, warn=logger, what="generals")
 
-    def skill_ids(self, general_id: int) -> tuple[EnumOrInt["GeneralSkill"], ...]:
+    def skill_ids(self, general_id: General) -> tuple[EnumOrInt["GeneralSkill"], ...]:
         """The skills one general has unlocked, empty when it is not listed."""
         for general in self.generals:
             if general.general_id == general_id:

@@ -27,10 +27,11 @@ from empire_core.commanders.models.roster import Commander
 from empire_core.enums import Flank, Kingdom, MapItemType
 from empire_core.events.models import GlobalEffectTimer
 from empire_core.exceptions import AttackBelowMinimumError, CommandError
+from empire_core.gamedata import EnumOrInt
 from empire_core.map.models.items import MapAreaItem
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import Tool
+    from empire_core.gamedata import GeneralSkill, LegendSkill, RaidBoss, Tool
 
 logger = logging.getLogger(__name__)
 
@@ -59,14 +60,14 @@ class FillAttackMixin(WavesMixin, SendingMixin):
         area_bonuses: list[Bonus] | None = None,
         spy_army: SpyArmy | None = None,
         defending_castellan: Commander | None = None,
-        defender_legend_skill_ids: Sequence[int] | None = None,
+        defender_legend_skill_ids: Sequence[EnumOrInt["LegendSkill"]] | None = None,
         commander: Commander | None = None,
-        general_skill_ids: Sequence[int] | None = None,
-        legend_skill_ids: Sequence[int] | None = None,
+        general_skill_ids: Sequence[EnumOrInt["GeneralSkill"]] | None = None,
+        legend_skill_ids: Sequence[EnumOrInt["LegendSkill"]] | None = None,
         global_effects: Iterable[GlobalEffectTimer] | None = None,
         support_tools: Sequence[Tool | int | None] | None = None,
         conquer: bool = False,
-        active_raid_boss_id: int | None = None,
+        active_raid_boss_id: EnumOrInt["RaidBoss"] | None = None,
         tool_bonus: float = 0.0,
         yard_bonus: float = 0.0,
         yard_boost: float = 0.0,

@@ -13,13 +13,17 @@ Commands:
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Annotated, Any, Literal
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import BeforeValidator, Field, field_validator, model_validator
 
 from empire_core.enums import HelpType
+from empire_core.gamedata import EnumOrInt
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, enum_or_none, read_or_none, readable_list
 from empire_core.protocol.js import ClientInt, js_int, js_number_or_none, js_truthy
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import Building
 
 logger = logging.getLogger(__name__)
 
@@ -260,17 +264,20 @@ class AllianceHelpReceived(BaseResponse):
 
     Client: ``AHFCommand.executeCommand`` (bundle line 121874),
     ``AllianceHelpRequestData.parse_AHF`` (bundle line 133384); the feedback
-    component reads ``WID`` as a building's wod id (bundle line 133498)
+    component reads ``WID`` as a building's wod id (``CastleAllianceHelpFeedbackComponent.createRepairTextContent``,
+    bundle line 133550)
     """
 
     command = "ahf"
 
     helper_name: str | None = Field(validation_alias="PN", default=None, description="The helping player's name")
     list_id: ClientInt = Field(validation_alias="LID", default=0, description="Your request's id")
-    building_wod_id: ClientInt = Field(
+    building_wod_id: Annotated[
+        Literal[0] | EnumOrInt["Building"], Field(union_mode="left_to_right"), BeforeValidator(js_int)
+    ] = Field(
         validation_alias="WID",
         default=0,
-        description="The helped building's wod id; 0 for none",
+        description="The helped building's type; 0 for none",
     )
 
 

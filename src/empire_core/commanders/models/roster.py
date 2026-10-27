@@ -8,9 +8,11 @@ Commands:
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from functools import partial
+from typing import TYPE_CHECKING, Annotated, Any, Literal
 
 from pydantic import (
+    BeforeValidator,
     Field,
     PrivateAttr,
     ValidationInfo,
@@ -26,18 +28,54 @@ from empire_core.protocol.base import (
     BasePayload,
     BaseRequest,
     BaseResponse,
-    CommanderEffects,
     int_entries,
     readable_list,
 )
-from empire_core.protocol.js import ClientInt, js_loose_equals, js_parse_int, js_truthy
+from empire_core.protocol.js import ClientInt, js_int, js_loose_equals, js_parse_int, js_truthy
 
 from .equipment import Equipment, EquipmentBonus
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import Gem, GeneralAbility, GeneralSkill
+    from empire_core.gamedata import Effect, Gem, General, GeneralAbility, GeneralSkill
 
 logger = logging.getLogger(__name__)
+
+
+class CommanderEffect(BasePayload):
+    """One entry of a commander's ``E`` or ``AE``: ``[effect_id, values, source]``.
+
+    Client: ``LordVO.parseRawEffects`` (bundle line 26483), ``BonusVO.parseFromValueArray``
+    (bundle line 5707).
+    """
+
+    effect_id: EnumOrInt["Effect"] = Field(description="The effect")
+    values: list[Any] = Field(
+        default_factory=list,
+        description="Value array; its layout depends on the effect type",
+    )
+    source: str = Field(default="", description="The key of the effect's source")
+
+    @field_validator("source", mode="before")
+    @classmethod
+    def _source_key(cls, value: Any) -> Any:
+        return value if isinstance(value, str) else ""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _from_row(cls, data: Any) -> Any:
+        if isinstance(data, (list, tuple)) and data:
+            row = {"effect_id": data[0]}
+            if len(data) > 1:
+                row["values"] = data[1]
+            if len(data) > 2 and data[2] is not None:
+                row["source"] = data[2]
+            return row
+        return data
+
+
+CommanderEffects = Annotated[list[CommanderEffect], BeforeValidator(partial(readable_list, CommanderEffect))]
+"""``[effect_id, values, source]`` rows; unreadable entries are skipped, as the client skips
+effects it cannot resolve (``LordVO.parseRawEffects``, bundle line 26483)."""
 
 
 PICTURE_FACTION_CASTELLAN = 5
@@ -191,10 +229,13 @@ class LeaderBase(BasePayload):
         default=(),
         description="The gems added to the alien or temporary equipment",
     )
-    general_id: ClientInt | None = Field(
+    general_id: (
+        Annotated[Literal[-1, 0] | EnumOrInt["General"], Field(union_mode="left_to_right"), BeforeValidator(js_int)]
+        | None
+    ) = Field(
         validation_alias="GID",
         default=None,
-        description="The assigned general's id; -1 or None for none",
+        description="The assigned general; -1, 0 or None for none",
     )
     star_level: ClientInt = Field(
         validation_alias="ST",

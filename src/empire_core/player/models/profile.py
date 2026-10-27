@@ -9,15 +9,19 @@ from __future__ import annotations
 
 import time
 from datetime import datetime, timezone
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, field_validator, model_validator
 
 from empire_core.enums import AllianceRank
+from empire_core.gamedata import EnumOrInt
 from empire_core.map.models.areas import AllianceEmblem
 from empire_core.map.models.owners import OwnerCastlePosition, OwnerCrest, OwnerFaction, owner_positions
 from empire_core.protocol.base import BasePayload, enum_or_none, object_or_none
 from empire_core.protocol.js import ParseInt, js_loose_equals, js_parse_int, js_parse_int_or_zero, js_truthy
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import Title
 
 
 class PlayerProfileBase(BasePayload):
@@ -90,11 +94,11 @@ class PlayerProfileBase(BasePayload):
         default=None,
         description="The alliance's crest; None outside an alliance",
     )
-    title_suffix: int | None = Field(
-        validation_alias="SUF", default=None, description="Suffix title id; None when unsent"
+    title_suffix: EnumOrInt["Title"] | None = Field(
+        validation_alias="SUF", default=None, description="The title shown after the name; None when unsent or none"
     )
-    title_prefix: int | None = Field(
-        validation_alias="PRE", default=None, description="Prefix title id; None when unsent"
+    title_prefix: EnumOrInt["Title"] | None = Field(
+        validation_alias="PRE", default=None, description="The title shown before the name; None when unsent or none"
     )
     via_refer_a_friend: bool = Field(
         validation_alias="IRF",
@@ -161,7 +165,9 @@ class PlayerProfileBase(BasePayload):
     @field_validator("title_suffix", "title_prefix", mode="before")
     @classmethod
     def _title_id(cls, value: Any) -> Any:
-        return js_parse_int(value)
+        # Client: getTitleByTitleID looks the id up as sent and finds none for -1 (bundle line 10794)
+        number = js_parse_int(value)
+        return number if number is not None and number >= 0 else None
 
     @field_validator("castle_positions", "village_positions", mode="before")
     @classmethod

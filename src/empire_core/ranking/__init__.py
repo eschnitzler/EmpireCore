@@ -1,5 +1,7 @@
 """Rankings and highscores."""
 
+from typing import TYPE_CHECKING
+
 from empire_core.enums import RankingType
 from empire_core.ranking.event_models import (
     ColossusHighscoreRow,
@@ -16,6 +18,7 @@ from empire_core.ranking.event_models import (
     SeasonPromotionPass,
     SeasonRank,
 )
+from empire_core.utils.lazy import lazy_exports
 
 from .models import (
     HIGHSCORE_ROW_LAYOUTS,
@@ -37,6 +40,9 @@ from .models import (
     SearchRankingListResponse,
 )
 from .service import RankingService
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import Event
 
 __all__ = [
     "ColossusHighscoreRow",
@@ -71,4 +77,9 @@ __all__ = [
     "SearchRankingListResponse",
     "RankingType",
     "RankingService",
+    "Event",
 ]
+
+
+if not TYPE_CHECKING:
+    __getattr__ = lazy_exports(__name__, "empire_core.gamedata.ids", ("Event",))

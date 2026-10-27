@@ -91,7 +91,7 @@ class BuildingsMixin(CastlesMixin):
         current = buildings.get(row.wod_id)
         return None if current is None else buildings.get(current.upgrade_building_id)
 
-    def _building_ruby_cost(self, wod_id: int) -> str | None:
+    def _building_ruby_cost(self, wod_id: Building) -> str | None:
         building = self._require_game_data().buildings.get(wod_id)
         if building is None:
             return f"building {wod_id} is not in the game data and may cost rubies"
@@ -143,7 +143,7 @@ class BuildingsMixin(CastlesMixin):
 
     def build(
         self,
-        wod_id: int,
+        wod_id: Building,
         x: int,
         y: int,
         rotation: int = 0,
@@ -160,7 +160,7 @@ class BuildingsMixin(CastlesMixin):
         level), and with ``spend_rubies`` on missing resources; see "Spending rubies" in the guides.
 
         Args:
-            wod_id: The building type's wod id
+            wod_id: The building type
             x: Castle grid x, -1 when placing into a district
             y: Castle grid y, -1 when placing into a district
             rotation: Rotation

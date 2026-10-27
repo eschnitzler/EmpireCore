@@ -21,13 +21,13 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, ClassVar
+from typing import Annotated, Any, ClassVar, Literal
 
 from pydantic import ConfigDict, Field, field_serializer, field_validator, model_validator
 
 from empire_core.army.models.units import UnitInventoryBlock
 from empire_core.enums import CollectableKind, LoginBonusSpecial
-from empire_core.gamedata import Collectable, CollectableObject, CollectableRows
+from empire_core.gamedata import Collectable, CollectableObject, CollectableRows, UnitOrTool
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, CurrencyBlock, readable_list
 from empire_core.protocol.js import ClientInt, ParseInt, js_loose_equals, js_number, js_number_or_none
 
@@ -182,15 +182,17 @@ class CollectLoginBonusRequest(BaseRequest):
 
     Client: ``C2SCatchLoginBonusVO`` (bundle line 104761), from
     ``CastleDailyLoginBonusDialog.performDailyRewardButtonSelection`` (bundle line 39228) for a
-    reward and ``performDailySpecialBonusButtonSelection`` (bundle line 39237) for a bonus
+    reward and ``performDailySpecialBonusButtonSelection`` (bundle line 39237) for a bonus. ``ID`` is
+    the ``id`` of a ``CollectableEnum.UNITS`` reward (bundle line 39241), the one collectable for units and
+    tools alike (bundle line 453)
     """
 
     command = "clb"
 
-    unit_id: int = Field(
+    unit_id: Annotated[Literal[-1] | UnitOrTool, Field(union_mode="left_to_right")] = Field(
         validation_alias="ID",
         default=-1,
-        description="The unit's id for a units reward, else -1",
+        description="The unit or tool of a units reward, else -1",
     )
     reward_key: str | None = Field(
         validation_alias="I",

@@ -13,16 +13,20 @@ These act on the castle the session has joined (``jca``); ``hfl`` also names it.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, field_validator
 
 from empire_core.enums import Kingdom
+from empire_core.gamedata import EnumOrInt
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, CurrencyBlock
 from empire_core.protocol.js import js_same_number, js_truthy
 
 from .production import ProductionListBlock
 from .units import RawBlock, UnitInventoryBlock
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import Unit
 
 # =============================================================================
 # HRU - Heal Units
@@ -42,7 +46,7 @@ class HealUnitsRequest(BaseRequest):
 
     command = "hru"
 
-    wod_id: int = Field(validation_alias="U")
+    wod_id: EnumOrInt["Unit"] = Field(validation_alias="U", description="The wounded unit to heal")
     amount: int = Field(validation_alias="A")
 
 
@@ -155,14 +159,14 @@ class DismissWoundedRequest(BaseRequest):
 
     command = "hdu"
 
-    wod_id: int = Field(validation_alias="U")
+    wod_id: EnumOrInt["Unit"] = Field(validation_alias="U", description="The wounded unit to dismiss")
     amount: int = Field(validation_alias="A")
 
 
 class WoundedUnits(BasePayload):
     """One ``UT`` entry of a many-type ``hdu``."""
 
-    wod_id: int = Field(validation_alias="U")
+    wod_id: EnumOrInt["Unit"] = Field(validation_alias="U", description="The wounded unit to dismiss")
     amount: int = Field(validation_alias="A")
 
 

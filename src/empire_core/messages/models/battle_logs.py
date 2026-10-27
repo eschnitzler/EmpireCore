@@ -35,7 +35,15 @@ from empire_core.enums import (
     MapItemType,
     MessageType,
 )
-from empire_core.gamedata import Collectable, CollectableRows, CurrencyIdRows, EnumOrInt, EnumOrStr, TreasureMapNodeId
+from empire_core.gamedata import (
+    Collectable,
+    CollectableRows,
+    CurrencyIdRows,
+    EnumOrInt,
+    EnumOrStr,
+    TreasureMapNodeId,
+    UnitOrTool,
+)
 from empire_core.gamedata.collectables import MINUTE_SKIP_FIRST_ID
 from empire_core.gamedata.ids.treasure_maps import TreasureMapId
 from empire_core.gamedata.lenient import known
@@ -225,7 +233,7 @@ class BattleLogUnit(BasePayload):
     Client: ``LogUnitVO.initByParams`` (bundle line 61363)
     """
 
-    wod_id: ClientInt = Field(description="Unit or tool type id")
+    wod_id: Annotated[UnitOrTool, BeforeValidator(js_int)] = Field(description="The unit or tool")
     amount: ClientInt = Field(description="How many took part")
     lost: ClientInt = Field(description="How many were lost; the server sends it as 0 or a negative number")
 

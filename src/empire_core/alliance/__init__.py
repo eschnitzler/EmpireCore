@@ -227,6 +227,7 @@ if TYPE_CHECKING:
         AllianceCrestColor,
         AllianceCrestLayout,
         AllianceTowerEffect,
+        Building,
         Currency,
         Effect,
         Event,
@@ -446,6 +447,7 @@ __all__ = [
     "Gem",
     "PerformanceStatistic",
     "AllianceTowerEffect",
+    "Building",
 ]
 
 
@@ -453,5 +455,14 @@ if not TYPE_CHECKING:
     __getattr__ = lazy_exports(
         __name__,
         "empire_core.gamedata.ids",
-        ("AllianceCrestColor", "AllianceCrestLayout", "AllianceTowerEffect", "Currency", "Effect", "Event", "Gem"),
+        (
+            "AllianceCrestColor",
+            "AllianceCrestLayout",
+            "AllianceTowerEffect",
+            "Building",
+            "Currency",
+            "Effect",
+            "Event",
+            "Gem",
+        ),
     )

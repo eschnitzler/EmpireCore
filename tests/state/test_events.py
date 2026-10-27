@@ -129,7 +129,7 @@ class TestTypedEvents:
             106: OuterRealmsEvent,
             60: NobilityContestEvent,
         }
-        assert events[46].event is Event.TECHNICUS and events[46].end_time == 1000 + 2648884
+        assert events[46].event_id is Event.TECHNICUS and events[46].end_time == 1000 + 2648884
         assert [e for e, event in events.items() if event.is_trigger] == [610, 612, 601]
 
     def test_a_score_event(self, state, clock):

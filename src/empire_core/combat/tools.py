@@ -16,12 +16,14 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, NamedTuple, Protocol
 
 from empire_core.enums import CombatEffectType, MapItemType
-from empire_core.gamedata import GameData, ToolStats
+from empire_core.gamedata import EnumOrInt, GameData, ToolStats
 
 from .bonuses import effect_value_bonuses
 from .effects import AttackerFlankEffects, DefenderFlankEffects
 
 if TYPE_CHECKING:
+    from empire_core.gamedata import RaidBoss
+
     from .solver import Inventory
 
 logger = logging.getLogger(__name__)
@@ -48,7 +50,7 @@ class TargetContext:
     area_type: int | None = None
     space_id: int | None = None
     is_player: bool = True
-    active_raid_boss_id: int | None = None
+    active_raid_boss_id: EnumOrInt["RaidBoss"] | None = None
 
     @property
     def is_alien_invasion(self) -> bool:
@@ -254,7 +256,7 @@ def can_use_tool_on_target(tool: ToolStats, target: TargetContext, *, game_data:
 
 
 def is_tool_usable_against_active_raid_boss(
-    tool: ToolStats, active_raid_boss_id: int | None, *, game_data: GameData | None = None
+    tool: ToolStats, active_raid_boss_id: EnumOrInt["RaidBoss"] | None, *, game_data: GameData | None = None
 ) -> bool:
     """
     Whether a tool's raid-boss ties, if any, allow it now.

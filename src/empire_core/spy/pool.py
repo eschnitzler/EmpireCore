@@ -7,11 +7,15 @@ Client: ``CastleSpyData.getNumAllSpies`` and ``getNumAvailableSpies`` (bundle li
 from __future__ import annotations
 
 from collections.abc import Iterable
+from typing import TYPE_CHECKING
 
 from empire_core.combat.bonuses import EffectResolver, effect_value_bonuses, legend_skill_value
-from empire_core.gamedata import GameData
+from empire_core.gamedata import EnumOrInt, GameData
 from empire_core.player.titles import island_title_chain
 from empire_core.protocol.js import js_int
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import LegendSkill, Research
 
 # EffectTypeEnum (bundle line 1322): EFFECT_TYPE_SPY_COUNT_BOOST, EFFECT_TYPE_AMOUNT_SPIES_BOOST
 _SPY_COUNT_BOOST = 73
@@ -40,7 +44,7 @@ def total_spies(max_spies: int, *, research_bonus: float = 0, legend_bonus: floa
     return js_int(base * (1 + title_percent / 100))
 
 
-def research_spy_bonus(game_data: GameData, research_ids: Iterable[int]) -> float:
+def research_spy_bonus(game_data: GameData, research_ids: Iterable[EnumOrInt["Research"]]) -> float:
     """
     Extra spies from your finished research, uncapped as the client totals it.
 
@@ -62,7 +66,7 @@ def research_spy_bonus(game_data: GameData, research_ids: Iterable[int]) -> floa
     return resolver.accumulate(bonuses, _AMOUNT_SPIES_BOOST, include_economy=True, ignore_cap=True)
 
 
-def legend_spy_bonus(game_data: GameData, legend_skill_ids: Iterable[int]) -> float:
+def legend_spy_bonus(game_data: GameData, legend_skill_ids: Iterable[EnumOrInt["LegendSkill"]]) -> float:
     """
     Extra spies from your legend skills.
 

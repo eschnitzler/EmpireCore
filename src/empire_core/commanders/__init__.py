@@ -98,6 +98,7 @@ if TYPE_CHECKING:
     from empire_core.gamedata import (
         Currency,
         CurrencyId,
+        Effect,
         Event,
         Gem,
         GemColor,
@@ -213,6 +214,7 @@ __all__ = [
     "GeneralSkill",
     "LegendSkill",
     "SceatSkill",
+    "Effect",
 ]
 
 
@@ -223,13 +225,14 @@ if not TYPE_CHECKING:
         (
             "Currency",
             "CurrencyId",
+            "Effect",
             "Event",
             "Gem",
             "GemColor",
             "General",
             "GeneralAbility",
-            "GeneralsHubCharacter",
             "GeneralSkill",
+            "GeneralsHubCharacter",
             "LegendSkill",
             "SceatSkill",
         ),

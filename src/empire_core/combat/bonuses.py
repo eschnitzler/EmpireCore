@@ -19,13 +19,21 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from pydantic import ConfigDict
 
 from empire_core.commanders.models.equipment import Equipment
-from empire_core.commanders.models.roster import Commander
+from empire_core.commanders.models.roster import Commander, CommanderEffect
 from empire_core.enums import CombatEffectType
-from empire_core.gamedata import EffectDef, EffectValue, EquipmentEffectValue, GameData, GlobalEffectDef, ToolStats
-from empire_core.protocol.base import CommanderEffect, EmpireModel
+from empire_core.gamedata import (
+    EffectDef,
+    EffectValue,
+    EnumOrInt,
+    EquipmentEffectValue,
+    GameData,
+    GlobalEffectDef,
+    ToolStats,
+)
+from empire_core.protocol.base import EmpireModel
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import GlobalEffect
+    from empire_core.gamedata import GeneralSkill, GlobalEffect, LegendSkill, SceatSkill
 
     from .effects import AttackerFlankEffects
 
@@ -470,19 +478,25 @@ def global_effect_bonuses(global_effect_ids: Iterable[int], *, game_data: GameDa
     return _spec_bonuses(game_data.global_effects.get(effect_id) for effect_id in global_effect_ids)
 
 
-def sceat_skill_bonuses(skill_ids: Iterable[int], *, game_data: GameData | None = None) -> list[Bonus]:
+def sceat_skill_bonuses(
+    skill_ids: Iterable[EnumOrInt["SceatSkill"]], *, game_data: GameData | None = None
+) -> list[Bonus]:
     """Bonuses from unlocked sceat skills (the Hall of Legends trees)."""
     game_data = game_data if game_data is not None else GameData.require()
     return _spec_bonuses(game_data.sceat_skills.get(skill_id) for skill_id in skill_ids)
 
 
-def general_skill_bonuses(skill_ids: Iterable[int], *, game_data: GameData | None = None) -> list[Bonus]:
+def general_skill_bonuses(
+    skill_ids: Iterable[EnumOrInt["GeneralSkill"]], *, game_data: GameData | None = None
+) -> list[Bonus]:
     """Bonuses from the skills unlocked on the general leading the attack."""
     game_data = game_data if game_data is not None else GameData.require()
     return _spec_bonuses(game_data.general_skills.get(skill_id) for skill_id in skill_ids)
 
 
-def general_passive_bonuses(skill_ids: Iterable[int], *, game_data: GameData | None = None) -> list[Bonus]:
+def general_passive_bonuses(
+    skill_ids: Iterable[EnumOrInt["GeneralSkill"]], *, game_data: GameData | None = None
+) -> list[Bonus]:
     """
     The general's passive effects, which join its commander's bonuses.
 
@@ -509,7 +523,9 @@ def general_passive_bonuses(skill_ids: Iterable[int], *, game_data: GameData | N
     return bonuses
 
 
-def legend_skill_value(skill_ids: Iterable[int], effect_type: str, *, game_data: GameData | None = None) -> float:
+def legend_skill_value(
+    skill_ids: Iterable[EnumOrInt["LegendSkill"]], effect_type: str, *, game_data: GameData | None = None
+) -> float:
     """
     Total value of one legend skill effect type.
 
@@ -796,7 +812,7 @@ def attack_dialog_bonuses(
     commander: Commander | None,
     *,
     area_effects: Sequence[Bonus] | None = None,
-    general_skill_ids: Iterable[int] | None = None,
+    general_skill_ids: Iterable[EnumOrInt["GeneralSkill"]] | None = None,
     game_data: GameData | None = None,
 ) -> list[Bonus]:
     """
@@ -854,7 +870,7 @@ def attacker_flank_effects(
     *,
     area_type: int | None = None,
     player_target: bool | None = None,
-    legend_skill_ids: Iterable[int] = (),
+    legend_skill_ids: Iterable[EnumOrInt["LegendSkill"]] = (),
     legendary: bool = False,
     support_tools: Sequence[ToolStats] = (),
 ) -> "AttackerFlankEffects":

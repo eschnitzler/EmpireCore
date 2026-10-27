@@ -7,7 +7,7 @@ Commands:
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, ClassVar, TypeVar
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
@@ -19,7 +19,7 @@ from empire_core.protocol.js import ClientInt, ClientNumber, js_int, js_number, 
 from .details import _ProductionAreaSection
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import ConstructionItem
+    from empire_core.gamedata import Building, ConstructionItem
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +82,7 @@ class BuildingRow(BasePayload):
     ``AUnitProductionBuildingVO.parseServerObject`` (bundle line 36254)
     """
 
-    wod_id: int = Field(description="The building type's wod id")
+    wod_id: EnumOrInt["Building"] = Field(description="The building type")
     object_id: int = Field(default=0, description="The object's id in its castle, which building commands name")
     x: int = Field(default=0, description="Castle grid x")
     y: int = Field(default=0, description="Castle grid y")
@@ -99,7 +99,13 @@ class BuildingRow(BasePayload):
     damage_type: int | None = Field(default=None, description="Damage type, 0 for none")
     district_id: int = Field(default=0, description="Object id of the district the building sits in, 0 for none")
     district_slot_id: int = Field(default=0, description="The building's slot in its district")
-    upgrade_target_wod_id: int = Field(default=-1, description="Wod id the building is upgrading to, -1 for none")
+    upgrade_target_wod_id: Annotated[Literal[-1, 0] | EnumOrInt["Building"], Field(union_mode="left_to_right")] = Field(
+        default=-1,
+        description=(
+            "The building type it is upgrading to; -1 or 0 for none, as the client reads only a positive id "
+            "(ABasicBuildingVO.upgradeTargetWodId, bundle line 17926)"
+        ),
+    )
 
     @property
     def is_in_district(self) -> bool:

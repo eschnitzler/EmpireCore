@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING, Any
 from pydantic import Field, field_serializer, field_validator
 
 from empire_core.enums import ExpansionType
-from empire_core.gamedata import EnumOrStr
+from empire_core.gamedata import EnumOrInt, EnumOrStr
 from empire_core.protocol.base import BaseRequest, BaseResponse, CurrencyBlock
 from empire_core.protocol.js import ClientInt, js_int
 
@@ -37,7 +37,7 @@ from .resources import CastleResources
 from .storage import DecorationStorages
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import Currency
+    from empire_core.gamedata import Building, Currency
 
 _OBJECT_ID = "The building's object id, a BuildingRow.object_id from client.castle.join(...).buildings"
 _PRIVATE_OFFER = "The private offer the purchase uses, -1 for none"
@@ -100,7 +100,7 @@ class BuildRequest(BaseRequest):
 
     command = "ebu"
 
-    wod_id: int = Field(validation_alias="WID", description="The building type's wod id")
+    wod_id: EnumOrInt["Building"] = Field(validation_alias="WID", description="The building type")
     x: int = Field(validation_alias="X", description="Castle grid x, -1 when placing into a district")
     y: int = Field(validation_alias="Y", description="Castle grid y, -1 when placing into a district")
     rotation: int = Field(validation_alias="R", default=0, description="Rotation")

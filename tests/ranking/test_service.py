@@ -6,6 +6,7 @@ import pytest
 
 from empire_core.enums import RankingType
 from empire_core.exceptions import CommandError
+from empire_core.gamedata import Event
 from empire_core.ranking import HighscorePlayerRow
 from tests.service_helpers import conn, make_client, xt_packet
 
@@ -65,10 +66,16 @@ class TestRankingService:
         client = make_client({"llsp": xt_packet("llsp", {"L": [], "T": 0})})
 
         client.ranking.get_ranking_list(
-            list_type=RankingType.GRAND_TOURNAMENT, rank=1, max_results=10, league_type_id=4, event_id=94
+            list_type=RankingType.GRAND_TOURNAMENT,
+            rank=1,
+            max_results=10,
+            league_type_id=4,
+            event_id=Event.GRAND_TOURNAMENT,
         )
 
-        assert conn(client).request_payloads == [("llsp", {"LT": 84, "LID": 4, "M": 10, "R": 1, "EID": 94})]
+        assert conn(client).request_payloads == [
+            ("llsp", {"LT": 84, "LID": 4, "M": 10, "R": 1, "EID": int(Event.GRAND_TOURNAMENT)})
+        ]
 
     def test_own_ranking_page(self):
         payload = {"LT": 53, "LID": 2, "T": 40, "L": [{"R": 17, "S": 900, "P": "Player", "A": "Alliance"}]}

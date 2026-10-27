@@ -14,14 +14,14 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from pydantic import ConfigDict, Field
 
 from empire_core.army.models.units import AttackWave, WaveFlank
 from empire_core.enums import Flank, TargetRead
 from empire_core.exceptions import CommandError
-from empire_core.gamedata import EMPTY_SLOT, GameData, ToolCategory, ToolStats, WodAmount, WodAmountSlots
+from empire_core.gamedata import EMPTY_SLOT, EnumOrInt, GameData, ToolCategory, ToolStats, WodAmount, WodAmountSlots
 from empire_core.protocol.base import EmpireModel
 
 from .capacity import (
@@ -35,6 +35,10 @@ from .capacity import (
 )
 from .effects import AttackerFlankEffects, DefenderFlankEffects
 from .tools import TargetContext, ToolStrategy, check_flank, default_tool_strategies, fill_flank_with_tools
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import RaidBoss
+
 
 logger = logging.getLogger(__name__)
 
@@ -310,7 +314,7 @@ def fill_wave(
     area_type: int | None = None,
     space_id: int | None = None,
     target_is_player: bool = True,
-    active_raid_boss_id: int | None = None,
+    active_raid_boss_id: EnumOrInt["RaidBoss"] | None = None,
     game_data: GameData | None = None,
 ) -> AttackWave:
     """
@@ -497,7 +501,7 @@ def fill_waves(
     area_type: int | None = None,
     space_id: int | None = None,
     target_is_player: bool = True,
-    active_raid_boss_id: int | None = None,
+    active_raid_boss_id: EnumOrInt["RaidBoss"] | None = None,
     game_data: GameData | None = None,
 ) -> list[AttackWave]:
     """
