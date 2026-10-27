@@ -234,6 +234,7 @@ from empire_core.castle.models.upkeep import (
 from empire_core.castle.models.villages import (
     BuyPrivateVillageRequest,
     GetVillageListRequest,
+    PrivateVillage,
     RemovePrivateVillageRequest,
     UpgradePrivateVillageRequest,
     VillageListResponse,
@@ -1950,33 +1951,31 @@ class CastleService(BaseService):
         """
         self.execute(BuyPrivateVillageRequest(village_type_id=village_type_id), timeout=timeout)
 
-    def upgrade_private_village(
-        self, village_type_id: PrivateVillageType, village_id: int, *, timeout: float = 5.0
-    ) -> None:
+    def upgrade_private_village(self, village: PrivateVillage, *, timeout: float = 5.0) -> None:
         """
         Upgrade one of your private resource villages to the next level, with resource village tokens.
 
         Args:
-            village_type_id: The village's current level, ``PrivateVillage.village_type_id``
-            village_id: Your private village's id, ``PrivateVillage.village_id``
+            village: The village, a row of :attr:`villages` or :meth:`get_villages`; its id and the type of
+                its current level are sent
 
         Client: ``PrivateResourceVillageUpgradeDialog.onConfirm`` (bundle line 81600) sends
         ``C2SUpgradePrivateResourceVillageVO``; ``UPVCommand.exec`` (bundle line 126489)
         """
-        request = UpgradePrivateVillageRequest(village_type_id=village_type_id, village_id=village_id)
+        request = UpgradePrivateVillageRequest(village_type_id=village.village_type_id, village_id=village.village_id)
         self.execute(request, timeout=timeout)
 
-    def remove_private_village(self, village_id: int, *, timeout: float = 5.0) -> None:
+    def remove_private_village(self, village: PrivateVillage, *, timeout: float = 5.0) -> None:
         """
         Remove one of your private resource villages; it is gone for good, its tokens are not returned.
 
         Args:
-            village_id: Your private village's id, ``PrivateVillage.village_id``
+            village: The village, a row of :attr:`villages` or :meth:`get_villages`
 
         Client: ``PrivateResourceVillageDestroyDialog.onConfirm`` (bundle line 81568) sends
         ``C2SRemovePrivateResourceVillageVO``; ``RPVCommand.exec`` (bundle line 126474)
         """
-        self.execute(RemovePrivateVillageRequest(village_id=village_id), timeout=timeout)
+        self.execute(RemovePrivateVillageRequest(village_id=village.village_id), timeout=timeout)
 
     # =========================================================================
     # Lookups

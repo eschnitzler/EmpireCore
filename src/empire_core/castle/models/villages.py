@@ -156,7 +156,7 @@ class UpgradePrivateVillageRequest(BaseRequest):
     village_type_id: EnumOrInt["PrivateVillageType"] = Field(
         validation_alias="XID", description=f"{_VILLAGE_TYPE}, of its current level"
     )
-    village_id: int = Field(validation_alias="VID", description=_VILLAGE)
+    village_id: ClientInt = Field(validation_alias="VID", description=_VILLAGE)
 
 
 class UpgradePrivateVillageResponse(BaseResponse):
@@ -184,7 +184,7 @@ class RemovePrivateVillageRequest(BaseRequest):
 
     command = "rpv"
 
-    village_id: int = Field(validation_alias="VID", description=_VILLAGE)
+    village_id: ClientInt = Field(validation_alias="VID", description=_VILLAGE)
 
 
 class RemovePrivateVillageResponse(BaseResponse):
