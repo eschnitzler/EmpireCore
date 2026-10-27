@@ -14,6 +14,7 @@ from empire_core.castle import (
     BuyPrivateVillageRequest,
     CastleBuildingsPushed,
     GetBreweryProductionRequest,
+    PrivateVillage,
     RefreshMercenaryMissionRequest,
     RemovePrivateVillageRequest,
     SelectCastleResponse,
@@ -110,8 +111,9 @@ class TestPrivateVillages:
     def test_service(self):
         client = make_client()
         client.castle.buy_private_village(WOOD_L1)
-        client.castle.upgrade_private_village(WOOD_L1, 90)
-        client.castle.remove_private_village(90)
+        village = PrivateVillage.model_validate({"VID": 90, "XID": 41})
+        client.castle.upgrade_private_village(village)
+        client.castle.remove_private_village(village)
         assert conn(client).request_payloads == [
             ("bpv", {"XID": 41}),
             ("upv", {"XID": 41, "VID": 90}),
