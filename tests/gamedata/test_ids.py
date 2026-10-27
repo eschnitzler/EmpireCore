@@ -354,7 +354,8 @@ class TestMemberData:
         )
         payload = request.to_payload()
         assert payload == {"GID": 101, "SAIDS": [[0, 10011]]}
-        assert type(payload["GID"]) is int and type(payload["SAIDS"][0][1]) is int
+        assert type(payload["SAIDS"][0][1]) is int
+        assert '"GID":101,' in request.to_packet()
 
         class Typed(BaseModel):
             unit: ids.Unit

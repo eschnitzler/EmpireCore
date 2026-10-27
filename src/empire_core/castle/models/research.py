@@ -18,7 +18,7 @@ from pydantic import BeforeValidator, Field
 from empire_core.castle.models.resources import CastleResources
 from empire_core.gamedata import EnumOrInt, EnumOrStr
 from empire_core.protocol.base import BaseRequest, BaseResponse, CurrencyBlock, TimedResponse
-from empire_core.protocol.js import ClientInt, ClientNumber, js_int
+from empire_core.protocol.js import ClientNumber, js_int
 
 if TYPE_CHECKING:
     from empire_core.gamedata import Currency, Research
@@ -59,10 +59,12 @@ class ResearchInfoResponse(TimedResponse):
     bought_research_ids: Annotated[tuple[EnumOrInt["Research"], ...], BeforeValidator(_ints)] = Field(
         validation_alias="BR", default=(), description="Finished researches"
     )
-    current_research_id: ClientInt = Field(
+    current_research_id: Annotated[
+        Literal[-1, 0] | EnumOrInt["Research"], Field(union_mode="left_to_right"), BeforeValidator(js_int)
+    ] = Field(
         validation_alias="ARID",
         default=0,
-        description="The research running now, -1 for none",
+        description="The research running now, -1 for none; 0 when not sent",
     )
     research_seconds: ClientNumber = Field(
         validation_alias="ARRT",

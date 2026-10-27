@@ -385,8 +385,7 @@ class SpecialEvent(EmpireModel):
     is_trigger: ClassVar[bool] = False
     """Whether the event is a trigger event (``tei``): the kingdoms league or a global effect event."""
 
-    event_id: int = Field(validation_alias="EID", description="The event's id")
-    event: Event | None = Field(default=None, description="The event, None for an id the event table lacks")
+    event_id: EnumOrInt[Event] = Field(validation_alias="EID", description="The event; its id for one the enum lacks")
     end_time: float = Field(
         default=0.0, description="When the event ends, in time.monotonic() seconds; inf while it has no end"
     )
@@ -425,7 +424,7 @@ class SpecialEvent(EmpireModel):
         ``events`` are the other running events.
         """
         values: dict[str, Any] = dict(previous) if previous is not None else {}
-        values.update(event_id=event_id, event=_EVENT_IDS.get(event_id))
+        values.update(event_id=event_id)
         cls._read(values, entry, now, events)
         raw = {**previous.raw, **entry} if previous is not None else dict(entry)
         for part in cls._rebuilt_parts:
@@ -1919,8 +1918,7 @@ class GameEvent(EmpireModel):
 
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
-    event_id: int = Field(description="The event's id")
-    event: Event | None = Field(default=None, description="The event, None for an id the event table lacks")
+    event_id: EnumOrInt[Event] = Field(description="The event; its id for one the enum lacks")
     display_name: str = Field(
         description="The in-game title; without one, the event's Event name, or its id for an unknown event"
     )

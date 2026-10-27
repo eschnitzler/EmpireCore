@@ -6,6 +6,7 @@ from collections.abc import Iterable
 from typing import TYPE_CHECKING
 
 from empire_core.enums import TitleSystem
+from empire_core.gamedata import EnumOrInt
 from empire_core.player.titles import held_titles
 from empire_core.services.base import ServiceMixin
 from empire_core.spy.pool import (
@@ -17,6 +18,7 @@ from empire_core.spy.pool import (
 )
 
 if TYPE_CHECKING:
+    from empire_core.gamedata import LegendSkill, Research
     from empire_core.spy.models import MaxSpiesResponse, PlagueDoctorInfoResponse
 
 
@@ -51,8 +53,8 @@ class SpiesMixin(ServiceMixin):
     def total_spies(
         self,
         *,
-        research_ids: Iterable[int] | None = None,
-        legend_skill_ids: Iterable[int] | None = None,
+        research_ids: Iterable[EnumOrInt["Research"]] | None = None,
+        legend_skill_ids: Iterable[EnumOrInt["LegendSkill"]] | None = None,
         title_ids: Iterable[int] | None = None,
         island_title_id: int | None = None,
         legend_target: bool = False,
@@ -127,8 +129,8 @@ class SpiesMixin(ServiceMixin):
     def available_spies(
         self,
         *,
-        research_ids: Iterable[int] | None = None,
-        legend_skill_ids: Iterable[int] | None = None,
+        research_ids: Iterable[EnumOrInt["Research"]] | None = None,
+        legend_skill_ids: Iterable[EnumOrInt["LegendSkill"]] | None = None,
         title_ids: Iterable[int] | None = None,
         island_title_id: int | None = None,
         legend_target: bool = False,

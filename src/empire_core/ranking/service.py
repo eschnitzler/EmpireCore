@@ -2,7 +2,10 @@
 Highscore lists and event leaderboards.
 """
 
+from __future__ import annotations
+
 import logging
+from typing import TYPE_CHECKING
 
 from empire_core.enums import RankingType
 from empire_core.services.base import BaseService
@@ -31,6 +34,9 @@ from .models import (
 )
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import Event
 
 
 class RankingService(BaseService):
@@ -69,7 +75,7 @@ class RankingService(BaseService):
         max_results: int,
         league_type_id: int,
         sub_division_id: int | None = None,
-        event_id: int | None = None,
+        event_id: Event | None = None,
         *,
         timeout: float = 5.0,
     ) -> list[LeaderboardScore]:
@@ -120,7 +126,7 @@ class RankingService(BaseService):
         max_results: int,
         league_type_id: int,
         sub_division_id: int | None = None,
-        event_id: int | None = None,
+        event_id: Event | None = None,
         *,
         timeout: float = 5.0,
     ) -> list[LeaderboardScore]:
@@ -162,7 +168,7 @@ class RankingService(BaseService):
         max_results: int,
         league_type_id: int | None,
         sub_division_id: int | None = None,
-        event_id: int | None = None,
+        event_id: Event | None = None,
         *,
         timeout: float = 5.0,
     ) -> list[LeaderboardScore]:
@@ -199,7 +205,7 @@ class RankingService(BaseService):
         list_type: RankingType,
         search_value: str,
         sub_division_id: int | None = None,
-        event_id: int | None = None,
+        event_id: Event | None = None,
         *,
         timeout: float = 5.0,
     ) -> list[LeaderboardSearchResult]:

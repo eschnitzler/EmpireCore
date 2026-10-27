@@ -33,11 +33,12 @@ from empire_core.combat.capacity import ALIEN_INVASION_AREA_TYPES, OTHER_PLAYER_
 from empire_core.commanders.models.roster import Commander
 from empire_core.enums import CombatEffectType, Flank, Kingdom, MapItemType
 from empire_core.events.models import GlobalEffectBuffEvent, GlobalEffectEvent, GlobalEffectTimer
+from empire_core.gamedata import EnumOrInt
 from empire_core.gamedata.ids.events import Event
 from empire_core.services.base import ServiceMixin
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import GameData, GlobalEffect, Tool
+    from empire_core.gamedata import GameData, GeneralSkill, GlobalEffect, LegendSkill, RaidBoss, Tool
 
 
 class WavesMixin(ServiceMixin):
@@ -59,8 +60,8 @@ class WavesMixin(ServiceMixin):
         commander: Commander | None = None,
         conquer: bool = False,
         wave_bonus: int = 0,
-        general_skill_ids: Sequence[int] | None = None,
-        legend_skill_ids: Sequence[int] | None = None,
+        general_skill_ids: Sequence[EnumOrInt["GeneralSkill"]] | None = None,
+        legend_skill_ids: Sequence[EnumOrInt["LegendSkill"]] | None = None,
         global_effects: Iterable[GlobalEffectTimer] | None = None,
         support_tools: Sequence[Tool | int | None] | None = None,
         target_is_player: bool = False,
@@ -68,7 +69,7 @@ class WavesMixin(ServiceMixin):
         owner_legend_level: int = 0,
         attacker_legend_level: int | None = None,
         under_conquer_control: bool = False,
-        active_raid_boss_id: int | None = None,
+        active_raid_boss_id: EnumOrInt["RaidBoss"] | None = None,
         flank_bonus_percent: float = 0.0,
         front_bonus_percent: float = 0.0,
         tool_bonus: float = 0.0,

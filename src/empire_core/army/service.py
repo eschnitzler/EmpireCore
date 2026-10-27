@@ -66,7 +66,7 @@ from empire_core.gamedata import UnitOrTool
 from empire_core.services.base import BaseService
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import Unit
+    from empire_core.gamedata import Tool, Unit
 
 
 class ArmyService(BaseService):
@@ -86,7 +86,7 @@ class ArmyService(BaseService):
         units = client.army.get_units(castle_id=123)
 
         # Produce 50 of wod id 620 in the soldier list
-        client.army.produce_units(123, ProductionListId.SOLDIERS, wod_id=620, amount=50)
+        client.army.produce_units(123, ProductionListId.SOLDIERS, wod_id=Unit.SWORDMAN, amount=50)
     """
 
     def _join_castle(self, castle_id: int, timeout: float) -> Kingdom:
@@ -143,7 +143,7 @@ class ArmyService(BaseService):
         return self.request(GetUnitsRequest(), GetUnitsResponse, timeout=timeout)
 
     def dismiss_units(
-        self, castle_id: int, wod_id: int, amount: int, from_stronghold: bool = False, *, timeout: float = 5.0
+        self, castle_id: int, wod_id: Unit | Tool, amount: int, from_stronghold: bool = False, *, timeout: float = 5.0
     ) -> None:
         """
         Dismiss units of the castle, or of its stronghold.
@@ -233,7 +233,7 @@ class ArmyService(BaseService):
         self,
         castle_id: int,
         list_id: ProductionListId,
-        wod_id: int,
+        wod_id: Unit | Tool,
         amount: int,
         *,
         spend_rubies: bool = False,
@@ -250,7 +250,7 @@ class ArmyService(BaseService):
         Args:
             castle_id: One of your castles, a ``Castle.id`` from ``client.state.get_castles()``
             list_id: SOLDIERS, TOOLS or AUXILIARIES
-            wod_id: Unit or tool wod id
+            wod_id: The unit or tool
             amount: How many to produce
             spend_rubies: Allow a ruby price, and pay rubies for missing resources as the
                 client's resource wait dialog does
@@ -589,7 +589,7 @@ class ArmyService(BaseService):
     # =========================================================================
 
     def heal_units(
-        self, castle_id: int, wod_id: int, amount: int, *, spend_rubies: bool = False, timeout: float = 5.0
+        self, castle_id: int, wod_id: Unit, amount: int, *, spend_rubies: bool = False, timeout: float = 5.0
     ) -> None:
         """
         Queue wounded units for healing.
@@ -599,7 +599,7 @@ class ArmyService(BaseService):
 
         Args:
             castle_id: One of your castles, a ``Castle.id`` from ``client.state.get_castles()``
-            wod_id: The wounded unit's wod id
+            wod_id: The wounded unit
             amount: How many to heal
             spend_rubies: Allow healing a unit that costs rubies
             timeout: Timeout in seconds
@@ -674,7 +674,7 @@ class ArmyService(BaseService):
         self._join_castle(castle_id, timeout)
         self.execute(SkipHealRequest(position=position), timeout=timeout)
 
-    def dismiss_wounded(self, castle_id: int, wod_id: int, amount: int, *, timeout: float = 5.0) -> None:
+    def dismiss_wounded(self, castle_id: int, wod_id: Unit, amount: int, *, timeout: float = 5.0) -> None:
         """
         Dismiss wounded units of one type instead of healing them.
 
@@ -686,9 +686,9 @@ class ArmyService(BaseService):
         self._join_castle(castle_id, timeout)
         self.execute(DismissWoundedRequest(wod_id=wod_id, amount=amount), timeout=timeout)
 
-    def dismiss_wounded_units(self, castle_id: int, units: Mapping[int, int], *, timeout: float = 5.0) -> None:
+    def dismiss_wounded_units(self, castle_id: int, units: Mapping[Unit, int], *, timeout: float = 5.0) -> None:
         """
-        Dismiss wounded units of several types at once, as ``{wod_id: amount}``.
+        Dismiss wounded units of several types at once, as ``{unit: amount}``.
 
         Args:
             castle_id: One of your castles, a ``Castle.id`` from ``client.state.get_castles()``

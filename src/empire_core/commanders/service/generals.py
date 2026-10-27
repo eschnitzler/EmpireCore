@@ -30,7 +30,7 @@ from empire_core.commanders.models.skills import (
 from empire_core.services.base import ServiceMixin
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import Currency, General, GeneralsHubCharacter
+    from empire_core.gamedata import Currency, CurrencyId, General, GeneralAbility, GeneralsHubCharacter, GeneralSkill
 
 
 class GeneralsMixin(ServiceMixin):
@@ -49,9 +49,10 @@ class GeneralsMixin(ServiceMixin):
         """
         return self.request(GetGeneralsRequest(), GetGeneralsResponse, timeout=timeout).generals
 
-    def assign_general(self, commander_id: int, general_id: int, *, timeout: float = 5.0) -> CommanderRoster:
+    def assign_general(self, commander_id: int, general_id: General | None, *, timeout: float = 5.0) -> CommanderRoster:
         """
-        Assign a general to a commander; ``general_id=-1`` takes its general away.
+        Assign a general to a commander; ``general_id=None`` takes its general away (the client sends -1,
+        ``CastleLordData.assignGeneral``, bundle line 38679).
 
         Args:
             commander_id: A ``Commander.commander_id`` from
@@ -66,11 +67,11 @@ class GeneralsMixin(ServiceMixin):
         Raises:
             CommandError / EmpireTimeoutError / ConnectionClosedError: The request failed
         """
-        request = AssignGeneralRequest(commander_id=commander_id, general_id=general_id)
+        request = AssignGeneralRequest(commander_id=commander_id, general_id=-1 if general_id is None else general_id)
         return self.request(request, AssignGeneralResponse, timeout=timeout).commander_roster
 
     def set_general_abilities(
-        self, general_id: int, abilities: Iterable[tuple[int, int | None]], *, timeout: float = 5.0
+        self, general_id: General, abilities: Iterable[tuple[int, GeneralAbility | None]], *, timeout: float = 5.0
     ) -> None:
         """
         Choose a general's abilities.
@@ -78,7 +79,7 @@ class GeneralsMixin(ServiceMixin):
         Args:
             general_id: An ``OwnedGeneral.general_id`` from :meth:`get_generals`;
                 ``GameData.require().general(name)`` finds its ``generalID`` by name
-            abilities: ``(slot_id, ability_id)`` pairs, ``-1`` or ``None`` to clear a slot.
+            abilities: ``(slot_id, ability)`` pairs, ``None`` to clear a slot.
                 The client sends every slot it shows. An ability id comes from
                 ``GameData.require().general_ability(name, level)``
             timeout: Timeout in seconds
@@ -86,7 +87,7 @@ class GeneralsMixin(ServiceMixin):
         slots = [SelectedAbility(slot_id=slot_id, ability_id=ability_id) for slot_id, ability_id in abilities]
         self.execute(SetGeneralAbilitiesRequest(general_id=general_id, abilities=slots), timeout=timeout)
 
-    def unlock_general_skill(self, skill_id: int, *, timeout: float = 5.0) -> None:
+    def unlock_general_skill(self, skill_id: GeneralSkill, *, timeout: float = 5.0) -> None:
         """
         Unlock a general skill; the skill id names the general.
 
@@ -100,7 +101,7 @@ class GeneralsMixin(ServiceMixin):
         """
         self.execute(UnlockGeneralSkillRequest(skill_id=skill_id), timeout=timeout)
 
-    def reset_general_skills(self, general_id: int, *, timeout: float = 5.0) -> None:
+    def reset_general_skills(self, general_id: General, *, timeout: float = 5.0) -> None:
         """
         Reset a general's skill tree.
 
@@ -111,7 +112,9 @@ class GeneralsMixin(ServiceMixin):
         """
         self.execute(ResetGeneralSkillsRequest(general_id=general_id), timeout=timeout)
 
-    def add_general_xp(self, general_id: int, currency_id: int, amount: int, *, timeout: float = 5.0) -> None:
+    def add_general_xp(
+        self, general_id: General, currency_id: CurrencyId, amount: int, *, timeout: float = 5.0
+    ) -> None:
         """
         Feed a general xp items.
 

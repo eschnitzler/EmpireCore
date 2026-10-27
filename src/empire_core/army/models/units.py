@@ -16,9 +16,12 @@ from typing import TYPE_CHECKING, Annotated, Any
 
 from pydantic import BeforeValidator, Field
 
-from empire_core.gamedata import WodAmounts, WodAmountSlots, WodAmountSlotsInput
+from empire_core.gamedata import EnumOrInt, UnitOrTool, WodAmounts, WodAmountSlots, WodAmountSlotsInput
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, object_or_none
 from empire_core.protocol.js import js_int
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import Unit
 
 BUY_UNIT_PACKAGE_SK = 73
 """``SK`` of every ``bup``: each client caller leaves ``C2SBuyUnitPackageVO``'s
@@ -102,12 +105,17 @@ class DismissUnitsRequest(BaseRequest):
     Payload: {"WID": wod_id, "A": amount, "S": 0 or 1}
 
     Client: ``C2SDismissUnitPackageVO`` (bundle line 84341), built by
-    ``CastleRecruitDismissUnitsDialog.dismissUnits`` (bundle line 84330)
+    ``CastleRecruitDismissUnitsDialog.dismissUnits`` (bundle line 84330) for an item of the
+    inventory, whose filters list attack and defence tools too (``CastleRecruitDialogInventory.onClick``,
+    bundle lines 84249-84251)
     """
 
     command = "dup"
 
-    wod_id: int = Field(validation_alias="WID")
+    wod_id: UnitOrTool = Field(
+        validation_alias="WID",
+        description="The unit or tool to dismiss; the inventory the dialog opens from lists both",
+    )
     amount: int = Field(validation_alias="A")
     from_stronghold: int = Field(validation_alias="S", default=0, description="1 to dismiss from the stronghold")
 
@@ -152,7 +160,7 @@ class StoreSoldiersRequest(BaseRequest):
 
     command = "sts"
 
-    wod_id: int = Field(validation_alias="WID")
+    wod_id: EnumOrInt["Unit"] = Field(validation_alias="WID", description="The soldiers to store")
     amount: int = Field(validation_alias="A")
 
 
@@ -182,7 +190,7 @@ class TakeSoldiersRequest(BaseRequest):
 
     command = "tas"
 
-    wod_id: int = Field(validation_alias="WID")
+    wod_id: EnumOrInt["Unit"] = Field(validation_alias="WID", description="The soldiers to take out")
     amount: int = Field(validation_alias="A")
 
 

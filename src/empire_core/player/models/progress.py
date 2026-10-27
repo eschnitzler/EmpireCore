@@ -564,7 +564,9 @@ class AchievementProgress(BasePayload):
 
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
-    achievement_id: ClientInt = Field(validation_alias="AID", default=0, description="The achievement's id")
+    achievement_id: Annotated[
+        Literal[0] | EnumOrInt["Achievement"], Field(union_mode="left_to_right"), BeforeValidator(js_int)
+    ] = Field(validation_alias="AID", default=0, description="The achievement; 0 when not sent")
     progress: Numbers = Field(
         validation_alias="P",
         default=(),

@@ -88,7 +88,7 @@ from .models import (
 from .service import BattleReportDetail, MessagesService
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import Event, Gem, GeneralAbility, LegendSkill, TreasureMapId
+    from empire_core.gamedata import Event, Gem, GeneralAbility, LegendSkill, Tool, TreasureMapId, Unit
 
 __all__ = [
     "MessagesSentToday",
@@ -175,10 +175,14 @@ __all__ = [
     "GeneralAbility",
     "LegendSkill",
     "TreasureMapId",
+    "Tool",
+    "Unit",
 ]
 
 
 if not TYPE_CHECKING:
     __getattr__ = lazy_exports(
-        __name__, "empire_core.gamedata.ids", ("Event", "Gem", "GeneralAbility", "LegendSkill", "TreasureMapId")
+        __name__,
+        "empire_core.gamedata.ids",
+        ("Event", "Gem", "GeneralAbility", "LegendSkill", "Tool", "TreasureMapId", "Unit"),
     )

@@ -1,7 +1,5 @@
 """Commanders, castellans, generals, skills and equipment: protocol models."""
 
-from empire_core.protocol.base import CommanderEffect, CommanderEffects
-
 from .auto_sell import (
     AUTO_SELL_RARENESSES,
     AUTO_SELL_SLOTS,
@@ -72,6 +70,8 @@ from .roster import (
     AlienEquipment,
     Castellan,
     Commander,
+    CommanderEffect,
+    CommanderEffects,
     CommanderRoster,
     GetCommandersRequest,
     GetCommandersResponse,

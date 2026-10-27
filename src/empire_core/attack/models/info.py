@@ -14,7 +14,7 @@ from pydantic.functional_validators import ModelWrapValidatorHandler
 
 from empire_core.army.models.units import UnitInventory
 from empire_core.army.spy_army import SpyArmyBlock
-from empire_core.commanders.models.roster import Commander, CommanderRoster
+from empire_core.commanders.models.roster import Commander, CommanderEffects, CommanderRoster
 from empire_core.enums import Kingdom
 from empire_core.gamedata import EnumOrInt
 from empire_core.map.models.areas import MapObject
@@ -23,7 +23,6 @@ from empire_core.protocol.base import (
     BasePayload,
     BaseRequest,
     BaseResponse,
-    CommanderEffects,
     int_entries,
     read_or_none,
     readable_list,

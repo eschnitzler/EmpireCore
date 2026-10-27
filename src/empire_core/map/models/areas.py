@@ -10,11 +10,12 @@ Commands:
 from __future__ import annotations
 
 import logging
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from pydantic import ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
 from empire_core.enums import FactionProtectionStatus, Kingdom, MapItemType, PeaceModeStatus
+from empire_core.gamedata import EnumOrInt
 from empire_core.protocol.base import (
     BasePayload,
     BaseRequest,
@@ -35,6 +36,9 @@ from empire_core.protocol.js import (
 
 from .items import MapAreaItem, parse_area_rows
 from .owners import AllianceEmblem, OwnerCastlePosition, OwnerCrest, OwnerFaction, owner_positions
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import Title
 
 logger = logging.getLogger(__name__)
 
@@ -149,8 +153,12 @@ class MapObject(BasePayload):
     legendary_level: ParseInt = Field(validation_alias="LL", default=0, description="Legendary level")
     honor: ParseInt = Field(validation_alias="H", default=0, description="Honor")
     achievement_points: ParseInt = Field(validation_alias="AVP", default=0, description="Achievement points")
-    prefix_title: int | None = Field(validation_alias="PRE", default=None, description="Title id shown before the name")
-    suffix_title: int | None = Field(validation_alias="SUF", default=None, description="Title id shown after the name")
+    prefix_title: EnumOrInt["Title"] | None = Field(
+        validation_alias="PRE", default=None, description="The title shown before the name; None for none"
+    )
+    suffix_title: EnumOrInt["Title"] | None = Field(
+        validation_alias="SUF", default=None, description="The title shown after the name; None for none"
+    )
     current_top_x: ParseInt = Field(validation_alias="TOPX", default=0, description="Top-ranking placement marker")
     might_points: ParseInt = Field(validation_alias="MP", default=0, description="Might points")
     is_ruin: bool = Field(validation_alias="R", default=False, description="The player's castles are ruins")
@@ -190,6 +198,12 @@ class MapObject(BasePayload):
         Client: ``WorldMapOwnerInfoVO.isLegend`` (bundle line 10892)
         """
         return self.legendary_level > 0
+
+    @field_validator("prefix_title", "suffix_title", mode="before")
+    @classmethod
+    def _title(cls, value: Any) -> Any:
+        # Client: getTitleByTitleID(e.PRE / e.SUF) looks the id up as sent and finds none for -1 (bundle line 10794)
+        return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
 
     @field_validator("owner_id", "alliance_id", mode="before")
     @classmethod

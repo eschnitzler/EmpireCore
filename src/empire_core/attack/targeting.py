@@ -38,6 +38,7 @@ from empire_core.combat import Bonus, TargetRead, invasion_camp_level, owner_id_
 from empire_core.commanders.models.roster import Commander
 from empire_core.enums import GGEError, Kingdom, MapItemType
 from empire_core.exceptions import CommandError
+from empire_core.gamedata import EnumOrInt
 from empire_core.gamedata.ids.events import Event
 from empire_core.map.models.areas import GetMapAreaResponse, MapObject
 from empire_core.map.models.items import MapAreaItem
@@ -45,6 +46,7 @@ from empire_core.protocol.base import BaseRequest
 
 if TYPE_CHECKING:
     from empire_core.attack.service.sending import SendingMixin
+    from empire_core.gamedata import LegendSkill
 
 logger = logging.getLogger(__name__)
 
@@ -190,7 +192,7 @@ class _Target:
     robber_baron_camp_kingdom: Kingdom = Kingdom.GREEN
     spy_army: SpyArmy | None = None
     castellan: Commander | None = None
-    defender_legend_skill_ids: Sequence[int] | None = None
+    defender_legend_skill_ids: Sequence[EnumOrInt["LegendSkill"]] | None = None
     area_bonuses: list[Bonus] | None = None
     conquer: bool = False
     inventory: dict[int, int] | None = None

@@ -51,7 +51,7 @@ class QuestsService(BaseService):
         """Your active quests by id, in id order, as the last ``qli`` and the quest pushes since left them; a copy."""
         return self.client.state.get_quests()
 
-    def quest(self, quest_id: int) -> Quest | None:
+    def quest(self, quest_id: QuestId) -> Quest | None:
         """An active quest, or None when it is not active."""
         return self.client.state.get_quest(quest_id)
 

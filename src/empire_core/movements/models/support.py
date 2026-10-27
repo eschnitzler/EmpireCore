@@ -14,12 +14,13 @@ from typing import Any
 
 from pydantic import Field, field_validator
 
+from empire_core.commanders.models.roster import CommanderEffects
 from empire_core.enums import Kingdom
 from empire_core.gamedata import WodAmounts, WodAmountSlots
 from empire_core.map.models.areas import MapObject
 from empire_core.map.models.items import TargetRow
 from empire_core.movements.models.movement import NO_HORSE, HorseBoosterId, SentMovementResponse
-from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, CommanderEffects
+from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse
 from empire_core.protocol.js import js_truthy, movement_targets
 
 # =============================================================================

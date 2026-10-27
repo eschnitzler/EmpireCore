@@ -5,7 +5,7 @@ import logging
 
 import pytest
 
-from empire_core.gamedata import GeneralAbility, GeneralDef, GeneralSkill, LegendSkill, SceatSkill
+from empire_core.gamedata import General, GeneralAbility, GeneralDef, GeneralSkill, LegendSkill, SceatSkill
 from empire_core.protocol.models import (
     AddGeneralXpRequest,
     AssignGeneralRequest,
@@ -60,12 +60,12 @@ class TestGenerals:
         response = GetGeneralsResponse.model_validate(self.LIVE)
 
         assert [g.general_id for g in response.generals] == [101, 102]
-        assert response.skill_ids(101) == (
+        assert response.skill_ids(General.TORIL) == (
             GeneralSkill.TORIL_COURTYARD_SIZE_LEGENDARY_L1,
             GeneralSkill.TORIL_REINFORCEMENT_WAVE_LEGENDARY_L1,
             10317,
         )
-        assert type(response.skill_ids(101)[2]) is int
+        assert type(response.skill_ids(General.TORIL)[2]) is int
 
     def test_skills_are_general_skills_and_an_unknown_one_stays_an_int(self, caplog):
         with caplog.at_level(logging.WARNING):
@@ -110,11 +110,11 @@ class TestGenerals:
         assert general.ability_ids == [10303]
 
     def test_a_general_with_nothing_unlocked(self):
-        assert GetGeneralsResponse.model_validate(self.LIVE).skill_ids(102) == ()
+        assert GetGeneralsResponse.model_validate(self.LIVE).skill_ids(General.LEO) == ()
 
     def test_an_unknown_general_is_not_an_error(self):
         # Sizing a wave must not fail because a general is missing.
-        assert GetGeneralsResponse.model_validate(self.LIVE).skill_ids(999) == ()
+        assert GetGeneralsResponse.model_validate(self.LIVE).skill_ids(General.ALYSSA) == ()
 
     def test_an_empty_payload(self):
         assert GetGeneralsResponse.model_validate({}).generals == []

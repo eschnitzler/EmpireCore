@@ -10,18 +10,22 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterable, Sequence
-from typing import NamedTuple, Protocol
+from typing import TYPE_CHECKING, NamedTuple, Protocol
 
 from empire_core.army.spy_army import SpyArmy
 from empire_core.commanders.models.roster import Commander
 from empire_core.enums import BerimondFaction, CombatEffectType, Flank, Kingdom, MapItemType, NPCOwner
-from empire_core.gamedata import GameData, NpcCampDefence, ScalingCampId, ToolStats
+from empire_core.gamedata import EnumOrInt, GameData, NpcCampDefence, ScalingCampId, ToolStats
 from empire_core.gamedata.data import BERIMOND_INVASION_CAMP_TABLE
 from empire_core.gamedata.ids.events import Event
 from empire_core.map.models.items import MapAreaItem
 
 from .bonuses import Bonus, EffectResolver, commander_bonuses, effect_value_bonuses
 from .effects import DefenderFlankEffects
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import LegendSkill
+
 
 logger = logging.getLogger(__name__)
 
@@ -426,7 +430,7 @@ def spied_castle_defense(
     melee_bonus: float = 1.0,
     range_bonus: float = 1.0,
     castellan: Commander | None = None,
-    defender_legend_skill_ids: Sequence[int] | None = None,
+    defender_legend_skill_ids: Sequence[EnumOrInt["LegendSkill"]] | None = None,
     area_type: int | None = None,
     game_data: GameData | None = None,
 ) -> dict[Flank, DefenderFlankEffects]:

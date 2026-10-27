@@ -15,16 +15,20 @@ These act on the castle the session has joined (``jca``);
 
 from __future__ import annotations
 
-from typing import Annotated, Any, ClassVar
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Literal
 
 from pydantic import BeforeValidator, Field, model_validator
 
 from empire_core.enums import Kingdom, ProductionListId, RecruitmentMode, SlotType
+from empire_core.gamedata import UnitOrTool
 from empire_core.gamedata.lenient import EnumOrInt
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, CurrencyBlock, object_or_none
 from empire_core.protocol.js import ParseInt, js_int, js_loose_equals, js_number, js_same_number, js_truthy
 
 from .units import BUY_UNIT_PACKAGE_SK, RawBlock, UnitInventoryBlock
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import Unit
 
 # =============================================================================
 # Production lists (the spl block)
@@ -51,7 +55,9 @@ class ProductionSlot(BasePayload):
         default=0,
         description="Index in the queue, the position boost and cancel requests take; 0 for the slot producing now",
     )
-    wod_id: int = Field(validation_alias="WID", default=0, description="Unit or tool wod id")
+    wod_id: Annotated[Literal[0] | UnitOrTool, Field(union_mode="left_to_right")] = Field(
+        validation_alias="WID", default=0, description="The unit or tool in the slot; 0 for none"
+    )
     amount: int = Field(validation_alias="TUA", default=0, description="Units in the slot")
     boost_count: int = Field(
         validation_alias="CBS",
@@ -150,7 +156,9 @@ class HospitalSlot(BasePayload):
     position: int = Field(
         default=0, description="Index in the hospital list, the position cancel and skip requests take"
     )
-    wod_id: int = Field(default=0, description="Unit wod id; -1 for a free slot, -2 for a locked one")
+    wod_id: Annotated[Literal[-2, -1, 0] | EnumOrInt["Unit"], Field(union_mode="left_to_right")] = Field(
+        default=0, description="The unit in the slot; -1 for a free slot, -2 for a locked one, 0 when not sent"
+    )
     amount: int = Field(default=0)
     remaining_seconds: int = Field(default=0)
     recruitment_speed: float = Field(default=0.0, description="Recruitment speed")
@@ -292,7 +300,7 @@ class ProduceUnitsRequest(BaseRequest):
     command = "bup"
 
     list_id: ProductionListId = Field(validation_alias="LID", description="The list to produce into")
-    wod_id: int = Field(validation_alias="WID", description="Unit or tool wod id")
+    wod_id: UnitOrTool = Field(validation_alias="WID", description="The unit or tool to produce")
     amount: int = Field(validation_alias="AMT", description="How many to produce")
     private_offer_id: int = Field(
         validation_alias="PO",
@@ -322,7 +330,9 @@ class AddedUnit(BasePayload):
     ``unitInventory.addUnit(O.W, O.AMT)`` when ``O`` is set and not 0
     """
 
-    wod_id: int = Field(validation_alias="W", default=0)
+    wod_id: Annotated[Literal[0] | UnitOrTool, Field(union_mode="left_to_right")] = Field(
+        validation_alias="W", default=0, description="The unit or tool added; 0 when not sent"
+    )
     amount: int = Field(validation_alias="AMT", default=0)
 
     @model_validator(mode="before")

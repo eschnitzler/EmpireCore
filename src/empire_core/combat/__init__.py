@@ -90,7 +90,7 @@ from .tools import (
 )
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import GlobalEffect
+    from empire_core.gamedata import GeneralSkill, GlobalEffect, LegendSkill, RaidBoss, SceatSkill
 
 __all__ = [
     "AttackerFlankEffects",
@@ -173,8 +173,14 @@ __all__ = [
     "Kingdom",
     "GlobalEffect",
     "BerimondFaction",
+    "GeneralSkill",
+    "LegendSkill",
+    "RaidBoss",
+    "SceatSkill",
 ]
 
 
 if not TYPE_CHECKING:
-    __getattr__ = lazy_exports(__name__, "empire_core.gamedata.ids", ("GlobalEffect",))
+    __getattr__ = lazy_exports(
+        __name__, "empire_core.gamedata.ids", ("GeneralSkill", "GlobalEffect", "LegendSkill", "RaidBoss", "SceatSkill")
+    )

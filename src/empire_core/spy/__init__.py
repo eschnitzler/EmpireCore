@@ -23,7 +23,7 @@ from .risk import SabotagePlan, SpyPlan, plan_mission, plan_sabotage, sabotage_r
 from .service import SpyHandle, SpyResult, SpyService
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import Horse
+    from empire_core.gamedata import Horse, LegendSkill, Research
 
 __all__ = [
     "AutoSpyRequest",
@@ -54,8 +54,10 @@ __all__ = [
     "SpyOutcome",
     "SpyStep",
     "Horse",
+    "LegendSkill",
+    "Research",
 ]
 
 
 if not TYPE_CHECKING:
-    __getattr__ = lazy_exports(__name__, "empire_core.gamedata.ids", ("Horse",))
+    __getattr__ = lazy_exports(__name__, "empire_core.gamedata.ids", ("Horse", "LegendSkill", "Research"))

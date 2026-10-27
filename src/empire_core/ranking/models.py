@@ -11,11 +11,12 @@ Commands:
 from __future__ import annotations
 
 import logging
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from pydantic import Field, ValidationError, ValidationInfo, field_serializer, field_validator, model_validator
 
 from empire_core.enums import RankingType
+from empire_core.gamedata import EnumOrInt
 from empire_core.map.models import MapObject
 from empire_core.protocol.base import (
     BasePayload,
@@ -28,6 +29,9 @@ from empire_core.protocol.base import (
 )
 from empire_core.protocol.js import ClientInt, js_falsy, js_int, js_loose_equals, js_string, js_truthy
 from empire_core.protocol.text import encode_json_text
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import Event
 
 logger = logging.getLogger(__name__)
 
@@ -358,7 +362,7 @@ class GetRankingListRequest(BaseRequest):
         default=None,
         description="The alliance event subdivision, for its subdivision ranking",
     )
-    event_id: int | None = Field(
+    event_id: EnumOrInt["Event"] | None = Field(
         validation_alias="EID",
         default=None,
         description="The alliance Grand Tournament or raid event",
@@ -418,7 +422,7 @@ class GetRankingWindowRequest(BaseRequest):
         default=None,
         description="The alliance event subdivision, for its subdivision ranking",
     )
-    event_id: int | None = Field(
+    event_id: EnumOrInt["Event"] | None = Field(
         validation_alias="EID",
         default=None,
         description="The alliance Grand Tournament or raid event",
@@ -464,7 +468,7 @@ class SearchRankingListRequest(BaseRequest):
         default=None,
         description="The alliance event subdivision, for its subdivision ranking",
     )
-    event_id: int | None = Field(
+    event_id: EnumOrInt["Event"] | None = Field(
         validation_alias="EID",
         default=None,
         description="The alliance Grand Tournament or raid event",

@@ -11,7 +11,7 @@ import pytest
 from empire_core.commanders import PREMIUM_COMMANDER_ID
 from empire_core.enums import Kingdom
 from empire_core.exceptions import CommandError, GameDataNotLoadedError, PremiumCommanderCostError
-from empire_core.gamedata import GameData
+from empire_core.gamedata import GameData, General, GeneralAbility
 from empire_core.protocol.models import EquipmentSlot, EquipmentType, WearerType
 from tests.service_helpers import conn, logged_in_state, make_client, wave, xt_packet
 
@@ -71,7 +71,7 @@ class TestGeneralCommands:
     def test_assign_general_returns_the_commander_list(self):
         client = make_client({"gla": xt_packet("gla", {"gli": {"C": [{"ID": 7, "GID": 103}], "B": []}})})
 
-        response = client.commanders.assign_general(7, 103)
+        response = client.commanders.assign_general(7, General.ALYSSA)
 
         assert conn(client).request_payloads == [("gla", {"LID": 7, "GID": 103})]
         assert [(c.commander_id, c.general_id) for c in response.commanders] == [(7, 103)]
@@ -79,7 +79,9 @@ class TestGeneralCommands:
     def test_set_abilities_sends_every_slot(self):
         client = make_client()
 
-        client.commanders.set_general_abilities(103, [(101031, 10073), (101033, -1)])
+        client.commanders.set_general_abilities(
+            General.ALYSSA, [(101031, GeneralAbility.HORDEBREAKER_L3), (101033, None)]
+        )
 
         assert conn(client).request_payloads == [("gaae", {"GID": 103, "SAIDS": [[101031, 10073], [101033, -1]]})]
 
@@ -102,7 +104,7 @@ class TestGeneralCommands:
         client = make_client({"grs": xt_packet("grs", error_code=114)})
 
         with pytest.raises(CommandError):
-            client.commanders.reset_general_skills(103)
+            client.commanders.reset_general_skills(General.ALYSSA)
 
 
 # =============================================================================

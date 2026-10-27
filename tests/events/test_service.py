@@ -75,11 +75,12 @@ class TestActiveEvents:
 
         events = client.events.get_active_events(lang="de")
 
-        assert [(e.event_id, e.event, e.display_name) for e in events] == [
-            (72, Event.NOMAD_INVASION_72, "de"),
-            (60, Event.NOBILITY_CONTEST, "NOBILITY_CONTEST"),
-            (999, None, "999"),
+        assert [(e.event_id, e.display_name) for e in events] == [
+            (Event.NOMAD_INVASION_72, "de"),
+            (Event.NOBILITY_CONTEST, "NOBILITY_CONTEST"),
+            (999, "999"),
         ]
+        assert events[0].event_id is Event.NOMAD_INVASION_72 and type(events[2].event_id) is int
         assert events[0].details is client.state.get_event(72)
 
     def test_a_dumped_event_keeps_its_own_fields(self, monkeypatch):
