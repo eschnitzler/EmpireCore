@@ -10,6 +10,7 @@ import weakref
 from collections.abc import Callable
 from typing import Any
 
+from empire_core.commanders.models.roster import Commander
 from empire_core.gamedata import Collectable, UnitOrTool
 from empire_core.movements.models import MovementArea, MovementOwner, MovementWrapper
 from empire_core.movements.tracked import Movement, MovementResources
@@ -30,6 +31,10 @@ MOVEMENT_PARSE_WARN_INTERVAL = 60.0
 
 # The movement clock wakes at least this often, as a far-off arrival's wait would overflow Condition.wait
 MOVEMENT_CLOCK_MAX_WAIT = 3600.0
+
+# How long after one of your movements lands its commander stays away while
+# its way home is not in state yet (see get_away_commanders)
+LANDED_COMMANDER_HOLD = 10.0
 
 
 class MovementState(StateBase):
@@ -207,6 +212,17 @@ class MovementState(StateBase):
     movement too, so it fires when the army gets back; check
     ``movement.is_returning`` to tell the two apart.
 
+    The arrived movement is still dropped at its arrival, as in the client,
+    and its way home is a new movement the server can send a little after
+    it (a live capture showed ~0.3 s). In that window the
+    client counts the commander as free (``updateMapmovements``, bundle line
+    133719, has dropped the arrived movement, and ``LordVO.isAvailableForMovement``,
+    bundle line 26656, finds it in no movement), but the server refuses a
+    send it leads with ``LORD_IS_USED``. The library goes beyond the client
+    here: :meth:`get_away_commanders` holds the commander of your own arrived
+    movement as away until its way home is stored, or for
+    ``LANDED_COMMANDER_HOLD`` seconds.
+
     Two signatures are supported, picked per callback from its own
     parameter list::
 
@@ -381,6 +397,9 @@ class MovementState(StateBase):
             mov.estimated_size = mov.estimated_size or existing.estimated_size
             mov.commander = mov.commander or existing.commander
 
+        if mov.is_mine and mov.is_returning and mov.commander is not None:
+            self._landed_commanders.pop(mov.commander.commander_id, None)
+
         alliance = self.local_player.alliance if self.local_player else None
         self._announcer.stored(
             existing, mov, arrived=mid in self._arrival_dispatched, alliance_id=alliance.id if alliance else None
@@ -406,7 +425,9 @@ class MovementState(StateBase):
         is its arrival. Arrival and end are taken when the movement is
         stored, so the movements are scanned only once one of them is due;
         the scan then goes through them in the order they were first seen,
-        as the client's does.
+        as the client's does. When one of your own movements led by a
+        commander leaves state, one heading out holds the commander as away
+        and one on its way home releases it (see :meth:`get_away_commanders`).
 
         Client: ``CastleArmyData.updateMapmovements`` (bundle line 133670).
         """
@@ -426,6 +447,12 @@ class MovementState(StateBase):
                     del self.movements[mid]
                     del self._movement_times[mid]
                     dispatched.discard(mid)
+                    if mov.is_mine and mov.commander is not None:
+                        if mov.is_returning:
+                            self._landed_commanders.pop(mov.commander.commander_id, None)
+                        else:
+                            hold_until = times[0] + LANDED_COMMANDER_HOLD
+                            self._landed_commanders[mov.commander.commander_id] = (mov.commander, hold_until)
                 else:
                     due = times[1] if mid in dispatched else times[0]
                     if due < next_due:
@@ -627,6 +654,30 @@ class MovementState(StateBase):
         with self._lock:
             self._advance_movements()
             return list(self.movements.values())
+
+    def get_away_commanders(self) -> list[Commander]:
+        """The commanders your movements keep away, as those movements carry them.
+
+        A commander leading one of your movements in state, returning ones
+        included, and one whose movement landed, until a returning movement it
+        leads is stored or ``LANDED_COMMANDER_HOLD`` seconds after the landed
+        movement's arrival.
+
+        The library goes beyond the client here (see :meth:`on_movement_arrived`):
+        ``LordVO.isAvailableForMovement`` (bundle line 26656) checks only the
+        movements in ``mapMovements``, which ``updateMapmovements`` (bundle line
+        133719) drops at arrival, while the server answers ``LORD_IS_USED`` until
+        the army is on its way home.
+        """
+        with self._lock:
+            self._advance_movements()
+            now = time.time()
+            self._landed_commanders = {cid: held for cid, held in self._landed_commanders.items() if now < held[1]}
+            away = {cid: commander for cid, (commander, _) in self._landed_commanders.items()}
+            for mov in self.movements.values():
+                if mov.is_mine and mov.commander is not None:
+                    away[mov.commander.commander_id] = mov.commander
+            return list(away.values())
 
     def get_incoming_movements(self) -> list[Movement]:
         """Other players' armies heading to the local player (see ``Movement.is_incoming``); occupations are not.
