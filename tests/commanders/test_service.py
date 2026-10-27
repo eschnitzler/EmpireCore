@@ -9,9 +9,11 @@ from typing import Any
 import pytest
 
 from empire_core.commanders import PREMIUM_COMMANDER_ID
+from empire_core.commanders.models.skills import OwnedGeneral
 from empire_core.enums import Kingdom
 from empire_core.exceptions import CommandError, GameDataNotLoadedError, PremiumCommanderCostError
 from empire_core.gamedata import GameData, General, GeneralAbility
+from empire_core.gamedata.models import GeneralDef
 from empire_core.protocol.models import EquipmentSlot, EquipmentType, WearerType
 from tests.service_helpers import conn, logged_in_state, make_client, wave, xt_packet
 
@@ -84,6 +86,16 @@ class TestGeneralCommands:
         )
 
         assert conn(client).request_payloads == [("gaae", {"GID": 103, "SAIDS": [[101031, 10073], [101033, -1]]})]
+
+    def test_a_general_is_taken_as_its_game_data_row_or_an_owned_general(self):
+        client = make_client({"gla": xt_packet("gla", {"gli": {"C": [], "B": []}})})
+        row = GeneralDef.model_validate({"generalID": 103, "generalName": "Alyssa"})
+        owned = OwnedGeneral.model_validate({"GID": 103})
+
+        client.commanders.assign_general(7, row)
+        client.commanders.reset_general_skills(owned)
+
+        assert conn(client).request_payloads == [("gla", {"LID": 7, "GID": 103}), ("grs", {"GID": 103})]
 
     @pytest.mark.parametrize(
         ("call", "command", "payload"),

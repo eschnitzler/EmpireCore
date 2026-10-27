@@ -14,14 +14,14 @@ for general in client.commanders.get_generals():
     print(general.general_id, general.star_level, general.ability_ids)
 ```
 
-Give a commander a general, or take it away with `general_id=None`, then choose
+Give a commander a general, or take it away with `general=None`, then choose
 the general's abilities as `(slot_id, ability)` pairs, `None` to clear a slot. A general's `selected_abilities` are its slots, each a
 `SelectedAbility` whose `ability_id` is a `GeneralAbility`, or None when empty:
 
 ```python
 from empire_core.commanders import General, GeneralAbility
 
-client.commanders.assign_general(commander_id=3, general_id=General.TORIL)
+client.commanders.assign_general(commander_id=3, general=General.TORIL)
 client.commanders.set_general_abilities(
     General.TORIL, [(1, GeneralAbility.POWER_SURGE_L1), (2, GeneralAbility.POWER_SURGE_L2)]
 )
@@ -29,13 +29,14 @@ client.commanders.set_general_abilities(
 
 `unlock_general_skill`, `reset_general_skills` and `add_general_xp` change a general's skill tree the
 same way. General, ability and skill ids differ between client releases, so
-look them up by name:
+look them up by name. The general calls take the game data row itself, or one of
+`get_generals()`:
 
 ```python
 data = client.load_game_data()
 toril = data.general("Toril")
 if toril is not None:
-    client.commanders.assign_general(commander_id=3, general_id=toril.general_id)
+    client.commanders.assign_general(commander_id=3, general=toril)
 ```
 
 See [Lookups by name](game-data.md#lookups-by-name) for the rest.
