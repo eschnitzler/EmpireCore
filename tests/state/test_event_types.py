@@ -27,7 +27,7 @@ from empire_core.events import (
     TravelingKnightsEvent,
     WheelOfFortuneEvent,
 )
-from empire_core.gamedata import GameData, QuestId
+from empire_core.gamedata import GameData, QuestId, RewardSetId
 from empire_core.gamedata.ids.events import Event
 from empire_core.map import MapObject
 from empire_core.quests import Quest
@@ -87,7 +87,7 @@ class TestScoreEvents:
 
         event = state.get_event(36)
         assert (event.own_points, event.league_id, event.kingdoms_league_mode) == (5, 2, False)
-        assert event.parts["A"] == EventPart(own_points=40, league_id=3, own_rank=4, reward_set_id=0)
+        assert event.parts["A"] == EventPart(own_points=40, league_id=3, own_rank=4, reward_set_id=RewardSetId(0))
 
         state.update_from_packet("pep", {"EID": 36, "OR": [2], "OP": [55], "PT": [100]})
 
@@ -127,8 +127,8 @@ class TestScoreEvents:
         event = state.get_event(129)
         assert isinstance(event, GrandTournamentEvent)
         assert (event.league_id, event.subdivision_id, event.division_round_id) == (2, 6, 9)
-        assert event.parts["SP"] == EventPart(own_points=12, own_rank=3, league_id=2, reward_set_id=4)
-        assert event.parts["A"] == EventPart(own_points=300, league_id=2, reward_set_id=4, sub_type=1)
+        assert event.parts["SP"] == EventPart(own_points=12, own_rank=3, league_id=2, reward_set_id=RewardSetId(4))
+        assert event.parts["A"] == EventPart(own_points=300, league_id=2, reward_set_id=RewardSetId(4), sub_type=1)
 
         state.update_from_packet("pep", {"EID": 129, "OR": [1, 8], "OP": [20, 310]})
 

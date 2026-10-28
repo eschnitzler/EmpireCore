@@ -46,7 +46,7 @@ from enum import IntEnum
 from pathlib import Path
 from typing import Any
 
-from empire_core.enums import Kingdom
+from empire_core.enums import BerimondLane, BerimondSpecialCampType, Kingdom, WearerType
 from empire_core.gamedata import AchievementCondition, CurrencyDef, GameData, QuestCondition, ResearchDef
 from empire_core.gamedata.tables import row_id
 from empire_core.texts import fetch_texts
@@ -324,6 +324,20 @@ ALLIANCE_TOWER_EFFECT_NAME = DisplayName(
     optional=True,
     shown="dialog_beyondTheHorizon_AllianceTower_<effect name>_name",
 )
+
+LEAGUE_NAME = DisplayName(
+    "dialog_highscore_league{value}",
+    "``CastleHighscoreDialog.setLeagueTitleById`` (bundle line 27528)",
+    when_known=True,
+)
+
+BERIMOND_CAMP_TEXT_IDS = {
+    BerimondSpecialCampType.WATCHTOWER: "faction_tower",
+    BerimondSpecialCampType.CAPITAL: "faction_capital",
+    BerimondSpecialCampType.RESOURCE_VILLAGE: "faction_village",
+}
+"""``areaNameString`` of ``FactionTowerMapobjectVO``, ``FactionCapitalMapobjectVO`` and ``FactionVillageMapobjectVO``
+(bundle lines 22840, 22792, 28559)."""
 
 FUSION_FORGE_TEXT_IDS = {1: "dialog_fusionHub_fusionForges_deco"}
 """``FusionForgeHubDialogMainItem.getNameTextId`` (bundle line 78081), by ``FusionConst.DECORATION_FORGE_ID``."""
@@ -648,6 +662,64 @@ def alliance_tower_effect_rows(data: GameData, texts: Texts | None) -> list[Row]
     return rows
 
 
+def league_type_rows(data: GameData, texts: Texts | None) -> list[Row]:
+    """
+    ``dialog_highscore_league<id>``, the highscore's title for the league ("Levels 20-29" -> ``LEVELS_20_29``), else
+    ``LEAGUE_<id>``, for every id the ``leaguetypes`` rows use.
+    """
+    ids = sorted({int(b.league_type_id) for b in data.league_brackets if b.league_type_id is not None})
+    return [Row(named(texts, LEAGUE_NAME(value=i)) or f"LEAGUE_{i}", i, id_text(i)) for i in ids]
+
+
+def equipment_effect_rows(data: GameData, effects: Table) -> list[Row]:
+    """
+    ``<effect>_<bonus>_<wearer>``: the ``Effect`` member it gives, its bonus (``M10`` for -10) and who wears it.
+
+    The game names no equipment effect: ``EquipmentBonusVO.descriptionText`` (bundle line 20951) describes the effect
+    it gives, ``equip_effect_description_<effect name>`` with the value filled in.
+    """
+    effect_names = {value: name for name, value in members(effects)}
+    rows = []
+    for e in data.equipment_effects.values():
+        effect_id, wearer = int(e.effect_id), e.wearer_id
+        effect = effect_names.get(effect_id, "NO_EFFECT" if effect_id < 0 else f"E{effect_id}")
+        bonus = f"M{-e.bonus}" if e.bonus < 0 else str(e.bonus)
+        wearer_name = wearer.name if isinstance(wearer, WearerType) else f"W{int(wearer)}"
+        row_value = int(e.equipment_effect_id)
+        rows.append(
+            Row(f"{effect}_{bonus}_{wearer_name}", row_value, id_text(row_value), (effect_id, e.bonus, int(wearer)))
+        )
+    return rows
+
+
+def daimyo_rows(rows: Iterable[Any]) -> list[Row]:
+    """
+    ``RANK_<rank>_L<level>``: the game names the area by its rank (``Daimyo castle - Rank {0}``,
+    ``DaimyoCastleMapObjectVO.areaNameString``, bundle line 19682), and each rank has a row per level.
+    """
+    return [
+        Row(f"RANK_{r.rank}{level_suffix(r.level)}", int(r.camp_id), id_text(r.camp_id), (r.rank, r.level))
+        for r in rows
+    ]
+
+
+def berimond_special_camp_rows(data: GameData, texts: Texts | None) -> list[Row]:
+    """
+    The lane's faction and place, and the camp's English name: ``GERBRANDT_TOP_WATCHTOWER``, ``GERBRANDT_CAPITAL``,
+    ``RESOURCE_VILLAGE``. The watchtowers of a lane share their name, so each carries its id.
+    """
+    rows = []
+    for c in data.berimond_special_camps.values():
+        kind, lane = c.camp_type, c.lane_id
+        text_id = BERIMOND_CAMP_TEXT_IDS.get(kind) if isinstance(kind, BerimondSpecialCampType) else None
+        name = (named(texts, text_id) if text_id else None) or to_snake(str(getattr(kind, "name", kind)))
+        place = lane.name.removesuffix("_CAPITAL") if isinstance(lane, BerimondLane) else ""
+        camp_id = int(c.special_camp_id)
+        base = "_".join(part for part in (place, identifier(name, "")) if part) or f"CAMP_{camp_id}"
+        rows.append(Row(base, camp_id, id_text(camp_id), (str(getattr(kind, "value", kind)), int(lane))))
+    return rows
+
+
 def building_rows(data: GameData) -> list[Row]:
     return [
         Row(
@@ -736,6 +808,20 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
         return to_snake(general_names.get(general_id) or f"G{general_id}")
 
     currencies = currency_names(data, texts)
+    effects = Table(
+        "effects",
+        "Effect",
+        "E",
+        "Effect ids from the ``effects`` table.",
+        "``EffectVO.parseXML`` (bundle line 41702)",
+        [Row(to_snake(e.name), e.effect_id, id_text(e.effect_id), (e.effect_type_id,)) for e in data.effects.values()],
+        (Attr("effect_type_id", "int", "The effect type it modifies, an ``EffectType`` value."),),
+    )
+    daimyo_doc = (
+        "ids from the ``{}`` table, named from the rank the game names the area by and the level: the Legion of "
+        "the Daimyos' {}."
+    )
+    daimyo_attrs = (Attr("rank", "int", "Its rank."), LEVEL)
 
     return [
         Table(
@@ -774,18 +860,7 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
             (LEVEL, Attr("category", "str", 'Attack or Defence; "0" when the row has none.'), TEXT_ID),
             display=UNIT_NAME,
         ),
-        Table(
-            "effects",
-            "Effect",
-            "E",
-            "Effect ids from the ``effects`` table.",
-            "``EffectVO.parseXML`` (bundle line 41702)",
-            [
-                Row(to_snake(e.name), e.effect_id, id_text(e.effect_id), (e.effect_type_id,))
-                for e in data.effects.values()
-            ],
-            (Attr("effect_type_id", "int", "The effect type it modifies, an ``EffectType`` value."),),
-        ),
+        effects,
         Table(
             "effect_types",
             "EffectType",
@@ -1284,6 +1359,65 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
             display=ALLIANCE_TOWER_EFFECT_NAME,
         ),
         Table(
+            "league_types",
+            "LeagueType",
+            "L",
+            "League type ids, the ``LID`` of the highscore commands, named from the highscore's title for each "
+            "league: its level band in the honour highscore. An event numbers its own leagues from 1 too, so in "
+            "an event a member is that event's league of the id; ``GameData.league_type`` gives its band.",
+            "``LeagueTypeVO.parseXML`` (bundle line 91495); names from ``CastleHighscoreDialog.setLeagueTitleById`` "
+            "(bundle line 27528)",
+            league_type_rows(data, texts),
+            display=LEAGUE_NAME,
+        ),
+        Table(
+            "equipment_effects",
+            "EquipmentEffect",
+            "E",
+            "Equipment effect ids from the ``equipment_effects`` table, the bonuses equipment rolls, named from the "
+            "effect each gives, its bonus and who wears it.",
+            "``XmlEquipmentEffectVO.parseXml`` (bundle line 144264)",
+            equipment_effect_rows(data, effects),
+            (
+                Attr("effect_id", "int", "The effect it gives, an ``Effect`` value."),
+                Attr("bonus", "int", "Its bonus."),
+                Attr("wearer_id", "int", "Who wears it, a ``WearerType`` value."),
+            ),
+        ),
+        Table(
+            "daimyo_camps",
+            "DaimyoCastle",
+            "D",
+            "Daimyo castle " + daimyo_doc.format("daimyoCastles", "daimyo castles"),
+            "``DaimyoXmlVO.parseXML`` (bundle line 61663), read by ``DaimyoCastleXmlData`` (bundle line 141378)",
+            daimyo_rows(data.daimyo_castles.values()),
+            daimyo_attrs,
+        ),
+        Table(
+            "daimyo_camps",
+            "DaimyoTownship",
+            "T",
+            "Township " + daimyo_doc.format("daimyoTownships", "townships"),
+            "``DaimyoXmlVO.parseXML`` (bundle line 61663), read by ``DaimyoTownshipXmlData`` (bundle line 141400)",
+            daimyo_rows(data.daimyo_townships.values()),
+            daimyo_attrs,
+        ),
+        Table(
+            "berimond_special_camps",
+            "BerimondSpecialCamp",
+            "C",
+            "Battle for Berimond special camp ids from the ``specialcamps`` table: watchtowers, capitals and the "
+            "resource village, named from the lane's faction and place and the camp's English name.",
+            "``FactionEventVO.parseAdditionalXmlFromRoot`` (bundle line 7398); names from ``areaNameString`` of "
+            "the faction map objects (bundle lines 22840, 22792, 28559), lanes from ``FactionCapitalInfoVO`` "
+            "(bundle line 88021)",
+            berimond_special_camp_rows(data, texts),
+            (
+                Attr("camp_type", "str", "What it is, a ``BerimondSpecialCampType`` value."),
+                Attr("lane_id", "int", "Its lane, a ``BerimondLane`` value; 0 for none."),
+            ),
+        ),
+        Table(
             "difficulty_types",
             "DifficultyType",
             "D",
@@ -1436,7 +1570,7 @@ member, e.g. ``game_data.units[Unit.MEAD_RANGER_L6]``.
 Enums whose rows the game names by a text (units, tools, currencies,
 researches, generals, legend and sceat skills, events, gems, achievements,
 titles, crest layouts, main quests, prebuilt castles, private villages,
-fusion forges, judgements, treasure maps) have ``display_name(lang="en")``, the
+fusion forges, judgements, treasure maps, league types) have ``display_name(lang="en")``, the
 name the game shows: ``Unit.MEAD_RANGER_L6.display_name("de")``. It reads the
 language file, fetched on first use and cached (:mod:`empire_core.texts`).
 
@@ -1444,11 +1578,12 @@ language file, fetched on first use and cached (:mod:`empire_core.texts`).
 :func:`is_current` says whether a loaded :class:`GameData` is that version. For
 anything newer, use the named lookups on :class:`GameData`.
 
-Equipment, relic effects and alliance buffs have no enum, as the game names
-none of their rows; look them up by id on :class:`GameData`
-(``equipment_effects``, ``relic_effects``, ``alliance_buffs``). Nor do the
-27,000 rewards: the game shows no text for one, and the notes some rows carry
-name where it is given, not the reward.
+Relic effects and alliance buffs have no enum, as the game names none of
+their rows; look them up by id on :class:`GameData` (``relic_effects``,
+``alliance_buffs``). Equipment effects, which the game names by nothing but the
+effect they give, are named from that effect, their bonus and their wearer. Nor
+do the 27,000 rewards have one: the game shows no text for one, and the notes
+some rows carry name where it is given, not the reward.
 
 Regenerate with ``uv run python scripts/generate_gamedata_ids.py``."""
 
@@ -1642,19 +1777,19 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    if args.items:
-        payload = json.loads(args.items.read_text())
-        version = items_version(args.items, payload)
-        if not VERSION.fullmatch(version):
-            raise SystemExit(f"items version {version!r} is not dotted digits")
-        data = GameData.parse(version, payload)
-    else:
-        data = GameData.load()
-        if not VERSION.fullmatch(data.version):
-            raise SystemExit(f"items version {data.version!r} is not dotted digits")
-
-    texts = Texts(json.loads(args.texts.read_text()) if args.texts else fetch_texts("en"))
+    # Loading reads the rows that name a new table's enum too
     with enums_not_generated_yet() as stood_in:
+        if args.items:
+            payload = json.loads(args.items.read_text())
+            version = items_version(args.items, payload)
+            if not VERSION.fullmatch(version):
+                raise SystemExit(f"items version {version!r} is not dotted digits")
+            data = GameData.parse(version, payload)
+        else:
+            data = GameData.load()
+            if not VERSION.fullmatch(data.version):
+                raise SystemExit(f"items version {data.version!r} is not dotted digits")
+        texts = Texts(json.loads(args.texts.read_text()) if args.texts else fetch_texts("en"))
         table_list = tables(data, texts)
         unknown = stood_in - {t.enum for t in table_list}
         if unknown:

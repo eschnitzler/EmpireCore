@@ -41,8 +41,11 @@ if TYPE_CHECKING:
         Building,
         ConstructionItem,
         CurrencyId,
+        DaimyoCastle,
+        DaimyoTownship,
         Effect,
         EffectType,
+        EquipmentEffect,
         EquipmentGroup,
         Event,
         Gem,
@@ -52,6 +55,7 @@ if TYPE_CHECKING:
         GeneralSkill,
         GlobalEffect,
         Horse,
+        LeagueType,
         LegendSkill,
         RaidBoss,
         SceatSkill,
@@ -851,14 +855,14 @@ class EquipmentEffectValue(_EffectEntry):
     """
     One bonus of an equipment set or default commander: an equipment effect id and its value.
 
-    The id indexes ``GameData.equipment_effects``, not the effects table; equipment effects have no enum.
+    The id indexes ``GameData.equipment_effects``, not the effects table.
 
     Client: ``EquipmentBonusVO.parseEquipmentFromValueString`` (bundle line 20940)
     """
 
     id_field: ClassVar[str] = "equipment_effect_id"
 
-    equipment_effect_id: int = Field(description="The equipment effect, a GameData.equipment_effects key")
+    equipment_effect_id: GameDataId["EquipmentEffect"] = Field(description="The equipment effect")
 
 
 class EffectSpecRow(_Row):
@@ -1119,7 +1123,7 @@ class EquipmentEffectDef(_Row):
     Client: ``XmlEquipmentEffectVO.parseXml`` (bundle line 144158)
     """
 
-    equipment_effect_id: int = Field(
+    equipment_effect_id: GameDataId["EquipmentEffect"] = Field(
         validation_alias="equipmentEffectID",
         description="The id an item's bonus row names",
     )
@@ -1677,22 +1681,43 @@ class NpcCampDefence(_Row):
         return parse_ids(self.raw_defense_tools)
 
 
-class EventCampDef(_Row):
+class _DaimyoAreaRow(_Row):
     """
-    One rank of a daimyo castle or township.
+    One rank and level of a daimyo castle or township.
 
-    A map row names the rank rather than the level, so the level, and the
-    fortification that comes with it, are looked up here.
+    A map row names the row rather than the level, so the level, and the fortification that comes with it, are
+    looked up here.
+
+    Client: ``DaimyoXmlVO.parseXML`` (bundle line 61663)
     """
 
-    camp_id: int = Field(validation_alias="id", default=0)
-    rank: int = 0
-    level: int = 0
-    wall_bonus: float = Field(validation_alias="wallBonus", default=0)
-    gate_bonus: float = Field(validation_alias="gateBonus", default=0)
-    moat_bonus: float = Field(validation_alias="moatBonus", default=0)
-    guards: int = 0
-    unit_wall_count: int = Field(validation_alias="unitWallCount", default=0)
+    rank: int = Field(default=0, description="Its rank, as the game names the area (``Rank {0}``)")
+    level: int = Field(default=0, description="Its level")
+    wall_bonus: float = Field(validation_alias="wallBonus", default=0, description="Wall protection, in percent")
+    gate_bonus: float = Field(validation_alias="gateBonus", default=0, description="Gate protection, in percent")
+    moat_bonus: float = Field(validation_alias="moatBonus", default=0, description="Moat protection, in percent")
+    guards: int = Field(default=0, description="Its guards")
+    unit_wall_count: int = Field(validation_alias="unitWallCount", default=0, description="Units on its wall")
+
+
+class DaimyoCastleDef(_DaimyoAreaRow):
+    """
+    A ``daimyoCastles`` row, by the id a daimyo castle's map row names.
+
+    Client: ``DaimyoCastleXmlData.getDaimyoCastleByID`` (bundle line 141388)
+    """
+
+    camp_id: GameDataId["DaimyoCastle"] = Field(validation_alias="id", default=0, description="The row")
+
+
+class DaimyoTownshipDef(_DaimyoAreaRow):
+    """
+    A ``daimyoTownships`` row, by the id a township's map row names.
+
+    Client: ``DaimyoTownshipXmlData.getDaimyoTownshipByID`` (bundle line 141410)
+    """
+
+    camp_id: GameDataId["DaimyoTownship"] = Field(validation_alias="id", default=0, description="The row")
 
 
 class LeagueBracketDef(_Row):
@@ -1708,7 +1733,7 @@ class LeagueBracketDef(_Row):
     ``LeagueTypeVO.parseXML`` (bundle line 91460)
     """
 
-    league_type_id: int | None = Field(
+    league_type_id: GameDataId["LeagueType"] | None = Field(
         validation_alias="leaguetypeID",
         default=None,
         description="League type id; None when the row has none",
@@ -1761,7 +1786,8 @@ class LeagueBracketDef(_Row):
 
 __all__ = [
     "ECONOMY_SORT_CATEGORY",
-    "EventCampDef",
+    "DaimyoCastleDef",
+    "DaimyoTownshipDef",
     "FIGHT_TYPE_DEFENSIVE",
     "LeagueBracketDef",
     "FIGHT_TYPE_OFFENSIVE",

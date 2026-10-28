@@ -1,6 +1,6 @@
 """Event performance identifiers."""
 
-from enum import IntEnum
+from enum import Enum, IntEnum
 
 
 class PerformanceStatistic(IntEnum):
@@ -42,6 +42,38 @@ class BerimondFaction(IntEnum):
     """The House of Ursidae, the blue faction."""
     GERBRANDT = 1
     """The House of Gerbrandt, the red faction."""
+
+
+class BerimondSpecialCampType(str, Enum):
+    """
+    What a Battle for Berimond special camp is, by the name the game shows it; the value is its ``type`` column.
+
+    Client: ``FactionEventVO.parseAdditionalXmlFromRoot`` (bundle line 7398) reads ``DUNGEON`` rows as towers and
+    ``CAPITAL`` rows as capitals; names from ``FactionTowerMapobjectVO``, ``FactionCapitalMapobjectVO`` and
+    ``FactionVillageMapobjectVO.areaNameString`` (bundle lines 22840, 22792, 28559)
+    """
+
+    WATCHTOWER = "DUNGEON"
+    CAPITAL = "CAPITAL"
+    RESOURCE_VILLAGE = "VILLAGES"
+
+
+class BerimondLane(IntEnum):
+    """
+    A lane of the Battle for Berimond map, each leading to a faction's capital; red is the House of Gerbrandt, blue
+    the House of Ursidae (:class:`BerimondFaction`).
+
+    Client: ``FactionCapitalInfoVO.RED_TOP`` to ``BLUE_CAPITAL`` (bundle line 88021)
+    """
+
+    GERBRANDT_TOP = 1
+    GERBRANDT_MIDDLE = 2
+    GERBRANDT_BOTTOM = 3
+    GERBRANDT_CAPITAL = 4
+    URSIDAE_TOP = 5
+    URSIDAE_MIDDLE = 6
+    URSIDAE_BOTTOM = 7
+    URSIDAE_CAPITAL = 8
 
 
 class RaidBossCardStatus(IntEnum):

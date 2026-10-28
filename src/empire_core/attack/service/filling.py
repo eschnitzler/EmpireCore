@@ -230,7 +230,10 @@ class FillAttackMixin(WavesMixin, SendingMixin):
                 if item is None:
                     reason = "neither the map nor a pre-calculation has a row for it"
                 elif item.is_invasion_camp:
-                    camp = item.camp_id if item.camp_id is not None else item.victory_count
+                    camp = next(
+                        (c for c in (item.daimyo_castle_id, item.daimyo_township_id) if c is not None),
+                        item.victory_count,
+                    )
                     reason = f"the items payload describes no camp {camp} for area type {int(item.item_type)}"
                 else:
                     reason = f"the map row for area type {read.area_type} carries no owner level"

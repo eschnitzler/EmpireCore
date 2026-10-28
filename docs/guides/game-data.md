@@ -66,11 +66,14 @@ are `None` until a skill list arrives; title reads require login data.
 The cache keeps each table as JSON text until the table is first read, so
 loading from the cache does not build rows nobody reads.
 
-`equipment_effects`, `relic_effects` and `alliance_buffs` are plain dicts by
-plain id, validated at load, as the game names none of their rows. An alliance
-buff's `series_id` is the `AllianceBuffType` it is a level of.
-`raw("specialcamps")` returns a table that is not
-modeled yet, exactly as the items file has it.
+`relic_effects` and `alliance_buffs` are plain dicts by plain id, validated at
+load, as the game names none of their rows. An alliance buff's `series_id` is
+the `AllianceBuffType` it is a level of. `equipment_effects` is keyed by
+`EquipmentEffect`, named from the effect each gives, its bonus and its wearer;
+`daimyo_castles` and `daimyo_townships` by `DaimyoCastle` and `DaimyoTownship`,
+and the Battle for Berimond's `berimond_special_camps` by `BerimondSpecialCamp`.
+`raw("bossdungeons")` returns a table that is not modeled yet, exactly as the
+items file has it.
 
 A row's bonuses are its `effects`, typed `EffectValue`s: the effect and the
 numbers of its value, one tuple per `#`-separated part.

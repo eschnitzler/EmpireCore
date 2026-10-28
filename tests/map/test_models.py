@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 
 from empire_core.enums import Kingdom, MapItemType, PeaceModeStatus
-from empire_core.gamedata import AllianceCrestColor, AllianceCrestLayout, Title
+from empire_core.gamedata import AllianceCrestColor, AllianceCrestLayout, Title, ids
 from empire_core.map.models.areas import (
     FindNextMapObjectRequest,
     FindNextMapObjectResponse,
@@ -594,16 +594,26 @@ class TestCampRows:
         assert item.is_invasion_camp
 
     def test_daimyo_castles_and_townships(self):
-        for area_type in (MapItemType.DAIMYO_CASTLE, MapItemType.DAIMYO_TOWNSHIP):
-            item = _row(area_type, 60, 3, 100, "500", "20", "-1", 110, 110, 0)
-            assert (item.camp_id, item.total_cooldown_seconds, item.skip_cost, item.scaling_camp_id) == (3, 500, 20, -1)
+        castle = _row(MapItemType.DAIMYO_CASTLE, 60, 3, 100, "500", "20", "-1", 110, 110, 0)
+        township = _row(MapItemType.DAIMYO_TOWNSHIP, 60, 3, 100, "500", "20", "-1", 110, 110, 0)
+        # getDaimyoCastleByID / getDaimyoTownshipByID: each area's id is a row of its own table
+        assert (castle.daimyo_castle_id, castle.daimyo_township_id) == (ids.DaimyoCastle(3), None)
+        assert (township.daimyo_township_id, township.daimyo_castle_id) == (ids.DaimyoTownship(3), None)
+        assert type(castle.daimyo_castle_id) is ids.DaimyoCastle
+        for item in (castle, township):
+            assert (item.total_cooldown_seconds, item.skip_cost, item.scaling_camp_id) == (500, 20, -1)
             assert (item.base_wall_bonus, item.victory_count) == (110.0, None)
 
     def test_alliance_camps(self):
         # AAllianceInvasionCampMapObjectVO.parseData: the nomad khan camp and the ABG resource tower
         for area_type in (MapItemType.ALLIANCE_NOMAD_CAMP, MapItemType.HORIZON_RESOURCE_TOWER):
             item = _row(area_type, 60, "8", 100, 500, 20, 6, "3", 10, 20, 30)
-            assert (item.camp_id, item.total_cooldown_seconds, item.skip_cost, item.victory_count) == (8, 500, 20, 6)
+            assert (item.alliance_camp_id, item.total_cooldown_seconds, item.skip_cost, item.victory_count) == (
+                8,
+                500,
+                20,
+                6,
+            )
             assert (item.scaling_camp_id, item.base_wall_bonus, item.base_moat_bonus) == (3, 10.0, 30.0)
 
     def test_an_horizon_tower(self):

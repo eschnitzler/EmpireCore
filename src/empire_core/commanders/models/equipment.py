@@ -29,7 +29,7 @@ from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, en
 from empire_core.protocol.js import ClientInt, js_int, js_string
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import Gem
+    from empire_core.gamedata import Effect, EquipmentEffect, Gem
 
 logger = logging.getLogger(__name__)
 
@@ -50,10 +50,14 @@ class EquipmentBonus(BasePayload):
     One bonus of an item that is not a relic: ``[effect_id, values]``.
 
     Client: ``BasicEquipmentVO.parseBonuses`` (bundle line 7135), which wraps a
-    value that is not an array into one.
+    value that is not an array into one; ``EquipmentXml.getEquippableEffectByEquipmentEffect``
+    (bundle line 144242) reads the id as an equipment effect, and as a plain effect when no
+    equipment effect has it.
     """
 
-    effect_id: int = Field(description="Equipment effect id")
+    effect_id: EnumOrInt["EquipmentEffect", "Effect"] = Field(
+        description="The equipment effect, or the plain effect of an id no equipment effect has"
+    )
     values: list[Any] = Field(
         default_factory=list,
         description="Value array; its layout depends on the effect type",

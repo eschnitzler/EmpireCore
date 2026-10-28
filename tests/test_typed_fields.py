@@ -59,10 +59,9 @@ ALLOWED: dict[str, str] = {
     "gamedata.data.GameData.attack_slots": "keyed by attack slot id: attack slots have no name for an enum",
     "gamedata.data.GameData.default_lords": "keyed by lord id: default commanders have no name for an enum",
     "gamedata.data.GameData.effect_caps": "keyed by effect cap id: effect caps have no name for an enum",
-    "gamedata.data.GameData.equipment_effects": (
-        "keyed by equipment effect id: equipment effects have no name for an enum"
-    ),
     "gamedata.data.GameData.equipment_sets": "keyed by equipment set id: equipment sets have no name for an enum",
+    "gamedata.tables.LeagueTypeEventDef.needed_points": "points thresholds; not ids",
+    "gamedata.tables.LeagueTypeEventDef.top_x": "ranks the top-rank rewards go to; not ids",
     "gamedata.data.GameData.relic_effects": "keyed by relic effect id: relic effects have no name for an enum",
     "gamedata.data.GameData.tool_categories": (
         "keyed by toolCategoryID, the row id of the items' toolCategories table, which the client never reads; "
@@ -117,18 +116,14 @@ GAME_DATA_SCALAR_IDS: dict[str, str] = {
     "gamedata.models.DefaultLordDef.lord_id": "default commanders have no name to make an enum of",
     "gamedata.models.EffectCapDef.cap_id": "effect caps have no name to make an enum of",
     "gamedata.models.EffectDef.cap_id": "effect caps have no name to make an enum of",
-    "gamedata.models.EquipmentEffectDef.equipment_effect_id": "equipment effects have no name to make an enum of",
-    "gamedata.models.EquipmentEffectValue.equipment_effect_id": "equipment effects have no name to make an enum of",
     "gamedata.models.EquipmentSetDef.row_id": "a row number, not referenced",
     "gamedata.models.EquipmentSetDef.set_id": "equipment sets have no name to make an enum of",
-    "gamedata.models.EventCampDef.camp_id": "daimyo ranks have no name to make an enum of",
     "gamedata.models.GemDef.set_id": "equipment sets have no name to make an enum of",
     "gamedata.models.GeneralAbilityDef.ability_attack_effect_id": "a generalAbilityEffects row, which has no enum",
     "gamedata.models.GeneralAbilityDef.ability_defense_effect_id": "a generalAbilityEffects row, which has no enum",
     "gamedata.models.GeneralAbilityDef.ability_group_id": "ability groups have no table",
     "gamedata.models.GeneralAbilityDef.ability_trigger_id": "ability triggers: the client names none",
     "gamedata.models.GeneralSkillDef.skill_group_id": "skill groups have no table",
-    "gamedata.models.LeagueBracketDef.league_type_id": "a league is a level band per event, not one row",
     "gamedata.models.LegendSkillDef.skill_group_id": "skill groups have no table",
     "gamedata.models.LegendSkillDef.skill_tree_id": "skill trees have no table",
     "gamedata.models.NpcCampDefence.lord_id": "a default commander id, which has no enum",

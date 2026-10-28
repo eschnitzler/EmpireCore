@@ -60,9 +60,6 @@ def robber_baron_camp_level(victories: int, kingdom_id: Kingdom = Kingdom.GREEN)
 SAMURAI_INVASION_EVENT_ID = 80
 NOMAD_INVASION_EVENT_ID = 72
 
-# The rank table a daimyo castle's map row indexes.
-DAIMYO_CASTLE_TABLE = "daimyoCastles"
-
 
 class BerimondInvasionSide(NamedTuple):
     """What a Berimond invasion camp's owner decides: its faction, and the sub type of its event league."""
@@ -144,8 +141,10 @@ def invasion_camp_level(
     # either. Reading the missing field as a zero would make it a real camp at
     # the band's own base level.
     field = (
-        item.camp_id
-        if item.item_type in (MapItemType.DAIMYO_CASTLE, MapItemType.DAIMYO_TOWNSHIP)
+        item.daimyo_castle_id
+        if item.item_type == MapItemType.DAIMYO_CASTLE
+        else item.daimyo_township_id
+        if item.item_type == MapItemType.DAIMYO_TOWNSHIP
         else item.victory_count
     )
     if field is None:
@@ -170,7 +169,7 @@ def invasion_camp_level(
         return scaled
 
     if item.item_type == MapItemType.DAIMYO_CASTLE:
-        rank = game_data.get_event_camp(DAIMYO_CASTLE_TABLE, field)
+        rank = game_data.daimyo_castles.get(field)
         return rank.level if rank is not None else None
 
     event_id = NOMAD_INVASION_EVENT_ID if item.item_type == MapItemType.NOMAD_CAMP else SAMURAI_INVASION_EVENT_ID

@@ -81,7 +81,8 @@ a fresh snapshot. Refusals raise `CommandError`; timeouts and malformed replies 
 
 `get_berimond_targets()` requests the event’s special camp candidate identifiers and
 returns a tuple of `BerimondTarget` records in server order. Each `special_camp_id` is
-an opaque event camp identifier; unknown identifiers and duplicates are preserved.
+a `BerimondSpecialCamp`, the watchtower or capital's row of `GameData.berimond_special_camps`;
+unknown identifiers stay ints and duplicates are preserved.
 Membership in this list does not establish attack eligibility: faction, spectator,
 protection and destroyed-target restrictions still apply.
 These identifiers are not map area ids or coordinates. Obtain map positions separately;

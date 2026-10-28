@@ -11,7 +11,7 @@ Commands:
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Literal
 
 from pydantic import Field, ValidationError, ValidationInfo, field_serializer, field_validator, model_validator
 
@@ -31,9 +31,15 @@ from empire_core.protocol.js import ClientInt, js_falsy, js_int, js_loose_equals
 from empire_core.protocol.text import encode_json_text
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import Event
+    from empire_core.gamedata import Event, LeagueType
 
 logger = logging.getLogger(__name__)
+
+LeagueTypeId = Annotated[Literal[-1] | EnumOrInt["LeagueType"], Field(union_mode="left_to_right")]
+"""A league's ``LID``: a ``LeagueType``, or -1 for none.
+
+Client: ``CastleHighscoreDialog.setLeagueTitleById`` (bundle line 27528) titles only an id above 0
+"""
 
 
 def _same_list(payload: Any, list_type: RankingType) -> bool:
@@ -254,7 +260,7 @@ class GetHighscoreRequest(BaseRequest):
     command: ClassVar[str] = GGECommand.HGH
 
     list_type: RankingType = Field(validation_alias="LT", description="The highscore list")
-    league_type_id: int = Field(
+    league_type_id: LeagueTypeId = Field(
         validation_alias="LID",
         default=-1,
         description="The league, a level band (see GameData.league_type); -1 for none",
@@ -282,7 +288,7 @@ class GetHighscoreResponse(BaseResponse):
     command: ClassVar[str] = GGECommand.HGH
 
     list_type: int | None = Field(validation_alias="LT", default=None)
-    league_type_id: int = Field(validation_alias="LID", default=-1, description="League type id; -1 for none")
+    league_type_id: LeagueTypeId = Field(validation_alias="LID", default=-1, description="League type id; -1 for none")
     last_rank: int | None = Field(validation_alias="LR", default=None)
     search_value: str | None = Field(validation_alias="SV", default=None)
     rows: tuple[HighscoreRow, ...] = Field(
@@ -351,7 +357,7 @@ class GetRankingListRequest(BaseRequest):
     command: ClassVar[str] = GGECommand.LLSP
 
     list_type: RankingType = Field(validation_alias="LT", description="The highscore list")
-    league_type_id: int = Field(
+    league_type_id: LeagueTypeId = Field(
         validation_alias="LID",
         description="The event's league, a level band (see GameData.league_type); -1 for the donation ranking",
     )
@@ -404,7 +410,7 @@ class GetRankingWindowRequest(BaseRequest):
     command: ClassVar[str] = GGECommand.LLSW
 
     list_type: RankingType = Field(validation_alias="LT", description="The highscore list")
-    league_type_id: int | None = Field(
+    league_type_id: LeagueTypeId | None = Field(
         validation_alias="LID",
         description=(
             "The event's league, or a search hit's, a level band (see GameData.league_type); "
@@ -540,8 +546,8 @@ class GetRankingListResponse(BaseResponse):
     command: ClassVar[str] = GGECommand.LLSP
 
     list_type: int | None = Field(validation_alias="LT", default=None)
-    league_type_id: int | None = Field(
-        validation_alias="LID", default=None, description="League type id; None for none"
+    league_type_id: LeagueTypeId | None = Field(
+        validation_alias="LID", default=None, description="League type id; -1 for the donation ranking, None for none"
     )
     scores: list[LeaderboardScore] = Field(validation_alias="L", default_factory=list, description="The page's entries")
     total: int = Field(validation_alias="T", default=0, description="Number of scores on the whole list")
@@ -584,7 +590,9 @@ class LeaderboardSearchResult(BasePayload):
     Client: ``LeaderBoardDataProvider.onSearchDataReceived`` (bundle line 75952)
     """
 
-    league_type_id: int | None = Field(validation_alias="LID", default=None, description="The league the scores are in")
+    league_type_id: LeagueTypeId | None = Field(
+        validation_alias="LID", default=None, description="The league the scores are in"
+    )
     score_ids: list[str] = Field(validation_alias="L", default_factory=list, description="The matching scores' ids")
 
     @field_validator("score_ids", mode="before")
@@ -608,7 +616,7 @@ class SearchRankingListResponse(BaseResponse):
     command: ClassVar[str] = GGECommand.SLSE
 
     list_type: int | None = Field(validation_alias="LT", default=None)
-    league_type_id: int = Field(validation_alias="LID", default=-1, description="League type id; -1 for none")
+    league_type_id: LeagueTypeId = Field(validation_alias="LID", default=-1, description="League type id; -1 for none")
     results: list[LeaderboardSearchResult] = Field(
         validation_alias="L",
         default_factory=list,

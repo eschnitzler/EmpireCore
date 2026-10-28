@@ -9,7 +9,7 @@ import logging
 import math
 import time
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Annotated, Any, ClassVar, NoReturn, TypeVar
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Literal, NoReturn, TypeVar
 
 from pydantic import AfterValidator, ConfigDict, Field, SerializeAsAny, ValidationError
 
@@ -35,8 +35,10 @@ from empire_core.gamedata import (
     DonationSettingId,
     EnumOrInt,
     EventDifficultyId,
+    LeaderboardRewardSetId,
     OuterRealmsSettingId,
     RewardId,
+    RewardSetId,
     ScalingCampId,
     WheelOfFortuneRewardSetId,
     WheelOfFortuneWinClassId,
@@ -63,10 +65,32 @@ from empire_core.ranking.models import (
     HighscoreRow,
     HighscoreTournamentRow,
     LeaderboardScore,
+    LeagueTypeId,
 )
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import Collectable, Event, GameData, GlobalEffect, QuestId, RaidBoss, TreasureMapId
+    from empire_core.gamedata import (
+        Collectable,
+        Event,
+        GameData,
+        GlobalEffect,
+        LeaderboardRewardDef,
+        LeagueType,
+        LeagueTypeEventDef,
+        QuestId,
+        RaidBoss,
+        TreasureMapId,
+    )
+
+
+_League = Annotated[Literal[0] | EnumOrInt["LeagueType"], Field(union_mode="left_to_right")]
+"""A league an entry names, 0 when it names none (``int(undefined)``)."""
+
+
+def _game_data(game_data: GameData | None) -> GameData:
+    from empire_core.gamedata.data import GameData
+
+    return game_data if game_data is not None else GameData.require()
 
 
 class Scoreboard(EmpireModel):
@@ -210,7 +234,9 @@ class EventScores(EmpireModel):
 
     event: Event = Field(description="The event")
     list_type: RankingType = Field(description="The board read")
-    league_id: int | None = Field(description="The league the page is from, as the server answered; None for none")
+    league_id: LeagueTypeId | None = Field(
+        description="The league the page is from, as the server answered; None for none"
+    )
     total: int | None = Field(
         default=None, description="Ranked entries on the whole board (its last rank); None when not given"
     )
@@ -329,7 +355,7 @@ def _with_points(model: Any, ranks: Any, points: Any, maxima: Any, index: int = 
 class _ScoreFields(EmpireModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True, populate_by_name=True)
 
-    league_id: int = Field(default=1, validation_alias="LID", description="Your league")
+    league_id: _League = Field(default=1, validation_alias="LID", description="Your league")
     own_rank: int = Field(default=-1, validation_alias="OR", description="Your rank, -1 while unranked")
     own_points: int = Field(default=0, validation_alias="OP", description="Your points")
     max_points: int = Field(default=0, description="The most points the event counts, from the pep pushes")
@@ -339,8 +365,10 @@ class _ScoreFields(EmpireModel):
         validation_alias="SC",
         description="The factor the reward thresholds after the first scale by",
     )
-    leaderboard_reward_set_id: int = Field(
-        default=0, validation_alias="LRSI", description="The leaderboard's reward set"
+    leaderboard_reward_set_id: LeaderboardRewardSetId = Field(
+        default=LeaderboardRewardSetId(0),
+        validation_alias="LRSI",
+        description="The leaderboard's reward set, a set of GameData.leaderboard_rewards rows",
     )
 
 
@@ -353,7 +381,22 @@ class EventPart(_ScoreFields):
     ``AScoreEventVO.setRankAndPoints`` (bundle line 15044) for a ``pep``
     """
 
-    reward_set_id: int = Field(default=0, validation_alias="RSID", description="The reward set")
+    reward_set_id: RewardSetId = Field(
+        default=RewardSetId(0),
+        validation_alias="RSID",
+        description="The reward set, a set of GameData.league_type_events rows",
+    )
+
+    def league_rewards(self, event_id: int, *, game_data: GameData | None = None) -> LeagueTypeEventDef | None:
+        """
+        This score's league's points thresholds and rewards in ``event_id``, the event it is a part of; None when
+        the game data has none.
+
+        Client: ``ALeagueTypeScoreEventVO.parseAdditionalXmlFromRoot`` (bundle line 10268)
+        """
+        return _game_data(game_data).league_type_event(
+            event_id, self.league_id, sub_type=self.sub_type, reward_set_id=self.reward_set_id
+        )
 
     @classmethod
     def parse(cls, entry: Any, previous: EventPart | None = None, sub_type: int = 0) -> EventPart:
@@ -489,6 +532,18 @@ class ScoredEvent(SpecialEvent, _ScoreFields):
     def with_points(self, ranks: Any, points: Any, maxima: Any) -> SpecialEvent:
         return _with_points(self, ranks, points, maxima)  # type: ignore[no-any-return]
 
+    def leaderboard_rewards(
+        self, league_type_id: LeagueTypeId = -1, *, game_data: GameData | None = None
+    ) -> tuple[LeaderboardRewardDef, ...]:
+        """
+        The leaderboard's rank bands and their rewards, of one league or, by default, every league.
+
+        Client: ``AScoreEventVO.getGlobalLeaderBoardRewards`` (bundle line 15078)
+        """
+        return _game_data(game_data).leaderboard_reward_bands(
+            self.event_id, self.leaderboard_reward_set_id, league_type_id
+        )
+
 
 class NobilityContestEvent(ScoredEvent):
     """
@@ -517,7 +572,11 @@ class LeagueScoredEvent(ScoredEvent):
     Client: ``ALeagueTypeScoreEventVO.parseBasicsFromParamObject`` (bundle line 10260)
     """
 
-    reward_set_id: int = Field(default=0, validation_alias="RSID", description="The reward set")
+    reward_set_id: RewardSetId = Field(
+        default=RewardSetId(0),
+        validation_alias="RSID",
+        description="The reward set, a set of GameData.league_type_events rows",
+    )
 
     @classmethod
     def _read(
@@ -525,6 +584,16 @@ class LeagueScoredEvent(ScoredEvent):
     ) -> None:
         super()._read(values, entry, now, events)
         values["reward_set_id"] = js_int(entry.get("RSID"))
+
+    def league_rewards(self, *, game_data: GameData | None = None) -> LeagueTypeEventDef | None:
+        """
+        Your league's points thresholds and rewards; None when the game data has none.
+
+        Client: ``ALeagueTypeScoreEventVO.parseAdditionalXmlFromRoot`` (bundle line 10268)
+        """
+        return _game_data(game_data).league_type_event(
+            self.event_id, self.league_id, sub_type=self.sub_type, reward_set_id=self.reward_set_id
+        )
 
 
 class MaraudersContestEvent(LeagueScoredEvent):
@@ -766,9 +835,13 @@ class BerimondEvent(SpecialEvent):
     defaults at bundle line 7353; ``setRankAndPoints`` (bundle line 7461); ``parse_FKI`` (bundle line 7365)
     """
 
-    league_id: int = Field(default=1, validation_alias="LID", description="Your league")
+    league_id: EnumOrInt["LeagueType"] = Field(default=1, validation_alias="LID", description="Your league")
     unlocked: bool = Field(default=False, validation_alias="UL", description="Whether Berimond is open to you")
-    reward_set_id: int = Field(default=0, validation_alias="RSID", description="The reward set")
+    reward_set_id: RewardSetId = Field(
+        default=RewardSetId(0),
+        validation_alias="RSID",
+        description="The reward set, a set of GameData.league_type_events rows",
+    )
     own_rank: int = Field(default=-1, description="Your rank, -1 while unranked; from the pep pushes")
     own_points: int = Field(default=0, description="Your points, from the pep pushes")
     faction_id: EnumOrInt[BerimondFaction] = Field(default=BerimondFaction.URSIDAE, description="Your faction")
@@ -796,6 +869,22 @@ class BerimondEvent(SpecialEvent):
             values.update(cls._faction_update(FactionStanding.model_validate(_dict(faction)), now))
         if js_truthy(entry.get("LID")):
             values["league_id"] = js_int(entry["LID"])
+
+    def league_rewards(self, *, game_data: GameData | None = None) -> LeagueTypeEventDef | None:
+        """
+        Your league's points thresholds and rewards: the event's last row of your league in your reward set, of
+        any sub type, as the client keys the leagues; None when the game data has none.
+
+        Client: ``FactionEventVO.parseData`` and ``getOwnLeagueEventVO`` (bundle lines 7352-7358, 7454)
+        """
+        rows = [
+            row
+            for row in _game_data(game_data).league_type_events.values()
+            if row.event_id == self.event_id
+            and row.league_type_id == self.league_id
+            and row.reward_set_id == self.reward_set_id
+        ]
+        return rows[-1] if rows else None
 
     def with_faction(self, faction: FactionStanding, now: float) -> BerimondEvent:
         """This event with an ``FN`` block read over it, as a faction protection purchase sends one."""
@@ -846,7 +935,7 @@ class RiftRaidEvent(SpecialEvent):
     boss_status: RiftRaidStatus | None = Field(default=None, description="Latest alliance raid boss status")
 
     score: EventPart = Field(default_factory=EventPart, description="Your score; its points are the entry's SP.OP")
-    league_id: int = Field(default=0, description="Your alliance's league, from the entry's A")
+    league_id: _League = Field(default=0, description="Your alliance's league, from the entry's A")
     alliance_points: int = Field(default=0, description="Your alliance's points, from the entry's A and the pep pushes")
     alliance_rank: int = Field(default=0, description="Your alliance's rank, from the pep pushes")
     subdivision_id: int = Field(default=0, description="Your alliance's subdivision, from the entry's A")
@@ -943,8 +1032,10 @@ class ImperialPatronageEvent(SpecialEvent):
     setting_id: DonationSettingId | None = Field(
         default=None, validation_alias="DSI", description="The run's settings, a GameData.donation_settings row"
     )
-    leaderboard_reward_set_id: int | None = Field(
-        default=None, validation_alias="LRSI", description="The leaderboard's reward set"
+    leaderboard_reward_set_id: LeaderboardRewardSetId | None = Field(
+        default=None,
+        validation_alias="LRSI",
+        description="The leaderboard's reward set, a set of GameData.leaderboard_rewards rows",
     )
     donated_points: tuple[DonationItemPoints, ...] | None = Field(
         default=None,
@@ -958,6 +1049,22 @@ class ImperialPatronageEvent(SpecialEvent):
         super()._read(values, entry, now, events)
         values["setting_id"] = None if entry.get("DSI") is None else js_int(entry["DSI"])
         values["leaderboard_reward_set_id"] = None if entry.get("LRSI") is None else js_int(entry["LRSI"])
+
+    def leaderboard_rewards(
+        self, league_type_id: LeagueTypeId = -1, *, game_data: GameData | None = None
+    ) -> tuple[LeaderboardRewardDef, ...]:
+        """
+        The leaderboard's rank bands and their rewards, of one league or, by default, every league; none before
+        the event named its set.
+
+        Client: ``DonationEventEventVO.parseParamObject`` (bundle line 115540) keeps ``LRSI`` for
+        ``CastleLeaderBoardRewardsData.getRewardListForDialogList`` (bundle line 112015)
+        """
+        if self.leaderboard_reward_set_id is None:
+            return ()
+        return _game_data(game_data).leaderboard_reward_bands(
+            self.event_id, self.leaderboard_reward_set_id, league_type_id
+        )
 
 
 class KingdomsLeagueEvent(SpecialEvent):
@@ -980,7 +1087,7 @@ class KingdomsLeagueEvent(SpecialEvent):
         validation_alias="KLARE",
         description="Whether alliances are ranked too",
     )
-    league_type_id: int = Field(default=0, validation_alias="KLLID", description="The league type")
+    league_type_id: _League = Field(default=0, validation_alias="KLLID", description="The league type")
 
     @classmethod
     def _read(
@@ -1627,10 +1734,7 @@ class CampaignEvent(SpecialEvent):
 
         Client: ``getListByIdArray(e.RIDS)`` (``TimeLimitedCampaignEventEventVO.parseParamObject``, bundle line 118536)
         """
-        from empire_core.gamedata.data import GameData
-
-        data = game_data if game_data is not None else GameData.require()
-        return data.reward_list(self.reward_ids)
+        return _game_data(game_data).reward_list(self.reward_ids)
 
     def with_campaign(self, data: dict[str, Any], now: float) -> CampaignEvent:
         """The event after a ``cqs`` push with this payload. Client: ``parseCQS`` (bundle line 118555)"""

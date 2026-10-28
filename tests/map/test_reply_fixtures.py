@@ -25,14 +25,15 @@ MAP_SIZE = MapSize(1287, 1287)
 FIXTURES = Path(__file__).resolve().parent.parent / "data"
 
 # sha256 of the dense reply's model_dump(mode="json") with sorted keys, as v0.45.0 parsed it; since v0.50 a
-# crest without a layout and a castle without a tower connection dump None, not 0 and []
-V0_45_DIGEST = "4aeb54137dbdf7bd33f919d246f0827d225bae300888e079203ed88754b967d9"
+# crest without a layout and a castle without a tower connection dump None, not 0 and [], and since v0.60
+# camp_id is daimyo_castle_id, daimyo_township_id or alliance_camp_id
+V0_45_DIGEST = "3f95cf1d5038e374432dc9666e6a86e6ee04e95b0624dfd37d11a55cc0505fa4"
 
-# sha256 of a one-chunk scan of the live-shaped reply (see _scan_digest), as v0.45.0 scanned it
+# sha256 of a one-chunk scan of the live-shaped reply (see _scan_digest), as v0.45.0 scanned it, camp_id split as above
 V0_45_SCAN_DIGESTS = {
-    "castles": "e81da072ec549b6c0890235ee98894b50eb776480e9dab402d7685d34d7f7ee0",
-    "every type": "6e1bbdf201c80b8a1e4de7a90368c65f4865b249057da303234e4761fd181e56",
-    "castles, unowned too": "9c903580f8c193f5f285f0e455a48723f4af9636aad0d452050371ebdcb9ba77",
+    "castles": "825f470cff217b7680eb5770444ecb5f747900f0c4740c8578b4a15d73ac86f0",
+    "every type": "b6c8e466e4f5150c3532f0def7df38364945360082dee09dbaca13708afd4a94",
+    "castles, unowned too": "426eed4dbfa9caebcbe025c1c50df6d44cd4159416fa2c3f8f6f65f72972966c",
 }
 SCANS: dict[str, dict[str, Any]] = {
     "castles": {},

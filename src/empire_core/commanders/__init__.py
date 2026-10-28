@@ -99,6 +99,7 @@ if TYPE_CHECKING:
         Currency,
         CurrencyId,
         Effect,
+        EquipmentEffect,
         Event,
         Gem,
         GemColor,
@@ -215,6 +216,7 @@ __all__ = [
     "LegendSkill",
     "SceatSkill",
     "Effect",
+    "EquipmentEffect",
 ]
 
 
@@ -226,6 +228,7 @@ if not TYPE_CHECKING:
             "Currency",
             "CurrencyId",
             "Effect",
+            "EquipmentEffect",
             "Event",
             "Gem",
             "GemColor",
