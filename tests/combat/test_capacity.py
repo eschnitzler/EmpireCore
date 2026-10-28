@@ -777,7 +777,7 @@ class TestInvasionCampLevel:
         assert self.level(data, row, 70) == 70
         assert self.level(data, row, 45) == 45
         # Not rank 26's own level, which the table does carry.
-        assert data.get_event_camp("daimyoTownships", 26) is not None
+        assert data.daimyo_townships.get(26) is not None
 
     def test_a_chosen_difficulty_overrides_the_rank(self, data):
         assert self.level(data, [37, 624, 242, -1, 1, 0, 0, 15, 3, 110, 110, 0], 70) == 70

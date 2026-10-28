@@ -232,6 +232,7 @@ if TYPE_CHECKING:
         Effect,
         Event,
         Gem,
+        LeagueType,
     )
 
 __all__ = [
@@ -448,6 +449,7 @@ __all__ = [
     "PerformanceStatistic",
     "AllianceTowerEffect",
     "Building",
+    "LeagueType",
 ]
 
 
@@ -464,5 +466,6 @@ if not TYPE_CHECKING:
             "Effect",
             "Event",
             "Gem",
+            "LeagueType",
         ),
     )

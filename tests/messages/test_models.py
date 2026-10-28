@@ -174,7 +174,7 @@ class TestSpyReportResponse:
         area = SpyReportResponse.model_validate(payload).area
 
         assert area is not None
-        assert (area.daimyo_rank, area.daimyo_camp_id) == (3, 12)
+        assert (area.daimyo_rank, area.scaling_camp_id) == (3, 12)
 
     def test_the_area_names_its_treasure_map(self):
         payload = copy.deepcopy(BSD_NPC_CAMP_REPORT)

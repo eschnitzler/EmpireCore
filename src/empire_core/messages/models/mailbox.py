@@ -31,7 +31,7 @@ from empire_core.alliance.models.bookmarks import Bookmark
 from empire_core.army.spy_army import SpyArmyBlock
 from empire_core.commanders.models.roster import Castellan
 from empire_core.enums import BattleLogAttackType, Kingdom, LogResult, MapItemType, MessageType, SpyLogType
-from empire_core.gamedata import CollectableRows, EnumOrInt
+from empire_core.gamedata import CollectableRows, EnumOrInt, ScalingCampId
 from empire_core.gamedata.ids.events import Event
 from empire_core.gamedata.ids.treasure_maps import TreasureMapId
 from empire_core.gamedata.lenient import known
@@ -51,7 +51,7 @@ from empire_core.protocol.js import ClientInt, js_int, js_loose_equals, js_numbe
 from empire_core.protocol.text import decode_json_text, encode_json_text
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import LegendSkill
+    from empire_core.gamedata import BerimondSpecialCamp, LegendSkill
 
 logger = logging.getLogger(__name__)
 
@@ -599,18 +599,18 @@ class SpyReportArea(BasePayload):
         default=None,
         description="Outpost type, village type or monument type, or a resource isle's isle id",
     )
-    special_camp_id: int | None = Field(
-        validation_alias="SPC", default=None, description="A faction area's special camp id"
+    special_camp_id: EnumOrInt["BerimondSpecialCamp"] | None = Field(
+        validation_alias="SPC", default=None, description="A Battle for Berimond area's special camp"
     )
     daimyo_rank: int | None = Field(
         validation_alias="DAR",
         default=None,
         description="A daimyo castle's or township's rank",
     )
-    daimyo_camp_id: int | None = Field(
+    scaling_camp_id: ScalingCampId | None = Field(
         validation_alias="DDCID",
         default=None,
-        description="A daimyo castle's or township's difficulty camp id",
+        description="A daimyo castle's or township's difficulty scaling camp, which sets its level when above 0",
     )
     victory_count: int | None = Field(
         validation_alias="ACVC",

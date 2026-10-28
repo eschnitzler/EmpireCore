@@ -5,19 +5,20 @@ from __future__ import annotations
 import logging
 import math
 from collections.abc import Callable
+from functools import partial
 from typing import TYPE_CHECKING, Annotated, Any
 
 from pydantic import BeforeValidator, Field, model_validator
 
 from empire_core.enums import Kingdom, MapItemType
-from empire_core.gamedata import EnumOrInt, ScalingCampId
+from empire_core.gamedata import AllianceInvasionCampId, EnumOrInt, ScalingCampId
 from empire_core.protocol.base import BasePayload, enum_or_none, readable_list
 from empire_core.protocol.js import ClientInt, js_int, js_loose_equals, js_truthy
 
 from .owners import AllianceCrest
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import TreasureMapId
+    from empire_core.gamedata import BerimondSpecialCamp, DaimyoCastle, DaimyoTownship, TreasureMapId
 
 logger = logging.getLogger(__name__)
 
@@ -374,13 +375,16 @@ def _berimond_invasion_camp(row: _Row) -> dict[str, Any]:
     }
 
 
-def _daimyo(row: _Row) -> dict[str, Any]:
-    """``DaimyoCastleMapObjectVO`` (bundle line 19651) and ``DaimyoTownshipMapObjectVO`` (bundle line 21736)."""
+def _daimyo(row: _Row, camp_field: str) -> dict[str, Any]:
+    """
+    ``DaimyoCastleMapObjectVO.parseAreaInfo`` (bundle line 19659) and ``DaimyoTownshipMapObjectVO.parseAreaInfo``
+    (bundle line 21744), which look the camp up in their own table (``camp_field``).
+    """
     if len(row) <= 3:
         return {}
     return {
         "seconds_since_espionage": row.raw(3),
-        "camp_id": row.raw(4),
+        camp_field: row.raw(4),
         "attack_cooldown_seconds": row.raw(5),
         "total_cooldown_seconds": row.as_int(6),
         "skip_cost": row.as_int(7),
@@ -397,7 +401,7 @@ def _alliance_camp(row: _Row) -> dict[str, Any]:
         return {}
     return {
         "seconds_since_espionage": row.raw(3),
-        "camp_id": row.as_int(4),
+        "alliance_camp_id": row.as_int(4),
         "attack_cooldown_seconds": row.raw(5),
         "total_cooldown_seconds": row.as_int(6),
         "skip_cost": row.as_int(7),
@@ -465,8 +469,8 @@ ROW_PARSERS: dict[MapItemType, Callable[[_Row], dict[str, Any]]] = {
     MapItemType.DYNAMIC: _position_only,
     MapItemType.BLOODCROW_CAMP: _alien_camp,
     MapItemType.ALLIANCE_NOMAD_CAMP: _alliance_camp,
-    MapItemType.DAIMYO_CASTLE: _daimyo,
-    MapItemType.DAIMYO_TOWNSHIP: _daimyo,
+    MapItemType.DAIMYO_CASTLE: partial(_daimyo, camp_field="daimyo_castle_id"),
+    MapItemType.DAIMYO_TOWNSHIP: partial(_daimyo, camp_field="daimyo_township_id"),
     MapItemType.HORIZON_RESOURCE_TOWER: _alliance_camp,
     MapItemType.HORIZON_TOWER: _abg_tower,
     MapItemType.WOLF_KING: _wolf_king,
@@ -557,7 +561,9 @@ class MapAreaItem(BasePayload):
     )
     dungeon_level: int | None = Field(default=None, description="The camp's level as its row gives it")
     attacks_left: int | None = Field(default=None, description="Attacks the faction tower has left")
-    special_camp_id: int | None = Field(default=None, description="The faction event camp id")
+    special_camp_id: EnumOrInt["BerimondSpecialCamp"] | None = Field(
+        default=None, description="A Battle for Berimond watchtower's or capital's special camp"
+    )
     victory_count: int | None = Field(default=None, description="How often the camp has been beaten")
     defeater_player_id: int | None = Field(default=None, description="Player id of whoever defeated the boss dungeon")
     is_defeated: bool | None = Field(default=None, description="The dungeon is defeated")
@@ -570,8 +576,15 @@ class MapAreaItem(BasePayload):
         default=None, description="The difficulty-scaling camp that sets the camp's level; -1 or 0 when none"
     )
     dungeon_type: int | None = Field(default=None, description="The faction king whose invasion camp this is")
-    camp_id: int | None = Field(
-        default=None, description="The camp's row in its event's camp table (a daimyo rank, an alliance camp)"
+    daimyo_castle_id: EnumOrInt["DaimyoCastle"] | None = Field(
+        default=None, description="A daimyo castle's row (rank and level)"
+    )
+    daimyo_township_id: EnumOrInt["DaimyoTownship"] | None = Field(
+        default=None, description="A township's row (rank and level)"
+    )
+    alliance_camp_id: AllianceInvasionCampId | None = Field(
+        default=None,
+        description="An alliance nomad camp's or Beyond the Horizon resource tower's row (alliance_invasion_camps)",
     )
     total_cooldown_seconds: int | None = Field(default=None, description="The camp's full cooldown")
     skip_cost: int | None = Field(default=None, description="What skipping the cooldown costs")

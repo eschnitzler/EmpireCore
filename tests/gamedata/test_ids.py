@@ -11,7 +11,7 @@ import subprocess
 import sys
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, get_args
 
 import pytest
 from pydantic import BaseModel
@@ -22,8 +22,11 @@ from empire_core.commanders.models.skills import SetGeneralAbilitiesRequest
 from empire_core.enums import BuildingGroup, Kingdom, QuestConditionType
 from empire_core.gamedata import (
     BuildingDef,
+    DaimyoCastleDef,
+    EquipmentEffectDef,
     GameData,
     HorseStats,
+    LeagueBracketDef,
     QuestCondition,
     QuestDef,
     ScalingCampDef,
@@ -74,6 +77,7 @@ IDS_PAYLOAD: dict[str, Any] = {
     "effects": [
         {"effectID": "1", "name": "fameDefenseBonus", "effectTypeID": "0", "capID": "0", "sortOrder": "6.9.1"},
         {"effectID": "141", "name": "wallBonusTower", "effectTypeID": "6", "capID": "99", "sortOrder": "2.1.8"},
+        {"effectID": "301", "name": "fameDefenseMalusBaron", "effectTypeID": "0", "capID": "0", "sortOrder": "6.9.5"},
     ],
     "buildings": [
         {"wodID": 171, "name": "Keep", "level": "1", "group": "Building", "type": "Level1"},
@@ -160,6 +164,22 @@ IDS_PAYLOAD: dict[str, Any] = {
         {"allianceTowerEffectID": "1", "effectID": "141", "effectBasePrice": "100", "effectMaxLevel": "60"},
         {"allianceTowerEffectID": "9", "effectID": "999", "effectBasePrice": "100", "effectMaxLevel": "60"},
     ],
+    "leaguetypes": [
+        {"leaguetypeID": "1", "eventID": "-1", "minLevel": "0", "maxLevel": "19"},
+        {"leaguetypeID": "7", "eventID": "60", "minLevel": "70", "maxLevel": "1020"},
+    ],
+    "equipment_effects": [
+        {"equipmentEffectID": "1", "effectID": "1", "bonus": "15", "wearerID": "1"},
+        {"equipmentEffectID": "301", "effectID": "301", "bonus": "-10", "wearerID": "1", "itemGroupID": "1,2,3"},
+    ],
+    "daimyoCastles": [{"id": "1", "rank": "1", "level": "81", "wallBonus": "110"}],
+    "daimyoTownships": [{"id": "1", "rank": "1", "level": "81", "wallBonus": "100"}],
+    "specialcamps": [
+        {"specialcampID": "1", "type": "VILLAGES", "distance": "5"},
+        {"specialcampID": "2", "type": "CAPITAL", "laneID": "4", "unlockIDs": "19,33,47"},
+        {"specialcampID": "4", "type": "DUNGEON", "laneID": "1", "villageCount": "3"},
+        {"specialcampID": "5", "type": "DUNGEON", "laneID": "1"},
+    ],
 }
 
 # Which GameData table each enum's values index.
@@ -201,8 +221,15 @@ TABLE_OF: dict[str, str] = {
     "Judgement": "judgements",
     "TreasureMapId": "treasure_maps",
     "AllianceTowerEffect": "alliance_tower_effects",
+    "EquipmentEffect": "equipment_effects",
+    "DaimyoCastle": "daimyo_castles",
+    "DaimyoTownship": "daimyo_townships",
+    "BerimondSpecialCamp": "berimond_special_camps",
 }
-"""Which GameData table each enum's values index; ``Currency`` keys and ``MainQuest`` (no table) aside."""
+"""
+Which GameData table each enum's values index; ``Currency`` keys, ``MainQuest`` (no table) and ``LeagueType`` (a
+column of ``league_brackets``) aside.
+"""
 
 
 def _cached_game_data() -> GameData | None:
@@ -212,7 +239,7 @@ def _cached_game_data() -> GameData | None:
 
 class TestPackage:
     def test_every_enum_is_exported_from_gamedata(self):
-        assert {e.__name__ for e in ENUMS} == set(TABLE_OF) | {"Currency", "MainQuest"}
+        assert {e.__name__ for e in ENUMS} == set(TABLE_OF) | {"Currency", "MainQuest", "LeagueType"}
         for enum in ENUMS:
             assert getattr(gamedata, enum.__name__) is enum
         assert gamedata.ITEMS_VERSION == ids.ITEMS_VERSION
@@ -260,6 +287,9 @@ class TestPackage:
                 continue
             if enum is ids.MainQuest:
                 assert {m.value for m in enum} == {int(row["mainQuestID"]) for row in data.raw("mainquests")}
+                continue
+            if enum is ids.LeagueType:
+                assert {m.value for m in enum} == {b.league_type_id for b in data.league_brackets}
                 continue
             table = getattr(data, TABLE_OF[enum.__name__])
             assert {m.value for m in enum} == set(table), enum.__name__
@@ -643,6 +673,82 @@ class TestGenerator:
         texts = {"dialog_beyondTheHorizon_AllianceTower_wallBonusTower_name": "Shrine wall boost"}
         assert self.text_members(payload, texts, "AllianceTowerEffect") == {"SHRINE_WALL_BOOST": 1}
 
+    def test_leagues_are_named_from_the_highscore_league_title(self):
+        # CastleHighscoreDialog.setLeagueTitleById: "dialog_highscore_league" + id; 7 has no text
+        payload = {
+            "leaguetypes": [
+                {"leaguetypeID": "6", "eventID": "-1", "minLevel": "70"},
+                {"leaguetypeID": "2", "eventID": "-1", "minLevel": "20"},
+                {"leaguetypeID": "2", "eventID": "71", "minLevel": "70"},
+                {"leaguetypeID": "7", "eventID": "60", "minLevel": "70"},
+            ]
+        }
+        texts = {"dialog_highscore_league2": "Levels 20-29", "dialog_highscore_league6": "Level 70"}
+        assert self.text_members(payload, texts, "LeagueType") == {"LEVELS_20_29": 2, "LEVEL_70": 6, "LEAGUE_7": 7}
+
+    def test_equipment_effects_are_named_from_their_effect_bonus_and_wearer(self):
+        payload = {
+            "effects": [
+                {"effectID": "1", "name": "fameDefenseBonus"},
+                {"effectID": "301", "name": "fameDefenseMalusBaron"},
+            ],
+            "equipment_effects": [
+                {"equipmentEffectID": "301", "effectID": "301", "bonus": "-10", "wearerID": "1"},
+                {"equipmentEffectID": "1", "effectID": "1", "bonus": "15", "wearerID": "1"},
+                {"equipmentEffectID": "2", "effectID": "1", "bonus": "15", "wearerID": "2"},
+                {"equipmentEffectID": "3", "effectID": "1", "bonus": "15", "wearerID": "2"},
+                {"equipmentEffectID": "4", "effectID": "77", "bonus": "5", "wearerID": "-1"},
+            ],
+        }
+        assert self.text_members(payload, {}, "EquipmentEffect") == {
+            "FAME_DEFENSE_BONUS_15_CASTELLAN": 1,
+            "FAME_DEFENSE_BONUS_15_COMMANDER_2": 2,
+            "FAME_DEFENSE_BONUS_15_COMMANDER_3": 3,
+            "E77_5_UNDEFINED": 4,
+            "FAME_DEFENSE_MALUS_BARON_M10_CASTELLAN": 301,
+        }
+
+    def test_daimyo_areas_are_named_from_their_rank_and_level(self):
+        payload = {
+            "daimyoCastles": [{"id": "1", "rank": "1", "level": "81"}, {"id": "2", "rank": "2", "level": "90"}],
+            "daimyoTownships": [{"id": "1", "rank": "1", "level": "81"}],
+        }
+        assert self.text_members(payload, {}, "DaimyoCastle") == {"RANK_1_L81": 1, "RANK_2_L90": 2}
+        assert self.text_members(payload, {}, "DaimyoTownship") == {"RANK_1_L81": 1}
+
+    def test_berimond_special_camps_are_named_from_their_lane_and_in_game_name(self):
+        payload = {
+            "specialcamps": [
+                {"specialcampID": "1", "type": "VILLAGES"},
+                {"specialcampID": "2", "type": "CAPITAL", "laneID": "4"},
+                {"specialcampID": "3", "type": "CAPITAL", "laneID": "8"},
+                {"specialcampID": "4", "type": "DUNGEON", "laneID": "1"},
+                {"specialcampID": "5", "type": "DUNGEON", "laneID": "1"},
+                {"specialcampID": "6", "type": "DUNGEON", "laneID": "6"},
+            ]
+        }
+        texts = {"faction_tower": "Watchtower", "faction_capital": "Capital", "faction_village": "Resource village"}
+        assert self.text_members(payload, texts, "BerimondSpecialCamp") == {
+            "RESOURCE_VILLAGE": 1,
+            "GERBRANDT_CAPITAL": 2,
+            "URSIDAE_CAPITAL": 3,
+            "GERBRANDT_TOP_WATCHTOWER_4": 4,
+            "GERBRANDT_TOP_WATCHTOWER_5": 5,
+            "URSIDAE_MIDDLE_WATCHTOWER": 6,
+        }
+
+    @pytest.mark.parametrize("table", ["leaguetypes", "equipment_effects", "daimyoCastles", "specialcamps"])
+    def test_the_new_tables_names_do_not_follow_row_order(self, table):
+        enum = {
+            "leaguetypes": "LeagueType",
+            "equipment_effects": "EquipmentEffect",
+            "daimyoCastles": "DaimyoCastle",
+            "specialcamps": "BerimondSpecialCamp",
+        }[table]
+        texts = json.loads(SNAPSHOT.read_text())
+        reversed_payload = {**IDS_PAYLOAD, table: list(reversed(IDS_PAYLOAD[table]))}
+        assert self.text_members(IDS_PAYLOAD, texts, enum) == self.text_members(reversed_payload, texts, enum)
+
     def test_research_names_are_unique_by_group_and_level(self):
         # Two groups share a note; group and level keep them apart, and a row without a note still gets a name
         payload = {
@@ -932,6 +1038,37 @@ class TestCheck:
         assert '"Horse": "horses",' in (out / "__init__.py").read_text()
         with pytest.raises(AttributeError):
             ids.Horse  # noqa: B018
+
+    @pytest.mark.parametrize(
+        ("model", "field", "enum", "module", "line"),
+        [
+            (LeagueBracketDef, "league_type_id", "LeagueType", "league_types", "    LEAGUE_1 = 1\n"),
+            (
+                EquipmentEffectDef,
+                "equipment_effect_id",
+                "EquipmentEffect",
+                "equipment_effects",
+                "    FAME_DEFENSE_BONUS_15_CASTELLAN = 1, 1, 15, 1\n",
+            ),
+            (DaimyoCastleDef, "camp_id", "DaimyoCastle", "daimyo_camps", "    RANK_1_L81 = 1, 1, 81\n"),
+        ],
+    )
+    def test_a_new_tables_first_generation_reads_its_rows(  # noqa: PLR0913
+        self, items_file, tmp_path, monkeypatch, model, field, enum, module, line
+    ):
+        # As before the table's first generation: the package lacks the enum the rows' ids name
+        info = model.model_fields[field]
+        nested = (m for arg in get_args(info.annotation) for m in getattr(arg, "__metadata__", ()))
+        validator = next(m for m in (*info.metadata, *nested) if hasattr(m, "func"))
+        monkeypatch.setattr(validator.func, "_enums", None)
+        monkeypatch.delitem(ids._MODULES, enum)
+        monkeypatch.delattr(ids, enum, raising=False)
+
+        out = tmp_path / "ids"
+        assert self.run(items_file, out) == 0
+        assert f"class {enum}(IntEnum):" in (out / f"{module}.py").read_text()
+        assert line in (out / f"{module}.py").read_text()
+        assert f'"{enum}": "{module}",' in (out / "__init__.py").read_text()
 
     def test_only_the_enum_of_a_table_being_generated_stands_in(self, items_file, tmp_path, monkeypatch):
         (validator,) = HorseStats.model_fields["wod_id"].metadata

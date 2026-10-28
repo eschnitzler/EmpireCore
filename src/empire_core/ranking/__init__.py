@@ -36,13 +36,17 @@ from .models import (
     HighscoreTournamentRow,
     LeaderboardScore,
     LeaderboardSearchResult,
+    LeagueTypeId,
     SearchRankingListRequest,
     SearchRankingListResponse,
 )
 from .service import RankingService
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import Event
+    from empire_core.gamedata import (
+        Event,
+        LeagueType,
+    )
 
 __all__ = [
     "ColossusHighscoreRow",
@@ -74,12 +78,21 @@ __all__ = [
     "GetRankingWindowResponse",
     "SearchRankingListRequest",
     "LeaderboardSearchResult",
+    "LeagueTypeId",
     "SearchRankingListResponse",
     "RankingType",
     "RankingService",
     "Event",
+    "LeagueType",
 ]
 
 
 if not TYPE_CHECKING:
-    __getattr__ = lazy_exports(__name__, "empire_core.gamedata.ids", ("Event",))
+    __getattr__ = lazy_exports(
+        __name__,
+        "empire_core.gamedata.ids",
+        (
+            "Event",
+            "LeagueType",
+        ),
+    )

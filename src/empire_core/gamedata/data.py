@@ -43,6 +43,8 @@ from .models import (
     CastleEffectValue,
     ConstructionItemDef,
     CurrencyDef,
+    DaimyoCastleDef,
+    DaimyoTownshipDef,
     DefaultLordDef,
     DungeonDefence,
     EffectCapDef,
@@ -52,7 +54,6 @@ from .models import (
     EquipmentEffectDef,
     EquipmentEffectValue,
     EquipmentSetDef,
-    EventCampDef,
     FortificationDef,
     GemDef,
     GeneralAbilityDef,
@@ -81,6 +82,7 @@ from .tables import (
     AllianceInvasionCampDef,
     AllianceInvasionCampId,
     AllianceTowerEffectDef,
+    BerimondSpecialCampDef,
     BuildingDef,
     CoatOfArmsSymbolDef,
     CoatOfArmsSymbolId,
@@ -112,6 +114,11 @@ from .tables import (
     HorizonSettingDef,
     HorizonSettingId,
     JudgementDef,
+    LeaderboardRewardDef,
+    LeaderboardRewardId,
+    LeaderboardRewardSetId,
+    LeagueTypeEventDef,
+    LeagueTypeEventId,
     LootBoxDef,
     LootBoxTypeDef,
     OuterRealmsSettingDef,
@@ -154,13 +161,17 @@ if TYPE_CHECKING:
         AllianceCrestColor,
         AllianceCrestLayout,
         AllianceTowerEffect,
+        BerimondSpecialCamp,
         Building,
         ConstructionItem,
         CurrencyId,
         DailyQuestId,
+        DaimyoCastle,
+        DaimyoTownship,
         DifficultyType,
         Effect,
         EffectType,
+        EquipmentEffect,
         EquipmentGroup,
         Event,
         FusionForgeId,
@@ -215,7 +226,8 @@ _CACHED_MODELS = (
     NpcCampDefence,
     DungeonDefence,
     ToolCategoryDef,
-    EventCampDef,
+    DaimyoCastleDef,
+    DaimyoTownshipDef,
     LeagueBracketDef,
     LegendSkillDef,
     AttackSlotDef,
@@ -268,6 +280,9 @@ _CACHED_MODELS = (
     HorizonSettingDef,
     AllianceTowerEffectDef,
     AllianceInvasionCampDef,
+    BerimondSpecialCampDef,
+    LeagueTypeEventDef,
+    LeaderboardRewardDef,
     DaimyoContractDef,
     AchievementCondition,
     AchievementDef,
@@ -507,6 +522,12 @@ _TABLES: dict[str, _TableSource] = {
     "horizon_settings": _TableSource("allianceBattleGroundSettings", HorizonSettingDef, "setting_id"),
     "alliance_tower_effects": _TableSource("allianceTowerEffects", AllianceTowerEffectDef, "tower_effect_id"),
     "alliance_invasion_camps": _TableSource("allianceInvasionCamps", AllianceInvasionCampDef, "camp_id"),
+    "equipment_effects": _TableSource("equipment_effects", EquipmentEffectDef, "equipment_effect_id"),
+    "daimyo_castles": _TableSource("daimyoCastles", DaimyoCastleDef, "camp_id"),
+    "daimyo_townships": _TableSource("daimyoTownships", DaimyoTownshipDef, "camp_id"),
+    "berimond_special_camps": _TableSource("specialcamps", BerimondSpecialCampDef, "special_camp_id"),
+    "league_type_events": _TableSource("leaguetypeevents", LeagueTypeEventDef, "league_type_event_id"),
+    "leaderboard_rewards": _TableSource("leaderboardRewards", LeaderboardRewardDef, "leaderboard_reward_id"),
 }
 """The GameData tables read lazily, by attribute name: each a :class:`Table` built from these rows."""
 
@@ -521,23 +542,15 @@ CAMP_TABLES = (
     "allianceInvasionCamps",
 )
 
-# Rank tables that share the EventCampDef shape.
-EVENT_CAMP_TABLES = (
-    "daimyoCastles",
-    "daimyoTownships",
-)
-
 RAW_TABLES = (
     "bossdungeons",
-    "specialcamps",
     "eventAutoScalingUnitPairings",
     "eventAutoScalingToolPairings",
     "mainquests",
 )
 """
 Tables kept verbatim. The client parses no ``bossdungeons``, pairing or ``mainquests`` rows, so their
-meaning is the server's; it reads ``specialcamps`` into two value objects by row type
-(``FactionEventVO.parseAdditionalXmlFromRoot``, bundle line 7400), which are not modeled yet.
+meaning is the server's.
 """
 
 R = TypeVar("R", bound=EmpireModel)
@@ -618,7 +631,6 @@ class GameData(EmpireModel):
     """Hash of the table fields, so a cache from older tables is not reused."""
 
     effect_caps: dict[int, EffectCapDef] = Field(default_factory=dict)
-    equipment_effects: dict[int, EquipmentEffectDef] = Field(default_factory=dict)
     relic_effects: dict[int, RelicEffectDef] = Field(default_factory=dict)
     equipment_sets: dict[int, list[EquipmentSetDef]] = Field(default_factory=dict)
     """Each equipment set's threshold rows by set id, in the order listed."""
@@ -630,7 +642,6 @@ class GameData(EmpireModel):
     vip_levels: dict[int, VipLevelDef] = Field(default_factory=dict)
     dungeons: list[DungeonDefence] = Field(default_factory=list)
     camps: dict[str, list[NpcCampDefence]] = Field(default_factory=dict)
-    event_camps: dict[str, dict[int, EventCampDef]] = Field(default_factory=dict)
     league_brackets: list[LeagueBracketDef] = Field(default_factory=list)
     raw_tables: dict[str, list[Any]] = Field(default_factory=dict)
     _table_rows: _TableRows = PrivateAttr(default_factory=lambda: _TableRows({}))
@@ -990,9 +1001,100 @@ class GameData(EmpireModel):
         currency_ids = {row.name: row.currency_id for row in self.currencies.values()}
         return self._table("rewards", context={"currency_ids": currency_ids})
 
+    @cached_property
+    def equipment_effects(self) -> Table[GameDataId["EquipmentEffect"], EquipmentEffectDef]:
+        """
+        The bonuses equipment can roll by ``EquipmentEffect``, the id an item's bonus names.
+
+        Client: ``EquipmentXml.parseXml`` (bundle line 144227)
+        """
+        return self._table("equipment_effects")
+
+    @cached_property
+    def daimyo_castles(self) -> Table[GameDataId["DaimyoCastle"], DaimyoCastleDef]:
+        """
+        The Legion of the Daimyos' daimyo castles by ``DaimyoCastle``, a row per rank and level.
+
+        Client: ``DaimyoCastleXmlData`` (bundle line 141378)
+        """
+        return self._table("daimyo_castles")
+
+    @cached_property
+    def daimyo_townships(self) -> Table[GameDataId["DaimyoTownship"], DaimyoTownshipDef]:
+        """
+        The Legion of the Daimyos' townships by ``DaimyoTownship``, a row per rank and level.
+
+        Client: ``DaimyoTownshipXmlData`` (bundle line 141400)
+        """
+        return self._table("daimyo_townships")
+
+    @cached_property
+    def berimond_special_camps(self) -> Table[GameDataId["BerimondSpecialCamp"], BerimondSpecialCampDef]:
+        """
+        The Battle for Berimond's watchtowers, capitals and resource village (``specialcamps``) by
+        ``BerimondSpecialCamp``.
+
+        Client: ``FactionEventVO.parseAdditionalXmlFromRoot`` (bundle line 7398)
+        """
+        return self._table("berimond_special_camps")
+
+    @cached_property
+    def league_type_events(self) -> Table[LeagueTypeEventId, LeagueTypeEventDef]:
+        """
+        Each league's points thresholds and rewards per event and reward set (``leaguetypeevents``), by row id;
+        :meth:`league_type_event` finds an event's.
+        """
+        return self._table("league_type_events")
+
+    @cached_property
+    def leaderboard_rewards(self) -> Table[LeaderboardRewardId, LeaderboardRewardDef]:
+        """
+        Each leaderboard rank band's rewards (``leaderboardRewards``), by row id; :meth:`leaderboard_reward_bands`
+        finds an event's.
+        """
+        return self._table("leaderboard_rewards")
+
     # ------------------------------------------------------------------
     # Lookups
     # ------------------------------------------------------------------
+
+    def league_type_event(
+        self, event_id: int, league_type_id: int, *, sub_type: int = 0, reward_set_id: int = 0
+    ) -> LeagueTypeEventDef | None:
+        """
+        A league's rewards in an event: the first row of the event, sub type and league whose set is
+        ``reward_set_id``, any set when that is 0 or less; None for none, where the client raises.
+
+        Client: ``ALeagueTypeScoreEventVO.parseAdditionalXmlFromRoot`` (bundle lines 10268-10276)
+        """
+        return next(
+            (
+                row
+                for row in self.league_type_events.values()
+                if row.event_id == event_id
+                and row.sub_type == sub_type
+                and row.league_type_id == league_type_id
+                and (reward_set_id <= 0 or row.reward_set_id == reward_set_id)
+            ),
+            None,
+        )
+
+    def leaderboard_reward_bands(
+        self, event_id: int, reward_set_id: LeaderboardRewardSetId, league_type_id: int = -1
+    ) -> tuple[LeaderboardRewardDef, ...]:
+        """
+        An event's leaderboard rank bands in a reward set, in table order; ``league_type_id=-1`` takes every
+        league's.
+
+        Client: ``CastleLeaderBoardRewardsData.getRewardListForDialogList`` (bundle line 112015)
+        """
+        return tuple(
+            row
+            for row in self.leaderboard_rewards.values()
+            if row.event_id == event_id
+            and row.reward_set_id == reward_set_id
+            and (league_type_id == -1 or row.league_type_id == league_type_id)
+        )
 
     def reward_list(self, reward_ids: Iterable[int], *, combine: bool = False) -> tuple[Collectable, ...]:
         """
@@ -1107,10 +1209,6 @@ class GameData(EmpireModel):
         if found is None and points > 0 and levels:
             return levels[-1]
         return found
-
-    def get_event_camp(self, table: str, camp_id: int) -> EventCampDef | None:
-        """One rank of a daimyo castle (``daimyoCastles``) or township (``daimyoTownships``)."""
-        return self.event_camps.get(table, {}).get(camp_id)
 
     def scaling_camp_level(self, scaling_camp_id: ScalingCampId) -> int | None:
         """
@@ -1368,9 +1466,6 @@ class GameData(EmpireModel):
             version=version,
             schema_fingerprint=_schema_fingerprint(),
             effect_caps={r.cap_id: r for r in _rows(items_data.get("effectCaps"), EffectCapDef)},
-            equipment_effects={
-                r.equipment_effect_id: r for r in _rows(items_data.get("equipment_effects"), EquipmentEffectDef)
-            },
             relic_effects={r.relic_effect_id: r for r in _rows(items_data.get("relicEffects"), RelicEffectDef)},
             equipment_sets=equipment_sets,
             fortifications={
@@ -1396,11 +1491,6 @@ class GameData(EmpireModel):
             dungeons=_rows(items_data.get("dungeons"), DungeonDefence, context={"default_lords": default_lords}),
             camps={
                 table: _rows(items_data.get(table), NpcCampDefence) for table in CAMP_TABLES if items_data.get(table)
-            },
-            event_camps={
-                table: {r.camp_id: r for r in _rows(items_data.get(table), EventCampDef)}
-                for table in EVENT_CAMP_TABLES
-                if items_data.get(table)
             },
             league_brackets=_rows(items_data.get("leaguetypes"), LeagueBracketDef),
             raw_tables={table: items_data[table] for table in RAW_TABLES if isinstance(items_data.get(table), list)},

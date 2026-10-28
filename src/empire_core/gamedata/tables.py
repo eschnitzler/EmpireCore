@@ -18,6 +18,8 @@ from typing import TYPE_CHECKING, NewType
 from pydantic import Field, ValidationInfo, field_validator, model_validator
 
 from empire_core.enums import (
+    BerimondLane,
+    BerimondSpecialCampType,
     BuildingGroundType,
     BuildingGroup,
     CollectableKind,
@@ -44,6 +46,7 @@ if TYPE_CHECKING:
         AllianceCrestColor,
         AllianceCrestLayout,
         AllianceTowerEffect,
+        BerimondSpecialCamp,
         Building,
         ConstructionItem,
         CurrencyId,
@@ -57,6 +60,7 @@ if TYPE_CHECKING:
         GeneralRarity,
         GeneralsHubCharacter,
         Judgement,
+        LeagueType,
         LootBox,
         LootBoxType,
         PrebuiltCastle,
@@ -164,6 +168,22 @@ ScalingCampId = NewType("ScalingCampId", int)
 
 AllianceInvasionCampId = NewType("AllianceInvasionCampId", int)
 """The id of an ``allianceInvasionCamps`` row, an alliance invasion camp that :attr:`GameData.alliance_invasion_camps`
+describes."""
+
+RewardSetId = NewType("RewardSetId", int)
+"""The reward set a league score event's ``RSID`` names: which :attr:`GameData.league_type_events` rows give its
+leagues' rewards. Not a ``rewards`` row; 0 picks no set."""
+
+LeagueTypeEventId = NewType("LeagueTypeEventId", int)
+"""The id of a ``leaguetypeevents`` row, a league's rewards in one event that :attr:`GameData.league_type_events`
+describes."""
+
+LeaderboardRewardSetId = NewType("LeaderboardRewardSetId", int)
+"""The reward set a score event's ``LRSI`` names: which :attr:`GameData.leaderboard_rewards` rows give its leaderboard's
+rank rewards. Not a ``rewards`` row."""
+
+LeaderboardRewardId = NewType("LeaderboardRewardId", int)
+"""The id of a ``leaderboardRewards`` row, one rank band's rewards that :attr:`GameData.leaderboard_rewards`
 describes."""
 
 
@@ -2783,7 +2803,205 @@ class AllianceInvasionCampDef(_Row):
         return _parse_int_or_default(value, 0)
 
 
+def _reward_lists(value: object) -> list[list[int]]:
+    """
+    ``CollectableParser.createListsFromRewardIdsString`` (bundle line 40529): a list per ``,`` part, a part's ``#``
+    pieces merged into one; a part with no reward id above 0 gives none.
+    """
+    if isinstance(value, list | tuple):
+        return [list(part) for part in value]
+    lists = [[i for i in _int_list(part, separator="#") if i > 0] for part in _text(value).split(",")]
+    return [ids for ids in lists if ids]
+
+
+class LeagueTypeEventDef(_Row):
+    """
+    One league's points thresholds and rewards in one event, for one reward set.
+
+    A league score event takes the first row of its event, sub type and league whose set is its ``RSID``
+    (any set while that is 0 or less).
+
+    Client: ``ALeagueTypeScoreEventVO.parseAdditionalXmlFromRoot`` and ``parseLeagueTypeEventElement`` (bundle lines
+    10268-10289); ``FactionEventVO.parseData`` (bundle line 7352) reads Berimond's rows by league and set
+    """
+
+    league_type_event_id: LeagueTypeEventId = Field(validation_alias="leaguetypeEventsID", description="The row")
+    event_id: GameDataId["Event"] = Field(validation_alias="eventID", default=0, description="The event it is for")
+    league_type_id: GameDataId["LeagueType"] = Field(
+        validation_alias="leaguetypeID", default=0, description="The league it rewards"
+    )
+    sub_type: int = Field(validation_alias="subType", default=0, description="The event's sub type")
+    reward_set_id: RewardSetId = Field(
+        validation_alias="rewardSetID", default=RewardSetId(0), description="The reward set it belongs to"
+    )
+    needed_points: tuple[int, ...] = Field(
+        validation_alias="neededPointsForRewards",
+        default=(),
+        description="The points each reward tier needs, before the event's point scale",
+    )
+    reward_ids: tuple[tuple[RewardId, ...], ...] = Field(
+        validation_alias="rewardIDs",
+        default=(),
+        description="One reward list per ``,`` part, in the row's order",
+    )
+    top_x: tuple[int, ...] = Field(
+        validation_alias="topXValue", default=(), description="The ranks the top-rank rewards go to"
+    )
+    hard_mode_start: int = Field(
+        validation_alias="hardModeStart",
+        default=0,
+        description="Points above which the tiers are hard mode's; 0 for none",
+    )
+    alliance_reward_threshold_points: int = Field(
+        validation_alias="allianceRewardThresholdPoints",
+        default=0,
+        description="Points a player needs for the alliance rewards",
+    )
+
+    @field_validator("league_type_event_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator(
+        "event_id", "league_type_id", "sub_type", "reward_set_id", "hard_mode_start",
+        "alliance_reward_threshold_points", mode="before",
+    )  # fmt: skip
+    @classmethod
+    def _int_column(cls, value: object) -> int:
+        return _parse_int_or_default(value, 0)
+
+    @field_validator("needed_points", "top_x", mode="before")
+    @classmethod
+    def _ints(cls, value: object) -> list[int]:
+        return _int_list(value)
+
+    @field_validator("reward_ids", mode="before")
+    @classmethod
+    def _rewards(cls, value: object) -> list[list[int]]:
+        return _reward_lists(value)
+
+    def rewards(self, *, game_data: GameData | None = None) -> tuple[tuple[Collectable, ...], ...]:
+        """
+        What each tier gives, in the order of :attr:`reward_ids`.
+
+        Client: ``createListsFromRewardIdsString`` (bundle line 40529) builds each list with
+        ``rewardData.getListById``
+        """
+        from empire_core.gamedata.data import GameData
+
+        data = game_data if game_data is not None else GameData.require()
+        return tuple(data.reward_list(ids) for ids in self.reward_ids)
+
+
+class LeaderboardRewardDef(_Row):
+    """
+    The rewards of one rank band of an event's leaderboard, in one reward set.
+
+    Client: ``LeaderboardRewardVO.fillFromParamXML`` (bundle line 112034), keyed by id in
+    ``CastleLeaderBoardRewardsData`` (bundle line 112005)
+    """
+
+    leaderboard_reward_id: LeaderboardRewardId = Field(validation_alias="leaderboardRewardID", description="The row")
+    event_id: GameDataId["Event"] = Field(validation_alias="eventTypeID", default=0, description="The event it is for")
+    reward_set_id: LeaderboardRewardSetId = Field(
+        validation_alias="leaderboardRewardSetID",
+        default=LeaderboardRewardSetId(0),
+        description="The reward set it belongs to",
+    )
+    max_rank: int = Field(validation_alias="maxRank", default=0, description="The lowest rank the band reaches")
+    reward_ids: tuple[RewardId, ...] = Field(validation_alias="rewardIDs", default=(), description="Its rewards")
+    league_type_id: GameDataId["LeagueType"] = Field(
+        validation_alias="leagueID", default=-1, description="The league it is for; -1 for every league"
+    )
+
+    @field_validator("leaderboard_reward_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator("event_id", "reward_set_id", "max_rank", mode="before")
+    @classmethod
+    def _int_column(cls, value: object) -> int:
+        return _parse_int_or_default(value, 0)
+
+    @field_validator("league_type_id", mode="before")
+    @classmethod
+    def _league(cls, value: object) -> int:
+        return _parse_int_or_default(value, -1)
+
+    @field_validator("reward_ids", mode="before")
+    @classmethod
+    def _ids(cls, value: object) -> list[int]:
+        return _int_list(value)
+
+    def rewards(self, *, game_data: GameData | None = None) -> tuple[Collectable, ...]:
+        """
+        What the band gives.
+
+        Client: ``rewardData.getListByIdArray(rewardIDs)`` (``CastleLeaderBoardRewardsData.getRewardListForDialogList``,
+        bundle line 112017)
+        """
+        from empire_core.gamedata.data import GameData
+
+        data = game_data if game_data is not None else GameData.require()
+        return data.reward_list(self.reward_ids)
+
+
+class BerimondSpecialCampDef(_Row):
+    """
+    A Battle for Berimond special camp: a watchtower, a capital or the resource village, by the id map rows and the
+    ``afd`` targets name it with.
+
+    Client: ``FactionEventVO.parseAdditionalXmlFromRoot`` (bundle line 7398) reads ``specialcampID``, ``type`` and
+    ``distance``, ``FactionTowerInfoVO.parseXML`` and ``FactionCapitalInfoVO.parseXML`` (bundle lines 88030, 88004)
+    the rest
+    """
+
+    special_camp_id: GameDataId["BerimondSpecialCamp"] = Field(validation_alias="specialcampID", description="The camp")
+    camp_type: GameDataKey[BerimondSpecialCampType] = Field(
+        validation_alias="type", default="", description="What it is; empty for none"
+    )
+    distance: int = Field(default=0, description="Its distance")
+    lane_id: GameDataId[BerimondLane] = Field(
+        validation_alias="laneID", default=0, description="The lane it stands on; 0 for the resource village"
+    )
+    village_count: int = Field(validation_alias="villageCount", default=0, description="A watchtower's villages")
+    sector_x: int = Field(validation_alias="CampPosX", default=0, description="Its x in the event's sector")
+    sector_y: int = Field(validation_alias="CampPosY", default=0, description="Its y in the event's sector")
+    unlock_ids: tuple[GameDataId["BerimondSpecialCamp"], ...] = Field(
+        validation_alias="unlockIDs", default=(), description="A capital's camps, as the client lists them"
+    )
+
+    @field_validator("special_camp_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator("distance", "lane_id", "village_count", "sector_x", "sector_y", mode="before")
+    @classmethod
+    def _int_column(cls, value: object) -> int:
+        return _parse_int_or_default(value, 0)
+
+    @field_validator("camp_type", mode="before")
+    @classmethod
+    def _text_column(cls, value: object) -> str:
+        return _text(value)
+
+    @field_validator("unlock_ids", mode="before")
+    @classmethod
+    def _ids(cls, value: object) -> list[int]:
+        return _int_list(value)
+
+
 __all__ = [
+    "BerimondSpecialCampDef",
+    "LeaderboardRewardDef",
+    "LeaderboardRewardId",
+    "LeaderboardRewardSetId",
+    "LeagueTypeEventDef",
+    "LeagueTypeEventId",
+    "RewardSetId",
     "row_id",
     "is_cost_column",
     "ConstructionItemRecipeId",

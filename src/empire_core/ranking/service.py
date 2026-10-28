@@ -29,6 +29,7 @@ from .models import (
     HighscoreRow,
     LeaderboardScore,
     LeaderboardSearchResult,
+    LeagueTypeId,
     SearchRankingListRequest,
     SearchRankingListResponse,
 )
@@ -45,7 +46,7 @@ class RankingService(BaseService):
     """
 
     def get_highscore(
-        self, list_type: RankingType, search_value: str, league_type_id: int = -1, *, timeout: float = 5.0
+        self, list_type: RankingType, search_value: str, league_type_id: LeagueTypeId = -1, *, timeout: float = 5.0
     ) -> list[HighscoreRow]:
         """
         Search for a highscore entry (e.g. player rank).
@@ -73,7 +74,7 @@ class RankingService(BaseService):
         list_type: RankingType,
         rank: int,
         max_results: int,
-        league_type_id: int,
+        league_type_id: LeagueTypeId,
         sub_division_id: int | None = None,
         event_id: Event | None = None,
         *,
@@ -124,7 +125,7 @@ class RankingService(BaseService):
         self,
         list_type: RankingType,
         max_results: int,
-        league_type_id: int,
+        league_type_id: LeagueTypeId,
         sub_division_id: int | None = None,
         event_id: Event | None = None,
         *,
@@ -166,7 +167,7 @@ class RankingService(BaseService):
         list_type: RankingType,
         score_id: str,
         max_results: int,
-        league_type_id: int | None,
+        league_type_id: LeagueTypeId | None,
         sub_division_id: int | None = None,
         event_id: Event | None = None,
         *,

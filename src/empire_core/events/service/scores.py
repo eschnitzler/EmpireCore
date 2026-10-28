@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from empire_core.enums import RankingType
 from empire_core.events.models import (
     EVENT_SCOREBOARDS,
@@ -25,10 +27,14 @@ from empire_core.ranking.models import (
     GetRankingListResponse,
     GetRankingWindowRequest,
     GetRankingWindowResponse,
+    LeagueTypeId,
     SearchRankingListRequest,
     SearchRankingListResponse,
 )
 from empire_core.services.base import ServiceMixin
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import LeagueType
 
 # The part of an event's sei entry holding a board's league; other boards use the entry's own LID
 _LEAGUE_PART = {
@@ -45,7 +51,7 @@ _LEAGUE_PART = {
 
 
 class ScoresMixin(ServiceMixin):
-    def league_id(self, event: Event | int, part: str | None = None) -> int:
+    def league_id(self, event: Event | int, part: str | None = None) -> LeagueTypeId:
         """
         The league your score is in for a running event, the ``LID`` of its sei entry; nothing is sent.
 
@@ -103,7 +109,7 @@ class ScoresMixin(ServiceMixin):
         list_type: RankingType | None = None,
         rank: int | None = None,
         name: str | None = None,
-        league_id: int | None = None,
+        league_id: LeagueType | None = None,
         page_size: int = 10,
         timeout: float = 5.0,
     ) -> EventScores:
@@ -169,8 +175,7 @@ class ScoresMixin(ServiceMixin):
         berimond = self.client.state.get_event(event)
         locked = isinstance(berimond, BerimondEvent) and not berimond.unlocked
         own_page = not locked if league_id is None else league_id == own_league
-        if league_id is None:
-            league_id = 1 if locked else own_league
+        league: LeagueTypeId = league_id if league_id is not None else 1 if locked else own_league
 
         if not scoreboard.is_leaderboard:
             if name is not None:
@@ -179,14 +184,14 @@ class ScoresMixin(ServiceMixin):
                 search = str(rank)
             else:
                 search = "-1" if own_page else "1"
-            highscore = GetHighscoreRequest(list_type=board, league_type_id=league_id, search_value=search)
+            highscore = GetHighscoreRequest(list_type=board, league_type_id=league, search_value=search)
             return EventScores.from_highscore(
                 event, board, self.request(highscore, GetHighscoreResponse, timeout=timeout)
             )
 
         page: GetRankingListResponse
         if rank is not None:
-            request = GetRankingListRequest(list_type=board, league_type_id=league_id, max_results=page_size, rank=rank)
+            request = GetRankingListRequest(list_type=board, league_type_id=league, max_results=page_size, rank=rank)
             page = self.request(request, GetRankingListResponse, timeout=timeout)
         elif name is not None:
             search_request = SearchRankingListRequest(list_type=board, search_value=name)
@@ -199,7 +204,7 @@ class ScoresMixin(ServiceMixin):
             )
             page = self.request(window, GetRankingWindowResponse, timeout=timeout)
         else:
-            own = GetRankingWindowRequest(list_type=board, league_type_id=league_id, max_results=page_size, score_id="")
+            own = GetRankingWindowRequest(list_type=board, league_type_id=league, max_results=page_size, score_id="")
             page = self.request(own, GetRankingWindowResponse, timeout=timeout)
         return EventScores.from_leaderboard(event, board, page)
 
@@ -261,7 +266,7 @@ class ScoresMixin(ServiceMixin):
             raise ValueError(f"{event.name} has no player board; pass alliance=True")
         return scoreboard.player_lists[0]
 
-    def _league(self, event: Event, board: RankingType) -> int:
+    def _league(self, event: Event, board: RankingType) -> LeagueTypeId:
         # DonationEventDialogRanking (bundle line 115740) shows its board with no league;
         # AScoreEventVO (bundle line 14965) and FactionEventVO (bundle line 7353) start at league 1
         if event == 123:  # Event.IMPERIAL_PATRONAGE

@@ -12,17 +12,17 @@ from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, en
 from empire_core.protocol.js import ClientInt, ClientNumber, js_loose_equals
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import PrebuiltCastle
+    from empire_core.gamedata import BerimondSpecialCamp, PrebuiltCastle
 
 
 class BerimondTarget(BasePayload):
-    """An attackable special camp; its id is opaque, not a map area id or coordinate.
+    """An attackable special camp, a ``GameData.berimond_special_camps`` row; not a map area id or coordinate.
 
     Client: ``FactionEventVO.parse_AFD`` (bundle 7369), ``FactionLaneRenderHelper.showLane``
     (40075) compares each AC integer with a tower's specialCampID.
     """
 
-    special_camp_id: int = Field(description="Attackable special camp id")
+    special_camp_id: EnumOrInt["BerimondSpecialCamp"] = Field(description="The attackable special camp")
 
 
 class GetBerimondTargetsRequest(BaseRequest):

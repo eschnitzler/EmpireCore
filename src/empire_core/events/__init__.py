@@ -221,10 +221,12 @@ from .titles import get_event_titles
 
 if TYPE_CHECKING:
     from empire_core.gamedata import (
+        BerimondSpecialCamp,
         Currency,
         Effect,
         Event,
         GlobalEffect,
+        LeagueType,
         PrebuiltCastle,
         QuestId,
         RaidBoss,
@@ -434,6 +436,8 @@ __all__ = [
     "RaidBoss",
     "TreasureMapId",
     "BerimondFaction",
+    "BerimondSpecialCamp",
+    "LeagueType",
 ]
 
 
@@ -441,5 +445,16 @@ if not TYPE_CHECKING:
     __getattr__ = lazy_exports(
         __name__,
         "empire_core.gamedata.ids",
-        ("Currency", "Effect", "Event", "GlobalEffect", "PrebuiltCastle", "QuestId", "RaidBoss", "TreasureMapId"),
+        (
+            "BerimondSpecialCamp",
+            "Currency",
+            "Effect",
+            "Event",
+            "GlobalEffect",
+            "LeagueType",
+            "PrebuiltCastle",
+            "QuestId",
+            "RaidBoss",
+            "TreasureMapId",
+        ),
     )

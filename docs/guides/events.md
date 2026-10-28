@@ -60,6 +60,21 @@ Each event is a model of its kind, with the fields its game dialog reads, and
 | `SkipForFreeEvent`, `GiftEvent`, `FortuneTellerEvent` | `SKIP_FOR_FREE`, `GIFT_BOX`, `FORTUNE_TELLER` | `free_skip_seconds`; `collected`; `tries`, `daily_reset_time` |
 | `SpecialEvent` | any other | `event_id`, `event`, `end_time`, `raw` |
 
+An event's rewards come from its reward sets, which are not `rewards` rows but
+keys into the game data: `league_rewards()` on a `reward_set_id` event (and
+on `BerimondEvent`, or an `EventPart` given its event) gives your league's
+`LeagueTypeEventDef`, its points thresholds and reward lists, and
+`leaderboard_rewards()` on a scored event or `ImperialPatronageEvent` gives the
+leaderboard's rank bands (`LeaderboardRewardDef`). Each row's `rewards()` reads
+what the rewards give, as typed collectables. Both load the game data.
+
+```python
+event = client.state.get_event(Event.MARAUDERS_CONTEST)
+row = event.league_rewards()
+for points, rewards in zip(row.needed_points, row.rewards()):
+    print(points, rewards)
+```
+
 Your points arrive in the server's `pep` pushes as you score, and
 `client.events.get_own_points(event)` asks for them (see [Your own rank and
 points](#your-own-rank-and-points)). A later entry

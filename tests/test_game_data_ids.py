@@ -7,32 +7,49 @@ import pytest
 from pydantic import BaseModel
 
 from empire_core.alliance.models.help import AllianceHelpReceived
+from empire_core.alliance.models.search import SearchAllianceRequest
 from empire_core.army.models.hospital import HealUnitsRequest
 from empire_core.army.models.production import AddedUnit, HospitalSlot, ProduceUnitsRequest, ProductionSlot
 from empire_core.army.models.units import DismissUnitsRequest, StoreSoldiersRequest
 from empire_core.castle.models.buildings import BuildRequest
 from empire_core.castle.models.objects import BuildingRow
 from empire_core.castle.models.research import ResearchInfoResponse
+from empire_core.commanders.models.equipment import EquipmentBonus
 from empire_core.commanders.models.roster import Commander, CommanderEffect
 from empire_core.commanders.models.skills import AddGeneralXpRequest, AssignGeneralRequest, OwnedGeneral
-from empire_core.enums import Kingdom, ProductionListId
+from empire_core.enums import Kingdom, MapItemType, ProductionListId
+from empire_core.events.berimond_models import BerimondTarget
+from empire_core.events.models import EventPart
 from empire_core.gamedata import (
     Achievement,
+    BerimondSpecialCamp,
     Building,
     CurrencyId,
+    DaimyoCastle,
+    DaimyoTownship,
     Effect,
+    EquipmentEffect,
     Event,
     General,
+    LeagueType,
     Research,
     Title,
     Tool,
     Unit,
 )
 from empire_core.map.models.areas import MapObject
+from empire_core.map.models.items import MapAreaItem
 from empire_core.messages.models.battle_logs import BattleLogUnit
+from empire_core.messages.models.mailbox import SpyReportArea
 from empire_core.player.models.info import PlayerOwnerInfo
 from empire_core.player.models.progress import AchievementProgress
-from empire_core.ranking.models import GetRankingListRequest
+from empire_core.ranking.models import (
+    GetHighscoreRequest,
+    GetHighscoreResponse,
+    GetRankingListRequest,
+    GetRankingListResponse,
+    LeaderboardSearchResult,
+)
 from empire_core.rewards.models import CollectLoginBonusRequest
 
 RESEARCH = next(iter(Research))
@@ -42,6 +59,13 @@ TOOL = next(iter(Tool))
 
 def _field(model: type[BaseModel], data: Any, field: str) -> Any:
     return getattr(model.model_validate(data), field)
+
+
+def _map_row(item_type: MapItemType, *values: Any) -> MapAreaItem:
+    return MapAreaItem.from_list([int(item_type), 10, 20, *values])
+
+
+DAIMYO_ROW = (60, 3, 100, 500, 20, -1, 110, 110, 0)
 
 
 KNOWN = [
@@ -71,7 +95,38 @@ KNOWN = [
     (MapObject, {"OID": 5, "PRE": 3}, "prefix_title", Title.BARON),
     (PlayerOwnerInfo, {"OID": 5, "SUF": "4"}, "title_suffix", Title.VISCOUNT),
     (AchievementProgress, {"AID": 1}, "achievement_id", Achievement.ACHIEVEMENT_POINTS_L1),
+    (GetHighscoreRequest, {"LT": 2, "LID": 3, "SV": "x"}, "league_type_id", LeagueType.LEVELS_30_39),
+    (GetHighscoreResponse, {"LT": 2, "LID": "6"}, "league_type_id", LeagueType.LEVEL_70),
+    (GetRankingListResponse, {"LID": 2}, "league_type_id", LeagueType.LEVELS_20_29),
+    (LeaderboardSearchResult, {"LID": 1}, "league_type_id", LeagueType.LEVELS_1_19),
+    (SearchAllianceRequest, {"SV": "x"}, "league_type_id", LeagueType.LEVEL_70),
+    (EventPart, {"LID": 5}, "league_id", LeagueType.LEVELS_50_69),
+    (EquipmentBonus, [334, [25]], "effect_id", EquipmentEffect.ATTACK_BOOST_YARD_25_COMMANDER),
+    # getEquippableEffectByEquipmentEffect: an id no equipment effect has is a plain effect
+    (EquipmentBonus, [2101, [10]], "effect_id", Effect.RELIC_OFFENSIVE_MELEE_BONUS),
+    (BerimondTarget, {"special_camp_id": 4}, "special_camp_id", BerimondSpecialCamp.GERBRANDT_TOP_WATCHTOWER_4),
+    (SpyReportArea, {"AT": 18, "X": 1, "Y": 2, "SPC": 2}, "special_camp_id", BerimondSpecialCamp.GERBRANDT_CAPITAL),
 ]
+
+MAP_ROWS = [
+    (_map_row(MapItemType.DAIMYO_CASTLE, *DAIMYO_ROW), "daimyo_castle_id", DaimyoCastle.RANK_1_L83),
+    (_map_row(MapItemType.DAIMYO_TOWNSHIP, *DAIMYO_ROW), "daimyo_township_id", DaimyoTownship.RANK_1_L83),
+    (
+        _map_row(MapItemType.FACTION_CAPITAL, -1, [], 0, 60, 0, 3),
+        "special_camp_id",
+        BerimondSpecialCamp.URSIDAE_CAPITAL,
+    ),
+    (
+        _map_row(MapItemType.FACTION_TOWER, -1, 0, [], 0, 50, 92, 4),
+        "special_camp_id",
+        BerimondSpecialCamp.GERBRANDT_TOP_WATCHTOWER_4,
+    ),
+]
+
+
+@pytest.mark.parametrize(("item", "field", "member"), MAP_ROWS, ids=lambda v: getattr(v, "name", None))
+def test_a_map_row_reads_its_camp_as_the_member_of_its_own_table(item, field, member):
+    assert getattr(item, field) is member
 
 
 @pytest.mark.parametrize(("model", "data", "field", "member"), KNOWN, ids=lambda v: getattr(v, "__name__", None))
@@ -94,6 +149,11 @@ SENTINELS = [
     (MapObject, {"OID": 5, "PRE": -1}, "prefix_title", None),
     (PlayerOwnerInfo, {"OID": 5, "SUF": -1}, "title_suffix", None),
     (AchievementProgress, {}, "achievement_id", 0),
+    (GetHighscoreRequest, {"LT": 2, "SV": "x"}, "league_type_id", -1),
+    (GetHighscoreResponse, {"LT": 2, "LID": 0}, "league_type_id", -1),
+    (GetRankingListRequest, {"LT": 84, "LID": -1, "M": 10}, "league_type_id", -1),
+    (GetRankingListResponse, {"LID": -1}, "league_type_id", -1),
+    (EventPart, {"LID": 0}, "league_id", 0),
 ]
 
 
@@ -117,6 +177,16 @@ def test_an_unknown_id_stays_an_int_and_is_logged(caplog, monkeypatch):
     assert row.wod_id == 987653 and type(row.wod_id) is int
     assert "Unit/Tool has no member 987654" in caplog.text
     assert "Building has no member 987653" in caplog.text
+
+
+def test_an_unknown_league_or_equipment_effect_stays_an_int_and_is_logged(caplog, monkeypatch):
+    monkeypatch.setattr("empire_core.gamedata.lenient._warned", set())
+    with caplog.at_level(logging.WARNING, logger="empire_core.gamedata.lenient"):
+        league = GetHighscoreRequest.model_validate({"LT": 2, "LID": 99, "SV": "x"}).league_type_id
+        bonus = EquipmentBonus.model_validate([987654, [1]]).effect_id
+    assert (league, bonus) == (99, 987654) and type(league) is int and type(bonus) is int
+    assert "LeagueType has no member 99" in caplog.text
+    assert "EquipmentEffect/Effect has no member 987654" in caplog.text
 
 
 def test_a_building_row_reads_its_type_and_upgrade_target():

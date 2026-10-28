@@ -68,7 +68,17 @@ from .scanner import ChunkHandler, MapScanner, ScanResult, scan_kingdom_with
 from .service import MapService
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import AllianceCrestColor, AllianceCrestLayout, Title, Tool, TreasureMapId, Unit
+    from empire_core.gamedata import (
+        AllianceCrestColor,
+        AllianceCrestLayout,
+        BerimondSpecialCamp,
+        DaimyoCastle,
+        DaimyoTownship,
+        Title,
+        Tool,
+        TreasureMapId,
+        Unit,
+    )
 
 __all__ = [
     "CoatOfArmsBackground",
@@ -138,6 +148,9 @@ __all__ = [
     "Tool",
     "Unit",
     "TreasureMapId",
+    "BerimondSpecialCamp",
+    "DaimyoCastle",
+    "DaimyoTownship",
 ]
 
 
@@ -145,5 +158,15 @@ if not TYPE_CHECKING:
     __getattr__ = lazy_exports(
         __name__,
         "empire_core.gamedata.ids",
-        ("AllianceCrestColor", "AllianceCrestLayout", "Title", "Tool", "TreasureMapId", "Unit"),
+        (
+            "AllianceCrestColor",
+            "AllianceCrestLayout",
+            "BerimondSpecialCamp",
+            "DaimyoCastle",
+            "DaimyoTownship",
+            "Title",
+            "Tool",
+            "TreasureMapId",
+            "Unit",
+        ),
     )

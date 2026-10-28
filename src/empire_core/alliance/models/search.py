@@ -15,6 +15,7 @@ from pydantic import Field, field_serializer, field_validator, model_validator
 
 from empire_core.alliance.models.membership import AllianceMembership
 from empire_core.enums import RankingType
+from empire_core.gamedata import EnumOrInt, LeagueType
 from empire_core.protocol.base import (
     BasePayload,
     BaseRequest,
@@ -81,9 +82,9 @@ class SearchAllianceRequest(BaseRequest):
         default=RankingType.ALLIANCE_MIGHT_POINTS,
         description="The highscore list searched",
     )
-    league_type_id: int = Field(
+    league_type_id: EnumOrInt[LeagueType] = Field(
         validation_alias="LID",
-        default=6,
+        default=LeagueType(6),
         description="The league to search in; 6 is the level 70 league",
     )
     search_value: str = Field(validation_alias="SV", description="The alliance name to search for")
