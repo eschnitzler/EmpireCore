@@ -2,6 +2,272 @@
 
 <!-- version list -->
 
+## v0.60.0 (2026-10-28)
+
+### Bug Fixes
+
+- **alliance**: Reject composite treasury cost values
+  ([`ada160b`](https://github.com/eschnitzler/EmpireCore/commit/ada160bd91e9834610bc54413cc7c677d42ce066))
+
+- **alliance**: Reject stale upgrade preflights and invalid costs
+  ([`151ca4f`](https://github.com/eschnitzler/EmpireCore/commit/151ca4f1c269ba1c8d8b6fe2e0db30fda03436d2))
+
+- **attack**: Reject malformed dungeon reply coordinates
+  ([`cc24a3d`](https://github.com/eschnitzler/EmpireCore/commit/cc24a3d065734fc44274a498caa6107bfc5ded40))
+
+- **attack**: Validate dungeon reply kingdom identity
+  ([`a32eb70`](https://github.com/eschnitzler/EmpireCore/commit/a32eb70112c994c951d58befa121c6eda5cea79f))
+
+- **castle**: Castle callbacks on client.castle, the server build kept
+  ([`63d1feb`](https://github.com/eschnitzler/EmpireCore/commit/63d1feb66778ac43d438ffe32dd0a10378d92c27))
+
+- **castle**: Private village upgrade and removal take the village
+  ([`8023af7`](https://github.com/eschnitzler/EmpireCore/commit/8023af77bb098f8bb399df3bc0c49efe1ab7a581))
+
+- **combat**: Level, defence and owner of Berimond invasion camps
+  ([`37dd5d6`](https://github.com/eschnitzler/EmpireCore/commit/37dd5d64e740793e59ceebe8c22a6157285eae3c))
+
+- **commanders**: Hold a landed attack's commander until its way home comes
+  ([`3f6a3f6`](https://github.com/eschnitzler/EmpireCore/commit/3f6a3f6bfde3acee8c524f739048c0210c00a631))
+
+- **commanders**: The general calls take the general in any form
+  ([`500901b`](https://github.com/eschnitzler/EmpireCore/commit/500901b97c1692b2e507c8cc3b3c30bb513a335a))
+
+- **gamedata**: Review fixes for the typed ids
+  ([`96d0263`](https://github.com/eschnitzler/EmpireCore/commit/96d02630bdd307e185728bfb2ac232c4f2db3e9b))
+
+- **models**: Type the bare game-data ids
+  ([`3da6201`](https://github.com/eschnitzler/EmpireCore/commit/3da6201739e5f608c23294baa01d9f3e3b627518))
+
+- **state**: Apply the protection inside map reads, joins and spy screens
+  ([`cd8f8c6`](https://github.com/eschnitzler/EmpireCore/commit/cd8f8c605839ff131e563b6a5e1cea4b02e99998))
+
+### Documentation
+
+- **events**: Clarify Berimond candidates and export models
+  ([`5a7f668`](https://github.com/eschnitzler/EmpireCore/commit/5a7f6689cd0bf35d34a8eb21a746b4844d1a193d))
+
+### Features
+
+- **alliance**: Alliance battleground entry, performance, influence, centers of power and towers
+  ([`a75e66a`](https://github.com/eschnitzler/EmpireCore/commit/a75e66a514ea70c069954070fb29cab750171e57))
+
+- **alliance**: Auto join, aqua points, donation resources, laboratories and the forge
+  ([`84e01fe`](https://github.com/eschnitzler/EmpireCore/commit/84e01fef766210757bd8a1427cfc3f48cd859d52))
+
+- **alliance**: Support treasury upgrades and temporary boosts
+  ([`7e3899a`](https://github.com/eschnitzler/EmpireCore/commit/7e3899a7d5ef9a4a38d58b63d5c82fa52a96295c))
+
+- **army**: Recruitment loops, queue copies, production skips and camp capacity
+  ([`c66c7fb`](https://github.com/eschnitzler/EmpireCore/commit/c66c7fb012926044d02345aec8bb47c4f3f24b5b))
+
+- **attack**: Add dungeon cooldown skip services
+  ([`86907c5`](https://github.com/eschnitzler/EmpireCore/commit/86907c5218767b08652391a552802f4c195588bb))
+
+- **attack**: Send attacks and movements on event and special maps
+  ([`c123ce3`](https://github.com/eschnitzler/EmpireCore/commit/c123ce36d439822ec8d050ce39a53bcffe97afc9))
+
+- **attack,player**: Protection, taunts, attack advisor, tool buys and alien camps
+  ([`7646e1d`](https://github.com/eschnitzler/EmpireCore/commit/7646e1ddafe2779a91d5a01bbb2772efabc9916d))
+
+- **castle**: Buildings, deco storage, brewery, private villages and castle reads
+  ([`47cf26d`](https://github.com/eschnitzler/EmpireCore/commit/47cf26d6ed2645c2829cec3ec751bfc2148e005a))
+
+- **castle,commanders**: Crafting queues, construction item crafting, fusion forge, equipment and
+  gem crafting
+  ([`5efbe34`](https://github.com/eschnitzler/EmpireCore/commit/5efbe34f2819fb92d958abcf8cc622fbdd09f798))
+
+- **castle,map**: Villages, kingdom transfers, Storm Islands, monuments and season camps
+  ([`8d448bc`](https://github.com/eschnitzler/EmpireCore/commit/8d448bc4e19d5328f404378242f6998d0ac0db54))
+
+- **client**: Log in to the temporary server and the alliance battleground
+  ([`213073b`](https://github.com/eschnitzler/EmpireCore/commit/213073bcbbe81727f08763220a1caf5422f55668))
+
+- **events**: Add Berimond target and balance reads
+  ([`e72746b`](https://github.com/eschnitzler/EmpireCore/commit/e72746bb8b6c35a9acb44423c1a67c8bf668beca))
+
+- **events**: Finish Battle for Berimond: conquer info, points, joining, kingdom status
+  ([`8659aa7`](https://github.com/eschnitzler/EmpireCore/commit/8659aa786c162f1b31cf7cd9dba1c83790a91883))
+
+- **events**: Play the event minigames
+  ([`3ed8897`](https://github.com/eschnitzler/EmpireCore/commit/3ed889730f6ff87694db6681323331c6d1779e27))
+
+- **events,player,castle**: Training programs, hunter, judgements, hero, daimyo, invasion camps,
+  unlocks and difficulties
+  ([`cdc2cf5`](https://github.com/eschnitzler/EmpireCore/commit/cdc2cf5a747d8f7614128def83bc77588a624207))
+
+- **gamedata**: Generate league type, equipment effect, daimyo and Berimond camp ids
+  ([`c095bd4`](https://github.com/eschnitzler/EmpireCore/commit/c095bd489c9d7b74186c539b9b16e4dc7bfc4517))
+
+- **gamedata**: Resolve versioned unit and tool asset paths
+  ([`2b6de8b`](https://github.com/eschnitzler/EmpireCore/commit/2b6de8b6bb36c4dc57ff7aeb64c81b4d1ffe47b3))
+
+- **map**: Treasure maps and treasure hunts
+  ([`455f1a6`](https://github.com/eschnitzler/EmpireCore/commit/455f1a6eab35b056a9f1759fdd94ef223dee5e7f))
+
+- **player**: Type the quest, achievement and title commands
+  ([`dc216f5`](https://github.com/eschnitzler/EmpireCore/commit/dc216f5c4e15c0fe06bf8de8092bbb6854d35791))
+
+- **player,rewards,messages**: Coat of arms, player name, email, password, gift packages, vouchers
+  ([`de175ef`](https://github.com/eschnitzler/EmpireCore/commit/de175ef867601339ca6782852a161f8edb1f08df))
+
+- **state**: Type the server lifecycle pushes
+  ([`6c81a24`](https://github.com/eschnitzler/EmpireCore/commit/6c81a2424aaf00fcfe68372b9492182c4ebd923c))
+
+### Refactoring
+
+- Review fixes for the crafting, kingdom, special server and castle commands
+  ([`ec63321`](https://github.com/eschnitzler/EmpireCore/commit/ec633212c696404e042c7bbfd284503f431ac5a5))
+
+- **alliance**: The upgradable and customizable buffs are module constants of AllianceBuffType
+  ([`a2a9195`](https://github.com/eschnitzler/EmpireCore/commit/a2a919588e713b10ac7f1220ac8335c483c5285a))
+
+- **events**: Events go by their in-game names
+  ([`2dee7e0`](https://github.com/eschnitzler/EmpireCore/commit/2dee7e0b246d96686c00115c1cfc64e579b5c650))
+
+- **gamedata**: Asset paths resolve on GameData, with no import cycle
+  ([`dbb3f03`](https://github.com/eschnitzler/EmpireCore/commit/dbb3f03eff4879491939599e73eedbc2b9cc06bf))
+
+- **gamedata**: Castle ids are typed game data
+  ([`55dd741`](https://github.com/eschnitzler/EmpireCore/commit/55dd741ff40ad24dc395594ea69c78d58a15f3d5))
+
+- **gamedata**: Event ids are typed game data
+  ([`34e5c3f`](https://github.com/eschnitzler/EmpireCore/commit/34e5c3ffd5a38c579bead29019e6767163e582e0))
+
+- **services**: Split the large services into packages by section
+  ([`838c3a2`](https://github.com/eschnitzler/EmpireCore/commit/838c3a2631ed67a2344b59f88768cba7c0319ead))
+
+### Testing
+
+- **protocol**: The client command snapshot is release 44dfdad2
+  ([`abae897`](https://github.com/eschnitzler/EmpireCore/commit/abae897906c663d2d3cb96480585d47d3fda796f))
+
+### Breaking Changes
+
+- **castle**: Client.state.on_joined_area_moved, on_building_finished, on_building_xp,
+  on_buildings_changed and on_castle_buildings are now client.castle.on_*, run on the receive thread
+  instead of the callback thread (a callback must not block). get_last_packet_time no longer stamps
+  fbe, cbx, gdb and gcb, which state keeps nothing of.
+
+- **castle**: Upgrade_private_village(village_type_id, village_id) is now
+  upgrade_private_village(village), and remove_private_village(village_id) is now
+  remove_private_village(village), both taking a PrivateVillage from client.castle.villages or
+  get_villages().
+
+- **combat**: Event_camp_defense raises ValueError for the factioninvasioncamps table unless
+  faction_id is given, since blue and red camps have separate rows.
+
+- **commanders**: The general_id parameter of assign_general, set_general_abilities,
+  reset_general_skills and add_general_xp is now general, and assign_general(commander_id,
+  general=None) unassigns.
+
+- **events**: Public names change, with no aliases:
+
+- **gamedata**: Castle.unlock_kingdom(kingdom_id, prebuilt_castle_id, direction, *, ruby_castle,
+  spend_rubies) is now unlock_kingdom(castle: PrebuiltCastle, direction=None, *, ruby_price,
+  spend_rubies). events.unlock_season_camp(prebuilt_camp_id, space_id, *, ruby_camp, spend_rubies)
+  is now unlock_season_camp(camp: PrebuiltCastle, *, ruby_price, spend_rubies).
+  events.join_berimond(camp_id, *, ruby_camp, spend_rubies) is now join_berimond(camp:
+  PrebuiltCastle, *, spend_rubies). events.select_special_server_castle(castle_id, server_type, *,
+  ruby_castle, spend_rubies) is now select_special_server_castle(castle: PrebuiltCastle,
+  server_type, *, ruby_price, spend_rubies). castle.buy_private_village and upgrade_private_village
+  take a PrivateVillageType; start_crafting a CraftingRecipeId; craft_construction_item a
+  ConstructionItemRecipeId; get_fusion_forges, level_up_fusion_forge, refill_fusion_forge and
+  convert_catalysts a FusionForgeId (default FusionForgeId.DECORATIONS); fuse_decoration,
+  sell_stored_decoration and get_upgradable_buildings a Building. DECORATION_FORGE_ID is removed
+  (FusionForgeId.DECORATIONS). attack.send_attack, send_treasure_hunt_attack,
+  movements.send_resources, send_support, send_troops and the spy missions take horse_booster_id:
+  Horse | None = None instead of an int defaulting to -1; the request models' horse_booster_id is a
+  HorseBoosterId defaulting to NO_HORSE. HeroDecisionResponse.hero_id is replaced by the field hero
+  (Hero | None). JudgementStarted.judgement_id is Judgement | None (default None, was 0);
+  castle.judgement_id and state.get_judgement_id return Judgement.
+  SelectKingdomCastleRequest.prebuilt_castle_id, SelectSeasonCampRequest. prebuilt_camp_id,
+  SelectBerimondCampRequest.camp_id and SelectSpecialServerCastleRequest.castle_id are
+  PrebuiltCastle; PrivateVillage/BuyPrivateVillageRequest/UpgradePrivateVillageRequest.
+  village_type_id are PrivateVillageType; CraftingSlot.recipe_id and StartCraftingRequest.recipe_id
+  are CraftingRecipeId; CraftingQueue.queue_id is CraftingQueueId;
+  CraftConstructionItemRequest.recipe_id and ConstructionItemRecipeDef.recipe_id are
+  ConstructionItemRecipeId; the fusion forge models' forge_id(s) are FusionForgeId;
+  GameData.construction_item_recipes is keyed by ConstructionItemRecipeId.
+
+- **gamedata**: GameData.scaling_camps and scaling_camp_level take ScalingCampId;
+  daimyo_castle_contracts/daimyo_township_contracts and
+  DaimyoContractDef.contract_id/next_contract_id are DaimyoContractId; NpcCampDefence.faction_id,
+  FactionStanding.faction_id, BerimondEvent.faction_id and BerimondInvasionSide.faction_id are
+  BerimondFaction; empire_core.gamedata.data.BLUE_FACTION is removed (BerimondFaction.URSIDAE);
+  QuestDef.map_id and BuildingDef.available_in_map_ids are TreasureMapId. TreasureMap.map_id (now
+  required), TreasureMapNode.node_id, TreasureMap.node(),
+  GetTreasureMapsRequest/TreasureHuntInfoResponse.map_id (TreasureMapOrNone; the reply defaults to
+  -1, not 0), BuyTreasureMapPiecesRequest/ FinishTreasureMapRequest.map_id,
+  MapService.treasure_maps/ treasure_hunt_map_id/get_treasure_maps/buy_treasure_map_pieces/
+  finish_treasure_map, MapAreaItem.map_id/scaling_camp_id, TreasureHuntAttackRequest,
+  GetTreasureNodeAttackInfoRequest/Response, MinuteSkipDungeonRequest and SkipDungeonCooldownRequest
+  map_id/node_id, AttackService.minute_skip_dungeon/skip_dungeon_cooldown/
+  send_treasure_hunt_attack/get_treasure_node_attack_info (node_id: TreasureMapNodeId),
+  BuyToolsRequest.map_id/package_id and AttackService.buy_tools(package_id: PackageId), the treasure
+  transfer requests and MovementsService treasure map methods, SeasonEvent.map_id/ reward_id,
+  JoinSeasonCampRequest/MinuteSkipSeasonTransferRequest/ SeasonJoinEventRequest.map_id,
+  BattleLogArea.treasure_map_node_id, BattleLogMeta/BattleLogHeader.treasure_map_id are typed
+  treasure map and node ids. UnlockEventRequest.part_price_id and pay_toward_unlock take
+  PartPayPriceId; SelectEventDifficultyRequest.difficulty_id and select_difficulty take
+  EventDifficultyId; DonationItemAmount/ DonationItemPoints.donation_item_id and donate_items take
+  DonationItemId; GachaSpinResponse.gacha_id is GachaId; WheelOfFortuneStatus/
+  WheelOfFortuneChangeModeResponse/WheelOfFortuneEvent win_class and
+  jackpot_set_id/jackpot_spin_set_id are WheelOfFortuneWinClassId and WheelOfFortuneRewardSetId;
+  TrainingProgram.program_id is TrainingProgramId; DaimyoArea.scaling_camp_id,
+  DaimyoContractProgress.contract_id and ChronicleDaimyoContract.contract_id are
+  ScalingCampId/DaimyoContractId; AllianceCampInfo.event_id/camp_id (now required) are Event and
+  AllianceInvasionCampId; AllianceTowerBuff.tower_effect_id (now required) is AllianceTowerEffect;
+  RagePointsResponse.event_id (now required), GachaSpinRequest, GachaFreeChestResponse,
+  BuyArtifactPieceRequest, ArtifactFoundResponse, TreasureMapTransferSkipRequest,
+  GetEventPointsRequest/ Response, the Grand Tournament status models and the performance request's
+  event_id are Event; _MerchantPurchase.package_id is PackageId; DecorationStorage.storage_id,
+  MarkStorageSeenRequest.storage_id, CastleService.mark_storage_seen and the state's decoration
+  storages use DecorationStorageKey; PreviousSpecialServerRun no longer has setting_id
+  (PreviousOuterRealmsRun/PreviousHorizonRun have it).
+
+- **gamedata**: MapAreaItem.camp_id is split into daimyo_castle_id (DaimyoCastle),
+  daimyo_township_id (DaimyoTownship) and alliance_camp_id (AllianceInvasionCampId).
+  SpyReportArea.daimyo_camp_id is now scaling_camp_id (ScalingCampId), as DDCID is an
+  eventAutoScalingCamps id. GameData.event_camps, GameData.get_event_camp and EventCampDef are
+  removed; use GameData.daimyo_castles and daimyo_townships (DaimyoCastleDef, DaimyoTownshipDef).
+  GameData.equipment_effects is a Table keyed by EquipmentEffect, no longer a dict field.
+  GameData.raw("specialcamps") is gone; use GameData.berimond_special_camps. League fields and
+  parameters take LeagueType (LeagueTypeId where -1 means none): the league_type_id of
+  RankingService.get_highscore, get_ranking_list, get_own_ranking_page and get_ranking_window,
+  EventsService.get_scores(league_id: LeagueType | None), and EventsService.league_id() returns a
+  LeagueTypeId. Reward set fields are RewardSetId or LeaderboardRewardSetId,
+  EquipmentBonus.effect_id is EquipmentEffect | Effect, and the special_camp_id fields are
+  BerimondSpecialCamp.
+
+- **gamedata**: SpyReportArea.map_id is TreasureMapOrNone; ScoredEvent.difficulty_id is
+  EventDifficultyId, OuterRealmsEvent.setting_id OuterRealmsSettingId | None and
+  NomadInvasionEvent.khan_camp_id AllianceInvasionCampId | ScalingCampId | None;
+  ImperialPatronageEvent.setting_id is DonationSettingId | None.
+
+- **gamedata**: The module-level unit_asset_path and tool_asset_path are removed; call them on
+  client.game_data or GameData.require().
+
+- **models**: Service parameters take the enum: ArmyService.dismiss_units(wod_id: Unit | Tool),
+  ArmyService.produce_units(wod_id: Unit | Tool), ArmyService.heal_units(wod_id: Unit),
+  ArmyService.dismiss_wounded(wod_id: Unit), ArmyService.dismiss_wounded_units(units: Mapping[Unit,
+  int]), CastleService.build(wod_id: Building), CommandersService.assign_general(general_id: General
+  | None), None unassigning where -1 did, CommandersService.set_general_abilities(general_id:
+  General, abilities: Iterable[tuple[int, GeneralAbility | None]]), None clearing a slot where -1
+  did, CommandersService.unlock_general_skill(skill_id: GeneralSkill),
+  CommandersService.reset_general_skills(general_id: General),
+  CommandersService.add_general_xp(general_id: General, currency_id: CurrencyId),
+  QuestsService.quest(quest_id: QuestId), RankingService.get_ranking_list, get_own_ranking_page,
+  get_ranking_window and search_leaderboard (event_id: Event | None),
+  GetGeneralsResponse.skill_ids(general_id: General). SpyService.total_spies and available_spies,
+  AttackService.fill_waves and fill_attack, and the combat helpers type their skill and raid boss
+  ids with the fields' EnumOrInt. SpecialEvent.event and GameEvent.event are removed; read event_id.
+  CommanderEffect and CommanderEffects no longer import from empire_core.protocol.base.
+
+- **state**: ProductionList.list_id is a ProductionListId member (or the plain int for an unknown
+  list) instead of an int.
+
+
 ## v0.59.0 (2026-10-20)
 
 ### Features
