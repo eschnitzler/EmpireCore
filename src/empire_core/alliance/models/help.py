@@ -270,7 +270,11 @@ class AllianceHelpReceived(BaseResponse):
 
     command = "ahf"
 
-    helper_name: str | None = Field(validation_alias="PN", default=None, description="The helping player's name")
+    helper_names: tuple[str, ...] = Field(
+        validation_alias="PN",
+        default=(),
+        description="The helping players' names: one, or every member who helped the request together",
+    )
     list_id: ClientInt = Field(validation_alias="LID", default=0, description="Your request's id")
     building_wod_id: Annotated[
         Literal[0] | EnumOrInt["Building"], Field(union_mode="left_to_right"), BeforeValidator(js_int)
@@ -279,6 +283,15 @@ class AllianceHelpReceived(BaseResponse):
         default=0,
         description="The helped building's type; 0 for none",
     )
+
+    @field_validator("helper_names", mode="before")
+    @classmethod
+    def _names(cls, value: Any) -> Any:
+        """``PN`` is a name, or a list of them when several members help at once; the client shows either as
+        it came (``CastleAllianceHelpFeedbackComponent.getTextField``, bundle line 133543)."""
+        if value is None:
+            return ()
+        return (value,) if isinstance(value, str) else value
 
 
 # =============================================================================
