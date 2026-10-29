@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple, TypeVar
 
 from pydantic import ConfigDict, Field, PrivateAttr
 
-from empire_core.enums import BerimondFaction, Kingdom, UnitRole
+from empire_core.enums import BerimondFaction, BerimondLane, BerimondSpecialCampType, Kingdom, UnitRole
 from empire_core.exceptions import AmbiguousLookupError, GameDataNotLoadedError, NetworkError
 from empire_core.protocol.base import EmpireModel
 
@@ -1188,6 +1188,21 @@ class GameData(EmpireModel):
     def units_by_role(self, role: UnitRole) -> list[UnitStats]:
         """Every unit of one role (``SoldierUnitVO.role``, bundle line 12590)."""
         return [unit for unit in self.units.values() if unit.role == role]
+
+    def berimond_lane_towers(self, lane: BerimondLane) -> list[BerimondSpecialCampDef]:
+        """
+        A Battle for Berimond lane's watchtowers, by id.
+
+        Client: ``FactionEventVO.getTowersByLane`` (bundle line 7473)
+        """
+        return sorted(
+            (
+                camp
+                for camp in self.berimond_special_camps.values()
+                if camp.camp_type == BerimondSpecialCampType.WATCHTOWER and camp.lane_id == lane
+            ),
+            key=lambda camp: camp.special_camp_id,
+        )
 
     def get_horse(self, wod_id: int) -> HorseStats | None:
         """A travel booster by its ``HBW`` value."""

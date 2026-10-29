@@ -78,6 +78,17 @@ class BerimondLane(IntEnum):
     URSIDAE_BOTTOM = 7
     URSIDAE_CAPITAL = 8
 
+    @property
+    def tower_lanes(self) -> "tuple[BerimondLane, ...]":
+        """
+        A capital's three watchtower lanes, in id order; empty for a watchtower lane.
+
+        Client: ``FactionCapitalInfoVO.towerLanes`` (bundle line 87981)
+        """
+        if self not in (BerimondLane.GERBRANDT_CAPITAL, BerimondLane.URSIDAE_CAPITAL):
+            return ()
+        return tuple(BerimondLane(lane) for lane in range(self - 3, self))
+
 
 class RaidBossCardStatus(IntEnum):
     """Client: ``AllianceRaidConst`` (dll.pretty lines 78938-78942)."""
