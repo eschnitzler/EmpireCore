@@ -41,6 +41,8 @@ ALLOWED: dict[str, str] = {
     "events.progression_models.DaimyoWarEffortsResponse.castle_efforts": "efforts keyed by a daimyo area's rank",
     "events.progression_models.DaimyoWarEffortsResponse.township_efforts": "efforts keyed by a township's rank",
     "castle.models.crafting.UnlockCraftingSlotsRequest.slot_indices": "slot positions in a queue; not ids",
+    "castle.models.crafting.CraftingQueue.production_unlock_seconds": "durations in seconds, not ids",
+    "castle.models.crafting.CraftingQueue.queue_unlock_seconds": "durations in seconds, not ids",
     "commanders.models.crafting.CraftEquipmentRequest.equipment_ids": "item instance ids, as Equipment.equipment_id",
     "commanders.models.crafting.NewRelicItemsResponse.equipment_ids": "item instance ids, as Equipment.equipment_id",
     "commanders.models.crafting.NewRelicItemsResponse.relic_gem_ids": "relic gem instance ids, as RelicGem.gem_id",

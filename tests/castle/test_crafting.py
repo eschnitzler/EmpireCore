@@ -46,6 +46,7 @@ GAME_DATA = GameData.parse(
         ]
     },
 )
+DEFINITION = GAME_DATA.crafting_queues[CraftingQueueId(2)]
 
 # CastleCraftingData.parseBuildingQueueData reads KID, AID, S, CQID, OID, PS and QS (bundle line 111405)
 QUEUE: dict[str, Any] = {
@@ -94,8 +95,8 @@ class TestReplies:
         (bare,) = CraftingInfoResponse.model_validate(QUEUE).queues
         assert bare.object_id == 77
 
-    def test_a_queue_reads_one_slot_per_position(self):
-        # parseServerData: CRID, RCT and BV per slot, RUT per temporary slot, which come last
+    def test_a_queue_reads_one_slot_per_position_and_keeps_the_unlock_times_apart(self):
+        # parseServerData: CRID, RCT and BV per slot; RUT per temporary slot, which only the game data names
         reply = parse_response("crst", QUEUE)
         assert isinstance(reply, StartCraftingResponse)
         assert reply.kingdom is Kingdom.GREEN and reply.building_state is BuildingState.BUILD_COMPLETED
@@ -112,15 +113,16 @@ class TestReplies:
                 slot_type=CraftingSlotType.PRODUCTION,
                 recipe_id=None,
                 remaining_seconds=0,
-                unlock_seconds=3600,
             ),
         )
         (waiting,) = reply.queue
         assert (waiting.index, waiting.slot_type, waiting.recipe_id) == (0, CraftingSlotType.QUEUE, 13)
         assert (waiting.remaining_seconds, waiting.unlock_seconds, waiting.booster_value) == (600, None, 0)
+        assert (reply.production_unlock_seconds, reply.queue_unlock_seconds) == ((3600,), ())
 
     def test_a_slot_is_filled_while_its_recipe_runs_and_locked_when_its_unlock_ran_out(self):
-        crafting, filled, empty = queue(PS={"CRID": [12, 14, 0], "RCT": [300], "RUT": [0, 60]}).production
+        sent = queue(QS={"CRID": [12, 14, 0], "RCT": [300], "RUT": [0, 60]})
+        crafting, filled, empty, _ = sent.with_definition(DEFINITION).queue
         assert crafting.is_filled and not crafting.is_temporary and not crafting.is_locked
         # getRemainingProductionTime falls back to the recipe's time when RCT has none for the slot
         assert filled.is_filled and filled.remaining_seconds is None and filled.is_locked
@@ -191,11 +193,11 @@ class TestCraftingQueue:
 
     def test_unlock_sends_the_slot_and_the_locked_slots_before_it_first_to_last(self):
         # buySlot walks previousSlot while it is locked
-        locked = queue(PS={"CRID": [12, 0, 0, 0], "RUT": [60, 0, 0]})
+        locked = queue(QS={"CRID": [13], "RUT": [60]}).with_definition(DEFINITION)
         client = crafting_client({"crun": xt_packet("crun", QUEUE)})
-        client.castle.unlock_crafting_slot(locked, locked.production[3])
+        client.castle.unlock_crafting_slot(locked, locked.queue[3])
         assert conn(client).request_payloads == [
-            ("crun", {"KID": 0, "AID": 5001, "OID": 77, "S": [2, 3], "ST": "production"})
+            ("crun", {"KID": 0, "AID": 5001, "OID": 77, "S": [2, 3], "ST": "queue"})
         ]
 
     def test_a_refused_action_leaves_the_queues(self):
@@ -221,35 +223,39 @@ class TestCraftingQueue:
 class TestSlotLayout:
     # The CraftingQueueVO constructor builds the definition's slots; parseServerData fills them in order,
     # RUT on temporary slots only (bundle lines 29265-29278)
-    definition = GAME_DATA.crafting_queues[CraftingQueueId(2)]
+
+    def test_a_queue_off_the_wire_calls_no_slot_temporary(self):
+        sent = queue(PS={"CRID": [88], "RUT": [245290]})
+        assert [slot.is_temporary for slot in sent.production] == [False]
+        assert sent.production_unlock_seconds == (245290,)
 
     def test_an_idle_queue_has_its_free_and_locked_slots(self):
-        idle = queue(PS={}, QS={}).with_definition(self.definition)
+        idle = queue(PS={}, QS={}).with_definition(DEFINITION)
         assert layout(idle.production) == [(0, None, None), (1, None, 0)]
         assert layout(idle.queue) == [(0, None, None), (1, None, 0), (2, None, 0), (3, None, 0)]
         assert [slot.is_locked for slot in idle.queue] == [False, True, True, True]
 
     def test_a_rented_slot_s_time_stays_on_the_temporary_slot(self):
-        rented = queue(PS={"RUT": [245290]}, QS={}).with_definition(self.definition)
+        rented = queue(PS={"RUT": [245290]}, QS={}).with_definition(DEFINITION)
         assert layout(rented.production) == [(0, None, None), (1, None, 245290)]
         assert not rented.production[0].is_temporary and not rented.production[1].is_locked
 
     def test_a_running_craft_keeps_its_slot_and_the_rest_follow(self):
         running = queue(
             PS={"CRID": [88], "RCT": [15000]}, QS={"CRID": [88], "RCT": [18000], "RUT": [310066]}
-        ).with_definition(self.definition)
+        ).with_definition(DEFINITION)
         assert layout(running.production) == [(0, 88, None), (1, None, 0)]
         assert layout(running.queue) == [(0, 88, None), (1, None, 310066), (2, None, 0), (3, None, 0)]
         assert running.queue[0].remaining_seconds == 18000
 
     def test_slots_past_the_definition_are_dropped(self, caplog):
-        crowded = queue(PS={"CRID": [12, 13, 14]}).with_definition(self.definition)
-        assert layout(crowded.production) == [(0, 12, None), (1, 13, 0)]
-        assert "3 production crafting slots sent for 2" in caplog.text
+        crowded = queue(PS={"CRID": [12, 13, 14], "RUT": [60, 120]}).with_definition(DEFINITION)
+        assert layout(crowded.production) == [(0, 12, None), (1, 13, 60)]
+        assert "3 production crafting slots and 2 unlock times sent for 2 and 1" in caplog.text
 
     def test_laying_out_twice_changes_nothing(self):
-        once = queue().with_definition(self.definition)
-        assert once.with_definition(self.definition) == once
+        once = queue().with_definition(DEFINITION)
+        assert once.with_definition(DEFINITION) == once
 
     def test_the_service_hands_out_laid_out_queues_and_state_keeps_them_as_sent(self):
         client = state_client({"crin": xt_packet("crin", {**QUEUE, "PS": {}, "QS": {}})})
