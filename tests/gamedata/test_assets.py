@@ -47,6 +47,7 @@ def index() -> assets.AssetIndex:
 @pytest.fixture(autouse=True)
 def no_network(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(assets, "_loaded", None)
+    monkeypatch.setattr(assets, "_checked_at", 0.0)
     monkeypatch.setattr(assets, "_last_failure", None)
     monkeypatch.setattr(requests, "get", Mock(side_effect=AssertionError("unexpected network")))
 
@@ -188,3 +189,52 @@ def test_failed_refresh_keeps_previous_snapshot(
     with pytest.raises(NetworkError):
         assets.AssetIndex.load(refresh=True, cache_dir=tmp_path)
     assert assets.AssetIndex.load(cache_dir=tmp_path) is index
+
+
+def test_a_new_dll_replaces_the_loaded_index_after_the_check_interval(
+    index: assets.AssetIndex, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr(assets, "_loaded", index)
+    monkeypatch.setattr(assets, "VERSION_CHECK_INTERVAL", 0.0)
+    get = Mock(
+        side_effect=[response(INDEX_HTML.replace(VERSION, "abcdef")), response(JAVASCRIPT.replace("--123", "--999"))]
+    )
+    monkeypatch.setattr(requests, "get", get)
+    loaded = assets.AssetIndex.load(cache_dir=tmp_path)
+    assert loaded.version == "abcdef"
+    assert loaded.path("Barracks_Unit_Test").endswith("--999")
+
+
+def test_the_same_dll_keeps_the_loaded_index(index: assets.AssetIndex, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(assets, "_loaded", index)
+    monkeypatch.setattr(assets, "VERSION_CHECK_INTERVAL", 0.0)
+    get = Mock(return_value=response(INDEX_HTML))
+    monkeypatch.setattr(requests, "get", get)
+    assert assets.AssetIndex.load() is index
+    assert get.call_count == 1
+
+
+def test_the_page_is_checked_once_per_interval(index: assets.AssetIndex, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(assets, "_loaded", index)
+    get = Mock(return_value=response(INDEX_HTML))
+    monkeypatch.setattr(requests, "get", get)
+    for _ in range(3):
+        assert assets.AssetIndex.load() is index
+    assert get.call_count == 1
+
+
+@pytest.mark.parametrize(
+    "get",
+    [
+        Mock(side_effect=requests.ConnectionError("unavailable")),
+        Mock(return_value=response("<html>maintenance</html>")),
+    ],
+    ids=["unreachable", "maintenance"],
+)
+def test_an_unreadable_page_keeps_the_loaded_index(
+    get: Mock, index: assets.AssetIndex, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr(assets, "_loaded", index)
+    monkeypatch.setattr(assets, "VERSION_CHECK_INTERVAL", 0.0)
+    monkeypatch.setattr(requests, "get", get)
+    assert assets.AssetIndex.load() is index
