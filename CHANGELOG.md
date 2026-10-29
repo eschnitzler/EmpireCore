@@ -162,6 +162,232 @@
   general=None) unassigns.
 
 - **events**: Public names change, with no aliases:
+  - Event.ALLIANCE_ALIEN_INVASION -> Event.WAR_OF_THE_REALMS
+  - Event.ALLIANCE_BATTLE_GROUND -> Event.BEYOND_THE_HORIZON
+  - Event.ALLIANCE_NOMAD_INVASION -> Event.NOMAD_INVASION_72
+  - Event.ALLIANCE_RAIDBOSS_EVENT -> Event.RIFT_RAID
+  - Event.ALLI_PAYMENT_BONUS -> Event.ALLIANCE_PRIME_DAY
+  - Event.ALLI_TOURNAMENT -> Event.ALLIANCE_TOURNAMENT
+  - Event.ANNIVERSARY_GACHA -> Event.KINGS_BANQUET
+  - Event.ARTIFACT_19 -> Event.TRAVELING_KNIGHTS_19
+  - Event.ARTIFACT_23 -> Event.TRAVELING_KNIGHTS_23
+  - Event.ARTIFACT_29 -> Event.TRAVELING_KNIGHTS_29
+  - Event.ARTIFACT_30 -> Event.TRAVELING_KNIGHTS_30
+  - Event.ARTIFACT_67 -> Event.TRAVELING_KNIGHTS_67
+  - Event.BEGGING_KNIGHTS -> Event.MARAUDERS_CONTEST
+  - Event.BLACK_FRIDAY_GACHA -> Event.MIDNIGHT_MARKET
+  - Event.BOUNTYHUNTER -> Event.SHADY_LADY
+  - Event.CARNIVAL_GACHA -> Event.CARNIVAL_OF_MASKS
+  - Event.CHRISTMAS_GACHA -> Event.ENCHANTED_SNOWGLOBE
+  - Event.COLOSSUS_69 -> Event.GOLD_COLOSSUS
+  - Event.CONSTRUCTION_EXPERT -> Event.ARCHITECT
+  - Event.DONATION_EVENT -> Event.IMPERIAL_PATRONAGE
+  - Event.E102 -> Event.STORM_ISLANDS
+  - Event.EASTER_GACHA -> Event.SUMMONING_OF_THE_HOLLOW_MOON
+  - Event.EQUIPMENT_ENHANCER -> Event.TECHNICUS
+  - Event.EQUIPMENT_ENHANCER_PRIME_SALE -> Event.PRIME_SALE_TECHNICUS
+  - Event.EQUIPMENT_MERCHANT -> Event.EQUIPMENT_TRADER
+  - Event.EVENT_BOOSTER_PRIME_SALE -> Event.PRIME_SALE_FOR_BOOSTERS
+  - Event.EVENT_PACKAGE_PRIME_SALE -> Event.PRIME_SALE_68
+  - Event.FACTION -> Event.BATTLE_FOR_BERIMOND
+  - Event.FACTION_ARMORER -> Event.BERIMOND_ARMORER_76
+  - Event.FACTION_HUNTER -> Event.BERIMOND_ARMORER_86
+  - Event.FACTION_INVASION -> Event.BERIMOND_INVASION
+  - Event.FAMEBOOSTER -> Event.BANNER_OF_GLORY
+  - Event.GGS_GIFT -> Event.GIFT_BOX
+  - Event.HALLOWEEN_GACHA -> Event.HALLOWEEN_BANQUET
+  - Event.LONG_TERM_POINT_EVENT -> Event.GRAND_NOBILITY_PRIZE
+  - Event.LUCKY_WHEEL -> Event.WHEEL_OF_FORTUNE
+  - Event.MERCHANT_22 -> Event.TRAVELING_MERCHANT
+  - Event.MERCHANT_42 -> Event.TRAVELING_MERCHANT_EVENT
+  - Event.NOMAD_INVASION -> Event.NOMAD_INVASION_5
+  - Event.PAYMENTREWARD_6 -> Event.PRIME_DAY
+  - Event.PAYMENTREWARD_79 -> Event.PRIME_DAY_SPECIAL_OFFER
+  - Event.PLAGUE -> Event.PLAGUE_DOCTORS
+  - Event.PLAYER_GIFT_MERCHANT -> Event.GIFT_PEDDLER
+  - Event.POINT_EVENT -> Event.NOBILITY_CONTEST
+  - Event.PRIME_SALE -> Event.PRIME_SALE_7
+  - Event.PRIME_SALE_REVIVE_ALL -> Event.HOSPITAL_PRIME_SALE
+  - Event.RANDOMDUNGEON_26 -> Event.KING_OF_THE_ROBBER_BARONS
+  - Event.RANDOMDUNGEON_48 -> Event.RANDOMDUNGEON
+  - Event.RED_ALLIANCE_ALIEN_INVASION -> Event.BLOODCROW_INVASION
+  - Event.RENEGADE_37 -> Event.RENEGADE_SPY_EVERWINTER_GLACIER
+  - Event.RENEGADE_38 -> Event.RENEGADE_SPY_BURNING_SANDS
+  - Event.RENEGADE_39 -> Event.RENEGADE_SPY_FIRE_PEAKS
+  - Event.RESEARCH_EXPERT -> Event.RESEARCHER
+  - Event.SALE_DAYS_LUCKY_WHEEL -> Event.WHEEL_OF_UNIMAGINABLE_AFFLUENCE
+  - Event.SAMURAI_HUNTER -> Event.SAMURAI_ARMORER
+  - Event.SEAQUEEN -> Event.BLADE_COAST
+  - Event.SEASON_LEAGUE -> Event.KINGDOMS_LEAGUE
+  - Event.SHADOW_UNIT -> Event.SHADOW_MERCENARIES
+  - Event.SHOPPING_CART_PRIME_SALE -> Event.SHOPPING_CART_PRIME_DAY
+  - Event.SUMMER_GACHA -> Event.SANDS_OF_FORTUNE
+  - Event.TEMP_SERVER -> Event.OUTER_REALMS
+  - Event.THORNKING -> Event.THORN_KING
+  - Event.TIERED_PAYMENTREWARD -> Event.TIERED_PRIME_DAY
+  - Event.UNIT_DEALER_14 -> Event.MERCENARY_STORM_ISLANDS
+  - Event.UNIT_DEALER_17 -> Event.MERCENARY_UNDERWORLD
+  - Event.UNIT_DEALER_43 -> Event.MERCENARY_THORN_KING
+  - Event.UNIT_DEALER_58 -> Event.MERCENARY_BLADE_COAST
+  - AllianceChronicleAction.ALLIANCE_BATTLE_GROUND_MALUS_INCREASED -> AllianceChronicleAction.HORIZON_MALUS_INCREASED
+  - AllianceChronicleAction.ALLIANCE_BATTLE_GROUND_MALUS_RESET -> AllianceChronicleAction.HORIZON_MALUS_RESET
+  - AllianceChronicleAction.ALLIANCE_BATTLE_GROUND_OWNED_TOWER_DEFEATED -> AllianceChronicleAction.HORIZON_OWNED_TOWER_DEFEATED
+  - AllianceChronicleAction.ALLIANCE_BATTLE_GROUND_POINTS_GAINED -> AllianceChronicleAction.HORIZON_POINTS_GAINED
+  - BoosterId.LONG_TERM_POINT_EVENT -> BoosterId.GRAND_NOBILITY_PRIZE
+  - CollectableKind.LONG_TERM_POINT_EVENT_BOOSTER -> CollectableKind.GRAND_NOBILITY_PRIZE_BOOSTER
+  - LuckyWheelType.LUCKY_WHEEL -> WheelOfFortuneType.WHEEL_OF_FORTUNE
+  - LuckyWheelType.SALE_DAYS -> WheelOfFortuneType.WHEEL_OF_UNIMAGINABLE_AFFLUENCE
+  - MapItemType.ALLIANCE_BATTLE_GROUND_RESOURCE_TOWER -> MapItemType.HORIZON_RESOURCE_TOWER
+  - MapItemType.ALLIANCE_BATTLE_GROUND_TOWER -> MapItemType.HORIZON_TOWER
+  - MapItemType.FACTION_INVASION_CAMP -> MapItemType.BERIMOND_INVASION_CAMP
+  - MapItemType.RED_ALIEN_CAMP -> MapItemType.BLOODCROW_CAMP
+  - MovementType.ALLIANCE_BATTLE_GROUND_COLLECTOR_ATTACK -> MovementType.HORIZON_COLLECTOR_ATTACK
+  - MovementType.COLLECTOR_TEMP_SERVER -> MovementType.COLLECTOR_OUTER_REALMS
+  - MovementType.PLAGUEMONK -> MovementType.PLAGUE_DOCTOR
+  - MovementType.RANKSWAP_TEMP_SERVER -> MovementType.RANKSWAP_OUTER_REALMS
+  - MovementType.TEMPSERVER_PVE_CHARGE -> MovementType.OUTER_REALMS_PVE_CHARGE
+  - MovementType.TEMPSERVER_PVP_CHARGE -> MovementType.OUTER_REALMS_PVP_CHARGE
+  - NPCOwner.ALLIANCE_BATTLE_GROUND -> NPCOwner.HORIZON
+  - NPCOwner.ALLIANCE_BATTLE_GROUND_RESOURCE_TOWER -> NPCOwner.HORIZON_RESOURCE_TOWER
+  - NPCOwner.PLAGUE_MONK -> NPCOwner.PLAGUE_DOCTOR
+  - NPCOwner.RED_ALIEN_INVASION -> NPCOwner.BLOODCROW_INVASION
+  - NPCOwner.SEA_QUEEN_DUNGEON -> NPCOwner.BLADE_COAST_DUNGEON
+  - NPCOwner.SEA_QUEEN_SHIPS -> NPCOwner.BLADE_COAST_SHIPS
+  - NPCOwner.THORNKING_COW_DUNGEON -> NPCOwner.THORN_KING_COW_DUNGEON
+  - NPCOwner.THORNKING_DUNGEON -> NPCOwner.THORN_KING_DUNGEON
+  - NPCOwner.THORNKING_VILLAGE -> NPCOwner.THORN_KING_VILLAGE
+  - QuestConditionType.JOIN_TEMP_SERVER -> QuestConditionType.JOIN_OUTER_REALMS
+  - QuestConditionType.LOOT_RESOURCES_POINT_EVENT -> QuestConditionType.LOOT_RESOURCES_NOBILITY_CONTEST
+  - RankingType.ALLIANCE_ALIEN_INVASION_ALLIANCE -> RankingType.WAR_OF_THE_REALMS_ALLIANCE
+  - RankingType.ALLIANCE_ALIEN_INVASION_PLAYER -> RankingType.WAR_OF_THE_REALMS_PLAYER
+  - RankingType.ALLIANCE_BATTLE_GROUND_ALLIANCE_COLLECTOR -> RankingType.HORIZON_ALLIANCE_COLLECTOR
+  - RankingType.ALLIANCE_BATTLE_GROUND_ALLIANCE_TOWER -> RankingType.HORIZON_ALLIANCE_TOWER
+  - RankingType.ALLIANCE_BATTLE_GROUND_PLAYER_COLLECTOR -> RankingType.HORIZON_PLAYER_COLLECTOR
+  - RankingType.ALLIANCE_BATTLE_GROUND_PLAYER_TOWER -> RankingType.HORIZON_PLAYER_TOWER
+  - RankingType.ALLIANCE_BATTLE_GROUND_PREVIOUS_RUN_ALLIANCE -> RankingType.HORIZON_PREVIOUS_RUN_ALLIANCE
+  - RankingType.ALLIANCE_BATTLE_GROUND_PREVIOUS_RUN_PLAYER -> RankingType.HORIZON_PREVIOUS_RUN_PLAYER
+  - RankingType.ALLIANCE_RED_ALIEN_INVASION_ALLIANCE -> RankingType.BLOODCROW_INVASION_ALLIANCE
+  - RankingType.ALLIANCE_RED_ALIEN_INVASION_PLAYER -> RankingType.BLOODCROW_INVASION_PLAYER
+  - RankingType.ANNIVERSARY_GACHA_EVENT -> RankingType.KINGS_BANQUET
+  - RankingType.BEGGING_KNIGHTS -> RankingType.MARAUDERS_CONTEST
+  - RankingType.BLACK_FRIDAY_GACHA_EVENT -> RankingType.MIDNIGHT_MARKET
+  - RankingType.CARNIVAL_GACHA_EVENT -> RankingType.CARNIVAL_OF_MASKS
+  - RankingType.CHRISTMAS_GACHA_EVENT -> RankingType.ENCHANTED_SNOWGLOBE
+  - RankingType.DONATION_EVENT -> RankingType.IMPERIAL_PATRONAGE
+  - RankingType.EASTER_GACHA_EVENT -> RankingType.SUMMONING_OF_THE_HOLLOW_MOON
+  - RankingType.FACTION_INVASION_ALLIANCE -> RankingType.BERIMOND_INVASION_ALLIANCE
+  - RankingType.FACTION_INVASION_PLAYER_BLUE -> RankingType.BERIMOND_INVASION_PLAYER_BLUE
+  - RankingType.FACTION_INVASION_PLAYER_RED -> RankingType.BERIMOND_INVASION_PLAYER_RED
+  - RankingType.HALLOWEEN_GACHA_EVENT -> RankingType.HALLOWEEN_BANQUET
+  - RankingType.LONG_TERM_POINT_EVENT -> RankingType.GRAND_NOBILITY_PRIZE
+  - RankingType.LUCKY_WHEEL -> RankingType.WHEEL_OF_FORTUNE
+  - RankingType.LUCKY_WHEEL_SALE_DAYS -> RankingType.WHEEL_OF_UNIMAGINABLE_AFFLUENCE
+  - RankingType.POINT_EVENT -> RankingType.NOBILITY_CONTEST
+  - RankingType.SUMMER_GACHA_EVENT -> RankingType.SANDS_OF_FORTUNE
+  - RankingType.TEMPSERVER_PREVIOUS_RUN_PLAYER -> RankingType.OUTER_REALMS_PREVIOUS_RUN_PLAYER
+  - RankingType.TEMP_SERVER_DAILY_COLLECTOR_POINTS -> RankingType.OUTER_REALMS_DAILY_COLLECTOR_POINTS
+  - RankingType.TEMP_SERVER_DAILY_MIGHT_POINTS_BUILDINGS -> RankingType.OUTER_REALMS_DAILY_MIGHT_POINTS_BUILDINGS
+  - RankingType.TEMP_SERVER_DAILY_RANK_SWAP -> RankingType.OUTER_REALMS_DAILY_RANK_SWAP
+  - RankingType.TEMP_SERVER_GLOBAL -> RankingType.OUTER_REALMS_GLOBAL
+  - ServerType.ALLIANCE_BATTLEGROUND -> ServerType.HORIZON
+  - ServerType.TEMPORARY -> ServerType.OUTER_REALMS
+  - SpyLogType.PLAGUE_MONK -> SpyLogType.PLAGUE_DOCTOR
+  - combat.defense.BLUE_FACTION_INVASION -> combat.defense.BLUE_BERIMOND_INVASION
+  - combat.defense.RED_FACTION_INVASION -> combat.defense.RED_BERIMOND_INVASION
+  - gamedata.data.FACTION_INVASION_CAMP_TABLE -> gamedata.data.BERIMOND_INVASION_CAMP_TABLE
+  - spy.risk.MAX_DEPLOYABLE_PLAGUEMONKS -> spy.risk.MAX_DEPLOYABLE_PLAGUE_DOCTORS
+  - spy.risk.MAX_OWNABLE_PLAGUEMONKS -> spy.risk.MAX_OWNABLE_PLAGUE_DOCTORS
+  - TempServerEvent -> OuterRealmsEvent
+  - TemporaryServerAttackRequest -> OuterRealmsAttackRequest
+  - TemporaryServerAttackResponse -> OuterRealmsAttackResponse
+  - TemporaryServerCollectorPoints -> OuterRealmsCollectorPoints
+  - GetTemporaryServerCollectorPointsRequest -> GetOuterRealmsCollectorPointsRequest
+  - GetTemporaryServerRanksRequest -> GetOuterRealmsRanksRequest
+  - GetTemporaryServerRanksResponse -> GetOuterRealmsRanksResponse
+  - EventsService.get_temporary_server_ranks -> get_outer_realms_ranks
+  - EventsService.get_temporary_server_collector_points -> get_outer_realms_collector_points
+  - CurrentServer.is_temporary_server -> is_outer_realms
+  - CurrentServer.is_alliance_battleground -> is_horizon
+  - PreviousSpecialServerRuns.temporary_server -> outer_realms
+  - PreviousSpecialServerRuns.alliance_battleground -> horizon
+  - AttackService.send_attack(temporary_server=) -> send_attack(outer_realms=)
+  - AttackService.send_attack(alliance_battleground=) -> send_attack(horizon=)
+  - SpecialServerCastles.temporary_server_castle_id -> outer_realms_castle_id
+  - SpecialServerCastles.temporary_server_castle_bought -> outer_realms_castle_bought
+  - SpecialServerCastles.battleground_castle_id -> horizon_castle_id
+  - SpecialServerCastles.battleground_castle_bought -> horizon_castle_bought
+  - unit rows' temp_server_cost_rubies -> outer_realms_cost_rubies
+  - ResearchDef.temp_server_costs -> outer_realms_costs
+  - ResearchDef.temp_server_research_duration -> outer_realms_research_duration
+  - BuildingDef.temp_server_destructable -> outer_realms_destructable
+  - BuildingDef.is_battle_ground -> horizon_only
+  - BuildingDef.is_not_battle_ground -> never_on_horizon
+  - DailyQuestDef.is_temp_server_quest -> is_outer_realms_quest
+  - AllianceBattlegroundAttackRequest -> HorizonAttackRequest
+  - AllianceBattlegroundAttackResponse -> HorizonAttackResponse
+  - BattlegroundEntryResponse -> HorizonEntryResponse
+  - BattlegroundMemberPerformance -> HorizonMemberPerformance
+  - BattlegroundPerformanceResponse -> HorizonPerformanceResponse
+  - GetBattlegroundEntryRequest -> GetHorizonEntryRequest
+  - GetBattlegroundPerformanceRequest -> GetHorizonPerformanceRequest
+  - GetBattlegroundRankRequest -> GetHorizonRankRequest
+  - GetBattlegroundRankResponse -> GetHorizonRankResponse
+  - GetBattlegroundTimersRequest -> GetHorizonTimersRequest
+  - GetBattlegroundTimersResponse -> GetHorizonTimersResponse
+  - AllianceService.get_battleground_alliance_influence -> get_horizon_alliance_influence
+  - AllianceService.get_battleground_entry -> get_horizon_entry
+  - AllianceService.get_battleground_performance -> get_horizon_performance
+  - AllianceService.get_battleground_player_influence -> get_horizon_player_influence
+  - AllianceService.battleground_performance -> horizon_performance
+  - AllianceState.get_battleground_performance -> get_horizon_performance
+  - EventsService.get_battleground_rank -> get_horizon_rank
+  - EventsService.get_battleground_timers -> get_horizon_timers
+  - FactionInvasionEvent -> BerimondInvasionEvent
+  - FactionInvasionSide -> BerimondInvasionSide
+  - GameData.faction_invasion_camp -> berimond_invasion_camp
+  - faction_invasion_side / faction_invasion_score (combat.defense) -> berimond_invasion_side / berimond_invasion_score
+  - BeggingKnightsEvent -> MaraudersContestEvent
+  - BuyBeggingKnightsPackageRequest -> BuyMaraudersContestPackageRequest
+  - BuyBeggingKnightsPackageResponse -> BuyMaraudersContestPackageResponse
+  - PointEvent -> NobilityContestEvent
+  - LongTermPointEvent -> GrandNobilityPrizeEvent
+  - LuckyWheelType -> WheelOfFortuneType
+  - LuckyWheelEvent -> WheelOfFortuneEvent
+  - LuckyWheelStatus -> WheelOfFortuneStatus
+  - LuckyWheelSpinRequest / Response -> WheelOfFortuneSpinRequest / Response
+  - LuckyWheelChangeModeRequest / Response -> WheelOfFortuneChangeModeRequest / Response
+  - LuckyWheelBuyJackpotRequest / Response -> WheelOfFortuneBuyJackpotRequest / Response
+  - LuckyWheelIncreaseWinClassRequest / Response -> WheelOfFortuneIncreaseWinClassRequest / Response
+  - EventsService.spin_lucky_wheel -> spin_wheel_of_fortune
+  - EventsService.change_lucky_wheel_mode -> change_wheel_of_fortune_mode
+  - EventsService.buy_lucky_wheel_jackpot -> buy_wheel_of_fortune_jackpot
+  - EventsService.increase_lucky_wheel_win_class -> increase_wheel_of_fortune_win_class
+  - RaidBossEvent -> RiftRaidEvent
+  - RaidBossStatus -> RiftRaidStatus
+  - RaidBossStatusBroadcast -> RiftRaidStatusBroadcast
+  - GetRaidBossStatusRequest / Response -> GetRiftRaidStatusRequest / Response
+  - EventsService.get_raid_boss_status -> get_rift_raid_status
+  - DonationEvent -> ImperialPatronageEvent
+  - GetDonationProgressRequest -> GetImperialPatronageProgressRequest
+  - DonationProgressResponse -> ImperialPatronageProgressResponse
+  - EventsService.get_donation_progress -> get_imperial_patronage_progress
+  - FameBoosterEvent -> BannerOfGloryEvent
+  - ArtifactEvent -> TravelingKnightsEvent
+  - ValidateBountyTargetRequest / Response -> ValidateShadyLadyTargetRequest / Response
+  - SkipBountyTargetRequest / Response -> SkipShadyLadyTargetRequest / Response
+  - EventsService.validate_bounty_target -> validate_shady_lady_target
+  - EventsService.skip_bounty_target -> skip_shady_lady_target
+  - EventsService.donate_to_coin_colossus -> donate_to_gold_colossus
+  - PlagueMonkInfoResponse -> PlagueDoctorInfoResponse
+  - SendPlagueMonksRequest / Response -> SendPlagueDoctorsRequest / Response
+  - SendPlagueMonksRequest.monks -> doctors
+  - SpyService.send_plague_monks(monks=) -> send_plague_doctors(doctors=)
+  - SpyService.plague_monks -> plague_doctors
+  - SendPlagueMonksResponse.plague_monks -> plague_doctors
+  - ProgressState.plague_monks / get_plague_monks -> plague_doctors / get_plague_doctors
+  - available_plague_monks / total_plague_monks (PlagueMonkInfoResponse, SpyScreenInfoResponse) -> available_plague_doctors / total_plague_doctors
+  - empire_core.events.faction_models -> empire_core.events.berimond_models
+  - empire_core.alliance.models.battleground -> empire_core.alliance.models.horizon
 
 - **gamedata**: Castle.unlock_kingdom(kingdom_id, prebuilt_castle_id, direction, *, ruby_castle,
   spend_rubies) is now unlock_kingdom(castle: PrebuiltCastle, direction=None, *, ruby_price,
@@ -1342,6 +1568,7 @@
   .hero_bonuses/.bonuses); LeaderBase.active_alien_equipment is new. Equipment.alien_string is a str
   or None (a number arrives as its text). BoosterInfoResponse.premium_type is PremiumAccountType or
   None (None replaces -1) and premium_account_type() returns None, not
+  -1, when no account runs. RelocationInfoResponse.relocation_mode is an int or None. TitleRanksResponse.prefix_system/suffix_system are TitleSystem (or the str sent) or None; the prefix_title_system and suffix_title_system properties are removed, read the fields. AllianceCityTitle.player_id and TopTitleRanking.top_player_id are int or None.
 
 - **models**: CreateMarketMovementRequest.goods is a dict[Resource, int] (pass {Resource.WOOD: 100}
   instead of [["W", 100]]). MovementMarket.goods, MovementWrapper.travel_goods, Movement.goods,
@@ -2585,6 +2812,13 @@
   is_occupied.
 
 - **castle**: Signatures changed (old -> new):
+  - CastleService.select(castle_id, kingdom_id=GREEN, timeout) -> select(castle_id, timeout)
+  - CastleService.join(castle_id, kingdom_id=GREEN, timeout) -> join(castle_id, timeout)
+  - CastleService.get_resources(castle_id, kingdom_id=GREEN, timeout) -> get_resources(castle_id, timeout)
+  - CastleService.send_resources(..., *, kingdom_id=GREEN, ...) -> kingdom_id removed
+  - CastleService.transfer_units_to_kingdom(..., *, source_kingdom_id=GREEN, ...) -> source_kingdom_id removed
+  - AllianceService.donate(castle_id, kingdom, donation, timeout) -> donate(castle_id, donation, timeout)
+  - AttackService.send_attack(kingdom_id=GREEN) -> send_attack(kingdom_id=None), read from the source position New raises: UnknownCastleError when the castle is not in client.state.get_castles(), from the five castle methods above, donate, every ArmyService method (which joined in GREEN before), AttackService.read_inventory, fill_waves without an inventory, fill_attack when it reads the castle's kingdom, position or inventory (it assumed GREEN and 0:0 before), and send_attack without kingdom_id when no area of yours is at the source position; CastleService.rename raises it instead of a bare ValueError. AmbiguousCastleError from all of those, and from CastleService.get_details, GameState.get_castle_last_updated / get_castle_age and GetDetailedCastleResponse.castle, when an id (or send_attack's source position) matches your castles in several kingdoms. GameState.castles and Player.castles are keyed by (Kingdom, castle id) instead of castle id. CastleInfo.kingdom_id and state Castle.kingdom_id take the row's own kingdom over the block KID.
 
 - **castle**: StorageCapacity fields and Resources.wood_cap, stone_cap and food_cap are int | float
   instead of int, and ConstructionList.slot_count is int | float. Also missing from the footer of
@@ -2605,6 +2839,7 @@
 - **login**: Login() fails with EmpireTimeoutError ("Room join (joinOK) timed out") when joinOK does
   not arrive, and with LoginError when the joined room is not the lobby, instead of logging in with
   room
+  -1.
 
 - **login**: LOGIN_DEFAULTS no longer has CONM, RTM or LT; CONM and RTM are measured. The zone login
   sends the configured client build number. login() sends vck and fails with ClientVersionError when
@@ -2631,6 +2866,7 @@
   OWNED_AREA_TYPES and FACTION_LANDMARK_TYPES. INVASION_AREA_TYPES includes NOMAD_CAMP.
   parse_area_rows keeps rows shorter than four fields and counts unreadable ones. ScanResult has a
   kingdom field after objects. MapObject.area_positions
+  -> castle_positions (list[OwnerCastlePosition]), village_positions -> list[OwnerCastlePosition]; glory_points (CF), highest_glory_points (HF) and storm_title_id (TI) removed; alliance_name is "" when unset; prefix_title and suffix_title are None unless sent; via_refer_a_friend (IRF) added. AllianceCrest and AllianceEmblem moved to empire_core.map.models.owners. OwnerFaction.protection_status defaults to 0 (was -1). OwnerCastlePosition.area_type is None when missing (was 0).
 
 - **map**: MapScanner.scan_kingdom / scan_chunks and MapService.scan_kingdom / scan_chunks default
   chunk_delay 0.2 -> 0.0.
@@ -3121,6 +3357,48 @@
 
 - Deep module paths moved. Import from empire_core, empire_core.protocol.models or the area packages
   instead. Removed paths, with where their contents live after this series:
+  - empire_core.protocol.models.<x> (protocol.models is now a module, not a
+  package):
+  - base -> protocol.base
+  - auth -> protocol.auth
+  - map -> map.models.items, map.models.areas
+  - movement -> movements.models; its owner records OwnerCrest,
+  OwnerFaction and OwnerCastlePosition -> map.models.owners
+  - commanders -> commanders.models.roster, commanders.models.equipment
+  - equipment -> commanders.models.equipment
+  - skills -> commanders.models.skills
+  - army -> army.models.units, army.models.production,
+  army.models.hospital; SendSupportRequest/Response -> castle.models.support
+  - defense -> defense.models
+  - castle -> castle.models.castles, castle.models.details,
+  castle.models.actions
+  - building -> castle.models.buildings
+  - attack -> attack.models.send, attack.models.info,
+  attack.models.target_info, attack.models.presets,
+  attack.models.dungeon_skips; WaveFlank/AttackWave -> army.models.units;
+  SendSpy*/SpyScreenInfo* -> spy.models
+  - messages -> messages.models
+  - alliance -> alliance.models.info, alliance.models.help,
+  alliance.models.search
+  - chat -> alliance.models.chat
+  - player -> player.models.info
+  - profile -> player.models.profile
+  - ranking -> ranking.models
+  - empire_core.services.<x>:
+  - alliance, army, attack, castle, ranking, spy -> <area>.service
+  - commanders, equipment, skills -> commanders.service
+  - spy_army -> army.spy_army (SpyArmy, UnitStack, SECTION_NAMES,
+  WALL_SECTIONS)
+  - spy_risk -> spy.risk
+  - empire_core.services no longer exports AllianceService, ArmyService,
+  AttackService, CastleService, CommandersService, EquipmentService,
+  RankingService, SkillsService or SpyService. Import them from
+  empire_core.<area>.service. SpyService stays exported from empire_core.
+  - empire_core.utils.enums.* -> empire_core.enums.*, with movement -> movements
+  and equipment + inventory -> commanders.
+  - Logger names follow the modules, e.g. empire_core.protocol.models.map ->
+  empire_core.map.models.areas. Everything is still under the empire_core
+  logger.
 
 - Renamed public names: AutoSkipCooldownType.C2 -> AutoSkipCooldownType.RUBIES;
   UnitStats.healing_cost_c1 -> healing_cost_coins; UnitStats.healing_cost_c2 -> healing_cost_rubies;
@@ -3161,6 +3439,28 @@
   the client's order and encodes the name.
 
 - **client**: The game-area helpers are no longer EmpireClient methods. Old -> new:
+  - client.get_movements() -> client.movements.get_movements()
+  - client.get_incoming_attacks() -> client.movements.get_incoming_attacks()
+  - client.get_incoming_movements() -> client.movements.get_incoming_movements()
+  - client.get_outgoing_movements() -> client.movements.get_outgoing_movements()
+  - client.send_alliance_chat(msg) -> client.alliance.send_chat(msg)
+  - client.get_alliance_chat() -> client.alliance.get_chat_log(), which
+  returns the list that was response.chat_log
+  - client.subscribe_alliance_chat(cb) -> client.alliance.on_chat_message(cb),
+  whose callback gets an AllianceChatMessageResponse instead of a raw Packet
+  - client.unsubscribe_alliance_chat(cb) ->
+  client.alliance.remove_chat_message_callback(cb)
+  - client.get_alliance_info() -> client.alliance.get_alliance_info()
+  - client.get_player_info() -> client.player.get_player_info()
+  - client.get_player_details() -> client.player.get_player_details()
+  - client.get_player_details_bulk() -> client.player.get_player_details_bulk()
+  - client.search_player_by_name() -> client.player.search_player_by_name()
+  - client.get_active_event_ids() -> client.events.get_active_event_ids()
+  - client.get_active_events() -> client.events.get_active_events()
+  - client.get_castle_defense() -> client.defense.get_castle_defense()
+  - client.scan_map_area() -> client.map.scan_map_area()
+  - client.scan_kingdom() -> client.map.scan_kingdom()
+  - client.scan_chunks() -> client.map.scan_chunks() empire_core.client.map_scanner is now empire_core.map.scanner (MapScanner, ScanResult), and its logger is empire_core.map.scanner; empire_core.ScanResult is unchanged.
 
 - **combat**: The effect type constants ATTACK_BONUS_UNIT_TYPE, UNLOCK_ABILITY_EFFECT_TYPE
   (combat.bonuses), TOOL_DEFENSE_BONUS_TYPE, DEFENDER_WALL_BONUS_TYPE, DEFENDER_GATE_BONUS_TYPE,
@@ -3189,6 +3489,18 @@
   does not define, and kingdom inputs are typed Kingdom | int.
 
 - **enums**: The enums are no longer importable from their old modules:
+  - empire_core.protocol.models.base: Kingdom, MapItemType, HelpType
+  - empire_core.protocol.models.map: Kingdom, MapItemType
+  - empire_core.protocol.models.attack: AttackType, LootPriority,
+  AutoSkipCooldownType, SpyType
+  - empire_core.protocol.models.army: ProductionListId, SlotType
+  - empire_core.protocol.models.alliance: DiplomacyStatus, OnlineState
+  - empire_core.protocol.models.ranking: RankingType, RankingCategory
+  - empire_core.protocol.models.commanders: EquipmentSlot, WearerType,
+  EquipmentType, Rareness
+  - empire_core.protocol.models.inventory: SCEItem (the module is gone)
+  - empire_core.combat.effects: Flank
+  - empire_core.combat.bonuses: CombatEffectType They remain available from empire_core.utils.enums, from empire_core.protocol.models (Flank, CombatEffectType and MovementType from empire_core.combat and empire_core.utils.enums instead, as before), and from empire_core where they were exported before.
 
 - **gamedata**: UnitStats.level defaults to -1 instead of 0, so a row without a level no longer
   matches unit(type, 0) or tool(type, 0); pass level=-1 for those. ToolStats.category defaults to

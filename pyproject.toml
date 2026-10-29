@@ -122,6 +122,8 @@ version_toml = ["pyproject.toml:project.version"]
 build_command = "uv lock && uv build"
 assets = ["uv.lock"]
 commit_message = "chore(release): {version}"
+# Keeps the bullet list of a BREAKING CHANGE footer, which the stock parser drops.
+commit_parser = "scripts/release_commit_parser.py:ConventionalParser"
 tag_format = "v{version}"
 major_on_zero = false
 allow_zero_version = true
