@@ -61,17 +61,20 @@ class BerimondSpecialCampType(str, Enum):
 class BerimondLane(IntEnum):
     """
     A lane of the Battle for Berimond map, each leading to a faction's capital; red is the House of Gerbrandt, blue
-    the House of Ursidae (:class:`BerimondFaction`).
+    the House of Ursidae (:class:`BerimondFaction`). Named by where the lane lies on the map: the client calls
+    lanes 1 and 5 ``TOP`` and 2 and 6 ``MIDDLE``, but places 1 and 5 level with the capitals and 2 and 6 above them.
 
-    Client: ``FactionCapitalInfoVO.RED_TOP`` to ``BLUE_CAPITAL`` (bundle line 88021)
+    Client: ``FactionCapitalInfoVO.RED_TOP`` to ``BLUE_CAPITAL`` (bundle line 88021); placed by the ``specialcamps``
+    ``CampPosY`` in ``CastleFactionSectorGenerator.addTower`` and ``CastleWorldmapCamera.getPixelPosForArea``
+    (bundle lines 119048, 43008)
     """
 
-    GERBRANDT_TOP = 1
-    GERBRANDT_MIDDLE = 2
+    GERBRANDT_MIDDLE = 1
+    GERBRANDT_TOP = 2
     GERBRANDT_BOTTOM = 3
     GERBRANDT_CAPITAL = 4
-    URSIDAE_TOP = 5
-    URSIDAE_MIDDLE = 6
+    URSIDAE_MIDDLE = 5
+    URSIDAE_TOP = 6
     URSIDAE_BOTTOM = 7
     URSIDAE_CAPITAL = 8
 

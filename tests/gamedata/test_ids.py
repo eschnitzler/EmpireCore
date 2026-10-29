@@ -732,9 +732,9 @@ class TestGenerator:
             "RESOURCE_VILLAGE": 1,
             "GERBRANDT_CAPITAL": 2,
             "URSIDAE_CAPITAL": 3,
-            "GERBRANDT_TOP_WATCHTOWER_4": 4,
-            "GERBRANDT_TOP_WATCHTOWER_5": 5,
-            "URSIDAE_MIDDLE_WATCHTOWER": 6,
+            "GERBRANDT_MIDDLE_WATCHTOWER_4": 4,
+            "GERBRANDT_MIDDLE_WATCHTOWER_5": 5,
+            "URSIDAE_TOP_WATCHTOWER": 6,
         }
 
     @pytest.mark.parametrize("table", ["leaguetypes", "equipment_effects", "daimyoCastles", "specialcamps"])
