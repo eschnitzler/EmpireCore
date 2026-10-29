@@ -47,7 +47,7 @@ def index() -> assets.AssetIndex:
 @pytest.fixture(autouse=True)
 def no_network(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(assets, "_loaded", None)
-    monkeypatch.setattr(assets, "_checked_at", 0.0)
+    monkeypatch.setattr(assets, "_checked_at", float("-inf"))
     monkeypatch.setattr(assets, "_last_failure", None)
     monkeypatch.setattr(requests, "get", Mock(side_effect=AssertionError("unexpected network")))
 
