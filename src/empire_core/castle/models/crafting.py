@@ -61,7 +61,7 @@ class CraftingSlot(EmpireModel):
     The permanent slots come first, then the temporary ones, which craft only while unlocked. A queue the
     castle service hands out has every slot of its ``GameData.crafting_queues`` row
     (:meth:`CraftingQueue.with_definition`); one read straight off the wire has only the slots the server
-    listed.
+    listed, none of them temporary, since only the game data tells which are.
 
     Client: ``CraftingQueueVO.parseServerData`` (bundle line 29278); ``CraftingSlotVO.isFilled`` and
     ``isLocked`` (bundle lines 17002-17003)
@@ -102,33 +102,41 @@ class CraftingSlot(EmpireModel):
 def _slots(value: Any, slot_type: CraftingSlotType) -> Any:
     if not isinstance(value, dict):
         return value if isinstance(value, (list, tuple)) else ()
-    recipes, times, unlocks, boosters = (
-        [js_int(entry) for entry in value.get(key) or []] for key in ("CRID", "RCT", "RUT", "BV")
-    )
-    count = max(len(recipes), len(times), len(boosters), len(unlocks))
-    first_temporary = count - len(unlocks)
+    recipes, times, boosters = ([js_int(entry) for entry in value.get(key) or []] for key in ("CRID", "RCT", "BV"))
     return tuple(
         {
             "index": index,
             "slot_type": slot_type,
             "recipe_id": recipes[index] if index < len(recipes) and recipes[index] > 0 else None,
             "remaining_seconds": times[index] if index < len(times) else None,
-            "unlock_seconds": unlocks[index - first_temporary] if index >= first_temporary else None,
             "booster_value": boosters[index] if index < len(boosters) else 0,
         }
-        for index in range(count)
+        for index in range(max(len(recipes), len(times), len(boosters)))
     )
 
 
+def _unlock_times(value: Any) -> tuple[int, ...]:
+    return tuple(js_int(entry) for entry in value.get("RUT") or []) if isinstance(value, dict) else ()
+
+
 def _laid_out(
-    sent: tuple[CraftingSlot, ...], slot_type: CraftingSlotType, permanent: int, temporary: int
+    sent: tuple[CraftingSlot, ...],
+    unlock_seconds: tuple[int, ...],
+    slot_type: CraftingSlotType,
+    permanent: int,
+    temporary: int,
 ) -> tuple[CraftingSlot, ...]:
     count = permanent + temporary
-    if len(sent) > count:
+    if len(sent) > count or len(unlock_seconds) > temporary:
         logger.warning(
-            "%d %s crafting slots sent for %d in the game data; the rest are dropped", len(sent), slot_type.value, count
+            "%d %s crafting slots and %d unlock times sent for %d and %d in the game data; the rest are dropped",
+            len(sent),
+            slot_type.value,
+            len(unlock_seconds),
+            count,
+            temporary,
         )
-    unlocks = iter([slot.unlock_seconds for slot in sent if slot.unlock_seconds is not None])
+    unlocks = iter(unlock_seconds)
     return tuple(
         (sent[index] if index < len(sent) else CraftingSlot(index=index, slot_type=slot_type)).model_copy(
             update={"unlock_seconds": next(unlocks, 0) if index >= permanent else None}
@@ -162,6 +170,25 @@ class CraftingQueue(BasePayload):
     queue: tuple[CraftingSlot, ...] = Field(
         validation_alias="QS", default=(), description="The slots waiting behind them, from the first"
     )
+    production_unlock_seconds: tuple[int, ...] = Field(
+        default=(),
+        description="The ``PS`` ``RUT``: seconds each unlocked temporary crafting slot stays unlocked, in slot order",
+    )
+    queue_unlock_seconds: tuple[int, ...] = Field(
+        default=(),
+        description="The ``QS`` ``RUT``: seconds each unlocked temporary waiting slot stays unlocked, in slot order",
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _unlocks(cls, value: Any) -> Any:
+        if not isinstance(value, dict) or "PS" not in value and "QS" not in value:
+            return value
+        return {
+            "production_unlock_seconds": _unlock_times(value.get("PS")),
+            "queue_unlock_seconds": _unlock_times(value.get("QS")),
+            **value,
+        }
 
     @field_validator("building_state", mode="before")
     @classmethod
@@ -203,12 +230,14 @@ class CraftingQueue(BasePayload):
             update={
                 "production": _laid_out(
                     self.production,
+                    self.production_unlock_seconds,
                     CraftingSlotType.PRODUCTION,
                     definition.permanent_production_slots,
                     len(definition.production_slot_unlock_coins),
                 ),
                 "queue": _laid_out(
                     self.queue,
+                    self.queue_unlock_seconds,
                     CraftingSlotType.QUEUE,
                     definition.permanent_queue_slots,
                     len(definition.queue_slot_unlock_coins),

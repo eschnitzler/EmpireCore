@@ -47,9 +47,8 @@ class CraftingState(StateBase):
         """Every crafting queue a ``crin``, a castle join or a crafting action's reply sent, as the last one left
         it; None until one arrived.
 
-        Their times are as of the packet that sent each queue, and their slots are only the ones it listed,
-        with the unlock times on the last of them; ``client.castle.crafting_queues`` lays them out from the
-        game data, which puts each unlock time on its temporary slot.
+        Their times are as of the packet that sent each queue, and their slots are only the ones it listed, with
+        the unlock times apart; ``client.castle.crafting_queues`` lays them out from the game data.
         """
         with self._lock:
             return None if self.crafting_queues is None else tuple(self.crafting_queues.values())
