@@ -20,6 +20,7 @@ STATE_ONLY = {
     "get_packet_times": "freshness of every packet kind",
     "get_event": "typed per event by overloads; client.events.running holds them all",
     "get_away_commanders": "client.commanders.travelling_commanders reads it as roster rows",
+    "get_crafting_queues": "client.castle.crafting_queues lays the slots out from the game data",
 }
 
 

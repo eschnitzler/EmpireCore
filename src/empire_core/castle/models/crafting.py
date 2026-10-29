@@ -10,6 +10,7 @@ Commands:
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from pydantic import (
@@ -29,7 +30,11 @@ from empire_core.protocol.js import js_int, js_parse_int, js_truthy
 from .objects import _building_state
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import ConstructionItem, Currency
+    from typing_extensions import Self
+
+    from empire_core.gamedata import ConstructionItem, CraftingQueueDef, Currency
+
+logger = logging.getLogger(__name__)
 
 FULL_SKIP = "-"
 """The ``MST`` of a construction item craft finished for rubies rather than shortened by a minute skip.
@@ -53,9 +58,10 @@ class CraftingSlot(EmpireModel):
     """
     One slot of a crafting queue.
 
-    The permanent slots come first, then the temporary ones, which craft only while unlocked. The slots are
-    the ones the server lists, and the temporary ones are the last of them, one per unlock time sent;
-    ``GameData.crafting_queues`` counts each queue's.
+    The permanent slots come first, then the temporary ones, which craft only while unlocked. A queue the
+    castle service hands out has every slot of its ``GameData.crafting_queues`` row
+    (:meth:`CraftingQueue.with_definition`); one read straight off the wire has only the slots the server
+    listed.
 
     Client: ``CraftingQueueVO.parseServerData`` (bundle line 29278); ``CraftingSlotVO.isFilled`` and
     ``isLocked`` (bundle lines 17002-17003)
@@ -114,6 +120,23 @@ def _slots(value: Any, slot_type: CraftingSlotType) -> Any:
     )
 
 
+def _laid_out(
+    sent: tuple[CraftingSlot, ...], slot_type: CraftingSlotType, permanent: int, temporary: int
+) -> tuple[CraftingSlot, ...]:
+    count = permanent + temporary
+    if len(sent) > count:
+        logger.warning(
+            "%d %s crafting slots sent for %d in the game data; the rest are dropped", len(sent), slot_type.value, count
+        )
+    unlocks = iter([slot.unlock_seconds for slot in sent if slot.unlock_seconds is not None])
+    return tuple(
+        (sent[index] if index < len(sent) else CraftingSlot(index=index, slot_type=slot_type)).model_copy(
+            update={"unlock_seconds": next(unlocks, 0) if index >= permanent else None}
+        )
+        for index in range(count)
+    )
+
+
 class CraftingQueue(BasePayload):
     """
     One crafting building's queue in one castle.
@@ -162,6 +185,36 @@ class CraftingQueue(BasePayload):
         Client: ``IsoBuildingStateEnum.isFunctionally`` (bundle line 3432)
         """
         return self.building_state not in _NOT_WORKING
+
+    def with_definition(self, definition: CraftingQueueDef) -> Self:
+        """
+        The queue with every slot of its game-data definition, as the client lays it out.
+
+        The server leaves out the empty slots at the end and the locked temporary ones, and sends unlock times
+        for unlocked temporary slots only. The client first builds the definition's slots, the permanent ones,
+        then one temporary slot per unlock cost, and fills them in order: a recipe, time and booster per slot,
+        an unlock time per temporary slot. A temporary slot left without one is locked. Slots past the
+        definition's are dropped, as the client drops them.
+
+        Client: ``CraftingQueueVO`` (bundle lines 29265-29277), ``CraftingQueueVO.parseServerData``
+        (bundle line 29278)
+        """
+        return self.model_copy(
+            update={
+                "production": _laid_out(
+                    self.production,
+                    CraftingSlotType.PRODUCTION,
+                    definition.permanent_production_slots,
+                    len(definition.production_slot_unlock_coins),
+                ),
+                "queue": _laid_out(
+                    self.queue,
+                    CraftingSlotType.QUEUE,
+                    definition.permanent_queue_slots,
+                    len(definition.queue_slot_unlock_coins),
+                ),
+            }
+        )
 
     def slots(self, slot_type: CraftingSlotType) -> tuple[CraftingSlot, ...]:
         """The slots of one kind."""

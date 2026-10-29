@@ -17,9 +17,35 @@ from empire_core.castle import (
 )
 from empire_core.enums import BuildingState, Kingdom
 from empire_core.exceptions import CommandError, UnknownCastleError
-from empire_core.gamedata import ConstructionItem, ConstructionItemRecipeId, CraftingRecipeId, Currency
+from empire_core.gamedata import (
+    ConstructionItem,
+    ConstructionItemRecipeId,
+    CraftingQueueId,
+    CraftingRecipeId,
+    Currency,
+    GameData,
+)
 from empire_core.protocol.models import parse_response
 from tests.service_helpers import conn, logged_in_state, make_client, xt_packet
+
+# CraftingQueueXML.fillFromParamXml: one temporary slot per unlock cost (bundle line 111498)
+GAME_DATA = GameData.parse(
+    "test",
+    {
+        "craftingQueues": [
+            {
+                "craftingQueueId": "9",
+                "queueTypeId": "2",
+                "permanentProductionSlots": "1",
+                "productionSlotUnlockCostC1": "5000000",
+                "productionSlotUnlockDuration": "604800",
+                "permanentQueueSlots": "1",
+                "queueSlotUnlockCostC1": "500000,3000000,6500000",
+                "queueSlotUnlockDuration": "604800",
+            }
+        ]
+    },
+)
 
 # CastleCraftingData.parseBuildingQueueData reads KID, AID, S, CQID, OID, PS and QS (bundle line 111405)
 QUEUE: dict[str, Any] = {
@@ -37,12 +63,23 @@ def queue(**changes: Any) -> CraftingQueue:
     return CraftingQueue.model_validate({**QUEUE, **changes})
 
 
+def crafting_client(script: dict[str, Any] | None = None):
+    client = make_client(script)
+    client.game_data = GAME_DATA
+    return client
+
+
 def state_client(script: dict[str, Any]):
     client = make_client(script, state=logged_in_state())
+    client.game_data = GAME_DATA
     conn(client).on_packet = lambda packet: client.state.update_from_packet(
         packet.command_id, packet.payload, packet.error_code
     )
     return client
+
+
+def layout(slots: tuple[CraftingSlot, ...]) -> list[tuple[int, int | None, int | None]]:
+    return [(slot.index, slot.recipe_id, slot.unlock_seconds) for slot in slots]
 
 
 class TestReplies:
@@ -118,33 +155,33 @@ class TestCraftingQueue:
         started = client.castle.start_crafting(known, CraftingRecipeId(14))
 
         assert conn(client).request_payloads[-1] == ("crst", {"KID": 0, "AID": 5001, "OID": 77, "PWR": 0, "CRID": 14})
-        assert [slot.recipe_id for slot in started.queue] == [13, 14]
+        assert [slot.recipe_id for slot in started.queue] == [13, 14, None, None]
         kept = client.castle.crafting_queues
         assert kept is not None and kept[0].queue == started.queue
 
     def test_a_full_queue_raises(self):
-        client = make_client({"crst": xt_packet("crst", error_code=63)})
+        client = crafting_client({"crst": xt_packet("crst", error_code=63)})
         with pytest.raises(CommandError):
             client.castle.start_crafting(queue(), CraftingRecipeId(14))
 
     def test_a_building_not_working_sends_nothing(self):
-        client = make_client()
+        client = crafting_client()
         with pytest.raises(ValueError, match="not working"):
             client.castle.cancel_crafting(queue(S=2), queue().production[0])
         assert conn(client).request_payloads == []
 
     def test_cancel_sends_the_slot_type_as_text(self):
-        client = make_client({"crca": xt_packet("crca", QUEUE)})
+        client = crafting_client({"crca": xt_packet("crca", QUEUE)})
         client.castle.cancel_crafting(queue(), queue(QS={"CRID": [13, 14]}).queue[1])
         assert conn(client).request_payloads == [("crca", {"KID": 0, "AID": 5001, "OID": 77, "S": 1, "ST": "queue"})]
 
     def test_move_sends_old_and_new_place(self):
-        client = make_client({"crqm": xt_packet("crqm", QUEUE)})
+        client = crafting_client({"crqm": xt_packet("crqm", QUEUE)})
         client.castle.move_crafting_slot(queue(), queue(QS={"CRID": [13, 14, 15]}).queue[2], 0)
         assert conn(client).request_payloads == [("crqm", {"KID": 0, "AID": 5001, "OID": 77, "OS": 2, "NS": 0})]
 
     def test_skip_needs_consent_and_sends_its_price(self):
-        client = make_client({"crsk": xt_packet("crsk", QUEUE)})
+        client = crafting_client({"crsk": xt_packet("crsk", QUEUE)})
         with pytest.raises(ValueError, match="spend_rubies"):
             client.castle.skip_crafting(queue(), queue().production[0], 35)
         client.castle.skip_crafting(queue(), queue().production[0], 35, spend_rubies=True)
@@ -155,7 +192,7 @@ class TestCraftingQueue:
     def test_unlock_sends_the_slot_and_the_locked_slots_before_it_first_to_last(self):
         # buySlot walks previousSlot while it is locked
         locked = queue(PS={"CRID": [12, 0, 0, 0], "RUT": [60, 0, 0]})
-        client = make_client({"crun": xt_packet("crun", QUEUE)})
+        client = crafting_client({"crun": xt_packet("crun", QUEUE)})
         client.castle.unlock_crafting_slot(locked, locked.production[3])
         assert conn(client).request_payloads == [
             ("crun", {"KID": 0, "AID": 5001, "OID": 77, "S": [2, 3], "ST": "production"})
@@ -179,6 +216,54 @@ class TestCraftingQueue:
         state = logged_in_state()
         state.update_from_packet("jaa", {"KID": 0, "crai": {}})
         assert state.get_crafting_queues() is None
+
+
+class TestSlotLayout:
+    # The CraftingQueueVO constructor builds the definition's slots; parseServerData fills them in order,
+    # RUT on temporary slots only (bundle lines 29265-29278)
+    definition = GAME_DATA.crafting_queues[CraftingQueueId(2)]
+
+    def test_an_idle_queue_has_its_free_and_locked_slots(self):
+        idle = queue(PS={}, QS={}).with_definition(self.definition)
+        assert layout(idle.production) == [(0, None, None), (1, None, 0)]
+        assert layout(idle.queue) == [(0, None, None), (1, None, 0), (2, None, 0), (3, None, 0)]
+        assert [slot.is_locked for slot in idle.queue] == [False, True, True, True]
+
+    def test_a_rented_slot_s_time_stays_on_the_temporary_slot(self):
+        rented = queue(PS={"RUT": [245290]}, QS={}).with_definition(self.definition)
+        assert layout(rented.production) == [(0, None, None), (1, None, 245290)]
+        assert not rented.production[0].is_temporary and not rented.production[1].is_locked
+
+    def test_a_running_craft_keeps_its_slot_and_the_rest_follow(self):
+        running = queue(
+            PS={"CRID": [88], "RCT": [15000]}, QS={"CRID": [88], "RCT": [18000], "RUT": [310066]}
+        ).with_definition(self.definition)
+        assert layout(running.production) == [(0, 88, None), (1, None, 0)]
+        assert layout(running.queue) == [(0, 88, None), (1, None, 310066), (2, None, 0), (3, None, 0)]
+        assert running.queue[0].remaining_seconds == 18000
+
+    def test_slots_past_the_definition_are_dropped(self, caplog):
+        crowded = queue(PS={"CRID": [12, 13, 14]}).with_definition(self.definition)
+        assert layout(crowded.production) == [(0, 12, None), (1, 13, 0)]
+        assert "3 production crafting slots sent for 2" in caplog.text
+
+    def test_laying_out_twice_changes_nothing(self):
+        once = queue().with_definition(self.definition)
+        assert once.with_definition(self.definition) == once
+
+    def test_the_service_hands_out_laid_out_queues_and_state_keeps_them_as_sent(self):
+        client = state_client({"crin": xt_packet("crin", {**QUEUE, "PS": {}, "QS": {}})})
+        (got,) = client.castle.get_crafting_queues()
+        assert len(got.production) == 2 and len(got.queue) == 4
+        assert client.castle.crafting_queues == (got,)
+        stored = client.state.get_crafting_queues()
+        assert stored is not None and stored[0].production == () and stored[0].queue == ()
+
+    def test_a_queue_missing_from_the_game_data_is_as_sent(self, caplog):
+        client = state_client({"crin": xt_packet("crin", {**QUEUE, "CQID": 99})})
+        (got,) = client.castle.get_crafting_queues()
+        assert len(got.production) == 2 and len(got.queue) == 1
+        assert "crafting queue 99 is not in the game data" in caplog.text
 
 
 class TestConstructionCrafting:
