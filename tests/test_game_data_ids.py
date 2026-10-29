@@ -104,7 +104,7 @@ KNOWN = [
     (EquipmentBonus, [334, [25]], "effect_id", EquipmentEffect.ATTACK_BOOST_YARD_25_COMMANDER),
     # getEquippableEffectByEquipmentEffect: an id no equipment effect has is a plain effect
     (EquipmentBonus, [2101, [10]], "effect_id", Effect.RELIC_OFFENSIVE_MELEE_BONUS),
-    (BerimondTarget, {"special_camp_id": 4}, "special_camp_id", BerimondSpecialCamp.GERBRANDT_TOP_WATCHTOWER_4),
+    (BerimondTarget, {"special_camp_id": 4}, "special_camp_id", BerimondSpecialCamp.GERBRANDT_MIDDLE_WATCHTOWER_4),
     (SpyReportArea, {"AT": 18, "X": 1, "Y": 2, "SPC": 2}, "special_camp_id", BerimondSpecialCamp.GERBRANDT_CAPITAL),
 ]
 
@@ -119,7 +119,7 @@ MAP_ROWS = [
     (
         _map_row(MapItemType.FACTION_TOWER, -1, 0, [], 0, 50, 92, 4),
         "special_camp_id",
-        BerimondSpecialCamp.GERBRANDT_TOP_WATCHTOWER_4,
+        BerimondSpecialCamp.GERBRANDT_MIDDLE_WATCHTOWER_4,
     ),
 ]
 
