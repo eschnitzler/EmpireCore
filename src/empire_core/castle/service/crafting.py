@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import logging
+from typing import TYPE_CHECKING, TypeVar
 
 from empire_core.castle.models.crafting import (
     FULL_SKIP,
@@ -33,6 +34,10 @@ from empire_core.services.base import ServiceMixin
 if TYPE_CHECKING:
     from empire_core.gamedata import ConstructionItemRecipeId, CraftingRecipeId
 
+logger = logging.getLogger(__name__)
+
+_Queue = TypeVar("_Queue", bound=CraftingQueue)
+
 
 class CraftingMixin(ServiceMixin):
     # =========================================================================
@@ -41,19 +46,32 @@ class CraftingMixin(ServiceMixin):
 
     @property
     def crafting_queues(self) -> tuple[CraftingQueue, ...] | None:
-        """Every crafting queue known, as the last ``crin`` or crafting action left it; None until one arrived."""
-        return self.client.state.get_crafting_queues()
+        """
+        Every crafting queue known, as the last ``crin`` or crafting action left it; None until one arrived.
+
+        Each has every slot of its game-data row (:meth:`CraftingQueue.with_definition`).
+
+        Raises:
+            GameDataNotLoadedError: The game data cannot be loaded
+        """
+        queues = self.client.state.get_crafting_queues()
+        return None if queues is None else tuple(self._laid_out(queue) for queue in queues)
 
     def get_crafting_queues(self, *, timeout: float = 5.0) -> tuple[CraftingQueue, ...]:
         """
         The crafting queues of the refinery and toolsmith in every castle, as the crafting dialog asks for them.
 
-        The reply also reaches :attr:`crafting_queues`.
+        Each has every slot of its game-data row (:meth:`CraftingQueue.with_definition`). The reply also
+        reaches :attr:`crafting_queues`.
+
+        Raises:
+            GameDataNotLoadedError: The game data cannot be loaded
 
         Client: ``CastleCraftingData.getCraftingInfo`` (bundle line 111423), from
         ``CastleRefineryToolsmithDialog.showLoaded`` (bundle line 29337)
         """
-        return self.request(GetCraftingInfoRequest(), CraftingInfoResponse, timeout=timeout).queues
+        info = self.request(GetCraftingInfoRequest(), CraftingInfoResponse, timeout=timeout)
+        return tuple(self._laid_out(queue) for queue in info.queues)
 
     def start_crafting(
         self, queue: CraftingQueue, recipe_id: CraftingRecipeId, *, timeout: float = 5.0
@@ -79,7 +97,7 @@ class CraftingMixin(ServiceMixin):
         request = StartCraftingRequest(
             kingdom=queue.kingdom, castle_id=queue.castle_id, object_id=queue.object_id, recipe_id=recipe_id
         )
-        return self.request(request, StartCraftingResponse, timeout=timeout)
+        return self._laid_out(self.request(request, StartCraftingResponse, timeout=timeout))
 
     def cancel_crafting(self, queue: CraftingQueue, slot: CraftingSlot, *, timeout: float = 5.0) -> CraftingQueue:
         """
@@ -103,7 +121,7 @@ class CraftingMixin(ServiceMixin):
             slot_index=slot.index,
             slot_type=slot.slot_type,
         )
-        return self.request(request, CancelCraftingResponse, timeout=timeout)
+        return self._laid_out(self.request(request, CancelCraftingResponse, timeout=timeout))
 
     def move_crafting_slot(
         self, queue: CraftingQueue, slot: CraftingSlot, to_index: int, *, timeout: float = 5.0
@@ -130,7 +148,7 @@ class CraftingMixin(ServiceMixin):
             from_index=slot.index,
             to_index=to_index,
         )
-        return self.request(request, MoveCraftingSlotResponse, timeout=timeout)
+        return self._laid_out(self.request(request, MoveCraftingSlotResponse, timeout=timeout))
 
     def skip_crafting(
         self,
@@ -170,7 +188,7 @@ class CraftingMixin(ServiceMixin):
             slot_type=slot.slot_type,
             price=price,
         )
-        return self.request(request, SkipCraftingResponse, timeout=timeout)
+        return self._laid_out(self.request(request, SkipCraftingResponse, timeout=timeout))
 
     def unlock_crafting_slot(self, queue: CraftingQueue, slot: CraftingSlot, *, timeout: float = 5.0) -> CraftingQueue:
         """
@@ -198,12 +216,20 @@ class CraftingMixin(ServiceMixin):
             slot_indices=queue.unlock_indices(slot),
             slot_type=slot.slot_type,
         )
-        return self.request(request, UnlockCraftingSlotsResponse, timeout=timeout)
+        return self._laid_out(self.request(request, UnlockCraftingSlotsResponse, timeout=timeout))
 
     @staticmethod
     def _require_working(queue: CraftingQueue) -> None:
         if not queue.is_working:
             raise ValueError(f"crafting building {queue.object_id} is {queue.building_state.name}, not working")
+
+    def _laid_out(self, queue: _Queue) -> _Queue:
+        """The queue with every slot of its game-data row; as sent when the game data has no row for it."""
+        definition = self._require_game_data().crafting_queues.get(queue.queue_id)
+        if definition is None:
+            logger.warning("crafting queue %s is not in the game data; its slots are as sent", queue.queue_id)
+            return queue
+        return queue.with_definition(definition)
 
     def get_construction_crafting(self, *, timeout: float = 5.0) -> ConstructionCraftingResponse:
         """
