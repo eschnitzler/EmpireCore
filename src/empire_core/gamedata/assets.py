@@ -24,8 +24,10 @@ _DLL = re.compile(r'(?:src|href)=["\']dll/ggs\.dll\.([a-f0-9]+)\.js["\']')
 _FILL = re.compile(r"ItemVersions\.prototype\.fill=function\(\)\{(.*?)\},ItemVersions\}", re.DOTALL)
 _ENTRY = re.compile(r'this\.assets(?:\.([A-Za-z_$][\w$]*)|\["([^"\\]+)"\])="([^"\\]+)"')
 _PATH = re.compile(r"itemassets/[A-Za-z0-9_./-]+")
+VERSION_CHECK_INTERVAL = 60.0
 _lock = threading.Lock()
 _loaded: AssetIndex | None = None
+_checked_at = 0.0
 _last_failure: tuple[float, str] | None = None
 logger = logging.getLogger(__name__)
 
@@ -87,55 +89,72 @@ class AssetIndex:
     @classmethod
     def load(cls, *, refresh: bool = False, cache_dir: str | Path | None = None) -> AssetIndex:
         """
-        Lazily load the official index, cached in memory and on disk by DLL hash.
+        The official index for the client's current DLL, cached in memory and on disk by DLL hash.
 
-        The first call in a process checks the client page for its DLL version.
-        Subsequent calls reuse the snapshot; ``refresh=True`` checks and downloads
-        again. A cached DLL index avoids downloading the DLL on process restart.
-        Network failures raise NetworkError and back off for five minutes;
-        malformed metadata/indexes raise ValueError. Neither imports nor building
-        a GameData object calls this loader.
+        The client page is checked for its DLL version at most once a minute. While the version holds,
+        every caller gets the same snapshot; a new version loads its index from disk, or from the DLL
+        on a miss. ``refresh=True`` checks now and downloads the DLL
+        again. When the page or a new index cannot be read, the loaded snapshot is kept with a
+        warning. With none loaded, or with ``refresh``, network failures raise NetworkError and back
+        off for five minutes, and malformed metadata/indexes raise ValueError. Neither imports nor
+        building a GameData object calls this loader.
         """
-        global _loaded, _last_failure
+        global _loaded, _checked_at
         with _lock:
-            if _loaded is not None and not refresh:
-                return _loaded
-            if not refresh and _last_failure is not None:
-                failed_at, message = _last_failure
-                if time.monotonic() - failed_at < RETRY_AFTER_FAILURE:
-                    raise NetworkError(message)
-            directory = Path(cache_dir) if cache_dir is not None else cache.default_cache_dir()
+            kept = None if refresh else _loaded
+            if kept is not None and time.monotonic() - _checked_at < VERSION_CHECK_INTERVAL:
+                return kept
+            _checked_at = time.monotonic()
             try:
-                response = requests.get(f"{_BASE_URL}/index.html", timeout=10)
-                response.raise_for_status()
-                versions = set(_DLL.findall(response.text))
-                if len(versions) != 1:
-                    raise ValueError("Client page does not identify one ItemVersions DLL")
-                version = versions.pop()
-                path = directory / f"item-assets-{version}.json"
-                with cache.locked(path.with_suffix(".lock")):
-                    if path.exists() and not refresh:
-                        payload = json.loads(path.read_text(encoding="utf-8"))
-                        if not isinstance(payload, dict):
-                            raise ValueError("Invalid cached ItemVersions asset index")
-                        result = cls(payload, version=version)
-                        if not result.paths:
-                            raise ValueError("Cached ItemVersions asset index is empty")
-                    else:
-                        response = requests.get(f"{_BASE_URL}/dll/ggs.dll.{version}.js", timeout=30)
-                        response.raise_for_status()
-                        result = cls.from_javascript(response.text, version=version)
-                        try:
-                            cache.write_atomic(path, json.dumps(dict(result.paths)))
-                        except OSError as error:
-                            logger.debug("Could not cache asset index: %s", error)
-            except requests.RequestException as error:
-                message = f"Could not load the asset index: {error}"
-                _last_failure = (time.monotonic(), message)
-                raise NetworkError(message) from error
-            _loaded = result
-            _last_failure = None
-            return result
+                _loaded = cls._fetch(kept, refresh, Path(cache_dir) if cache_dir is not None else None)
+            except (NetworkError, ValueError) as error:
+                if kept is None:
+                    raise
+                logger.warning("Keeping asset index %s: %s", kept.version, error)
+                return kept
+            return _loaded
+
+    @classmethod
+    def _fetch(cls, kept: AssetIndex | None, refresh: bool, cache_dir: Path | None) -> AssetIndex:
+        global _last_failure
+        if not refresh and _last_failure is not None:
+            failed_at, message = _last_failure
+            if time.monotonic() - failed_at < RETRY_AFTER_FAILURE:
+                raise NetworkError(message)
+        directory = cache_dir if cache_dir is not None else cache.default_cache_dir()
+        try:
+            response = requests.get(f"{_BASE_URL}/index.html", timeout=10)
+            response.raise_for_status()
+            versions = set(_DLL.findall(response.text))
+            if len(versions) != 1:
+                raise ValueError("Client page does not identify one ItemVersions DLL")
+            version = versions.pop()
+            if kept is not None and kept.version == version:
+                _last_failure = None
+                return kept
+            path = directory / f"item-assets-{version}.json"
+            with cache.locked(path.with_suffix(".lock")):
+                if path.exists() and not refresh:
+                    payload = json.loads(path.read_text(encoding="utf-8"))
+                    if not isinstance(payload, dict):
+                        raise ValueError("Invalid cached ItemVersions asset index")
+                    result = cls(payload, version=version)
+                    if not result.paths:
+                        raise ValueError("Cached ItemVersions asset index is empty")
+                else:
+                    response = requests.get(f"{_BASE_URL}/dll/ggs.dll.{version}.js", timeout=30)
+                    response.raise_for_status()
+                    result = cls.from_javascript(response.text, version=version)
+                    try:
+                        cache.write_atomic(path, json.dumps(dict(result.paths)))
+                    except OSError as error:
+                        logger.debug("Could not cache asset index: %s", error)
+        except requests.RequestException as error:
+            message = f"Could not load the asset index: {error}"
+            _last_failure = (time.monotonic(), message)
+            raise NetworkError(message) from error
+        _last_failure = None
+        return result
 
 
 __all__ = ["AssetIndex"]

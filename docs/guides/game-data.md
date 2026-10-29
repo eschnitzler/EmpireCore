@@ -193,10 +193,12 @@ The first resolution lazily reads the official client page, discovers its
 versioned DLL, and extracts `ItemVersions` without executing JavaScript. It
 caches the index in memory and on disk by DLL hash, independently of the items
 JSON version. Imports and loading `GameData` do not fetch the asset index.
-`AssetIndex.load(refresh=True)` checks for updates and downloads the index
-again. A network failure raises `NetworkError` and backs off for five minutes;
-malformed metadata or an index in an unsupported format raises `ValueError`.
-A failed refresh keeps the previously loaded snapshot available.
+Later resolutions check the page again at most once a minute and switch to a
+new DLL's index when the client updates; while the page cannot be read, the
+loaded index is kept. `AssetIndex.load(refresh=True)` checks now and downloads
+the index again. With nothing loaded, a network failure raises `NetworkError`
+and backs off for five minutes, and malformed metadata or an index in an
+unsupported format raises `ValueError`.
 
 For reproducible offline resolution, inject a saved mapping and its DLL hash:
 
