@@ -2,6 +2,40 @@
 
 <!-- version list -->
 
+## v0.61.0 (2026-10-29)
+
+### Bug Fixes
+
+- **gamedata**: Name Berimond lanes by where they lie on the map
+  ([`edfac90`](https://github.com/eschnitzler/EmpireCore/commit/edfac90faebc82110a64b16a983f9cfb9f1b7392))
+
+- **gamedata**: Reload the asset index when the client's DLL changes
+  ([`ef9e2d4`](https://github.com/eschnitzler/EmpireCore/commit/ef9e2d4e05afb6afb3a35cdefc4b6b7b1325a443))
+
+- **release**: Keep a BREAKING CHANGE footer's bullet list in the changelog
+  ([`07d0fc9`](https://github.com/eschnitzler/EmpireCore/commit/07d0fc9e271c9909af00a8c230c3697030e7808f))
+
+### Features
+
+- **gamedata**: Berimond lane towers and capital lanes
+  ([`f592b91`](https://github.com/eschnitzler/EmpireCore/commit/f592b91e6dc7a366841d92d103feaaffd5e8bbe4))
+
+- **gamedata**: Berimond special camp level, attacks and loot
+  ([`f2b3a1f`](https://github.com/eschnitzler/EmpireCore/commit/f2b3a1f117432b50e98338cc4008e69c007b6b50))
+
+### Testing
+
+- **gamedata**: Reset the asset index check time to -inf, not 0
+  ([`777076b`](https://github.com/eschnitzler/EmpireCore/commit/777076b9725cfc29bbdbc73ec40243376c3a8062))
+
+### Breaking Changes
+
+- **gamedata**: BerimondLane.GERBRANDT_TOP is now 2 and GERBRANDT_MIDDLE is 1 (URSIDAE_TOP 6,
+  URSIDAE_MIDDLE 5). BerimondSpecialCamp members on those lanes swap names to match, e.g.
+  GERBRANDT_TOP_WATCHTOWER_4 is now GERBRANDT_MIDDLE_WATCHTOWER_4. Code comparing by name now picks
+  the other lane; code comparing by value is unaffected.
+
+
 ## v0.60.0 (2026-10-28)
 
 ### Bug Fixes
