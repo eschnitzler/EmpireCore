@@ -83,6 +83,8 @@ a fresh snapshot. Refusals raise `CommandError`; timeouts and malformed replies 
 returns a tuple of `BerimondTarget` records in server order. Each `special_camp_id` is
 a `BerimondSpecialCamp`, the watchtower or capital's row of `GameData.berimond_special_camps`;
 unknown identifiers stay ints and duplicates are preserved.
+`GameData.berimond_lane_towers(lane)` gives one `BerimondLane`'s watchtowers in id order, and
+`BerimondLane.GERBRANDT_CAPITAL.tower_lanes` a capital's three lanes.
 Membership in this list does not establish attack eligibility: faction, spectator,
 protection and destroyed-target restrictions still apply.
 These identifiers are not map area ids or coordinates. Obtain map positions separately;
