@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v0.62.0 (2026-10-29)
+
+### Bug Fixes
+
+- **alliance**: Read every helper name of an ahf push
+  ([`0e531a0`](https://github.com/eschnitzler/EmpireCore/commit/0e531a078dc964a751a13f61e0dd5c85d4f52d80))
+
+- **castle**: Keep a crafting queue's unlock times apart from its slots
+  ([`5cd53af`](https://github.com/eschnitzler/EmpireCore/commit/5cd53af6f52b3af3ee81ef9cb1a18eb1e3950775))
+
+- **castle**: Lay crafting queues out from their game-data definition
+  ([`0e03d71`](https://github.com/eschnitzler/EmpireCore/commit/0e03d719c3045483449dad1114af392ebe6ac3ce))
+
+### Breaking Changes
+
+- **alliance**: AllianceHelpReceived.helper_name (str | None) is now helper_names (tuple[str, ...]);
+  a single helper is a one-name tuple, none an empty one.
+
+
 ## v0.61.0 (2026-10-29)
 
 ### Bug Fixes
