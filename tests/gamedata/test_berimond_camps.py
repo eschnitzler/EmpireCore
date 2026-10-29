@@ -10,7 +10,20 @@ DATA = GameData.parse(
             {"specialcampID": "1", "type": "VILLAGES"},
             {"specialcampID": "2", "type": "CAPITAL", "laneID": "4", "unlockIDs": "5,6"},
             {"specialcampID": "6", "type": "DUNGEON", "laneID": "1"},
-            {"specialcampID": "4", "type": "DUNGEON", "laneID": "1"},
+            {
+                "specialcampID": "4",
+                "type": "DUNGEON",
+                "laneID": "1",
+                "dungeonlevel": "50",
+                "attacksUntilDestroyed": "92",
+                "lootc1": "22782",
+                "lootc2": "5",
+                "lootWood": "100",
+                "lootStone": "200",
+                "lootFood": "300",
+                "lootMead": "6408",
+                "lootBeef": "6407",
+            },
             {"specialcampID": "5", "type": "DUNGEON", "laneID": "2"},
         ]
     },
@@ -39,3 +52,16 @@ class TestLanes:
 
     def test_a_capitals_lane_has_no_towers(self):
         assert DATA.berimond_lane_towers(BerimondLane.GERBRANDT_CAPITAL) == []
+
+
+class TestSpecialCamps:
+    def test_a_watchtower_reads_its_level_attacks_and_loot(self):
+        tower = DATA.berimond_special_camps[4]
+        assert (tower.level, tower.attacks_until_destroyed) == (50, 92)
+        assert (tower.loot_coins, tower.loot_rubies) == (22782, 5)
+        assert (tower.loot_wood, tower.loot_stone, tower.loot_food) == (100, 200, 300)
+        assert (tower.loot_mead, tower.loot_beef) == (6408, 6407)
+
+    def test_a_camp_without_them_reads_zero(self):
+        village = DATA.berimond_special_camps[1]
+        assert (village.level, village.attacks_until_destroyed, village.loot_rubies, village.loot_mead) == (0, 0, 0, 0)

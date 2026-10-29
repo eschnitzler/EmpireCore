@@ -2955,7 +2955,8 @@ class BerimondSpecialCampDef(_Row):
 
     Client: ``FactionEventVO.parseAdditionalXmlFromRoot`` (bundle line 7398) reads ``specialcampID``, ``type`` and
     ``distance``, ``FactionTowerInfoVO.parseXML`` and ``FactionCapitalInfoVO.parseXML`` (bundle lines 88030, 88004)
-    the rest
+    the lane, position, villages and unlocks. The level, attacks and loot columns are the server's: the client never
+    reads them.
     """
 
     special_camp_id: GameDataId["BerimondSpecialCamp"] = Field(validation_alias="specialcampID", description="The camp")
@@ -2972,13 +2973,40 @@ class BerimondSpecialCampDef(_Row):
     unlock_ids: tuple[GameDataId["BerimondSpecialCamp"], ...] = Field(
         validation_alias="unlockIDs", default=(), description="A capital's camps, as the client lists them"
     )
+    level: int = Field(validation_alias="dungeonlevel", default=0, description="Its level")
+    attacks_until_destroyed: int = Field(
+        validation_alias="attacksUntilDestroyed", default=0, description="The attacks that destroy it; 0 for none"
+    )
+    loot_coins: int = Field(validation_alias="lootc1", default=0, description="The coins it lists as loot")
+    loot_rubies: int = Field(validation_alias="lootc2", default=0, description="The rubies it lists as loot")
+    loot_wood: int = Field(validation_alias="lootWood", default=0, description="The wood it lists as loot")
+    loot_stone: int = Field(validation_alias="lootStone", default=0, description="The stone it lists as loot")
+    loot_food: int = Field(validation_alias="lootFood", default=0, description="The food it lists as loot")
+    loot_mead: int = Field(validation_alias="lootMead", default=0, description="The mead it lists as loot")
+    loot_beef: int = Field(validation_alias="lootBeef", default=0, description="The beef it lists as loot")
 
     @field_validator("special_camp_id", mode="before")
     @classmethod
     def _id(cls, value: object) -> int:
         return row_id(value)
 
-    @field_validator("distance", "lane_id", "village_count", "sector_x", "sector_y", mode="before")
+    @field_validator(
+        "distance",
+        "lane_id",
+        "village_count",
+        "sector_x",
+        "sector_y",
+        "level",
+        "attacks_until_destroyed",
+        "loot_coins",
+        "loot_rubies",
+        "loot_wood",
+        "loot_stone",
+        "loot_food",
+        "loot_mead",
+        "loot_beef",
+        mode="before",
+    )
     @classmethod
     def _int_column(cls, value: object) -> int:
         return _parse_int_or_default(value, 0)
