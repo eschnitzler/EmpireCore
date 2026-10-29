@@ -502,6 +502,11 @@ class TestAllianceHelp:
             "AllianceHelpReceived",
         ]
         assert seen[-1].building_wod_id == 101
+        assert seen[-1].helper_names == ("LeaderGuy",)
+
+        # members who help together arrive in one ahf, PN a list of their names
+        client._on_packet(xt_packet("ahf", {"PN": ["LeaderGuy", "Second"], "LID": 32, "WID": 101}))
+        assert seen[-1].helper_names == ("LeaderGuy", "Second")
 
     def test_a_removed_callback_hears_nothing(self):
         client = make_client()
