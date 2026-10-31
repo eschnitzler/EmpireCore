@@ -293,6 +293,23 @@ class TestAttackInfoBlocks:
         assert picked(abe={}, B=castellan) is None
         assert picked(abe={"N": "no id"}, B=castellan) is None
 
+    def test_the_castellan_comes_without_its_equipment(self):
+        from empire_core.protocol.models import Commander, GetAttackInfoResponse
+
+        # parseArmyInfo builds it with createLord(castellan, true, true), which skips EQ and AIE;
+        # the gli roster's entries keep theirs
+        entry = {"ID": 4, "WID": 1, "EQ": [], "AIE": [[37, [10]]]}
+        info = GetAttackInfoResponse.model_validate({"S": [[[10, 1]]], "B": entry, "gli": {"B": [entry]}})
+        castellan = info.defending_castellan()
+        assert castellan is not None and castellan.without_equipment
+        assert castellan.alien_equipment is not None and not castellan.uses_alien_equipment
+        assert info.commander_roster.castellans[0].uses_alien_equipment
+
+        for block in ("abe", "spied_castellan"):
+            named = GetAttackInfoResponse.model_validate({"S": [[[10, 1]]], block: Commander(commander_id=7)})
+            chosen = named.defending_castellan()
+            assert chosen is not None and chosen.without_equipment
+
     def test_spy_positions_are_read_through_int(self):
         from empire_core.protocol.models import GetAttackInfoResponse
 

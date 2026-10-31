@@ -13,7 +13,7 @@ from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING, NamedTuple, Protocol
 
 from empire_core.army.spy_army import SpyArmy
-from empire_core.commanders.models.roster import Commander
+from empire_core.commanders.models.roster import LeaderBase
 from empire_core.enums import BerimondFaction, CombatEffectType, Flank, Kingdom, MapItemType, NPCOwner
 from empire_core.gamedata import EnumOrInt, GameData, NpcCampDefence, ScalingCampId, ToolStats
 from empire_core.gamedata.data import BERIMOND_INVASION_CAMP_TABLE
@@ -428,7 +428,7 @@ def spied_castle_defense(
     moat_bonus: float = 0.0,
     melee_bonus: float = 1.0,
     range_bonus: float = 1.0,
-    castellan: Commander | None = None,
+    castellan: LeaderBase | None = None,
     defender_legend_skill_ids: Sequence[EnumOrInt["LegendSkill"]] | None = None,
     area_type: int | None = None,
     game_data: GameData | None = None,
@@ -460,8 +460,8 @@ def spied_castle_defense(
         melee_bonus: Defender melee multiplier before anything is added
         range_bonus: Defender ranged multiplier before anything is added
         castellan: The defending castellan the attack pre-calculation names.
-            Its equipment raises both the fortification and the defenders, and
-            differently per flank
+            Its effects raise both the fortification and the defenders, and
+            differently per flank; the client builds it without its equipment
         defender_legend_skill_ids: The defender's legend skill ids, which the
             client takes from ``aci``'s ``LS`` into
             ``CastleSpyArmyInfoVO.defenderSkills`` (bundle line 30699)

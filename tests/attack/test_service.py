@@ -819,6 +819,17 @@ class TestTargetPrecalculation:
         assert (info.spy_army, info.spy_age_seconds, info.spied_castellan) == (None, -1, None)
         assert info.defender_legend_skill_ids == ()
 
+    def test_a_treasure_node_castellan_comes_without_its_equipment(self):
+        from empire_core.protocol.models import GetTreasureNodeAttackInfoResponse
+
+        # parseArmyInfo builds it with createLord(castellan, true, true), which skips EQ and AIE
+        info = GetTreasureNodeAttackInfoResponse.model_validate(
+            {"MID": 3, "NID": 17, "S": [[[10, 1]]], "B": {"ID": 3, "EQ": [], "AIE": [[37, [10]]]}}
+        )
+
+        assert info.spied_castellan is not None and info.spied_castellan.without_equipment
+        assert not info.spied_castellan.uses_alien_equipment
+
     def test_a_refused_treasure_node_raises(self):
         client = make_client({"tai": xt_packet("tai", error_code=114)}, castles=OWN)
 

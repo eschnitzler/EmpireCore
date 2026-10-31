@@ -112,6 +112,13 @@ class TestSpyReportResponse:
         response = SpyReportResponse.model_validate({"S": [[[487, "100"], [488, "x"], [489]], [[490, 0]]]})
         assert response.army == SpyArmy(left=(WodAmount(487, 100),))
 
+    def test_the_castellan_comes_without_its_equipment(self):
+        # e.B && LordFactory.createLord(e.B, true, true): EQ and AIE are skipped
+        response = SpyReportResponse.model_validate({"B": {"ID": 2, "WID": 1, "EQ": [], "AIE": [[37, [10]]]}})
+        castellan = response.defending_castellan
+        assert castellan is not None and castellan.without_equipment
+        assert not castellan.uses_alien_equipment
+
     def test_unreadable_castellan_keeps_the_report(self):
         response = SpyReportResponse.model_validate({"S": [[[487, 100]]], "B": {"N": "no id"}})
         assert response.defending_castellan is None

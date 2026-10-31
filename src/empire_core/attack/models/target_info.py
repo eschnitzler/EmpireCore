@@ -342,9 +342,12 @@ class GetTreasureNodeAttackInfoResponse(BaseResponse):
     @field_validator("spied_castellan", mode="wrap")
     @classmethod
     def _castellan_or_none(cls, value: object, handler: ValidatorFunctionWrapHandler) -> Commander | None:
+        # Client: parseArmyInfo builds it with LordFactory.createLord(castellan, true, true), which skips
+        # the equipment (bundle line 24515)
         if not value:
             return None
-        return read_or_none(handler, value, warn=logger, what="the defending castellan of a treasure node")
+        castellan = read_or_none(handler, value, warn=logger, what="the defending castellan of a treasure node")
+        return None if castellan is None else castellan.model_copy(update={"without_equipment": True})
 
     @field_validator("defender_legend_skill_ids", mode="before")
     @classmethod

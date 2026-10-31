@@ -731,10 +731,11 @@ class SpyReportResponse(BaseResponse):
     @field_validator("defending_castellan", mode="wrap")
     @classmethod
     def _castellan_or_none(cls, value: Any, handler: ValidatorFunctionWrapHandler) -> Castellan | None:
-        # Client: e.B&&LordFactory.createLord(e.B,!0,!0)
+        # Client: e.B&&LordFactory.createLord(e.B,!0,!0) (bundle line 60602), which skips the equipment
         if not js_truthy(value):
             return None
-        return read_or_none(handler, value, warn=logger, what="the defending castellan of a spy report")
+        castellan = read_or_none(handler, value, warn=logger, what="the defending castellan of a spy report")
+        return None if castellan is None else castellan.model_copy(update={"without_equipment": True})
 
     @field_validator("owner", "spy_owner", mode="wrap")
     @classmethod
