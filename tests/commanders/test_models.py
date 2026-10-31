@@ -264,6 +264,37 @@ class TestAlienEquipmentBonuses:
         commander = Commander.model_validate({"ID": 1, "EQ": [item], "AIE": [[37, [10]]]})
         assert len(commander_bonuses(commander, game_data=game_data)) == 1
 
+    def test_a_castellan_built_without_equipment_grants_e_and_ae_alone(self):
+        # createLord(e, true, true): parseLord fills no slot, so neither EQ, AIE nor GEM reaches getUniqueBoni
+        game_data = GameData.parse(
+            "test",
+            {
+                "effects": [{"effectID": "326", "name": "x", "effectTypeID": "1"}],
+                "equipment_effects": [{"equipmentEffectID": "37", "effectID": "326"}],
+                "gems": [{"gemID": "333", "effects": "326&20"}],
+            },
+        )
+        entry = {
+            "ID": 1,
+            "WID": 1,
+            "EQ": [],
+            "AIE": [[37, [10]]],
+            "GEM": [333],
+            "E": [[326, [10.0], "EQ"]],
+            "AE": [[326, [5.0], "GE"]],
+        }
+        spied = Castellan.model_validate({**entry, "without_equipment": True})
+        assert spied.alien_equipment is not None and not spied.uses_alien_equipment
+        assert spied.alien_bonuses == [] and spied.worn_items() == []
+        assert [(b.effect_id, b.value) for b in commander_bonuses(spied, game_data=game_data)] == [
+            (326, 10.0),
+            (326, 5.0),
+        ]
+        item = [1, 1, 1, 1, 0, [[37, [5]]], 0, -1, 0, -1, -1, 0]
+        assert Castellan.model_validate({**entry, "EQ": [item], "without_equipment": True}).worn_items() == []
+        assert "without_equipment" not in spied.model_dump(by_alias=True)
+        assert len(commander_bonuses(Castellan.model_validate(entry), game_data=game_data)) == 4
+
 
 def test_a_null_set_id_or_odd_rarity_keeps_the_item():
     # parseEquipFromArray stores e[3] and e[7] raw; getUniqueBoni reads the set through int()

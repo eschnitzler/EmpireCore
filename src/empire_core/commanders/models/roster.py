@@ -186,8 +186,15 @@ class LeaderBase(BasePayload):
     client reads the first of them that is present, and only when ``EQ`` is
     empty. See ``alien_bonuses``.
 
-    Client: ``LordFactory.createLord`` (bundle line 26399), ``LordVO.parseLord`` (bundle line 26451),
-    ``LordVO.parseGeneral`` (bundle line 26480) and ``GeneralVO.parseData`` (bundle line 26666) for
+    A spied castellan is built without any of it: ``LordFactory.createLord(e, true, true)``
+    (bundle line 26448) makes ``LordVO.parseLord`` (bundle line 26500) skip ``EQ``, ``AIE`` and
+    ``TAE``, and takes a default commander from the lords table copy that has no effects
+    (``CastleLordData.getDefaultLordWithoutEquipmentByID``, bundle line 38629). The attack
+    pre-calculation, the treasure node pre-calculation, the spy report and the support defense
+    info build theirs that way, so ``E`` and ``AE`` carry all they grant; see ``without_equipment``.
+
+    Client: ``LordFactory.createLord`` (bundle line 26448), ``LordVO.parseLord`` (bundle line 26500),
+    ``LordVO.parseGeneral`` (bundle line 26529) and ``GeneralVO.parseData`` (bundle line 26715) for
     ``ST``, ``L`` and the general's ``XP``, ``OXP``, ``IN``, ``LU``, ``SIDS`` and ``GASAIDS``. The
     client reads those six only when the entry names a general above 0 and is a default commander
     or was created with ``LordFactory.createLord(e, true)``, as a battle log's are. An entry cannot
@@ -228,6 +235,14 @@ class LeaderBase(BasePayload):
         validation_alias="GEM",
         default=(),
         description="The gems added to the alien or temporary equipment",
+    )
+    without_equipment: bool = Field(
+        default=False,
+        exclude=True,
+        description=(
+            "Built as the client builds a spied castellan, with no item, alien equipment, gem, set or"
+            " lords-table effect counted; the payload that carries the entry sets it"
+        ),
     )
     general_id: (
         Annotated[Literal[-1, 0] | EnumOrInt["General"], Field(union_mode="left_to_right"), BeforeValidator(js_int)]
@@ -364,7 +379,7 @@ class LeaderBase(BasePayload):
     def uses_alien_equipment(self) -> bool:
         """Whether ``AIE``/``TAE`` stand in for an empty ``EQ``, as ``LordVO.parseLord`` decides."""
         block = self.alien_equipment if self.alien_equipment is not None else self.temporary_equipment
-        return block is not None and not self._equipment_sent
+        return block is not None and not self._equipment_sent and not self.without_equipment
 
     def worn_items(self) -> list[Equipment]:
         """
@@ -375,6 +390,8 @@ class LeaderBase(BasePayload):
         its slot by ``row[1]``, so a later item replaces an earlier one and an item
         for any other slot is not worn.
         """
+        if self.without_equipment:
+            return []
         by_slot = {item.slot: item for item in self.equipment if item.slot in _SLOT_ORDER}
         return [by_slot[slot] for slot in _SLOT_ORDER if slot in by_slot]
 

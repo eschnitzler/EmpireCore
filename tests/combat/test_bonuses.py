@@ -452,6 +452,16 @@ class TestDefaultCommanderBonuses:
             Bonus(effect_id=120, value=50.0, raw_values=(50.0,)),
         ]
 
+    def test_a_default_castellan_built_without_equipment_has_no_row_effects(self):
+        # getDefaultLordWithoutEquipmentByID returns the row parsed with parseFromXml(row, false)
+        commander = Commander.model_validate(
+            {"ID": -14, "E": [[110, [5.0], "AB"]], "AE": [[120, [50.0], "RH"]], "without_equipment": True}
+        )
+        assert commander_bonuses(commander, game_data=lords_data()) == [
+            Bonus(effect_id=110, value=5.0, raw_values=(5.0,)),
+            Bonus(effect_id=120, value=50.0, raw_values=(50.0,)),
+        ]
+
     def test_aci_area_effects_replace_its_own(self):
         commander = Commander.model_validate({"ID": -14, "AE": [[120, [50.0], "RH"]]})
         aci = [Bonus(effect_id=121, value=3.0)]

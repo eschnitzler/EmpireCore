@@ -23,7 +23,7 @@ from empire_core.combat import (
     robber_baron_camp_level,
     yard_capacity,
 )
-from empire_core.commanders.models.roster import Commander
+from empire_core.commanders.models.roster import Commander, LeaderBase
 from empire_core.enums import Flank, Kingdom, MapItemType
 from empire_core.events.models import GlobalEffectTimer
 from empire_core.exceptions import AttackBelowMinimumError, CommandError
@@ -59,7 +59,7 @@ class FillAttackMixin(WavesMixin, SendingMixin):
         under_conquer_control: bool = False,
         area_bonuses: list[Bonus] | None = None,
         spy_army: SpyArmy | None = None,
-        defending_castellan: Commander | None = None,
+        defending_castellan: LeaderBase | None = None,
         defender_legend_skill_ids: Sequence[EnumOrInt["LegendSkill"]] | None = None,
         commander: Commander | None = None,
         general_skill_ids: Sequence[EnumOrInt["GeneralSkill"]] | None = None,
@@ -141,9 +141,10 @@ class FillAttackMixin(WavesMixin, SendingMixin):
                 a robber baron camp as its row in the items payload
                 (:meth:`robber_baron_camp_army`)
             defending_castellan: The castellan holding the target, from
-                ``get_attack_info(...).defending_castellan()``. Its equipment
-                raises the fortification and multiplies the defenders,
-                differently per flank
+                ``get_attack_info(...).defending_castellan()``. Its effects
+                raise the fortification and multiply the defenders, differently
+                per flank; the client builds it without its equipment, whose
+                effects the server folds into ``E``
             defender_legend_skill_ids: The defender's legend skills, the
                 attack pre-calculation's ``LS`` list. With a spy report they
                 raise the defenders and the fortification

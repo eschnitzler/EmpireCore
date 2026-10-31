@@ -450,10 +450,12 @@ class GetSupportDefenseResponse(BaseResponse):
     @field_validator("castellan", "tower_castellan", mode="wrap")
     @classmethod
     def _castellan_or_none(cls, value: object, handler: ValidatorFunctionWrapHandler) -> Castellan | None:
-        # Client: LordFactory.createLord returns null for an empty entry
+        # Client: LordFactory.createLord(castellan, true, true) returns null for an empty entry and
+        # skips the equipment of any other (CastleSpyArmyInfoVO.parseArmyInfo, bundle line 24515)
         if not value:
             return None
-        return read_or_none(handler, value, warn=logger, what="the castellan of an sdi reply")
+        castellan = read_or_none(handler, value, warn=logger, what="the castellan of an sdi reply")
+        return None if castellan is None else castellan.model_copy(update={"without_equipment": True})
 
     def get_max_defense(self) -> int:
         """

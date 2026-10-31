@@ -255,6 +255,15 @@ class TestSupportDefenseReply:
         assert response.tower_castellan is not None and response.tower_castellan.commander_id == 7
         assert response.castellan is None
 
+    def test_both_castellans_come_without_their_equipment(self):
+        # parseArmyInfo builds the castellan with createLord(castellan, true, true), which skips EQ and AIE
+        entry = {"ID": 7, "WID": 1, "EQ": [], "AIE": [[37, [10]]]}
+        response = GetSupportDefenseResponse.model_validate({"B": entry, "abe": entry})
+
+        for castellan in (response.castellan, response.tower_castellan):
+            assert castellan is not None and castellan.without_equipment
+            assert not castellan.uses_alien_equipment
+
 
 GOLDEN_SDI = {
     "SCID": 12345,

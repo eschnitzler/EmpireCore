@@ -35,7 +35,7 @@ from empire_core.attack.models.target_info import (
     GetVillageAttackInfoResponse,
 )
 from empire_core.combat import Bonus, TargetRead, invasion_camp_level, owner_id_from_row
-from empire_core.commanders.models.roster import Commander
+from empire_core.commanders.models.roster import LeaderBase
 from empire_core.enums import GGEError, Kingdom, MapItemType
 from empire_core.exceptions import CommandError
 from empire_core.gamedata import EnumOrInt
@@ -191,7 +191,7 @@ class _Target:
     robber_baron_camp_victories: int | None = None
     robber_baron_camp_kingdom: Kingdom = Kingdom.GREEN
     spy_army: SpyArmy | None = None
-    castellan: Commander | None = None
+    castellan: LeaderBase | None = None
     defender_legend_skill_ids: Sequence[EnumOrInt["LegendSkill"]] | None = None
     area_bonuses: list[Bonus] | None = None
     conquer: bool = False

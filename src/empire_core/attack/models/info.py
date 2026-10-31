@@ -190,10 +190,14 @@ class AttackInfoResponse(BaseResponse):
     @field_validator("spied_castellan", "spied_castellan_fallback", mode="wrap")
     @classmethod
     def _castellan_or_none(cls, value: object, handler: ValidatorFunctionWrapHandler) -> Commander | None:
-        # The client builds no castellan from an empty entry
+        # Client: LordFactory.createLord(castellan, true, true) builds no castellan from an empty
+        # entry and skips the equipment of any other (CastleSpyArmyInfoVO.parseArmyInfo, bundle line 24515)
         if not value:
             return None
-        return read_or_none(handler, value, warn=logger, what="the defending castellan of an attack pre-calculation")
+        castellan = read_or_none(
+            handler, value, warn=logger, what="the defending castellan of an attack pre-calculation"
+        )
+        return None if castellan is None else castellan.model_copy(update={"without_equipment": True})
 
     @field_validator("defender_legend_skill_ids", mode="before")
     @classmethod

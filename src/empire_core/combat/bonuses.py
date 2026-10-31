@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from pydantic import ConfigDict
 
 from empire_core.commanders.models.equipment import Equipment
-from empire_core.commanders.models.roster import Commander, CommanderEffect
+from empire_core.commanders.models.roster import Commander, CommanderEffect, LeaderBase
 from empire_core.enums import CombatEffectType
 from empire_core.gamedata import (
     EffectDef,
@@ -635,7 +635,7 @@ def _within_level_bracket(row: GlobalEffectDef, level: int) -> bool:
 
 
 def commander_bonuses(
-    commander: Commander, *, area_effects: Sequence[Bonus] | None = None, game_data: GameData | None = None
+    commander: LeaderBase, *, area_effects: Sequence[Bonus] | None = None, game_data: GameData | None = None
 ) -> list[Bonus]:
     """
     Every bonus a commander grants, resolved into the right id space.
@@ -686,10 +686,20 @@ def commander_bonuses(
     it was sent from, so it matches a roster commander resolved with that
     castle's ``aci`` ``AE`` as ``area_effects``, not its bare ``gli`` entry.
 
-    Client: ``LordVO.getUniqueBoni`` (bundle line 26496). The attack dialog
+    A castellan built ``without_equipment`` grants ``E`` and ``AE`` alone, as
+    the client's ``LordFactory.createLord(e, true, true)`` (bundle line 26448)
+    puts nothing in its equipment slots and, for a default commander, uses the
+    lords table copy without effects. The attack pre-calculation's ``abe``/``B``
+    (``CastleSpyArmyInfoVO.parseArmyInfo``, bundle line 24515), the treasure
+    node pre-calculation's ``B``, a spy report's ``B`` (``CastleSpyLogVO.parseSpyLog``,
+    bundle line 60602) and the support defense info's ``B``/``abe`` come that
+    way, their equipment's effects already folded into ``E``, so their ``AIE``
+    must not count again.
+
+    Client: ``LordVO.getUniqueBoni`` (bundle line 26545). The attack dialog
     replaces the commander's area effects with the ``aci`` ``AE`` list
     (``AttackDialogController.updateAreEffects``, bundle line 4332), but the
-    ``areaEffects`` setter ignores an empty list (bundle line 26652), so the
+    ``areaEffects`` setter ignores an empty list (bundle line 26699), so the
     commander keeps its own ``gli`` ``AE`` when ``aci`` sends none.
 
     Args:
@@ -705,7 +715,7 @@ def commander_bonuses(
         if default is None:
             return list(area_effects or [])
         return [
-            *effect_value_bonuses(default.effects),
+            *([] if commander.without_equipment else effect_value_bonuses(default.effects)),
             *effect_bonuses(commander.effects),
             *(area_effects if area_effects else effect_bonuses(commander.area_effects)),
         ]
