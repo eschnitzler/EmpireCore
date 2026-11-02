@@ -7,7 +7,7 @@ class PopupType(IntEnum):
     """
     A popup an ``msp`` push asks the client to show, its ``POP``.
 
-    Client: ``PopupConst`` (dll), read by ``CastlePopUpHelper.displayPopUp`` (bundle line 12933); the
+    Client: ``PopupConst`` (dll), read by ``CastlePopUpHelper.displayPopUp`` (bundle line 12928); the
     ``POPUP_*`` and ``*_INDEX`` members of the constant are list positions, not popups, and are left out
     """
 

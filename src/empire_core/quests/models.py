@@ -298,7 +298,7 @@ class Popup(EmpireModel):
     One popup of an ``msp``: which, and the value its dialog reads.
 
     Client: ``CastlePopUpHelper.displayPopUps`` (bundle line 12922) reads ``int(POP)`` and hands ``VAL`` to
-    ``displayPopUp`` (bundle line 12933), whose dialog reads what it needs of it
+    ``displayPopUp`` (bundle line 12928), whose dialog reads what it needs of it
     """
 
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)

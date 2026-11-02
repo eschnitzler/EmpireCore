@@ -14,7 +14,13 @@ from empire_core.attack.models.counter import AttackCounterResponse
 from empire_core.castle.models.castles import GetCastlesResponse
 from empire_core.castle.models.details import GetDetailedCastleResponse
 from empire_core.castle.models.kingdoms import KingdomInfoResponse
-from empire_core.castle.models.landmarks import KingsTowerListResponse, LaboratoryListResponse, LaboratoryResetResponse, MonumentListResponse, MonumentResetResponse
+from empire_core.castle.models.landmarks import (
+    KingsTowerListResponse,
+    LaboratoryListResponse,
+    LaboratoryResetResponse,
+    MonumentListResponse,
+    MonumentResetResponse,
+)
 from empire_core.castle.models.mercenaries import MercenaryMissionsResponse
 from empire_core.castle.models.permanent import PermanentCastleDataResponse
 from empire_core.castle.models.research import ResearchInfoResponse
@@ -29,16 +35,37 @@ from empire_core.events.models import SpecialEventsResponse, TriggerEventsRespon
 from empire_core.map.models.treasure_maps import TreasureHuntInfoResponse, TreasureMapsResponse
 from empire_core.messages.models.mailbox import MessagesSentToday, SystemNotificationEvent
 from empire_core.movements.models.movement import MovementFilterResponse
-from empire_core.player.models.account import BoostedGlobalEffectsResponse, DailyResetResponse, FoodProductionStatus, PlayerGiftsResponse
+from empire_core.player.models.account import (
+    BoostedGlobalEffectsResponse,
+    DailyResetResponse,
+    FoodProductionStatus,
+    PlayerGiftsResponse,
+)
 from empire_core.player.models.coat_of_arms import CoatOfArmsResponse
 from empire_core.player.models.credentials import CredentialsStatus
 from empire_core.player.models.economy import LootBoxesResponse
-from empire_core.player.models.login import Alliance, CurrencyResponse, ExperienceResponse, HonorResponse, PlayerIdentityResponse, SpecialCurrenciesResponse, VipStatusResponse
-from empire_core.player.models.progress import AchievementsResponse, BoosterInfoResponse, GloryPointsResponse, GloryTitleResetResponse, MightPointsResponse, RelocationInfoResponse, TitleRanksResponse
+from empire_core.player.models.login import (
+    Alliance,
+    CurrencyResponse,
+    ExperienceResponse,
+    HonorResponse,
+    PlayerIdentityResponse,
+    SpecialCurrenciesResponse,
+    VipStatusResponse,
+)
+from empire_core.player.models.progress import (
+    AchievementsResponse,
+    BoosterInfoResponse,
+    GloryPointsResponse,
+    GloryTitleResetResponse,
+    MightPointsResponse,
+    RelocationInfoResponse,
+    TitleRanksResponse,
+)
 from empire_core.player.models.protection import ProtectionResponse
+from empire_core.protocol.base import BaseResponse, read_or_none
 from empire_core.quests.models import DailyQuests
 from empire_core.spy.models import MaxSpiesResponse, PlagueDoctorInfoResponse
-from empire_core.protocol.base import BaseResponse, read_or_none
 
 logger = logging.getLogger(__name__)
 
@@ -62,16 +89,22 @@ class LoginDataResponse(BaseResponse):
     command = "gbd"
 
     honor: HonorResponse | None = Field(
-        validation_alias="gho", default=None, description="Your honor and ranking points; None when not sent or unreadable"
+        validation_alias="gho",
+        default=None,
+        description="Your honor and ranking points; None when not sent or unreadable",
     )
     identity: PlayerIdentityResponse | None = Field(
         validation_alias="gpi", default=None, description="Who you are; None when not sent or unreadable"
     )
     glory_points: GloryPointsResponse | None = Field(
-        validation_alias="ufa", default=None, description="Your glory points and title; None when not sent or unreadable"
+        validation_alias="ufa",
+        default=None,
+        description="Your glory points and title; None when not sent or unreadable",
     )
     glory_title_reset: GloryTitleResetResponse | None = Field(
-        validation_alias="uht", default=None, description="When the glory titles reset; None when not sent or unreadable"
+        validation_alias="uht",
+        default=None,
+        description="When the glory titles reset; None when not sent or unreadable",
     )
     title_ranks: TitleRanksResponse | None = Field(
         validation_alias="uar", default=None, description="The title ranks; None when not sent or unreadable"
@@ -113,16 +146,22 @@ class LoginDataResponse(BaseResponse):
         validation_alias="kgv", default=None, description="Your villages; None when not sent or unreadable"
     )
     protection: ProtectionResponse | None = Field(
-        validation_alias="uap", default=None, description="Your protection in a kingdom; None when not sent or unreadable"
+        validation_alias="uap",
+        default=None,
+        description="Your protection in a kingdom; None when not sent or unreadable",
     )
     second_protection: ProtectionResponse | None = Field(
-        validation_alias="gac", default=None, description="A second protection block, read as a uap; None when not sent or unreadable"
+        validation_alias="gac",
+        default=None,
+        description="A second protection block, read as a uap; None when not sent or unreadable",
     )
     alliance: Alliance | None = Field(
         validation_alias="gal", default=None, description="Your alliance membership; None when not sent or unreadable"
     )
     food_production: FoodProductionStatus | None = Field(
-        validation_alias="DTS", default=None, description="Your food production status; None when not sent or unreadable"
+        validation_alias="DTS",
+        default=None,
+        description="Your food production status; None when not sent or unreadable",
     )
     movement_filter: MovementFilterResponse | None = Field(
         validation_alias="mvf", default=None, description="The map's movement filters; None when not sent or unreadable"
@@ -134,10 +173,14 @@ class LoginDataResponse(BaseResponse):
         validation_alias="ain", default=None, description="Your alliance's details; None when not sent or unreadable"
     )
     alliance_help: AllianceHelpListResponse | None = Field(
-        validation_alias="ahl", default=None, description="Your alliance's help requests; None when not sent or unreadable"
+        validation_alias="ahl",
+        default=None,
+        description="Your alliance's help requests; None when not sent or unreadable",
     )
     alliance_chat: AllianceChatLogResponse | None = Field(
-        validation_alias="acl", default=None, description="Your alliance's chat history; None when not sent or unreadable"
+        validation_alias="acl",
+        default=None,
+        description="Your alliance's chat history; None when not sent or unreadable",
     )
     boosters: BoosterInfoResponse | None = Field(
         validation_alias="boi", default=None, description="Your boosters; None when not sent or unreadable"
@@ -155,10 +198,14 @@ class LoginDataResponse(BaseResponse):
         validation_alias="thi", default=None, description="Your treasure hunt; None when not sent or unreadable"
     )
     system_notifications: SystemNotificationEvent | None = Field(
-        validation_alias="sne", default=None, description="Your mailbox's notifications; None when not sent or unreadable"
+        validation_alias="sne",
+        default=None,
+        description="Your mailbox's notifications; None when not sent or unreadable",
     )
     messages_sent_today: MessagesSentToday | None = Field(
-        validation_alias="mcd", default=None, description="The messages you sent today; None when not sent or unreadable"
+        validation_alias="mcd",
+        default=None,
+        description="The messages you sent today; None when not sent or unreadable",
     )
     might_points: MightPointsResponse | None = Field(
         validation_alias="gmu", default=None, description="Your might points; None when not sent or unreadable"
@@ -173,7 +220,9 @@ class LoginDataResponse(BaseResponse):
         validation_alias="rei", default=None, description="Your research; None when not sent or unreadable"
     )
     kingdoms: KingdomInfoResponse | None = Field(
-        validation_alias="kpi", default=None, description="Your kingdoms' unlocks and transfers; None when not sent or unreadable"
+        validation_alias="kpi",
+        default=None,
+        description="Your kingdoms' unlocks and transfers; None when not sent or unreadable",
     )
     relocation: RelocationInfoResponse | None = Field(
         validation_alias="gri", default=None, description="Your castle relocation; None when not sent or unreadable"
@@ -182,7 +231,9 @@ class LoginDataResponse(BaseResponse):
         validation_alias="cpi", default=None, description="Your plague doctors; None when not sent or unreadable"
     )
     commanders: GetCommandersResponse | None = Field(
-        validation_alias="gli", default=None, description="Your commanders and castellans; None when not sent or unreadable"
+        validation_alias="gli",
+        default=None,
+        description="Your commanders and castellans; None when not sent or unreadable",
     )
     daily_quests: DailyQuests | None = Field(
         validation_alias="dql", default=None, description="Your daily quests; None when not sent or unreadable"
@@ -200,10 +251,14 @@ class LoginDataResponse(BaseResponse):
         validation_alias="gpc", default=None, description="Your permanent castles; None when not sent or unreadable"
     )
     inventory_space: InventorySpace | None = Field(
-        validation_alias="esl", default=None, description="Your equipment and gem inventory space; None when not sent or unreadable"
+        validation_alias="esl",
+        default=None,
+        description="Your equipment and gem inventory space; None when not sent or unreadable",
     )
     new_relics: NewRelicsResponse | None = Field(
-        validation_alias="nrf", default=None, description="Whether new relics wait to be seen; None when not sent or unreadable"
+        validation_alias="nrf",
+        default=None,
+        description="Whether new relics wait to be seen; None when not sent or unreadable",
     )
     wishing_well: WishingWellResponse | None = Field(
         validation_alias="rww", default=None, description="The ruby wishing well; None when not sent or unreadable"
@@ -212,7 +267,9 @@ class LoginDataResponse(BaseResponse):
         validation_alias="dcl", default=None, description="Your castles' details; None when not sent or unreadable"
     )
     boosted_global_effects: BoostedGlobalEffectsResponse | None = Field(
-        validation_alias="bie", default=None, description="Your boosted global effects; None when not sent or unreadable"
+        validation_alias="bie",
+        default=None,
+        description="Your boosted global effects; None when not sent or unreadable",
     )
     loot_boxes: LootBoxesResponse | None = Field(
         validation_alias="gls", default=None, description="Your loot boxes; None when not sent or unreadable"
@@ -227,13 +284,74 @@ class LoginDataResponse(BaseResponse):
         validation_alias="skl", default=None, description="Your legend skills; None when not sent or unreadable"
     )
     construction_item_expiry: ConstructionItemExpiryResponse | None = Field(
-        validation_alias="nec", default=None, description="Your expiring construction items; None when not sent or unreadable"
+        validation_alias="nec",
+        default=None,
+        description="Your expiring construction items; None when not sent or unreadable",
     )
     attack_counter: AttackCounterResponse | None = Field(
         validation_alias="gai", default=None, description="Your attack counter; None when not sent or unreadable"
     )
 
-    @field_validator("honor", "identity", "glory_points", "glory_title_reset", "title_ranks", "credentials", "special_currencies", "coat_of_arms", "currencies", "experience", "castles", "monument_reset", "laboratory_reset", "kings_towers", "monuments", "laboratories", "villages", "protection", "second_protection", "alliance", "food_production", "movement_filter", "max_spies", "alliance_info", "alliance_help", "alliance_chat", "boosters", "trigger_events", "events", "treasure_maps", "treasure_hunt", "system_notifications", "messages_sent_today", "might_points", "achievements", "tax", "research", "kingdoms", "relocation", "plague_doctors", "commanders", "daily_quests", "daily_reset", "mercenary_missions", "vip", "permanent_castles", "inventory_space", "new_relics", "wishing_well", "castle_details", "boosted_global_effects", "loot_boxes", "gems", "gifts", "skills", "construction_item_expiry", "attack_counter", mode="wrap")
+    @field_validator(
+        "honor",
+        "identity",
+        "glory_points",
+        "glory_title_reset",
+        "title_ranks",
+        "credentials",
+        "special_currencies",
+        "coat_of_arms",
+        "currencies",
+        "experience",
+        "castles",
+        "monument_reset",
+        "laboratory_reset",
+        "kings_towers",
+        "monuments",
+        "laboratories",
+        "villages",
+        "protection",
+        "second_protection",
+        "alliance",
+        "food_production",
+        "movement_filter",
+        "max_spies",
+        "alliance_info",
+        "alliance_help",
+        "alliance_chat",
+        "boosters",
+        "trigger_events",
+        "events",
+        "treasure_maps",
+        "treasure_hunt",
+        "system_notifications",
+        "messages_sent_today",
+        "might_points",
+        "achievements",
+        "tax",
+        "research",
+        "kingdoms",
+        "relocation",
+        "plague_doctors",
+        "commanders",
+        "daily_quests",
+        "daily_reset",
+        "mercenary_missions",
+        "vip",
+        "permanent_castles",
+        "inventory_space",
+        "new_relics",
+        "wishing_well",
+        "castle_details",
+        "boosted_global_effects",
+        "loot_boxes",
+        "gems",
+        "gifts",
+        "skills",
+        "construction_item_expiry",
+        "attack_counter",
+        mode="wrap",
+    )
     @classmethod
     def _section(cls, value: Any, handler: ValidatorFunctionWrapHandler, info: ValidationInfo) -> Any:
         if value is None:
