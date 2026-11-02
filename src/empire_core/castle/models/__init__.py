@@ -76,7 +76,7 @@ from .buildings import (
     UpgradeWallRequest,
     UpgradeWallResponse,
 )
-from .castles import CastleInfo, GetCastlesRequest, GetCastlesResponse, PlayerCastle
+from .castles import CastleInfo, GetCastlesRequest, GetCastlesResponse, NameCastleInvitationResponse, PlayerCastle
 from .collect import (
     CollectMineResourcesRequest,
     CollectMineResourcesResponse,
@@ -431,6 +431,7 @@ __all__ = [
     "ResourceCartInfo",
     "GetCastlesRequest",
     "GetCastlesResponse",
+    "NameCastleInvitationResponse",
     "PlayerCastle",
     "CastleInfo",
     "GetDetailedCastleRequest",

@@ -12,9 +12,11 @@ from typing import Any
 
 from pydantic import Field, ValidationError, field_validator, model_validator
 
+from empire_core.castle.models.landmarks import KingsTowerListResponse, LaboratoryListResponse, MonumentListResponse
 from empire_core.enums import Kingdom, MapItemType
-from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, Position, enum_or_none
-from empire_core.protocol.js import js_int
+from empire_core.gamedata import EnumOrInt
+from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, Position, enum_or_none, object_or_none
+from empire_core.protocol.js import js_int, js_whole_number
 
 logger = logging.getLogger(__name__)
 
@@ -477,3 +479,45 @@ __all__ = [
     "PlayerCastle",
     "CastleInfo",
 ]
+
+
+class NameCastleInvitationResponse(BaseResponse):
+    """
+    Your castle lists after taking a castle or outpost, and the castle the client invites you to name.
+
+    Each list that is sent replaces the one held, as its own section does.
+
+    Command: mir, a push, and inside the ``fjf`` reply.
+
+    Client: ``MIRCommand.executeCommand`` (bundle line 125107), which parses whatever the status;
+    ``CastleUserData.parse_MIR`` (bundle line 9884) applies each of ``gcl``, ``gkl``, ``gml`` and ``gll``
+    that is truthy; ``parse_MIR_openDialog`` (bundle line 9885) finds the castle to name by ``CID`` and
+    ``KID`` as sent
+    """
+
+    command = "mir"
+
+    castles: GetCastlesResponse | None = Field(validation_alias="gcl", default=None, description="Your castle list")
+    kings_towers: KingsTowerListResponse | None = Field(
+        validation_alias="gkl", default=None, description="Your kings' towers"
+    )
+    monuments: MonumentListResponse | None = Field(validation_alias="gml", default=None, description="Your monuments")
+    laboratories: LaboratoryListResponse | None = Field(
+        validation_alias="gll", default=None, description="Your laboratories"
+    )
+    castle_id: int | None = Field(
+        validation_alias="CID", default=None, description="The castle to name; None when no whole number was sent"
+    )
+    kingdom_id: EnumOrInt[Kingdom] | None = Field(
+        validation_alias="KID", default=None, description="Its kingdom; None when no whole number was sent"
+    )
+
+    @field_validator("castles", "kings_towers", "monuments", "laboratories", mode="before")
+    @classmethod
+    def _section(cls, value: Any) -> Any:
+        return object_or_none(value)
+
+    @field_validator("castle_id", "kingdom_id", mode="before")
+    @classmethod
+    def _as_sent(cls, value: Any) -> Any:
+        return js_whole_number(value)

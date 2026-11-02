@@ -182,6 +182,13 @@ def js_falsy(value: Any) -> bool:
     return not js_truthy(value)
 
 
+def js_whole_number(value: Any) -> int | None:
+    """``value`` as the int it is when it is a whole number, else None: what a ``Map`` keyed by int ids finds."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return int(value) if value == int(value) else None
+
+
 def js_loose_equals(value: Any, number: float) -> bool:
     """
     JavaScript's ``number == value``, as the client compares a reply value with a literal.

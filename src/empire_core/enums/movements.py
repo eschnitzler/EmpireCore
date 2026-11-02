@@ -87,3 +87,17 @@ _ATTACK_MOVEMENT_TYPES = frozenset(
         MovementType.WOLFKING_TAUNT_ATTACK,
     }
 )
+
+
+class MovementFilter(IntEnum):
+    """
+    A kind of movement the map shows or hides, an ``mvf`` filter index.
+
+    Client: ``CastleSettingsData.parse_MVF`` (bundle line 139750) tests the ``AFS`` list for 0, 1 and 2;
+    the options dialog pairs them with ``toggleMapPVPAttacks``, ``toggleMapPvPAttacksAlliance`` and
+    ``toggleMapMarketBarrows``
+    """
+
+    PVP_ATTACKS = 0
+    ALLIANCE_PVP_ATTACKS = 1
+    MARKET_BARROWS = 2

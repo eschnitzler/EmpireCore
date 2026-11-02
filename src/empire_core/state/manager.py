@@ -6,8 +6,11 @@ import time
 from collections.abc import Set as AbstractSet
 from typing import Any
 
+from empire_core.castle.models.castles import NameCastleInvitationResponse
 from empire_core.enums import Kingdom
+from empire_core.movements.models import MovementOwner
 from empire_core.player.models.login import LevelUpResponse
+from empire_core.protocol.base import readable_list
 from empire_core.protocol.js import js_truthy
 from empire_core.state.account import ACCOUNT_SECTIONS, AccountState
 from empire_core.state.alliance import AllianceState
@@ -409,6 +412,7 @@ class GameState(
         "mcm": "_handle_mcm",
         "mrm": "_handle_mrm",
         "mfc": "_handle_mfc",
+        "mvf": "_handle_mvf",
         "glu": "_handle_glu",
         "mir": "_handle_mir",
         "fjf": "_handle_fjf",
@@ -604,6 +608,8 @@ class GameState(
         self._parse_castles(data)
         self._parse_permanent_castles(data)
         self._parse_max_spies(data)
+        # GBDCommand.exec hands mvf to CastleSettingsData.parse_MVF as it comes (bundle line 129430)
+        self._handle_mvf(data.get("mvf"))
         if isinstance(crai := data.get("crai"), dict) and js_truthy(crai.get("CAI")):
             self._handle_crin(crai)
         if dcl := data.get("dcl"):
@@ -654,7 +660,7 @@ class GameState(
         """
         if isinstance(gcu := data.get("gcu"), dict):
             self._handle_gbd({"gcu": gcu})
-        self._apply_movement_wrappers([wrapper], data.get("O", []))
+        self._apply_movement_wrappers([wrapper], readable_list(MovementOwner, data.get("O")))
 
     def _handle_glu(self, data: Any) -> None:
         """Apply a level-up push's currencies and XP, as its gcu and gxp sections.
@@ -669,11 +675,12 @@ class GameState(
     def _handle_mir(self, data: Any) -> None:
         """Apply the castle list sent after taking a castle or outpost.
 
-        Client: ``MIRCommand.executeCommand`` / ``CastleUserData.parse_MIR`` (bundle line 9884), which
-        applies a truthy ``gcl``, ``gkl``, ``gml`` and ``gll``.
+        Client: ``MIRCommand.executeCommand`` (bundle line 125107) / ``CastleUserData.parse_MIR`` (bundle
+        line 9884), which applies a truthy ``gcl``, ``gkl``, ``gml`` and ``gll``; see
+        :class:`NameCastleInvitationResponse`
         """
-        if isinstance(data, dict):
-            self._handle_gbd({key: data[key] for key in ("gcl", "gkl", "gml", "gll") if data.get(key)})
+        if read_section(NameCastleInvitationResponse, data, "the castle lists of a taken castle") is not None:
+            self._handle_gbd({key: data[key] for key in ("gcl", "gkl", "gml", "gll") if js_truthy(data.get(key))})
 
     def _handle_ikr(self, data: Any) -> None:
         """The Storm Islands reset: lock their kingdom, zero the aqua points, drop the movements there.

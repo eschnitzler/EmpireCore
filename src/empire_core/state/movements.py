@@ -7,16 +7,24 @@ import math
 import threading
 import time
 import weakref
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from typing import Any
 
 from empire_core.commanders.models.roster import Commander
 from empire_core.gamedata import Collectable, UnitOrTool
-from empire_core.movements.models import MovementArea, MovementOwner, MovementWrapper
+from empire_core.movements.models import (
+    ArmyRadiusPush,
+    MovementArea,
+    MovementFilterResponse,
+    MovementForceCancelableResponse,
+    MovementOwner,
+    MovementRemovedResponse,
+    MovementWrapper,
+)
 from empire_core.movements.tracked import Movement, MovementResources
 from empire_core.protocol.base import read_or_none, readable_list
 from empire_core.state.announcer import AttackEvents, MovementAnnouncer, OccupationEvents
-from empire_core.state.base import MovementEventCallback, StateBase
+from empire_core.state.base import MovementEventCallback, StateBase, read_section
 from empire_core.utils.callbacks import BoundEvent, Event, EventOf
 
 _POSITIONAL = (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
@@ -323,24 +331,31 @@ class MovementState(StateBase):
 
         Client: ``CastleArmyData.parse_GAM``.
         """
-        self._apply_movement_wrappers(data.get("M", []), data.get("O", []))
+        self._apply_movement_wrappers(data.get("M", []), readable_list(MovementOwner, data.get("O")))
 
     def _handle_movement_push(self, data: dict[str, Any]) -> None:
         """Handle abr/asr, pushed as an army comes within range of its target.
 
-        Client: ``CastleArmyData.parse_ABR`` / ``parse_ASR``.
+        Client: ``CastleArmyData.parse_ABR`` / ``parse_ASR`` (bundle lines 133688, 133687), after
+        ``CastleOtherPlayerData.parseOwnerInfo`` read the one owner record ``O``
         """
-        self._apply_movement_wrappers([data.get("A")], data.get("O", []))
+        if not isinstance(data, dict):
+            return
+        # The owner through the push model; the wrapper through the movement pipeline, which reads
+        # its blocks one by one and reports a drifted record with its traceback
+        push = ArmyRadiusPush.model_validate({"O": data.get("O")})
+        owners = [push.owner] if push.owner is not None else []
+        self._apply_movement_wrappers([data.get("A")], owners)
 
     def _handle_mcm(self, data: dict[str, Any]) -> None:
         """Handle mcm, the reply to your own recall: the movement, now heading home.
 
         Client: ``MCMCommand``.
         """
-        for mov in self._apply_movement_wrappers([data.get("A")], []):
+        for mov in self._apply_movement_wrappers([data.get("A")], ()):
             self._dispatch_movement_event(self.on_movement_recalled, mov.movement_id, mov)
 
-    def _apply_movement_wrappers(self, wrappers: Any, owners: Any) -> list[Movement]:
+    def _apply_movement_wrappers(self, wrappers: Any, owners: Iterable[MovementOwner]) -> list[Movement]:
         """Parse and store ``gam``-style movement wrappers; return the ones stored.
 
         The owner records (``O``) are kept for the session, so a movement whose
@@ -349,7 +364,7 @@ class MovementState(StateBase):
 
         Client: ``CastleArmyData.parseMapMovementArray``.
         """
-        sent = {record.player_id: record for record in readable_list(MovementOwner, owners)}
+        sent = {record.player_id: record for record in owners}
         if sent:
             self._owner_records = {**self._owner_records, **sent}
         owner_info = self._owner_records
@@ -478,11 +493,13 @@ class MovementState(StateBase):
         (see :meth:`on_incoming_attack_withdrawn`), and an announced occupation
         as ended (see :meth:`on_occupation_ended`).
 
-        Client: ``CastleArmyData.parse_MRM``.
+        Client: ``MRMCommand.executeCommand`` (bundle line 126109), ``CastleArmyData.parse_MRM`` (bundle
+        line 133682); see :class:`MovementRemovedResponse`
         """
-        mid = data.get("MID")
-        if mid is None:
+        removed = read_section(MovementRemovedResponse, data, "a movement removal")
+        if removed is None or removed.movement_id is None:
             return
+        mid = removed.movement_id
         mov = self.movements.pop(mid, None)
         self._movement_times.pop(mid, None)
         leaving = self._announcer.removed(mid, mov, arrived=mid in self._arrival_dispatched)
@@ -494,12 +511,27 @@ class MovementState(StateBase):
     def _handle_mfc(self, data: dict[str, Any]) -> None:
         """Handle mfc: the movement can now be force-cancelled.
 
-        Client: ``CastleArmyData.parse_MFC``.
+        Client: ``MFCCommand.executeCommand`` (bundle line 126094), ``CastleArmyData.parse_MFC`` (bundle
+        line 133683); see :class:`MovementForceCancelableResponse`
         """
-        mid = data.get("MID")
-        mov = self.movements.get(mid) if isinstance(mid, int) else None
+        flagged = read_section(MovementForceCancelableResponse, data, "a force-cancelable movement")
+        mov = self.movements.get(flagged.movement_id) if flagged is not None and flagged.movement_id else None
         if mov is not None:
             mov.force_cancelable = True
+
+    def _handle_mvf(self, data: Any) -> None:
+        """Keep the map's movement filters; a push also makes the client ask for the movements again.
+
+        Client: ``MVFCommand.executeCommand`` (bundle line 129751), ``CastleSettingsData.parse_MVF`` (bundle
+        line 139750), which does nothing for a falsy body
+        """
+        if (filters := read_section(MovementFilterResponse, data, "the movement filters")) is not None:
+            self.movement_filter = filters
+
+    def get_movement_filter(self) -> MovementFilterResponse | None:
+        """The map's movement filters, from the login data's ``mvf`` or the last push; None until one arrived."""
+        with self._lock:
+            return self.movement_filter
 
     def _parse_movement(
         self,

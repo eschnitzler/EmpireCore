@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Annotated, Any, Literal
 from pydantic import Field, ValidatorFunctionWrapHandler, field_validator, model_validator
 
 from empire_core.commanders.models.roster import Commander
-from empire_core.enums import AttackAdvisorType, AutoSkipCooldownType, Kingdom, SpyType
+from empire_core.enums import AttackAdvisorType, AutoSkipCooldownType, Kingdom, MovementFilter, SpyType
 from empire_core.gamedata import CollectableRows, EnumOrInt, SupportToolSlots, WodAmounts
 from empire_core.map.models.items import MapAreaItem
 from empire_core.map.models.owners import OwnerCastlePosition, OwnerCrest, OwnerFaction, owner_positions
@@ -33,6 +33,7 @@ from empire_core.protocol.js import (
     js_parse_int_or_zero,
     js_same_number,
     js_truthy,
+    js_whole_number,
 )
 
 if TYPE_CHECKING:
@@ -432,6 +433,148 @@ class GetMovementsResponse(BaseResponse):
         default_factory=list,
         description="Owner records for every player the movements name",
     )
+
+
+class MovementRemovedResponse(BaseResponse):
+    """
+    The server removing a movement: it arrived, was recalled home or was cancelled.
+
+    Command: mrm, a push.
+
+    Client: ``MRMCommand.executeCommand`` (bundle line 126109) hands ``MID`` as sent to
+    ``CastleArmyData.parse_MRM`` (bundle line 133682) and ``removeArmyMovementById`` (bundle line
+    133726), whose map lookup finds only a number
+    """
+
+    command = "mrm"
+
+    movement_id: int | None = Field(
+        validation_alias="MID",
+        default=None,
+        description="The movement removed; None when the server sent no whole number, which names none",
+    )
+
+    @field_validator("movement_id", mode="before")
+    @classmethod
+    def _as_sent(cls, value: Any) -> Any:
+        return js_whole_number(value)
+
+
+class MovementForceCancelableResponse(BaseResponse):
+    """
+    A movement of yours can now be force-cancelled.
+
+    Command: mfc, a push.
+
+    Client: ``MFCCommand.executeCommand`` (bundle line 126094), ``CastleArmyData.parse_MFC`` (bundle
+    line 133683), which looks ``MID`` up as sent and sets ``isForceCancelable`` on the movement found
+    """
+
+    command = "mfc"
+
+    movement_id: int | None = Field(
+        validation_alias="MID",
+        default=None,
+        description="The movement; None when the server sent no whole number, which names none",
+    )
+
+    @field_validator("movement_id", mode="before")
+    @classmethod
+    def _as_sent(cls, value: Any) -> Any:
+        return js_whole_number(value)
+
+
+class ArmyRadiusPush(BaseResponse):
+    """
+    An army within a radius of its target: its owner's record and the movement, read as a ``gam`` entry.
+
+    The base of the ``abr`` and ``asr`` pushes, which read the same keys.
+
+    Client: ``ABRCommand.executeCommand`` (bundle line 125907) and ``ASRCommand.executeCommand``
+    (bundle line 125922) hand ``O`` to ``CastleOtherPlayerData.parseOwnerInfo`` (bundle line 139045),
+    which reads nothing without an object carrying an ``OID``, then ``[A]`` to
+    ``CastleArmyData.parseMapMovementArray`` (bundle line 133675). For your own record the client
+    also reads its ``AR`` as your alliance rank, which the library leaves to ``gal``
+    """
+
+    owner: MovementOwner | None = Field(
+        validation_alias="O",
+        default=None,
+        description="The record of the army's owner; None without an object carrying an OID",
+    )
+    movement: MovementWrapper | None = Field(
+        validation_alias="A", default=None, description="The movement; None when it is no object"
+    )
+
+    @field_validator("owner", mode="before")
+    @classmethod
+    def _owner_with_id(cls, value: Any) -> Any:
+        return value if isinstance(value, dict) and js_truthy(value.get("OID")) else None
+
+    @field_validator("movement", mode="before")
+    @classmethod
+    def _wrapper(cls, value: Any) -> Any:
+        return object_or_none(value)
+
+
+class ArmyInBigRadiusResponse(ArmyRadiusPush):
+    """
+    An army has come within the big radius of its target: the movement, now with its details.
+
+    Command: abr, a push.
+
+    Client: ``ABRCommand.executeCommand`` (bundle line 125907), ``CastleArmyData.parse_ABR`` (bundle
+    line 133688)
+    """
+
+    command = "abr"
+
+
+class ArmyInSmallRadiusResponse(ArmyRadiusPush):
+    """
+    An army has come within the small radius of its target.
+
+    Command: asr, a push.
+
+    Client: ``ASRCommand.executeCommand`` (bundle line 125922), ``CastleArmyData.parse_ASR`` (bundle
+    line 133687)
+    """
+
+    command = "asr"
+
+
+class MovementFilterResponse(BaseResponse):
+    """
+    The map's movement filters: which kinds of movement the map shows.
+
+    The client asks for the movement list (``gam``) again after each push, and so does
+    ``EmpireClient``.
+
+    Command: mvf, as a login section of ``gbd`` and a push.
+
+    Client: ``MVFCommand.executeCommand`` (bundle line 129751), ``CastleSettingsData.parse_MVF``
+    (bundle line 139750), which tests ``CommKeys.ACTIVE_FILTERS`` (``AFS``, dll) for 0, 1 and 2
+    with ``indexOf``; the options dialog pairs them with ``toggleMapPVPAttacks``,
+    ``toggleMapPvPAttacksAlliance`` and ``toggleMapMarketBarrows``
+    """
+
+    command = "mvf"
+
+    active_filters: tuple[EnumOrInt[MovementFilter], ...] = Field(
+        validation_alias="AFS", default=(), description="The kinds of movement the map shows"
+    )
+
+    @field_validator("active_filters", mode="before")
+    @classmethod
+    def _numbers(cls, value: Any) -> Any:
+        # indexOf compares strictly, so only a number switches a filter on
+        if not isinstance(value, list):
+            return ()
+        return tuple(entry for entry in value if isinstance(entry, int) and not isinstance(entry, bool))
+
+    def shows(self, kind: MovementFilter) -> bool:
+        """Whether the map shows that kind of movement."""
+        return kind in self.active_filters
 
 
 class CancelMovementRequest(BaseRequest):
