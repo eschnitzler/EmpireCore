@@ -17,7 +17,9 @@ from empire_core.quests.models import (
 
 class TestQuestList:
     def test_quests_and_the_book(self):
-        listing = parse_response("qli", {"QL": [{"QID": 5, "P": [1]}, "x", {"QID": "7"}], "ANN": [1], "R": [2], "D": []})
+        listing = parse_response(
+            "qli", {"QL": [{"QID": 5, "P": [1]}, "x", {"QID": "7"}], "ANN": [1], "R": [2], "D": []}
+        )
         assert isinstance(listing, QuestListResponse)
         assert [(q.quest_id, q.progress) for q in listing.quests] == [(5, (1,)), (7, ())]
         assert listing.book is not None and listing.book.running_quest_ids == (2,)
@@ -33,11 +35,11 @@ class TestQuestList:
 
 class TestQuestIds:
     def test_started_ids_are_the_truthy_ones_through_int(self):
-        assert parse_response("qst", {"QIDS": [9, 0, None, "3"]}).quest_ids == (9, 3)
+        assert QuestsStartedResponse.model_validate({"QIDS": [9, 0, None, "3"]}).quest_ids == (9, 3)
         assert QuestsStartedResponse.model_validate({}).quest_ids == ()
 
     def test_progress_names_the_first_entry_only(self):
-        assert parse_response("qpg", {"P": ["5", 2]}).quest_id == 5
+        assert QuestProgressResponse.model_validate({"P": ["5", 2]}).quest_id == 5
         assert QuestProgressResponse.model_validate({"P": []}).quest_id is None
         assert QuestProgressResponse.model_validate({}).quest_id is None
 
