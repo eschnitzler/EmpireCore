@@ -1,5 +1,7 @@
 """The movement pushes: abr and asr, mrm, mfc, mvf, and the castle lists of a taken castle (mir)."""
 
+from typing import Any
+
 import pytest
 
 from empire_core.castle.models.castles import NameCastleInvitationResponse
@@ -34,7 +36,9 @@ class TestArmyRadiusPushes:
 
 
 class TestMovementIds:
-    @pytest.mark.parametrize(("value", "expected"), [(150, 150), (150.0, 150), ("150", None), (1.5, None), (None, None)])
+    @pytest.mark.parametrize(
+        ("value", "expected"), [(150, 150), (150.0, 150), ("150", None), (1.5, None), (None, None)]
+    )
     def test_a_removed_movement_is_named_as_sent(self, value, expected):
         # parse_MRM: _mapMovements.get(MID), no int(), so only a number finds the movement
         assert MovementRemovedResponse.model_validate({"MID": value}).movement_id == expected
@@ -54,7 +58,7 @@ class TestMovementFilter:
 
 class TestNameCastleInvitation:
     def test_the_lists_and_the_castle_to_name(self):
-        body = {
+        body: dict[str, Any] = {
             "gcl": {"PID": 7, "C": []},
             "gkl": None,
             "gml": [],
