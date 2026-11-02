@@ -14,7 +14,7 @@ from pydantic.functional_validators import ModelWrapValidatorHandler
 
 from empire_core.army.models.units import UnitInventory
 from empire_core.army.spy_army import SpyArmyBlock
-from empire_core.commanders.models.roster import Commander, CommanderEffects, CommanderRoster
+from empire_core.commanders.models.roster import Castellan, CommanderEffects, CommanderRoster
 from empire_core.enums import Kingdom
 from empire_core.gamedata import EnumOrInt
 from empire_core.map.models.areas import MapObject
@@ -136,12 +136,12 @@ class AttackInfoResponse(BaseResponse):
         default=-1,
         description="Seconds since the target was spied; -1 when there is no spy report",
     )
-    spied_castellan: Commander | None = Field(
+    spied_castellan: Castellan | None = Field(
         validation_alias="abe",
         default=None,
         description="The castellan defending the target, preferred over spied_castellan_fallback",
     )
-    spied_castellan_fallback: Commander | None = Field(
+    spied_castellan_fallback: Castellan | None = Field(
         validation_alias="B",
         default=None,
         description="The castellan defending the target when spied_castellan is missing",
@@ -189,7 +189,7 @@ class AttackInfoResponse(BaseResponse):
 
     @field_validator("spied_castellan", "spied_castellan_fallback", mode="wrap")
     @classmethod
-    def _castellan_or_none(cls, value: object, handler: ValidatorFunctionWrapHandler) -> Commander | None:
+    def _castellan_or_none(cls, value: object, handler: ValidatorFunctionWrapHandler) -> Castellan | None:
         # Client: LordFactory.createLord(castellan, true, true) builds no castellan from an empty
         # entry and skips the equipment of any other (CastleSpyArmyInfoVO.parseArmyInfo, bundle line 24515)
         if not value:
@@ -225,7 +225,7 @@ class AttackInfoResponse(BaseResponse):
 
         return effect_bonuses(self.attacker_effects)
 
-    def defending_castellan(self) -> Commander | None:
+    def defending_castellan(self) -> Castellan | None:
         """
         The castellan holding the target, from ``abe`` or else ``B``.
 
