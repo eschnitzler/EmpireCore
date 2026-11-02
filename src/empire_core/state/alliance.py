@@ -20,6 +20,7 @@ from empire_core.alliance.models.membership import AutoJoinedAllianceResponse
 from empire_core.enums import OnlineState
 from empire_core.exceptions import ReplyMismatchError
 from empire_core.player.models.aqua import AquaPointsResponse, StormIslandsInfo
+from empire_core.player.models.login import Alliance
 from empire_core.protocol.base import read_or_none
 from empire_core.protocol.js import js_int, js_truthy
 from empire_core.state.base import StateBase, read_section
@@ -182,18 +183,22 @@ class AllianceState(StateBase):
         self.alliance_help = ()
         self.alliance_gifts = ()
 
-    def _apply_gal_reset(self, data: dict[str, Any], *, previous_alliance_id: int | None) -> None:
+    def _apply_gal_reset(self, membership: Alliance | None, *, present: bool, previous_alliance_id: int | None) -> None:
         """Forget details, chat and help when a ``gal`` changes your alliance identity.
 
-        Client: ``CastleUserData.parse_GAL`` (bundle line 9869): ``_allianceID<0`` runs
+        Args:
+            membership: The gal section as read, None when the packet has none or it is no object
+            present: Whether the packet carried a gal section at all
+            previous_alliance_id: Your alliance before the section was applied
+
+        Client: ``CastleUserData.parse_GAL`` (bundle line 9876): ``_allianceID<0`` runs
         ``chatData.resetHistory`` and ``allianceData.resetMyAlliance``
         """
-        if "gal" in data:
+        if present:
             self.membership_revision += 1
-        gal = data.get("gal")
-        if isinstance(gal, dict):
+        if membership is not None:
             player = self.local_player
-            aid = js_int(gal.get("AID"))
+            aid = membership.alliance_id
             if aid < 0 or (aid > 0 and player is not None and player.AID != previous_alliance_id):
                 self._forget_own_alliance()
 

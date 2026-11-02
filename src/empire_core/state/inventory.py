@@ -18,7 +18,7 @@ from empire_core.castle.models.objects import BuildingConstructionItems
 from empire_core.castle.models.storage import DecorationStorage, DecorationStorageKey, DecorationStorageResponse
 from empire_core.castle.models.tax import TaxInfo, TaxInfoResponse
 from empire_core.castle.models.upkeep import ConstructionItemExpiryResponse, ResourcePoolResponse
-from empire_core.commanders.models.inventory import GemInventoryResponse, InventorySpace
+from empire_core.commanders.models.inventory import GemChange, GemInventoryResponse, GemsChangedResponse, InventorySpace
 from empire_core.enums import Kingdom
 from empire_core.exceptions import PacketError, ReplyMismatchError
 from empire_core.player.models.economy import LootBoxesResponse, LootBoxKeys
@@ -137,11 +137,11 @@ class InventoryState(StateBase):
     def _handle_gec(self, data: Any) -> None:
         """Handle a ``gec`` push: gems added to or taken from the inventory.
 
-        Client: ``GECCommand`` (bundle line 123927), ``CastleGemData.parse_GEC`` (bundle line 144326)
+        Client: ``GECCommand`` (bundle line 123969), ``CastleGemData.parse_GEC`` (bundle line 144432)
         """
-        if isinstance(data, dict):
+        if (change := read_section(GemsChangedResponse, data, "the gem change")) is not None:
             gems = self.gems if self.gems is not None else GemInventoryResponse()
-            self.gems = gems.changed(data.get("GEM"))
+            self.gems = gems.changed(change)
 
     def _handle_frc(self, data: Any) -> None:
         """Add the gem or relic gem the alliance forge crafted; an equipment item is not kept here.
@@ -156,7 +156,7 @@ class InventoryState(StateBase):
         if crafted.relic_gem is not None:
             self.gems = gems.model_copy(update={"relic_gems": (*gems.relic_gems, crafted.relic_gem)})
         elif crafted.gem_id is not None:
-            self.gems = gems.changed([[int(crafted.gem_id), 1]])
+            self.gems = gems.changed(GemsChangedResponse(changes=(GemChange(gem_id=crafted.gem_id, amount=1),)))
 
     def get_gems(self) -> GemInventoryResponse | None:
         """The gems and relic gems in your inventory; None until a ``ggm`` or ``gec`` arrived.

@@ -640,7 +640,9 @@ from empire_core.commanders.models.generals import (
     UpgradeGeneralStarsRequest,
 )
 from empire_core.commanders.models.inventory import (
+    GemChange,
     GemInventoryResponse,
+    GemsChangedResponse,
     GetGemsRequest,
     GetInventorySpaceRequest,
     NewRelicsResponse,
@@ -1019,6 +1021,16 @@ from empire_core.player.models.info import (
     SearchPlayerRequest,
     SearchPlayerResponse,
 )
+from empire_core.player.models.login import (
+    Alliance,
+    CurrencyResponse,
+    ExperienceResponse,
+    HonorResponse,
+    LevelUpResponse,
+    PlayerIdentityResponse,
+    SpecialCurrenciesResponse,
+    VipStatusResponse,
+)
 from empire_core.player.models.officers_school import (
     ActivateTrainingProgramRequest,
     ActivateTrainingProgramResponse,
@@ -1352,6 +1364,14 @@ __all__ = [
     "CANCEL_PEACE_MODE",
     "GetProtectionRequest",
     "ProtectionResponse",
+    "Alliance",
+    "CurrencyResponse",
+    "ExperienceResponse",
+    "HonorResponse",
+    "LevelUpResponse",
+    "PlayerIdentityResponse",
+    "SpecialCurrenciesResponse",
+    "VipStatusResponse",
     "StartFactionProtectionRequest",
     "StartFactionProtectionResponse",
     "StartPeaceModeRequest",
@@ -2029,7 +2049,9 @@ __all__ = [
     "PlayerGiftsResponse",
     "WishingWellResponse",
     "NewRelicsResponse",
+    "GemChange",
     "GemInventoryResponse",
+    "GemsChangedResponse",
     "KingdomInfoResponse",
     "ConstructionItemExpiryResponse",
     "ResourcePoolResponse",

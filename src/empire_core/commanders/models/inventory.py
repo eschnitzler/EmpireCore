@@ -12,7 +12,7 @@ from __future__ import annotations
 from functools import partial
 from typing import TYPE_CHECKING, Annotated, Any, ClassVar
 
-from pydantic import BeforeValidator, ConfigDict, Field, field_validator
+from pydantic import BeforeValidator, ConfigDict, Field, field_validator, model_validator
 
 from empire_core.gamedata import EnumOrInt
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, readable_list
@@ -31,6 +31,42 @@ class GemStack(BasePayload):
 
     gem_id: EnumOrInt["Gem"] = Field(description="The gem")
     amount: int = Field(description="How many you hold")
+
+
+class GemChange(BasePayload):
+    """One ``[gem_id, amount]`` row of a ``gec``: gems added, or taken away for a negative amount."""
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    gem_id: EnumOrInt["Gem"] = Field(description="The gem")
+    amount: ClientInt = Field(description="How many are added; negative for taken away")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _from_row(cls, data: Any) -> Any:
+        if isinstance(data, list) and len(data) >= 2:
+            return {"gem_id": js_int(data[0]), "amount": data[1]}
+        return data
+
+
+class GemsChangedResponse(BaseResponse):
+    """
+    Gems added to or taken from your inventory.
+
+    Command: gec, a push.
+
+    Client: ``GECCommand.executeCommand`` (bundle line 123969), ``CastleGemData.parse_GEC`` (bundle line
+    144432) and ``updateInventory`` (bundle line 144440), which read each row's id and amount through
+    ``int()``; a row that is no pair is skipped here
+    """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    command = "gec"
+
+    changes: Annotated[tuple[GemChange, ...], BeforeValidator(partial(readable_list, GemChange))] = Field(
+        validation_alias="GEM", default=(), description="The gems added or taken away, in the order sent"
+    )
 
 
 def _gem_counts(counts: dict[int, int], rows: Any) -> dict[int, int]:
@@ -74,8 +110,8 @@ class GemInventoryResponse(BaseResponse):
     ``client.state.get_gems()`` applies it with :meth:`changed`.
 
     Client: ``GGMCommand`` (bundle line 123957), ``CastleGemData.parseGGM``, ``updateInventory`` and
-    ``updateRelicInventory`` (bundle lines 144327, 144334, 144427); ``GECCommand`` (bundle line 123927) and
-    ``parse_GEC`` (bundle line 144326). The client keeps one entry per gem and takes a negative amount
+    ``updateRelicInventory`` (bundle lines 144327, 144334, 144427); ``GECCommand`` (bundle line 123969) and
+    ``parse_GEC`` (bundle line 144432). The client keeps one entry per gem and takes a negative amount
     off from the first entry of that gem on; here the gems are counted per id.
     """
 
@@ -97,8 +133,9 @@ class GemInventoryResponse(BaseResponse):
         """How many of a gem you hold."""
         return next((stack.amount for stack in self.gems if stack.gem_id == gem_id), 0)
 
-    def changed(self, rows: Any) -> GemInventoryResponse:
-        """This inventory after a ``gec``'s ``GEM`` rows: ``[gem_id, amount]``, a negative amount taken away."""
+    def changed(self, change: GemsChangedResponse) -> GemInventoryResponse:
+        """This inventory after a ``gec``: each change adds its amount, a negative one takes away."""
+        rows = [[int(row.gem_id), row.amount] for row in change.changes]
         counts = _gem_counts({stack.gem_id: stack.amount for stack in self.gems}, rows)
         return self.model_copy(update={"gems": _stacks(counts)})
 

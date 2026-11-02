@@ -5,8 +5,8 @@ import pytest
 from empire_core.army.spy_army import SpyArmy
 from empire_core.gamedata.models import EquipmentEffectDef
 from empire_core.movements.models import MovementOwner
+from empire_core.player.models.login import Alliance
 from empire_core.protocol.models import AllianceInfo, MessageInfo, OwnedGeneral
-from empire_core.state.models import Alliance
 
 
 class TestLooseOneFlags:

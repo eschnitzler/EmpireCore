@@ -2,14 +2,14 @@
 
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from pydantic import AliasChoices, ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field
 
 from empire_core.castle.models.details import DetailedCastleInfo, ResourceProduction, SafeAmount, StorageCapacity
 from empire_core.enums import Kingdom
 from empire_core.gamedata import EnumOrStr, WodAmounts
 from empire_core.map.models.areas import KingdomProtection
+from empire_core.player.models.login import Alliance
 from empire_core.protocol.base import EmpireModel
-from empire_core.protocol.js import js_parse_int
 
 if TYPE_CHECKING:
     from empire_core.gamedata import Currency
@@ -77,39 +77,6 @@ class Resources(EmpireModel):
     @property
     def food_safe(self) -> float:
         return self.safe.food
-
-
-class Alliance(EmpireModel):
-    """The local player's alliance membership, from the ``gal`` login section.
-
-    Client: ``CastleUserData.parse_GAL``.
-    """
-
-    model_config: ClassVar[ConfigDict] = ConfigDict(extra="ignore", populate_by_name=True)
-
-    id: int = Field(
-        default=-1,
-        validation_alias="AID",
-        description="Alliance id; 0 or less means no alliance",
-    )
-    # The client reads AN; live servers send N
-    name: str = Field(
-        default="",
-        validation_alias=AliasChoices("AN", "N", "name"),
-        description="Alliance name",
-    )
-    rank: int = Field(default=0, validation_alias="R", description="The player's rank in the alliance")
-    current_fame: int = Field(default=0, validation_alias="ACF", description="The alliance's current fame")
-    is_searching: bool = Field(
-        default=False,
-        validation_alias="SA",
-        description="The player is looking for an alliance",
-    )
-
-    @field_validator("is_searching", mode="before")
-    @classmethod
-    def _searching_flag(cls, value: Any) -> bool:
-        return js_parse_int(value) == 1
 
 
 class Castle(EmpireModel):
@@ -210,6 +177,11 @@ class Player(EmpireModel):
     the rest are snake_case fields aliased to their wire keys. Prefer the
     snake_case names.
 
+    Each section is read through its model (``PlayerIdentityResponse``, ``ExperienceResponse``,
+    ``CurrencyResponse``, ``VipStatusResponse``, ``HonorResponse``, ``Alliance``,
+    ``SpecialCurrenciesResponse`` and ``ProtectionResponse``); a section that omits a field keeps
+    the value held, where the client would read 0.
+
     Client: ``CastleUserData`` (``parse_GPI``, ``parse_GXP``, ``parse_GHO``,
     ``parse_UAP``, ``parse_GAL``), ``CurrencyData.parseGCU`` /
     ``parseSCE`` and ``CastleVIPData.parse_VIP``.
@@ -220,6 +192,7 @@ class Player(EmpireModel):
     PID: int = Field(default=-1)
     PN: str = Field(default="Unknown")
     AID: int | None = Field(default=None)
+    user_id: int = Field(default=0, description="Your account id, the gpi UID")
 
     level: int = Field(
         default=0,
@@ -268,8 +241,7 @@ class Player(EmpireModel):
         description="Premium commanders used today from the VIP level's free ones",
     )
 
-    # Alliance
-    alliance: Alliance | None = None
+    alliance: Alliance | None = Field(default=None, description="Your alliance, None while in none")
 
     honor: int = Field(default=0, validation_alias="H", description="Honor")
     ranking: int = Field(default=0, validation_alias="RP", description="Ranking points")
@@ -280,17 +252,6 @@ class Player(EmpireModel):
     protection: dict[Kingdom, KingdomProtection] = Field(
         default_factory=dict,
         description="Your beginner, peace mode and Berimond faction protection, by kingdom, as last sent",
-    )
-
-    PF: int = Field(
-        default=0,
-        description="Premium flag, 1 when set; see premium_flag. Filled only from a gpi carrying PF, "
-        "where the client does not read it (it reads PF from gpf)",
-    )
-    VF: int = Field(
-        default=0,
-        description="VIP flag, 1 when set; see vip_flag. Filled only from a gpi carrying VF, "
-        "where the client does not read it (it reads VF only on map owner info)",
     )
 
     # Python-friendly properties
@@ -307,14 +268,6 @@ class Player(EmpireModel):
         return self.AID
 
     @property
-    def premium_flag(self) -> int:
-        return self.PF
-
-    @property
-    def vip_flag(self) -> int:
-        return self.VF
-
-    @property
     def xp_progress(self) -> float:
         """How far through the current level the player is, as a percentage (0-100).
 
@@ -329,7 +282,7 @@ class Player(EmpireModel):
 
     castles: dict[int, Castle] = Field(default_factory=dict, description="The player's castles by castle id")
 
-    E: str | None = Field(default=None)
+    E: str | None = Field(default=None, description='Your email, the gpi E; empty when the server sends "-1"')
 
     @property
     def email(self) -> str | None:

@@ -346,7 +346,9 @@ class TestOnPacketPayloadTypes:
 
         assert state.updates == []
 
-    def test_handler_dispatch_survives_a_list_payload(self):
+    def test_handler_dispatch_parses_a_list_payload(self):
+        from empire_core.player.models.login import SpecialCurrenciesResponse
+
         state = StubState()
         client = make_client(state=state)
         seen: list[object] = []
@@ -355,7 +357,8 @@ class TestOnPacketPayloadTypes:
         client._on_packet(xt_packet("sce", '[["PTT", 123]]'))
 
         assert state.updates == [("sce", [["PTT", 123]])]
-        assert seen == []
+        assert len(seen) == 1 and isinstance(seen[0], SpecialCurrenciesResponse)
+        assert seen[0].amounts == {"PTT": 123}
 
     def test_an_error_reply_reaches_no_handler(self):
         # Every client command parses only on success; a refused acm must not
