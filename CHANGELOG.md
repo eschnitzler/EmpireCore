@@ -2,6 +2,30 @@
 
 <!-- version list -->
 
+## v0.63.0 (2026-11-02)
+
+### Bug Fixes
+
+- **attack**: Type the spied castellan of aci and tai as a Castellan
+  ([`a7bd447`](https://github.com/eschnitzler/EmpireCore/commit/a7bd4471291126fa04d44fd10b932275a17a7aca))
+
+- **combat**: Count a spied castellan's effects once
+  ([`cf6b0f4`](https://github.com/eschnitzler/EmpireCore/commit/cf6b0f45acf7c355023248854c935bb39ac2c2e3))
+
+- **protocol**: Serialise the lazy model build across threads
+  ([`4ee3b12`](https://github.com/eschnitzler/EmpireCore/commit/4ee3b12c262cd2337d3347947152e94ad39220f2))
+
+### Breaking Changes
+
+- **attack**: GetAttackInfoResponse.spied_castellan, spied_castellan_fallback and
+  defending_castellan(), and GetTreasureNodeAttackInfoResponse.spied_castellan, are Castellan, not
+  Commander.
+
+- **combat**: A castellan read from aci, tai, sdi or a spy report now has without_equipment set:
+  worn_items() is empty, uses_alien_equipment is False and alien_bonuses are empty, and its
+  commander_bonuses are its E and AE alone.
+
+
 ## v0.62.0 (2026-10-29)
 
 ### Bug Fixes
