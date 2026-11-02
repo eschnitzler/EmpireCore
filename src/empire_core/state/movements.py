@@ -342,9 +342,12 @@ class MovementState(StateBase):
         if not isinstance(data, dict):
             return
         # The owner through the push model; the wrapper through the movement pipeline, which reads
-        # its blocks one by one and reports a drifted record with its traceback
-        push = ArmyRadiusPush.model_validate({"O": data.get("O")})
-        owners = [push.owner] if push.owner is not None else []
+        # its blocks one by one and reports a drifted record with its traceback. An unreadable
+        # owner costs only the owner, never the movement
+        push = read_or_none(
+            ArmyRadiusPush.model_validate, {"O": data.get("O")}, warn=logger, what="an army push's owner"
+        )
+        owners = [push.owner] if push is not None and push.owner is not None else []
         self._apply_movement_wrappers([data.get("A")], owners)
 
     def _handle_mcm(self, data: dict[str, Any]) -> None:

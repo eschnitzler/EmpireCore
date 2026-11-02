@@ -100,3 +100,10 @@ class TestMovementFilterState:
         client.state.update_from_packet("mvf", {"AFS": [0, 1]})
         filters = client.movements.map_filter
         assert filters is not None and filters.shows(MovementFilter.ALLIANCE_PVP_ATTACKS)
+
+
+def test_an_unreadable_owner_never_costs_the_movement(state, caplog):
+    state.update_from_packet("gbd", {"gpi": {"PID": 1, "PN": "me"}})
+    state.update_from_packet("asr", {"O": {"OID": 555, "L": "not a level"}, "A": WRAPPER})
+    assert [m.movement_id for m in state.get_all_movements()] == [500]
+    assert "an army push's owner" in caplog.text

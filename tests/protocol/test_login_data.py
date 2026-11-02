@@ -1,8 +1,8 @@
 """The login data (gbd) as one typed payload, and the faction join reply (fjf)."""
 
 from empire_core.events.models import FactionJoinedResponse
-from empire_core.state.login_data import LoginDataResponse
 from empire_core.protocol.models import parse_response
+from empire_core.state.login_data import LoginDataResponse
 from tests.state.test_player import LIVE_LOGIN
 
 
