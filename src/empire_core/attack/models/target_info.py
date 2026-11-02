@@ -16,7 +16,7 @@ from pydantic import BeforeValidator, Field, ValidatorFunctionWrapHandler, field
 
 from empire_core.army.models.units import UnitInventory
 from empire_core.army.spy_army import SpyArmyBlock
-from empire_core.commanders.models.roster import Commander
+from empire_core.commanders.models.roster import Castellan
 from empire_core.enums import Kingdom
 from empire_core.gamedata import EnumOrInt, TreasureMapNodeId
 from empire_core.protocol.base import BaseRequest, BaseResponse, int_entries, read_or_none
@@ -325,7 +325,7 @@ class GetTreasureNodeAttackInfoResponse(BaseResponse):
         default=-1,
         description="Seconds since the target was spied; -1 when there is no spy report",
     )
-    spied_castellan: Commander | None = Field(
+    spied_castellan: Castellan | None = Field(
         validation_alias="B", default=None, description="The castellan defending the node, from the spy report"
     )
     defender_legend_skill_ids: tuple[EnumOrInt["LegendSkill"], ...] = Field(
@@ -341,7 +341,7 @@ class GetTreasureNodeAttackInfoResponse(BaseResponse):
 
     @field_validator("spied_castellan", mode="wrap")
     @classmethod
-    def _castellan_or_none(cls, value: object, handler: ValidatorFunctionWrapHandler) -> Commander | None:
+    def _castellan_or_none(cls, value: object, handler: ValidatorFunctionWrapHandler) -> Castellan | None:
         # Client: parseArmyInfo builds it with LordFactory.createLord(castellan, true, true), which skips
         # the equipment (bundle line 24515)
         if not value:

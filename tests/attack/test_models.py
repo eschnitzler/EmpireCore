@@ -294,7 +294,7 @@ class TestAttackInfoBlocks:
         assert picked(abe={"N": "no id"}, B=castellan) is None
 
     def test_the_castellan_comes_without_its_equipment(self):
-        from empire_core.protocol.models import Commander, GetAttackInfoResponse
+        from empire_core.protocol.models import Castellan, GetAttackInfoResponse
 
         # parseArmyInfo builds it with createLord(castellan, true, true), which skips EQ and AIE;
         # the gli roster's entries keep theirs
@@ -306,7 +306,7 @@ class TestAttackInfoBlocks:
         assert info.commander_roster.castellans[0].uses_alien_equipment
 
         for block in ("abe", "spied_castellan"):
-            named = GetAttackInfoResponse.model_validate({"S": [[[10, 1]]], block: Commander(commander_id=7)})
+            named = GetAttackInfoResponse.model_validate({"S": [[[10, 1]]], block: Castellan(commander_id=7)})
             chosen = named.defending_castellan()
             assert chosen is not None and chosen.without_equipment
 
@@ -369,9 +369,9 @@ class TestReviewedLeniency:
         assert [(o.owner_id, o.level) for o in info.owner_records()] == [(5, 0)]
 
     def test_the_castellan_source_also_follows_field_names(self):
-        from empire_core.protocol.models import Commander, GetAttackInfoResponse
+        from empire_core.protocol.models import Castellan, GetAttackInfoResponse
 
-        info = GetAttackInfoResponse.model_validate({"S": [[[1, 2]]], "spied_castellan": Commander(commander_id=7)})
+        info = GetAttackInfoResponse.model_validate({"S": [[[1, 2]]], "spied_castellan": Castellan(commander_id=7)})
         again = GetAttackInfoResponse.model_validate(info.model_dump())
         for response in (info, again):
             castellan = response.defending_castellan()
