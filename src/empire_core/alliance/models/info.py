@@ -716,3 +716,89 @@ __all__ = [
     "GetAllianceInfoRequest",
     "GetAllianceInfoResponse",
 ]
+
+
+class AllianceFameResponse(BaseResponse):
+    """
+    Your alliance's fame points, pushed as they change.
+
+    Command: afa, a push.
+
+    Client: ``AFACommand.executeCommand`` (bundle line 121465), which does nothing without an alliance;
+    ``AllianceInfoVO.parseAFA`` (bundle line 26001), which reads both through ``int()``
+    """
+
+    command = "afa"
+
+    fame_points: ClientInt = Field(validation_alias="CF", default=0, description="Alliance fame points")
+    highest_fame_points: ClientInt = Field(validation_alias="HF", default=0, description="Highest fame points reached")
+
+
+class AllianceBuffsResponse(BaseResponse):
+    """
+    Your alliance's buffs, replacing the ones held: the list under ``ABL``, or the payload itself.
+
+    Command: abl, a push.
+
+    Client: ``ABLCommand.executeCommand`` (bundle line 121304), ``CastleAllianceData.parse_ABL`` (bundle
+    line 11568), ``AllianceInfoVO.parseABL`` (bundle line 26003): ``parseBuffList(e.ABL ? e.ABL : e)``
+    """
+
+    command = "abl"
+
+    buildings: tuple[AllianceBuilding, ...] = Field(
+        validation_alias="ABL", default=(), description="The alliance's buffs"
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _list_body(cls, data: Any) -> Any:
+        if isinstance(data, list):
+            return {"ABL": data}
+        if isinstance(data, dict) and not js_truthy(data.get("ABL")):
+            return {**data, "ABL": []}
+        return data
+
+    @field_validator("buildings", mode="before")
+    @classmethod
+    def _rows(cls, value: Any) -> Any:
+        if not isinstance(value, list):
+            raise ValueError("the buff list is no list")
+        return tuple(row for row in value if isinstance(row, dict))
+
+
+class AllianceCrestChangedResponse(BaseResponse):
+    """
+    Your alliance's crest changed.
+
+    The current crest and a fallback come inside ``ACCA``; a top-level ``ACFB`` then replaces the
+    fallback, as the client reads it last.
+
+    Command: aee, a push.
+
+    Client: ``AEECommand.executeCommand`` (bundle line 121450) hands ``ACCA`` to
+    ``CastleAllianceData.parse_AEE`` (bundle line 11595) and ``parseAllianceCrestForAlliance``, then
+    ``ACFB`` to ``AllianceInfoVO.parseFallbackCrest`` (bundle line 26195)
+    """
+
+    command = "aee"
+
+    crests: AllianceCrests | None = Field(
+        validation_alias="ACCA", default=None, description="The crest and its fallback; None when no object was sent"
+    )
+    fallback_crest: AllianceCrest | None = Field(
+        validation_alias="ACFB",
+        default=None,
+        description="The fallback crest that wins; None unless it has ACLI and ACCS",
+    )
+
+    @field_validator("crests", mode="before")
+    @classmethod
+    def _block(cls, value: Any) -> Any:
+        return object_or_none(value)
+
+    @field_validator("fallback_crest", mode="before")
+    @classmethod
+    def _fallback(cls, value: Any) -> Any:
+        ok = isinstance(value, dict) and js_truthy(value.get("ACLI")) and js_truthy(value.get("ACCS"))
+        return value if ok else None

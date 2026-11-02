@@ -13,10 +13,10 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from pydantic import ConfigDict, Field, field_validator, model_validator
+from pydantic import ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
-from empire_core.enums import QuestConditionType
-from empire_core.gamedata import Collectable, CurrencyId, EnumOrInt
+from empire_core.enums import PopupType, QuestConditionType
+from empire_core.gamedata import Collectable, CollectableRows, CurrencyId, EnumOrInt, RewardId
 from empire_core.protocol.base import BaseRequest, BaseResponse, EmpireModel
 from empire_core.protocol.js import js_int, js_loose_equals, js_truthy
 
@@ -121,6 +121,231 @@ class QuestBook(EmpireModel):
             return None
         announced, running, finished = (tuple(map(js_int, ids)) for ids in lists if isinstance(ids, list))
         return cls(announced_quest_ids=announced, running_quest_ids=running, finished_quest_ids=finished)
+
+
+def _quests_of(rows: Any, info: ValidationInfo) -> tuple[Quest, ...]:
+    # createQuest(n.QID) throws for an entry that is no object or names a quest the items lack; the
+    # library skips the first and keeps every id. A validation context's "now" dates the quests
+    now = info.context.get("now") if info.context else None
+    if not isinstance(rows, list):
+        return ()
+    return tuple(Quest.from_entry(row, now) for row in rows if isinstance(row, dict))
+
+
+class QuestListResponse(BaseResponse):
+    """
+    Your active quests, replacing the ones held, and the quest book's main quests when all three lists are sent.
+
+    Command: qli, a push and the reply to a quest list request.
+
+    Client: ``QLICommand.exec`` (bundle line 126625), ``CastleQuestData.parseActiveQuestList`` (bundle line
+    20256), which empties the list first, and ``CastleQuestBookMainQuestListVO.parseListsFromParamObject``
+    (bundle line 52442), which reads ``ANN``, ``R`` and ``D`` only when all three are truthy
+    """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    command = "qli"
+
+    quests: tuple[Quest, ...] = Field(validation_alias="QL", default=(), description="The active quests, as sent")
+    book: QuestBook | None = Field(
+        default=None, description="The quest book's main quests; None when one of its three lists is missing"
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _book(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "book" not in data:
+            return {**data, "book": QuestBook.from_section(data)}
+        return data
+
+    @field_validator("quests", mode="before")
+    @classmethod
+    def _quests(cls, value: Any, info: ValidationInfo) -> Any:
+        return _quests_of(value, info)
+
+
+class QuestsStartedResponse(BaseResponse):
+    """
+    Quests that started: each becomes active, without progress.
+
+    Command: qst, a push.
+
+    Client: ``QSTCommand.exec`` (bundle line 126657) calls ``CastleQuestData.startQuest`` (bundle line 20241)
+    for each truthy id of ``QIDS``
+    """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    command = "qst"
+
+    quest_ids: tuple[EnumOrInt["QuestId"], ...] = Field(
+        validation_alias="QIDS", default=(), description="The quests started, in the order sent"
+    )
+
+    @field_validator("quest_ids", mode="before")
+    @classmethod
+    def _truthy_ids(cls, value: Any) -> Any:
+        return tuple(js_int(qid) for qid in value if js_truthy(qid)) if isinstance(value, list) else ()
+
+
+class QuestProgressResponse(BaseResponse):
+    """
+    A quest made progress: only the quest is named; its counters come with the next ``qli``.
+
+    Command: qpg, a push.
+
+    Client: ``QPGCommand.exec`` (bundle line 126641), ``CastleQuestData.parseQuestProgress`` (bundle line
+    20251), which reads ``int(P[0])`` and nothing else of ``P``
+    """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    command = "qpg"
+
+    quest_id: EnumOrInt["QuestId"] | None = Field(
+        validation_alias="P", default=None, description="The quest; None when P is no list with a first entry"
+    )
+
+    @field_validator("quest_id", mode="before")
+    @classmethod
+    def _first(cls, value: Any) -> Any:
+        return js_int(value[0]) if isinstance(value, list) and value else None
+
+
+class QuestFinishedResponse(BaseResponse):
+    """
+    A quest is finished: it is no longer active, and its random equipment rewards are shown.
+
+    Command: qfi, a push.
+
+    Client: ``QFICommand.exec`` (bundle line 126604) reads ``int(QID)`` for the quest's prototype and
+    ``CastleQuestData.finishQuest`` (bundle line 20254) drops the active quest; ``GEQ`` goes to
+    ``CastleQuestCompletedDialogProperties`` (bundle line 54013) as a collectable list
+    """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    command = "qfi"
+
+    quest_id: EnumOrInt["QuestId"] = Field(validation_alias="QID", default=0, description="The quest finished")
+    random_equipment_rewards: CollectableRows = Field(
+        validation_alias="GEQ", default=(), description="The random equipment the quest gave, if any"
+    )
+
+    @field_validator("quest_id", mode="before")
+    @classmethod
+    def _int(cls, value: Any) -> int:
+        return js_int(value)
+
+
+class CampaignQuestStatusResponse(BaseResponse):
+    """
+    The time-limited campaign's quests and end reward, read over the running campaign event.
+
+    Command: cqs, a push.
+
+    Client: ``CQSCommand.exec`` (bundle line 126533) does nothing without the campaign running;
+    ``TimeLimitedCampaignEventEventVO.parseCQS`` (bundle line 118593) and ``parseParamObject`` (bundle
+    line 118574), which sort the quests by ``ST`` and then ``CQID``; ``CommKeys.END_REWARD_VALUE`` is
+    ``ERV`` (dll)
+    """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    command = "cqs"
+
+    reward_ids: tuple[RewardId, ...] = Field(
+        validation_alias="RIDS",
+        default=(),
+        description="The campaign's rewards; GameData.reward_list gives what they hold",
+    )
+    reward_collected: bool = Field(
+        validation_alias="COL", default=False, description="You collected the end reward (1 == COL)"
+    )
+    end_reward_value: int = Field(validation_alias="ERV", default=0, description="The end reward's value, int(ERV)")
+    quests: tuple[Quest, ...] = Field(
+        validation_alias="CQS", default=(), description="The campaign's quests, in campaign order"
+    )
+
+    @field_validator("reward_ids", mode="before")
+    @classmethod
+    def _ids(cls, value: Any) -> Any:
+        return tuple(js_int(rid) for rid in value) if isinstance(value, list) else ()
+
+    @field_validator("reward_collected", mode="before")
+    @classmethod
+    def _collected(cls, value: Any) -> bool:
+        return js_loose_equals(value, 1)
+
+    @field_validator("end_reward_value", mode="before")
+    @classmethod
+    def _value(cls, value: Any) -> int:
+        return js_int(value)
+
+    @field_validator("quests", mode="before")
+    @classmethod
+    def _campaign_order(cls, value: Any, info: ValidationInfo) -> Any:
+        quests = list(_quests_of(value, info))
+        quests.sort(
+            key=lambda quest: (quest.campaign_timestamp is None, quest.campaign_timestamp or 0, quest.campaign_quest_id)
+        )
+        return tuple(quests)
+
+
+class Popup(EmpireModel):
+    """
+    One popup of an ``msp``: which, and the value its dialog reads.
+
+    Client: ``CastlePopUpHelper.displayPopUps`` (bundle line 12922) reads ``int(POP)`` and hands ``VAL`` to
+    ``displayPopUp`` (bundle line 12933), whose dialog reads what it needs of it
+    """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    popup_id: EnumOrInt[PopupType] = Field(validation_alias="POP", default=0, description="The popup")
+    value: Any = Field(validation_alias="VAL", default=None, description="What the popup's dialog reads, as sent")
+    finished_quest_id: EnumOrInt["QuestId"] | None = Field(
+        default=None, description="The quest a quest-finished popup names (its VAL's QID); None for any other popup"
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _quest(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "finished_quest_id" not in data:
+            value = data.get("VAL")
+            quest_id = None
+            if js_int(data.get("POP")) == PopupType.QUEST_FINISH and isinstance(value, dict) and "QID" in value:
+                quest_id = js_int(value["QID"])
+            return {**data, "finished_quest_id": quest_id}
+        return data
+
+    @field_validator("popup_id", mode="before")
+    @classmethod
+    def _int(cls, value: Any) -> int:
+        return js_int(value)
+
+
+class PopupsResponse(BaseResponse):
+    """
+    Popups the server asks the client to show.
+
+    Command: msp, a push.
+
+    Client: ``MSPCommand.exec`` (bundle line 125476), ``CastlePopUpHelper.displayPopUps`` (bundle line
+    12922), which reads every entry of ``P``
+    """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    command = "msp"
+
+    popups: tuple[Popup, ...] = Field(validation_alias="P", default=(), description="The popups, in the order sent")
+
+    @field_validator("popups", mode="before")
+    @classmethod
+    def _entries(cls, value: Any) -> Any:
+        return tuple(entry for entry in value if isinstance(entry, dict)) if isinstance(value, list) else ()
 
 
 class DailyQuest(EmpireModel):

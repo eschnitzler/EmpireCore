@@ -14,7 +14,13 @@ from empire_core.alliance.models.help import (
     AllianceHelpRequestRemoved,
 )
 from empire_core.alliance.models.horizon import HorizonMemberPerformance, HorizonPerformanceResponse
-from empire_core.alliance.models.info import AllianceInfo, alliance_of_ain
+from empire_core.alliance.models.info import (
+    AllianceBuffsResponse,
+    AllianceCrestChangedResponse,
+    AllianceFameResponse,
+    AllianceInfo,
+    alliance_of_ain,
+)
 from empire_core.alliance.models.landmarks import AllianceLaboratoriesResponse
 from empire_core.alliance.models.membership import AutoJoinedAllianceResponse
 from empire_core.enums import OnlineState
@@ -98,28 +104,31 @@ class AllianceState(StateBase):
         self._store_own_alliance({**raw, **fields}, changed_keys=set(fields))
 
     def _handle_afa(self, data: Any) -> None:
-        """Client: ``AllianceInfoVO.parseAFA`` (bundle line 25959)."""
-        if isinstance(data, dict) and "CF" in data and "HF" in data:
-            self._patch_own_alliance({"CF": data["CF"], "HF": data["HF"]})
+        """Client: ``AllianceInfoVO.parseAFA`` (bundle line 26001); see :class:`AllianceFameResponse`."""
+        if not isinstance(data, dict) or "raw" in data:
+            return
+        if (fame := read_section(AllianceFameResponse, data, "the alliance's fame")) is not None:
+            self._patch_own_alliance({"CF": fame.fame_points, "HF": fame.highest_fame_points})
 
     def _handle_abl(self, data: Any) -> None:
-        """Client: ``AllianceInfoVO.parseABL/parseBuffList`` (bundle lines 25961–25967)."""
-        buffs = data.get("ABL") if isinstance(data, dict) else data
-        if isinstance(buffs, list) and all(isinstance(row, dict) for row in buffs):
-            self._patch_own_alliance({"ABL": buffs})
+        """Client: ``AllianceInfoVO.parseABL`` (bundle line 26003); see :class:`AllianceBuffsResponse`."""
+        buffs = read_or_none(AllianceBuffsResponse.model_validate, data, warn=logger, what="the alliance's buffs")
+        if buffs is not None:
+            self._patch_own_alliance({"ABL": [row.model_dump(by_alias=True) for row in buffs.buildings]})
 
     def _handle_aee(self, data: Any) -> None:
-        """Client: ``AEECommand`` (121435–36), ``parseAllianceCrestForAlliance`` (11595).
+        """Client: ``AEECommand`` (bundle line 121450); see :class:`AllianceCrestChangedResponse`.
 
-        The command passes its ACCA wrapper, then overwrites the fallback with
-        the top-level ACFB. Missing current crests remain unknown rather than random.
+        A missing current crest stays unknown rather than random.
         """
-        if not isinstance(data, dict) or not isinstance(data.get("ACCA"), dict):
+        changed = read_section(AllianceCrestChangedResponse, data, "the alliance's crest")
+        if changed is None or changed.crests is None:
             return
-        crest = data["ACCA"].get("ACCA")
-        if crest is not None and not isinstance(crest, dict):
-            return
-        self._patch_own_alliance({"aee": {"ACCA": crest, "ACFB": data.get("ACFB")}})
+        crest = changed.crests.crest.model_dump(by_alias=True) if changed.crests.crest is not None else None
+        fallback = changed.fallback_crest if changed.fallback_crest is not None else changed.crests.fallback_crest
+        self._patch_own_alliance(
+            {"aee": {"ACCA": crest, "ACFB": fallback.model_dump(by_alias=True) if fallback is not None else None}}
+        )
 
     def _handle_sll(self, data: Any) -> None:
         """Client: ``CastleAllianceData.parseSLL`` (bundle line 11605) replaces your alliance's laboratories."""

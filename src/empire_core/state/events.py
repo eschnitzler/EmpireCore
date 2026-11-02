@@ -79,6 +79,7 @@ from empire_core.map.models.areas import KingdomProtection
 from empire_core.player.models.protection import StartFactionProtectionResponse
 from empire_core.protocol.base import read_or_none
 from empire_core.protocol.js import js_int, js_truthy
+from empire_core.quests.models import CampaignQuestStatusResponse
 from empire_core.state.base import StateBase, read_section
 from empire_core.utils import callbacks
 
@@ -294,7 +295,16 @@ class EventState(StateBase):
         campaign = self.events.get(Event.TIME_LIMITED_CAMPAIGN_EVENT)
         if not (isinstance(campaign, CampaignEvent) and isinstance(data, dict)):
             return
-        self.events = {**self.events, campaign.event_id: campaign.with_campaign(data, _clock())}
+        now = _clock()
+        status = read_or_none(
+            lambda body: CampaignQuestStatusResponse.model_validate(body, context={"now": now}),
+            data,
+            warn=logger,
+            what="the campaign's quest status",
+        )
+        if status is None:
+            return
+        self.events = {**self.events, campaign.event_id: campaign.with_campaign(status)}
         self._events_updated_at = time.time()
         self._fire(self.on_events_updated, dict(self.events))
 

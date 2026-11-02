@@ -1,17 +1,27 @@
 """Your quests: the active quests (qli, qst, qpg, qfi and the quest popups of msp) and the daily quests (dql)."""
 
+import logging
 import time
 from typing import Any
 
-from empire_core.protocol.js import js_int, js_truthy
-from empire_core.quests.models import DailyQuests, Quest, QuestBook
-from empire_core.state.base import StateBase, loaded
+from empire_core.protocol.base import read_or_none
+from empire_core.protocol.js import js_truthy
+from empire_core.quests.models import (
+    DailyQuests,
+    PopupsResponse,
+    Quest,
+    QuestBook,
+    QuestFinishedResponse,
+    QuestListResponse,
+    QuestProgressResponse,
+    QuestsStartedResponse,
+)
+from empire_core.state.base import StateBase, loaded, read_section
 from empire_core.utils import callbacks
 
-_clock = time.monotonic
+logger = logging.getLogger(__name__)
 
-# The popup that says a quest is finished. Client: PopupConst.QUEST_FINISH (dll line 19620)
-_QUEST_FINISH_POPUP = 4
+_clock = time.monotonic
 
 
 class QuestState(StateBase):
@@ -62,15 +72,19 @@ class QuestState(StateBase):
         """
         if not isinstance(data, dict):
             return
-        entries, now = data.get("QL"), _clock()
-        quests = (
-            [Quest.from_entry(entry, now) for entry in entries if isinstance(entry, dict)]
-            if isinstance(entries, list)
-            else []
+        now = _clock()
+        listing = read_or_none(
+            lambda body: QuestListResponse.model_validate(body, context={"now": now}),
+            data,
+            warn=logger,
+            what="the quest list",
         )
-        self.quests = {quest.quest_id: quest for quest in sorted(quests, key=lambda quest: quest.quest_id)}
-        if (book := QuestBook.from_section(data)) is not None:
-            self.quest_book = book
+        if listing is None:
+            return
+        quests = sorted(listing.quests, key=lambda quest: quest.quest_id)
+        self.quests = {quest.quest_id: quest for quest in quests}
+        if listing.book is not None:
+            self.quest_book = listing.book
         self._fire(self.on_quests_updated, dict(self.quests))
 
     def _handle_qst(self, data: Any) -> None:
@@ -82,8 +96,8 @@ class QuestState(StateBase):
         each truthy id, which adds a second entry for an active quest; ``getActiveQuestByID`` finds the
         first. The library keeps one
         """
-        ids = data.get("QIDS") if isinstance(data, dict) else None
-        started = [js_int(qid) for qid in ids if js_truthy(qid)] if isinstance(ids, list) else []
+        push = read_section(QuestsStartedResponse, data, "the quests started")
+        started = [int(qid) for qid in push.quest_ids] if push is not None else []
         if not started:
             return
         quests = {**{qid: Quest(quest_id=qid) for qid in started}, **self.quests}
@@ -97,17 +111,18 @@ class QuestState(StateBase):
         Client: ``QPGCommand.exec`` (bundle line 126603), ``CastleQuestData.parseQuestProgress``
         (bundle line 20243)
         """
-        progress = data.get("P") if isinstance(data, dict) else None
-        if isinstance(progress, list) and progress and (quest := self.quests.get(js_int(progress[0]))) is not None:
-            self._fire(self.on_quest_progress, quest)
+        progress = read_section(QuestProgressResponse, data, "a quest's progress")
+        if progress is not None and progress.quest_id is not None:
+            if (quest := self.quests.get(int(progress.quest_id))) is not None:
+                self._fire(self.on_quest_progress, quest)
 
     def _handle_qfi(self, data: Any) -> None:
         """Handle a finished quest: the quest ``QID`` names is no longer active.
 
         Client: ``QFICommand.exec`` (bundle line 126566), ``CastleQuestData.finishQuest`` (bundle line 20246)
         """
-        if isinstance(data, dict):
-            self._finish_quest(data.get("QID"))
+        if (finished := read_section(QuestFinishedResponse, data, "a finished quest")) is not None:
+            self._finish_quest(int(finished.quest_id))
 
     def _handle_msp(self, data: Any) -> None:
         """Handle the popups a ``msp`` shows: each quest-finished popup (``POP`` 4) finishes its ``VAL`` quest.
@@ -115,21 +130,20 @@ class QuestState(StateBase):
         Client: ``MSPCommand.exec`` (bundle line 125438), ``CastlePopUpHelper.displayPopUps`` and
         ``displayPopUp`` (bundle lines 12915, 12921)
         """
-        popups = data.get("P") if isinstance(data, dict) else None
-        for popup in popups if isinstance(popups, list) else ():
-            if isinstance(popup, dict) and js_int(popup.get("POP")) == _QUEST_FINISH_POPUP:
-                value = popup.get("VAL")
-                self._finish_quest(value.get("QID") if isinstance(value, dict) else None)
+        shown = read_section(PopupsResponse, data, "the popups")
+        for popup in shown.popups if shown is not None else ():
+            if popup.finished_quest_id is not None:
+                self._finish_quest(int(popup.finished_quest_id))
 
-    def _finish_quest(self, qid: Any) -> None:
+    def _finish_quest(self, qid: int) -> None:
         """Drop an active quest and announce it.
 
         The client announces any active quest it finishes; a hidden or starter quest only shows no
         dialog (bundle lines 126571, 13042).
 
-        Client: ``CastleQuestData.finishQuest`` (bundle lines 20246-20247)
+        Client: ``CastleQuestData.finishQuest`` (bundle line 20254)
         """
-        quest = self.quests.get(js_int(qid))
+        quest = self.quests.get(qid)
         if quest is None:
             return
         self.quests = {key: value for key, value in self.quests.items() if key != quest.quest_id}

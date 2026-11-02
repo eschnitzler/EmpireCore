@@ -50,6 +50,7 @@ ALLOWED: dict[str, str] = {
         "condition counters, not ids; CastleQuestVO.fillFromParams (bundle 52463)"
     ),
     "alliance.models.bookmarks.AddBookmarkRequest.attacker_ids": "player ids",
+    "quests.models.Popup.value": "what the popup's dialog reads, shaped per popup (displayPopUp, bundle 12933)",
     "alliance.models.bookmarks.BookmarkAttackOrder.assigned_attacker_ids": "player ids",
     "alliance.models.bookmarks.DeleteAllianceBookmarkRequest.entries": "request wire shape: [bookmark_id, notify] rows",
     "alliance.models.bookmarks.DeleteBookmarkRequest.positions": "request wire shape: [kingdom, x, y] rows",
