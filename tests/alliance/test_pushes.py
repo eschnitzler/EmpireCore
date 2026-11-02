@@ -73,3 +73,29 @@ def test_pushes_keep_member_protection_timestamps():
     state.update_from_packet("aee", {"ACCA": {"ACCA": {"ACLI": 1, "ACCS": [1]}}})
     current = state.get_own_alliance()
     assert current is not None and current.members[0].received_at == before
+
+
+def test_the_push_models_read_as_the_client_does():
+    from empire_core.alliance.models.info import (
+        AllianceBuffsResponse,
+        AllianceCrestChangedResponse,
+        AllianceFameResponse,
+    )
+    from empire_core.protocol.models import parse_response
+
+    fame = parse_response("afa", {"CF": "10", "HF": 20.5})
+    assert isinstance(fame, AllianceFameResponse) and (fame.fame_points, fame.highest_fame_points) == (10, 20)
+
+    # parseABL: parseBuffList(e.ABL ? e.ABL : e)
+    for body in ({"ABL": [{"BT": 6, "L": 1, "CD": -1}]}, [{"BT": 6, "L": 1, "CD": -1}]):
+        buffs = AllianceBuffsResponse.model_validate(body)
+        assert [(b.building_type, b.level) for b in buffs.buildings] == [(6, 1)]
+    assert AllianceBuffsResponse.model_validate({"ABL": None}).buildings == ()
+
+    changed = parse_response(
+        "aee", {"ACCA": {"ACCA": {"ACLI": 3, "ACCS": [1, 2]}, "ACFB": {"ACLI": 1, "ACCS": [1]}}, "ACFB": {"ACLI": 2}}
+    )
+    assert isinstance(changed, AllianceCrestChangedResponse)
+    assert changed.crests is not None and changed.crests.crest is not None
+    assert changed.fallback_crest is None, "a fallback without ACCS is not read"
+    assert AllianceCrestChangedResponse.model_validate({"ACCA": "bad"}).crests is None

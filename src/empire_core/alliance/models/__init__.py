@@ -163,9 +163,12 @@ from .horizon import (
     PlayerInfluenceResponse,
 )
 from .info import (
+    AllianceBuffsResponse,
     AllianceBuilding,
+    AllianceCrestChangedResponse,
     AllianceCrests,
     AllianceDiplomacyStatus,
+    AllianceFameResponse,
     AllianceInfo,
     AllianceMember,
     AllianceMemberInfo,
@@ -354,6 +357,9 @@ __all__ = [
     "AskHelpRequest",
     "AskHelpResponse",
     "AllianceCrests",
+    "AllianceBuffsResponse",
+    "AllianceCrestChangedResponse",
+    "AllianceFameResponse",
     "CrestLayout",
     "PeaceOffer",
     "AllianceMember",

@@ -98,6 +98,7 @@ from .player import (
     TitleSystem,
     VerificationLink,
 )
+from .popups import PopupType
 from .ranking import RankingType
 from .rewards import LoginBonusSpecial
 from .spy import SpyArmySection, SpyLogType, SpyOutcome, SpyStep, SpyType
@@ -174,6 +175,7 @@ __all__ = [
     # Movement
     "MovementFilter",
     "MovementType",
+    "PopupType",
     # Attack / combat
     "AttackType",
     "LootPriority",

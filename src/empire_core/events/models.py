@@ -58,7 +58,7 @@ from empire_core.protocol.js import (
     js_truthy,
     js_whole_number,
 )
-from empire_core.quests.models import Quest
+from empire_core.quests.models import CampaignQuestStatusResponse, Quest
 from empire_core.ranking.models import (
     GetHighscoreResponse,
     GetRankingListResponse,
@@ -1713,20 +1713,12 @@ class CampaignEvent(SpecialEvent):
 
     @staticmethod
     def _read_campaign(values: dict[str, Any], entry: dict[str, Any], now: float) -> None:
-        ids, listed = entry.get("RIDS"), entry.get("CQS")
-        quests = (
-            [Quest.from_entry(quest, now) for quest in listed if isinstance(quest, dict)]
-            if isinstance(listed, list)
-            else []
-        )
-        quests.sort(
-            key=lambda quest: (quest.campaign_timestamp is None, quest.campaign_timestamp or 0, quest.campaign_quest_id)
-        )
+        status = CampaignQuestStatusResponse.model_validate(entry, context={"now": now})
         values.update(
-            reward_ids=[RewardId(js_int(rid)) for rid in ids] if isinstance(ids, list) else [],
-            reward_collected=js_loose_equals(entry.get("COL"), 1),
-            end_reward_value=js_int(entry.get("ERV")),
-            quests=quests,
+            reward_ids=status.reward_ids,
+            reward_collected=status.reward_collected,
+            end_reward_value=status.end_reward_value,
+            quests=status.quests,
         )
 
     def rewards(self, *, game_data: GameData | None = None) -> tuple[Collectable, ...]:
@@ -1737,11 +1729,16 @@ class CampaignEvent(SpecialEvent):
         """
         return _game_data(game_data).reward_list(self.reward_ids)
 
-    def with_campaign(self, data: dict[str, Any], now: float) -> CampaignEvent:
-        """The event after a ``cqs`` push with this payload. Client: ``parseCQS`` (bundle line 118555)"""
+    def with_campaign(self, status: CampaignQuestStatusResponse) -> CampaignEvent:
+        """The event after a ``cqs`` push. Client: ``parseCQS`` (bundle line 118593)"""
         values: dict[str, Any] = dict(self)
-        self._read_campaign(values, data, now)
-        values["updated_at"] = time.time()
+        values.update(
+            reward_ids=status.reward_ids,
+            reward_collected=status.reward_collected,
+            end_reward_value=status.end_reward_value,
+            quests=status.quests,
+            updated_at=time.time(),
+        )
         return type(self)(**values)
 
 
