@@ -86,3 +86,38 @@ def test_models_build_their_validators_on_first_use():
     # Building every model as its class is created made import empire_core take over a second.
     result = subprocess.run([sys.executable, "-c", DEFERRED], capture_output=True, text=True, check=True)
     assert result.stdout.split() == ["False", "True", "1"]
+
+
+CONCURRENT_FIRST_USE = """
+import sys, threading
+sys.setswitchinterval(1e-6)
+from empire_core.castle.models.actions import SelectCastleResponse
+from empire_core.castle.models.objects import CastleBuildings, ConstructionList
+
+models = (SelectCastleResponse, CastleBuildings, ConstructionList)
+errors, barrier = [], threading.Barrier(24)
+
+def hit(i):
+    barrier.wait()
+    try:
+        models[i % 3].model_validate({})
+    except AttributeError as exc:
+        errors.append(exc)
+    except Exception:
+        pass
+
+threads = [threading.Thread(target=hit, args=(i,)) for i in range(24)]
+for t in threads: t.start()
+for t in threads: t.join()
+print(len(errors), all(m.__pydantic_complete__ for m in models))
+"""
+
+
+def test_threads_can_first_use_a_model_together():
+    # pydantic's deferred build is not thread-safe; without the build lock a thread could find the
+    # model half built ("has no attribute '__pydantic_core_schema__'")
+    for _ in range(5):
+        result = subprocess.run(
+            [sys.executable, "-c", CONCURRENT_FIRST_USE], capture_output=True, text=True, check=True
+        )
+        assert result.stdout.split() == ["0", "True"]

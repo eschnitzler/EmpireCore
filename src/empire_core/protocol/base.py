@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import logging
 import math
+import threading
 import time
 from collections.abc import Callable
 from decimal import Decimal
@@ -370,9 +371,23 @@ class EmpireModel(pydantic.BaseModel):
     Validators are built on a model's first use, not as its class is created: the library defines
     hundreds of models and a program uses a few, so building them all made ``import empire_core``
     take over a second.
+
+    That build is not thread-safe in pydantic, and each client handles its packets on its own
+    thread: two clients reading their first reply of one type together could leave one of them
+    with a half-built model. One lock serialises the builds, re-entrant because building a model
+    builds the models nested in it.
     """
 
     model_config: ClassVar[ConfigDict] = ConfigDict(defer_build=True)
+
+    _build_lock: ClassVar[threading.RLock] = threading.RLock()
+
+    @classmethod
+    def model_rebuild(cls, *args: Any, **kwargs: Any) -> bool | None:
+        # The extra frame moves the caller's namespace one level up for forward references
+        kwargs["_parent_namespace_depth"] = kwargs.get("_parent_namespace_depth", 2) + 1
+        with cls._build_lock:
+            return super().model_rebuild(*args, **kwargs)
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
