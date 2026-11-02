@@ -7,11 +7,12 @@ from collections.abc import Set as AbstractSet
 from typing import Any
 
 from empire_core.enums import Kingdom
+from empire_core.player.models.login import LevelUpResponse
 from empire_core.protocol.js import js_truthy
 from empire_core.state.account import ACCOUNT_SECTIONS, AccountState
 from empire_core.state.alliance import AllianceState
 from empire_core.state.area import AreaState
-from empire_core.state.base import MovementEventCallback
+from empire_core.state.base import MovementEventCallback, read_section
 from empire_core.state.castles import AREA_LIST_SECTIONS, CastleState
 from empire_core.state.commanders import CommanderState
 from empire_core.state.crafting import CRAFTING_QUEUE_REPLIES, CraftingState
@@ -577,8 +578,8 @@ class GameState(
         self._apply_faction_protection(self._parse_player_sections(data))
         self._parse_special_currencies(data)
         previous_alliance_id = self.local_player.AID if self.local_player is not None else None
-        self._parse_alliance_info(data)
-        self._apply_gal_reset(data, previous_alliance_id=previous_alliance_id)
+        membership = self._parse_alliance_info(data)
+        self._apply_gal_reset(membership, present="gal" in data, previous_alliance_id=previous_alliance_id)
         skipped = {
             section
             for section, applied in (
@@ -656,14 +657,13 @@ class GameState(
         self._apply_movement_wrappers([wrapper], data.get("O", []))
 
     def _handle_glu(self, data: Any) -> None:
-        """Apply a level-up push's currencies and XP.
+        """Apply a level-up push's currencies and XP, as its gcu and gxp sections.
 
-        ``L`` (the new level) and ``LL`` (a 0/1 legend level-up flag) only
-        drive the client's level-up dialog.
+        ``L`` and ``LL`` only drive the client's level-up dialog; see :class:`LevelUpResponse`.
 
-        Client: ``GLUCommand.executeCommand``.
+        Client: ``GLUCommand.executeCommand`` (bundle line 129619)
         """
-        if isinstance(data, dict):
+        if read_section(LevelUpResponse, data, "a level-up") is not None:
             self._handle_gbd({key: data[key] for key in ("gcu", "gxp") if key in data})
 
     def _handle_mir(self, data: Any) -> None:

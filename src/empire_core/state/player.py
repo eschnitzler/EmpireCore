@@ -6,17 +6,24 @@ import math
 import time
 from typing import Any
 
-from pydantic import ValidationError
-
 from empire_core.enums import Hero
 from empire_core.gamedata import Currency
-from empire_core.gamedata.lenient import known
 from empire_core.map.models.areas import KingdomProtection
 from empire_core.player.models.hero import HeroDecisionResponse
-from empire_core.protocol.js import js_int, js_truthy
+from empire_core.player.models.login import (
+    Alliance,
+    CurrencyResponse,
+    ExperienceResponse,
+    HonorResponse,
+    PlayerIdentityResponse,
+    SpecialCurrenciesResponse,
+    VipStatusResponse,
+)
+from empire_core.protocol.base import BasePayload, read_or_none
+from empire_core.protocol.js import js_truthy
 from empire_core.spy.models import MaxSpiesResponse
 from empire_core.state.base import StateBase, loaded, read_section
-from empire_core.state.models import Alliance, Player
+from empire_core.state.models import Player
 
 logger = logging.getLogger(__name__)
 
@@ -24,11 +31,6 @@ logger = logging.getLogger(__name__)
 LEVEL_CAP = 70
 LEGEND_LEVEL_CAP = 950
 _LEVEL_CAP_XP = LEVEL_CAP * LEVEL_CAP * 30
-
-
-def _section(data: dict[str, Any], key: str) -> dict[str, Any]:
-    body = data.get(key)
-    return body if isinstance(body, dict) else {}
 
 
 def xp_for_level(level: int) -> int:
@@ -64,12 +66,13 @@ def level_progress(level: int, xp: int) -> tuple[int, int, int]:
     return 0, xp_for_level(level), xp_for_level(level + 1)
 
 
-def _as_int(value: Any, previous: int) -> int:
-    """The value as an int, or ``previous`` when it is missing or unreadable."""
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return previous
+def _sent(section: BasePayload, field: str, previous: Any) -> Any:
+    """The section's field when the packet carried it, else the value held; the client would read 0."""
+    return getattr(section, field) if field in section.model_fields_set else previous
+
+
+# Player fields by the gpi field that fills them
+_IDENTITY_FIELDS = {"PID": "player_id", "PN": "name", "E": "email", "user_id": "user_id"}
 
 
 class PlayerState(StateBase):
@@ -97,33 +100,29 @@ class PlayerState(StateBase):
         ``parse_UAP``, ``CurrencyData.parseGCU``, ``CastleVIPData.parse_VIP``.
         """
         blocks = self._protection_blocks(data)
-        fresh: Player | None = None
         pid = None
         player = self.local_player
-        gpi = _section(data, "gpi")
-        if gpi:
-            pid = gpi.get("PID")
-            if pid is not None:
-                player = self.players.get(pid)
-                if player is None:
-                    player = Player(**gpi)
-                else:
-                    fresh = Player(**gpi)
+        identity = read_section(PlayerIdentityResponse, data.get("gpi"), "the gpi section")
+        if identity is not None and "player_id" in identity.model_fields_set:
+            pid = identity.player_id
+            player = self.players.get(pid)
+            if player is None:
+                player = Player(PID=pid)
         if player is None:
             return blocks
 
         merged = dict(player.__dict__)
         updated: set[str] = set()
 
-        if fresh is not None:
-            gpi_fields = fresh.model_fields_set & set(Player.model_fields)
-            for field_name in gpi_fields:
-                merged[field_name] = getattr(fresh, field_name)
-            updated |= gpi_fields
+        if identity is not None:
+            for field_name, source in _IDENTITY_FIELDS.items():
+                if source in identity.model_fields_set:
+                    merged[field_name] = getattr(identity, source)
+                    updated.add(field_name)
 
-        if gxp := _section(data, "gxp"):
-            level = _as_int(gxp.get("LVL"), merged["level"])
-            xp = _as_int(gxp.get("XP"), merged["xp"])
+        if gxp := read_section(ExperienceResponse, data.get("gxp"), "the gxp section"):
+            level = merged["level"] if gxp.level is None else gxp.level
+            xp = _sent(gxp, "xp", merged["xp"])
             legend, current, following = level_progress(level, xp)
             merged.update(
                 level=level,
@@ -134,23 +133,23 @@ class PlayerState(StateBase):
             )
             updated |= {"level", "xp", "legendary_level", "xp_for_current_level", "xp_to_next_level"}
 
-        if gcu := _section(data, "gcu"):
-            merged["coins"] = gcu.get("C1", merged["coins"])
-            merged["rubies"] = gcu.get("C2", merged["rubies"])
+        if gcu := read_section(CurrencyResponse, data.get("gcu"), "the gcu section"):
+            merged["coins"] = merged["coins"] if gcu.coins is None else gcu.coins
+            merged["rubies"] = merged["rubies"] if gcu.rubies is None else gcu.rubies
             updated |= {"coins", "rubies"}
 
-        if vip := _section(data, "vip"):
-            # parse_VIP (bundle line 47527) reads a missing key as 0; here it keeps its value,
+        if vip := read_section(VipStatusResponse, data.get("vip"), "the vip section"):
+            # parse_VIP (bundle line 47542) reads a missing key as 0; here it keeps its value,
             # so a vip without UPG never frees premium commanders already used
-            merged["vip_points"] = vip.get("VP", merged["vip_points"])
-            merged["vip_level"] = vip.get("VRL", merged["vip_level"])
-            merged["vip_time_left"] = vip.get("VRS", merged["vip_time_left"])
-            merged["used_premium_commanders"] = _as_int(vip.get("UPG"), merged["used_premium_commanders"])
+            merged["vip_points"] = _sent(vip, "vip_points", merged["vip_points"])
+            merged["vip_level"] = _sent(vip, "vip_level", merged["vip_level"])
+            merged["vip_time_left"] = _sent(vip, "vip_seconds_left", merged["vip_time_left"])
+            merged["used_premium_commanders"] = _sent(vip, "used_premium_commanders", merged["used_premium_commanders"])
             updated |= {"vip_points", "vip_level", "vip_time_left", "used_premium_commanders"}
 
-        if gho := _section(data, "gho"):
-            merged["honor"] = gho.get("H", merged["honor"])
-            merged["ranking"] = gho.get("RP", merged["ranking"])
+        if gho := read_section(HonorResponse, data.get("gho"), "the gho section"):
+            merged["honor"] = _sent(gho, "honor", merged["honor"])
+            merged["ranking"] = _sent(gho, "ranking_points", merged["ranking"])
             updated |= {"honor", "ranking"}
 
         beginner = dict(merged["beginner_protection"])
@@ -185,80 +184,67 @@ class PlayerState(StateBase):
 
     def _parse_special_currencies(self, data: dict[str, Any]) -> None:
         """Apply the login data's sce section (special currencies)."""
-        sce = data.get("sce", [])
-        if not (sce and self.local_player):
-            return
-        total = self._apply_special_currencies(sce)
-        logger.debug(f"Parsed {total} special currencies")
+        if js_truthy(data.get("sce")) and self.local_player:
+            total = self._apply_special_currencies(data["sce"])
+            logger.debug(f"Parsed {total} special currencies")
 
-    def _apply_special_currencies(self, entries: Any) -> int:
-        """Merge ``[[currency_key, amount], ...]`` entries into the special currencies.
+    def _apply_special_currencies(self, body: Any) -> int:
+        """Merge an ``sce`` body, ``[[currency_key, amount], ...]``, into the special currencies.
 
         The dict is rebuilt and swapped rather than updated in place: user
         threads read ``local_player.special_currencies`` without the lock, and
         iterating a dict the receive thread is writing raises
         "dictionary changed size during iteration".
 
-        Client: ``CurrencyData.parseSCE`` (bundle line 141182), which sets each
-        ``int(amount)`` on the generic currency with that key in the item data, so
-        an unreadable amount is 0 and ``"12.7"`` is 12. A key is its ``Currency``
-        member; the library keeps a key the generated enum lacks as its str (the
-        client ignores keys its item data lacks).
+        Client: ``CurrencyData.parseSCE`` (bundle line 141231); see
+        :class:`SpecialCurrenciesResponse` for how each pair is read.
 
         Returns:
             The number of special currencies known afterwards.
         """
         player = self.local_player
-        if player is None or not isinstance(entries, list):
+        currencies = read_or_none(
+            SpecialCurrenciesResponse.model_validate, body, warn=logger, what="the special currencies"
+        )
+        if player is None or currencies is None:
             return 0
-        updated = dict(player.special_currencies)
-        for entry in entries:
-            if isinstance(entry, list) and entry:
-                updated[known(Currency, str(entry[0]))] = js_int(entry[1] if len(entry) > 1 else None)
-        player.special_currencies = updated
-        return len(updated)
+        player.special_currencies = {**player.special_currencies, **currencies.amounts}
+        return len(player.special_currencies)
 
-    def _parse_alliance_info(self, data: dict[str, Any]) -> None:
-        """Parse alliance membership from gal sub-packet.
+    def _parse_alliance_info(self, data: dict[str, Any]) -> Alliance | None:
+        """Apply the gal section: your alliance membership; the section as read, None when it is no object.
 
         Two cases are deliberately distinguished:
 
-        * no "gal" key at all — this packet carries no alliance information,
+        * no "gal" key at all: this packet carries no alliance information,
           so existing state is left alone;
-        * "gal" present without a usable AID — the server is telling us the
-          player is in no alliance, so a stale alliance (left, kicked,
+        * "gal" present without an alliance above 0 (or null): the server is telling
+          us the player is in no alliance, so a stale alliance (left, kicked,
           disbanded) is cleared.
 
         The alliance and the player's AID land in one swap, since a push can
         change them while user threads read the player.
 
-        Client: ``CastleUserData.parse_GAL``.
+        Client: ``CastleUserData.parse_GAL`` (bundle line 9876).
         """
+        if "gal" not in data:
+            return None
+        membership = read_section(Alliance, data.get("gal"), "the gal section")
         player = self.local_player
-        if player is None or "gal" not in data:
-            return
+        if player is None:
+            return membership
 
-        gal = _section(data, "gal")
-        try:
-            aid = int(gal["AID"]) if gal.get("AID") is not None else 0
-        except (TypeError, ValueError):
-            aid = 0
-
-        alliance: Alliance | None = None
-        if aid > 0:
-            try:
-                alliance = Alliance(**gal)
-            except ValidationError as e:
-                logger.warning(f"Could not parse alliance: {e}")
-                return
+        alliance = membership if membership is not None and membership.is_member else None
+        if alliance is not None:
             logger.debug(f"Alliance: {alliance.name}")
         elif player.alliance is not None:
             logger.debug("Alliance cleared: gal section reports no alliance")
 
         merged = dict(player.__dict__)
         merged["alliance"] = alliance
-        merged["AID"] = aid if alliance is not None else None
+        merged["AID"] = alliance.alliance_id if alliance is not None else None
         self._swap_model_fields(player, merged, {"alliance", "AID"})
+        return membership
 
     def _parse_max_spies(self, data: dict[str, Any]) -> None:
         """Apply a gbd's ``gms`` section, or a ``gms`` push.
@@ -271,16 +257,15 @@ class PlayerState(StateBase):
             self.max_spies = MaxSpiesResponse.model_validate(gms if isinstance(gms, dict) else {})
 
     def _handle_sce(self, data: Any) -> None:
-        """Handle a "get special currency" push: ``[[currency_key, amount], ...]``.
+        """Handle a special currencies push: ``[[currency_key, amount], ...]``.
 
-        Client: ``SCECommand.exec`` / ``CurrencyData.parseSCE``.
+        Client: ``SCECommand.exec`` (bundle line 129774), ``CurrencyData.parseSCE`` (bundle line 141231),
+        which does nothing for a falsy body
         """
-        entries = data if isinstance(data, list) else []
-
-        if entries and self.local_player:
-            self._apply_special_currencies(entries)
+        if js_truthy(data) and self.local_player:
+            total = self._apply_special_currencies(data)
             self._player_updated_at = time.time()
-            logger.debug(f"Updated {len(entries)} special currencies from sce")
+            logger.debug(f"Special currencies known after the sce: {total}")
 
     def _handle_hdc(self, data: Any) -> None:
         """Keep which hero you picked, or that you have yet to pick one.

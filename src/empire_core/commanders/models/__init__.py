@@ -55,7 +55,9 @@ from .generals import (
     UpgradeGeneralStarsRequest,
 )
 from .inventory import (
+    GemChange,
     GemInventoryResponse,
+    GemsChangedResponse,
     GemStack,
     GetGemsRequest,
     GetInventorySpaceRequest,
@@ -183,7 +185,9 @@ __all__ = [
     "ResetSkillsRequest",
     "ObjectUpdateEvent",
     "NewRelicsResponse",
+    "GemChange",
     "GemInventoryResponse",
+    "GemsChangedResponse",
     "GemStack",
     "InventorySpace",
 ]

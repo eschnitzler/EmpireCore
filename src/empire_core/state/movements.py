@@ -402,7 +402,10 @@ class MovementState(StateBase):
 
         alliance = self.local_player.alliance if self.local_player else None
         self._announcer.stored(
-            existing, mov, arrived=mid in self._arrival_dispatched, alliance_id=alliance.id if alliance else None
+            existing,
+            mov,
+            arrived=mid in self._arrival_dispatched,
+            alliance_id=alliance.alliance_id if alliance else None,
         )
         self.movements[mid] = mov
         self._schedule_movement(mid, mov)

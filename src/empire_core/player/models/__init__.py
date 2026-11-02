@@ -68,6 +68,16 @@ from .info import (
     SearchPlayerRequest,
     SearchPlayerResponse,
 )
+from .login import (
+    Alliance,
+    CurrencyResponse,
+    ExperienceResponse,
+    HonorResponse,
+    LevelUpResponse,
+    PlayerIdentityResponse,
+    SpecialCurrenciesResponse,
+    VipStatusResponse,
+)
 from .officers_school import (
     ActivateTrainingProgramRequest,
     ActivateTrainingProgramResponse,
@@ -165,6 +175,14 @@ __all__ = [
     "FACTION_PROTECTION_RUBIES",
     "GetProtectionRequest",
     "ProtectionResponse",
+    "Alliance",
+    "CurrencyResponse",
+    "ExperienceResponse",
+    "HonorResponse",
+    "LevelUpResponse",
+    "PlayerIdentityResponse",
+    "SpecialCurrenciesResponse",
+    "VipStatusResponse",
     "StartFactionProtectionRequest",
     "StartFactionProtectionResponse",
     "StartPeaceModeRequest",

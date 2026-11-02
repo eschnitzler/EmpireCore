@@ -171,7 +171,7 @@ class TestAllianceMembership:
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gal": gal})
         alliance = state.get_local_player().alliance
         assert alliance is not None
-        assert (alliance.id, alliance.name, alliance.rank, alliance.current_fame) == (301, "Iron Pact", 1, 22)
+        assert (alliance.alliance_id, alliance.name, alliance.rank, alliance.current_fame) == (301, "Iron Pact", 1, 22)
         assert alliance.is_searching is False
 
     def test_name_under_an_as_the_client_reads_it(self, state):
@@ -333,6 +333,16 @@ class TestPlayerPushes:
         state.update_from_packet("gpi", {**LIVE_GPI, "PN": "renamed"})
         assert state.get_local_player().PN == "renamed"
 
+    def test_the_gpi_fills_the_identity_as_the_client_reads_it(self, state):
+        # parse_GPI: UID, PID, PN and E, "-1" being no email
+        state.update_from_packet("gbd", LIVE_LOGIN)
+        player = state.get_local_player()
+        assert (player.user_id, player.PID, player.PN, player.E) == (230862, 7, "me", "")
+
+        state.update_from_packet("gpi", {"PID": 7, "E": "me@example.com"})
+        player = state.get_local_player()
+        assert (player.user_id, player.PN, player.E) == (230862, "me", "me@example.com")
+
     def test_vip_push(self, state):
         state.update_from_packet("gbd", LIVE_LOGIN)
         state.update_from_packet("vip", {"VP": 50, "VRL": 4, "VRS": 3600, "UPG": 2})
@@ -428,14 +438,14 @@ class TestPushRobustness:
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gal": {"AID": 5, "N": "Clan"}})
         state.update_from_packet("gal", {"raw": ""})
         alliance = state.get_local_player().alliance
-        assert alliance is not None and alliance.id == 5
+        assert alliance is not None and alliance.alliance_id == 5
 
-    def test_an_invalid_alliance_is_logged_and_the_old_one_kept(self, state, caplog):
+    def test_an_unreadable_rank_reads_as_zero_like_the_client(self, state):
+        # parse_GAL: int(e.R)
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gal": {"AID": 5, "N": "Clan"}})
         state.update_from_packet("gal", {"AID": 6, "R": "not a rank"})
         alliance = state.get_local_player().alliance
-        assert alliance is not None and alliance.id == 5
-        assert "Could not parse alliance" in caplog.text
+        assert alliance is not None and (alliance.alliance_id, alliance.rank) == (6, 0)
 
     def test_leave_alliance_push_still_clears_it(self, state):
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gal": {"AID": 5, "N": "Clan"}})

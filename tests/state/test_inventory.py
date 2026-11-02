@@ -6,7 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from empire_core.castle import KingdomInfoResponse, MercenaryMissionsResponse, ResourcePoolResponse, TaxStatus
-from empire_core.commanders import GemInventoryResponse
+from empire_core.commanders import GemInventoryResponse, GemsChangedResponse
 from empire_core.enums import CollectableKind, Kingdom
 from empire_core.gamedata import Currency, Gem, LootBox, LootBoxType, Tool, Unit
 from tests.state.test_castle_pushes import jaa_payload
@@ -110,7 +110,8 @@ class TestGems:
         assert len(gems.relic_gems) == 1, "a gec keeps the relic gems"
 
     def test_a_gec_cannot_take_more_than_held(self):
-        gems = GemInventoryResponse.model_validate({"GEM": [[101, 1]]}).changed([[101, -5]])
+        change = GemsChangedResponse.model_validate({"GEM": [[101, -5]]})
+        gems = GemInventoryResponse.model_validate({"GEM": [[101, 1]]}).changed(change)
         assert gems.gems == ()
 
     def test_a_refused_gec_is_not_applied(self, state):
