@@ -11,7 +11,7 @@ import time
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Literal, NoReturn, TypeVar
 
-from pydantic import AfterValidator, ConfigDict, Field, SerializeAsAny, ValidationError
+from pydantic import AfterValidator, ConfigDict, Field, SerializeAsAny, ValidationError, field_validator
 
 from empire_core.enums import BerimondFaction, NPCOwner, RankingType
 from empire_core.enums.events import WorldCupVote
@@ -2001,6 +2001,140 @@ class ShuttingDownEvents(BaseResponse):
     event_ids: tuple[EnumOrInt[Event], ...] = Field(
         default=(), validation_alias="SD", description="The events shutting down"
     )
+
+
+class EventEntry(EmpireModel):
+    """
+    One entry of a ``sei`` or ``tei``: the event it names, and the entry as sent for that event's class to read.
+
+    Client: ``CastleSpecialEventData.parse_SEI`` (bundle line 139849) reads ``int(a.EID)``, ``parseTEI``
+    (bundle line 139954) ``int(a.TRID)``, and ``parseServerEventData`` (bundle line 139860) hands the entry
+    whole to the event's ``parseData``
+    """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    event_id: EnumOrInt[Event] = Field(description="The event; 0 or less names none")
+    entry: dict[str, Any] = Field(description="The entry as sent, read by the event's own class")
+
+    @field_validator("event_id", mode="before")
+    @classmethod
+    def _int(cls, value: Any) -> int:
+        return js_int(value)
+
+
+def _entries(rows: Any, key: str) -> tuple[dict[str, Any], ...]:
+    # parseServerEventData gives a non-object entry no id, so the client drops it as an unknown event
+    if not isinstance(rows, list):
+        return ()
+    return tuple({"event_id": row.get(key), "entry": row} for row in rows if isinstance(row, dict))
+
+
+class SpecialEventsResponse(BaseResponse):
+    """
+    The running events, each entry read over the event it names or adding it.
+
+    Command: sei, as a login section of ``gbd``, a push, a reply, and inside the ``fjf`` reply.
+
+    Client: ``SEICommand.executeCommand`` (bundle line 128417), ``CastleSpecialEventData.parse_SEI``
+    (bundle line 139849): ``e ? e.E : null``, each entry by ``int(a.EID)``
+    """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    command: ClassVar[str] = "sei"
+
+    error_code: int = Field(default=0, exclude=True, description="Always 0; the E of a sei is the entries")
+    entries: tuple[EventEntry, ...] = Field(
+        validation_alias="E", default=(), description="The events' entries, in the order sent"
+    )
+
+    @field_validator("entries", mode="before")
+    @classmethod
+    def _rows(cls, value: Any) -> Any:
+        return _entries(value, "EID")
+
+
+class TriggerEventsResponse(BaseResponse):
+    """
+    The running trigger events (the kingdoms league and the global effect events), keyed by ``TRID``.
+
+    They share the special events' id space and tables. An empty list leaves every event as it is.
+
+    Command: tei, as a login section of ``gbd`` and a push.
+
+    Client: ``TEICommand.executeCommand`` (bundle line 128447), ``CastleSpecialEventData.parseTEI``
+    (bundle line 139954), which does nothing for an empty ``TE`` and reads each entry by ``int(a.TRID)``
+    """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    command: ClassVar[str] = "tei"
+
+    entries: tuple[EventEntry, ...] = Field(
+        validation_alias="TE", default=(), description="The trigger events' entries, in the order sent"
+    )
+
+    @field_validator("entries", mode="before")
+    @classmethod
+    def _rows(cls, value: Any) -> Any:
+        return _entries(value, "TRID")
+
+
+class EventEndedResponse(BaseResponse):
+    """
+    An event has ended: the client destroys it, so one sent again starts over.
+
+    Command: see, a push.
+
+    Client: ``SEECommand.executeCommand`` (bundle line 128402), ``CastleSpecialEventData.parse_SEE``
+    (bundle line 139875), which looks ``EID`` up as sent, without ``int()``, so only a number finds
+    the event; ``removeEventById`` (bundle line 139887)
+    """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    command: ClassVar[str] = "see"
+
+    event_id: EnumOrInt[Event] | None = Field(
+        validation_alias="EID",
+        default=None,
+        description="The event that ended; None when the server sent no whole number, which names no event",
+    )
+
+    @field_validator("event_id", mode="before")
+    @classmethod
+    def _as_sent(cls, value: Any) -> Any:
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            return None
+        return int(value) if value == int(value) else None
+
+
+class TriggerEventEndedResponse(BaseResponse):
+    """
+    A trigger event has ended.
+
+    Command: tee, a push.
+
+    Client: ``TEECommand.executeCommand`` (bundle line 128432), ``CastleSpecialEventData.parseTEE``
+    (bundle line 139964): ``int(e && e.TRID ? e.TRID : -1)``, removed when 0 or above
+    """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    command: ClassVar[str] = "tee"
+
+    event_id: EnumOrInt[Event] | None = Field(
+        validation_alias="TRID",
+        default=None,
+        description="The trigger event that ended; None for a falsy or negative TRID, which names none",
+    )
+
+    @field_validator("event_id", mode="before")
+    @classmethod
+    def _truthy_id(cls, value: Any) -> Any:
+        event_id = js_int(value if js_truthy(value) else -1)
+        return event_id if event_id >= 0 else None
 
 
 class SeasonEventResponse(BaseResponse):
