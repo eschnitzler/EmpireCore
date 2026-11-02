@@ -8,6 +8,7 @@ from typing import Any
 
 from empire_core.castle.models.castles import NameCastleInvitationResponse
 from empire_core.enums import Kingdom
+from empire_core.events.models import FactionJoinedResponse
 from empire_core.movements.models import MovementOwner
 from empire_core.player.models.login import LevelUpResponse
 from empire_core.protocol.base import readable_list
@@ -707,14 +708,18 @@ class GameState(
                 self._handle_mrm({"MID": movement_id})
 
     def _handle_fjf(self, data: Any) -> None:
-        """Apply a faction join reply's events (``sei``), then the castle list in its ``mir``.
+        """Apply a faction join reply's kingdoms (``kpi``), events (``sei``) and castle lists (``mir``), in that order.
 
-        Client: ``FJFCommand.executeCommand`` (bundle line 127783):
-        ``parse_SEI(i.sei),i.mir&&parse_MIR(i.mir)``.
+        Client: ``FJFCommand.executeCommand`` (bundle line 127820); see :class:`FactionJoinedResponse`
         """
-        if isinstance(data, dict):
-            self._apply_sei(data)
-            self._handle_mir(data.get("mir"))
+        joined = read_section(FactionJoinedResponse, data, "a faction join")
+        if joined is None:
+            return
+        if joined.kingdoms is not None:
+            self._handle_gbd({"kpi": data["kpi"]})
+        self._apply_sei(data)
+        if joined.castle_lists is not None:
+            self._handle_mir(data["mir"])
 
     def _handle_ssi(self, data: Any) -> None:
         """Apply the protection (``uap``) inside a spy screen's map read.

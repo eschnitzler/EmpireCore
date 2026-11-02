@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Literal, NoReturn, T
 
 from pydantic import AfterValidator, ConfigDict, Field, SerializeAsAny, ValidationError, field_validator
 
+from empire_core.castle.models.castles import NameCastleInvitationResponse
+from empire_core.castle.models.kingdoms import KingdomInfoResponse
 from empire_core.enums import BerimondFaction, NPCOwner, RankingType
 from empire_core.enums.events import WorldCupVote
 from empire_core.events.berimond_models import BerimondKingdomStatus, FactionStanding
@@ -45,7 +47,7 @@ from empire_core.gamedata import (
 )
 from empire_core.gamedata.ids.events import Event
 from empire_core.map.models.areas import KingdomProtection, MapObject
-from empire_core.protocol.base import BaseRequest, BaseResponse, EmpireModel, GGECommand
+from empire_core.protocol.base import BaseRequest, BaseResponse, EmpireModel, GGECommand, object_or_none
 from empire_core.protocol.js import (
     ClientInt,
     js_int,
@@ -2131,6 +2133,42 @@ class TriggerEventEndedResponse(BaseResponse):
     def _truthy_id(cls, value: Any) -> Any:
         event_id = js_int(value if js_truthy(value) else -1)
         return event_id if event_id >= 0 else None
+
+
+class FactionJoinedResponse(BaseResponse):
+    """
+    The reply to joining a Berimond faction: your kingdoms, the events and the castle lists, then which faction.
+
+    Command: fjf, the reply to a faction join.
+
+    Client: ``FJFCommand.executeCommand`` (bundle line 127820) hands ``kpi`` to ``CastleKingdomData.parse_KPI``,
+    ``sei`` to ``CastleSpecialEventData.parse_SEI`` and a truthy ``mir`` to ``CastleUserData.parse_MIR``, in
+    that order, then picks the choose-faction dialog by ``FID == FactionConst.BLUE_FACTION``
+    """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    command: ClassVar[str] = "fjf"
+
+    kingdoms: KingdomInfoResponse | None = Field(
+        validation_alias="kpi", default=None, description="Your kingdoms' unlocks and transfers; None when no object"
+    )
+    events: SpecialEventsResponse | None = Field(
+        validation_alias="sei", default=None, description="The running events; None when no object"
+    )
+    castle_lists: NameCastleInvitationResponse | None = Field(
+        validation_alias="mir",
+        default=None,
+        description="Your castle lists after the join; None when falsy or no object",
+    )
+    faction: EnumOrInt[BerimondFaction] = Field(
+        validation_alias="FID", default=BerimondFaction.URSIDAE, description="The faction joined"
+    )
+
+    @field_validator("kingdoms", "events", "castle_lists", mode="before")
+    @classmethod
+    def _block(cls, value: Any) -> Any:
+        return object_or_none(value)
 
 
 class SeasonEventResponse(BaseResponse):
