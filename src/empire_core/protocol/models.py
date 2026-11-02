@@ -1198,6 +1198,7 @@ from empire_core.spy.models import (
     SpyScreenInfoResponse,
     SpyTargetArea,
 )
+from empire_core.state.login_data import LoginDataResponse
 
 __all__ = [
     "UnlockSymbolRequest",
@@ -1512,6 +1513,7 @@ __all__ = [
     # Auth
     "LoginRequest",
     "LoginResponse",
+    "LoginDataResponse",
     "LoginTokenResponse",
     "GetSpecialServerTokenRequest",
     "SpecialServerTokenResponse",
