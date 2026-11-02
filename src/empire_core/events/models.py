@@ -56,6 +56,7 @@ from empire_core.protocol.js import (
     js_same_number,
     js_string,
     js_truthy,
+    js_whole_number,
 )
 from empire_core.quests.models import Quest
 from empire_core.ranking.models import (
@@ -2105,9 +2106,7 @@ class EventEndedResponse(BaseResponse):
     @field_validator("event_id", mode="before")
     @classmethod
     def _as_sent(cls, value: Any) -> Any:
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
-            return None
-        return int(value) if value == int(value) else None
+        return js_whole_number(value)
 
 
 class TriggerEventEndedResponse(BaseResponse):

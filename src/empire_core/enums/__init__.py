@@ -86,7 +86,7 @@ from .map import (
     TreasureMapType,
 )
 from .messages import BattleLogAttackType, LogResult, MessageType
-from .movements import MovementType
+from .movements import MovementFilter, MovementType
 from .player import (
     CoatOfArmsBackground,
     Hero,
@@ -172,6 +172,7 @@ __all__ = [
     "TreasureMapProgress",
     "TreasureMapType",
     # Movement
+    "MovementFilter",
     "MovementType",
     # Attack / combat
     "AttackType",

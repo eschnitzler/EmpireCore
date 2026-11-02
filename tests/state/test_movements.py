@@ -912,7 +912,8 @@ class TestMovementPushes:
         fired: list[Movement] = []
         state.on_incoming_attack(fired.append)
         payload = push_payload(210, oid=555)
-        payload["O"] = [{"OID": 555, "N": "Raider", "AN": "Raiders"}]
+        # parseOwnerInfo reads O as one owner record
+        payload["O"] = {"OID": 555, "N": "Raider", "AN": "Raiders"}
         state.update_from_packet("asr", payload)
         assert wait_for(lambda: len(fired) == 1)
         assert fired[0].source_player_name == "Raider"

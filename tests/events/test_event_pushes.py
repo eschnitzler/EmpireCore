@@ -15,7 +15,9 @@ from empire_core.protocol.models import parse_response
 class TestEventEntries:
     def test_sei_entries_keep_the_entry_whole_and_read_the_id_through_int(self):
         # parse_SEI: int(a.EID); the entry goes whole to the event's parseData
-        events = parse_response("sei", {"E": [{"EID": "83", "RS": 60}, {"EID": 60.0, "RS": 5, "KL": 1}, {"RS": 60}, None]})
+        events = parse_response(
+            "sei", {"E": [{"EID": "83", "RS": 60}, {"EID": 60.0, "RS": 5, "KL": 1}, {"RS": 60}, None]}
+        )
         assert isinstance(events, SpecialEventsResponse)
         assert [(e.event_id, e.entry) for e in events.entries] == [
             (Event(83), {"EID": "83", "RS": 60}),

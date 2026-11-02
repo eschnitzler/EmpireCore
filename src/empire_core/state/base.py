@@ -55,7 +55,7 @@ from empire_core.gamedata import CraftingQueueId
 from empire_core.map.models.treasure_maps import TreasureMap
 from empire_core.map.models.world import ServerInfoResponse
 from empire_core.messages.models import MessageInfo, MessagesSentToday
-from empire_core.movements.models import MovementOwner
+from empire_core.movements.models import MovementFilterResponse, MovementOwner
 from empire_core.movements.tracked import Movement
 from empire_core.player.models.account import (
     BoostedGlobalEffectsResponse,
@@ -203,6 +203,7 @@ class StateBase:
         # The client keeps one set of counts for every alien invasion (CastleAlienRerollData)
         self.alien_reroll_counts: AlienRerollCountsResponse | None = None
         self.shutting_down_events: ShuttingDownEvents | None = None
+        self.movement_filter: MovementFilterResponse | None = None
         self.current_server: CurrentServer | None = None
         self.special_server_castles: SpecialServerCastles | None = None
 

@@ -28,6 +28,7 @@ from empire_core.movements.models import (
     MarketInfoRequest,
     MarketInfoResponse,
     MinuteSkipKingdomTransferRequest,
+    MovementFilterResponse,
     MovementWrapper,
     SendSupportRequest,
     SendSupportResponse,
@@ -61,6 +62,11 @@ class MovementsService(BaseService):
 
     Reached as client.movements.
     """
+
+    @property
+    def map_filter(self) -> MovementFilterResponse | None:
+        """The map's movement filters, from the login data or the last ``mvf`` push; None until one arrived."""
+        return self.client.state.get_movement_filter()
 
     @property
     def tracked(self) -> list[Movement]:
