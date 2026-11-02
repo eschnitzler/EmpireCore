@@ -36,6 +36,8 @@ from empire_core.events.models import (
     CampaignQuestEvent,
     DiscountSaleEvent,
     EventAnnouncementEvent,
+    EventEndedResponse,
+    EventEntry,
     FortuneTellerEvent,
     GachaEvent,
     GiftEvent,
@@ -55,8 +57,11 @@ from empire_core.events.models import (
     ShuttingDownEvents,
     SkipForFreeEvent,
     SpecialEvent,
+    SpecialEventsResponse,
     TournamentEvent,
     TravelingKnightsEvent,
+    TriggerEventEndedResponse,
+    TriggerEventsResponse,
     WheelOfFortuneEvent,
     WorldCupEvent,
     event_class,
@@ -166,11 +171,11 @@ class EventState(StateBase):
         library adds; and an ``RS`` that is not a number gives the client an end it never
         reaches nor passes, where the library keeps the event's earlier end.
 
-        Client: ``CastleSpecialEventData.parse_SEI`` (bundle line 139800), which reads ``int(a.EID)``,
-        and ``parseServerEventData`` (bundle line 139811)
+        Client: ``CastleSpecialEventData.parse_SEI`` (bundle line 139849), which reads ``int(a.EID)``,
+        and ``parseServerEventData`` (bundle line 139860); a falsy payload still refreshes every event
         """
-        events = data.get("E") if isinstance(data, dict) else None
-        self._apply_event_entries(events if isinstance(events, list) else [], "EID")
+        events = read_section(SpecialEventsResponse, data, "a sei")
+        self._apply_event_entries(events.entries if events is not None else ())
 
     def _apply_sei(self, data: dict[str, Any]) -> None:
         """Apply the ``sei`` a reply carries, stamped as a sei."""
@@ -184,23 +189,24 @@ class EventState(StateBase):
         The trigger events (the kingdoms league and the global effect events) join the
         other running events; their ends come from their own fields, as their models say.
 
-        Client: ``TEICommand`` (bundle line 128410) and ``CastleSpecialEventData.parseTEI``
-        (bundle line 139905), which reads ``int(a.TRID)`` and does nothing for an empty ``TE``;
+        Client: ``TEICommand`` (bundle line 128447) and ``CastleSpecialEventData.parseTEI``
+        (bundle line 139954), which reads ``int(a.TRID)`` and does nothing for an empty ``TE``;
         ``ATriggerEventVO.parseBasicsFromParamObject`` (bundle line 39815)
         """
-        entries = data.get("TE") if isinstance(data, dict) else None
-        if isinstance(entries, list) and entries:
-            self._apply_event_entries(entries, "TRID")
+        events = read_section(TriggerEventsResponse, data, "a tei")
+        if events is not None and events.entries:
+            self._apply_event_entries(events.entries)
         else:
             self._events_updated_at = time.time()
 
-    def _apply_event_entries(self, entries: list[Any], key: str) -> None:
+    def _apply_event_entries(self, entries: Iterable[EventEntry]) -> None:
         now = _clock()
         events = dict(self.events)
         added: list[SpecialEvent] = []
-        for entry in entries:
-            if not isinstance(entry, dict) or (eid := js_int(entry.get(key))) <= 0:
+        for item in entries:
+            if (eid := int(item.event_id)) <= 0:
                 continue
+            entry = item.entry
             model = event_class(eid)
             if not model.accepts(entry):
                 logger.debug(f"Skipping an entry for event {eid} that the client fails to read")
@@ -224,24 +230,24 @@ class EventState(StateBase):
     def _handle_see(self, data: Any) -> None:
         """Handle a 'special event end' push: the event it names has ended.
 
-        Client: ``CastleSpecialEventData.parse_SEE`` (bundle line 139826), from ``SEECommand``
-        (bundle line 128364), looks the ``EID`` up as sent; ``removeEventById`` (bundle line
-        139838) destroys the event, so one added again starts over
+        Client: ``CastleSpecialEventData.parse_SEE`` (bundle line 139875), from ``SEECommand``
+        (bundle line 128402), looks the ``EID`` up as sent; ``removeEventById`` (bundle line
+        139887) destroys the event, so one added again starts over
         """
-        if (event := self._sent_event(data.get("EID") if isinstance(data, dict) else None)) is not None:
-            self._remove_event(event.event_id)
+        ended = read_section(EventEndedResponse, data, "a see")
+        if ended is not None and ended.event_id is not None:
+            self._remove_event(int(ended.event_id))
         self._events_updated_at = time.time()
 
     def _handle_tee(self, data: Any) -> None:
         """Handle 'trigger event end': the trigger event it names (``TRID``) has ended.
 
-        Client: ``TEECommand`` (bundle line 128395) and ``CastleSpecialEventData.parseTEE``
-        (bundle line 139915): ``int(e&&e.TRID?e.TRID:-1)``, removed when 0 or above
+        Client: ``TEECommand`` (bundle line 128432) and ``CastleSpecialEventData.parseTEE``
+        (bundle line 139964): ``int(e&&e.TRID?e.TRID:-1)``, removed when 0 or above
         """
-        trid = data.get("TRID") if isinstance(data, dict) else None
-        eid = js_int(trid if js_truthy(trid) else -1)
-        if eid >= 0:
-            self._remove_event(eid)
+        ended = read_section(TriggerEventEndedResponse, data, "a tee")
+        if ended is not None and ended.event_id is not None:
+            self._remove_event(int(ended.event_id))
         self._events_updated_at = time.time()
 
     def _handle_sde(self, data: Any) -> None:
