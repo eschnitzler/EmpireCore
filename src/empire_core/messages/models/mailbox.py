@@ -68,6 +68,8 @@ MAX_MAILBOX_ARCHIVE_SIZE = 20
 """Archived messages the mailbox holds. Client: ``MessageConst.MAX_MAILBOX_ARCHIVE_SIZE`` (dll line 19516)"""
 MAX_MAILBOX_BATTLE_AND_SPY_REPORTS = 25
 """Battle and spy reports the mailbox holds. Client: ``MAX_MAILBOX_BATTLE_AND_SPY_REPORTS`` (dll line 19516)"""
+_SPECIAL_EVENT_START = 12
+"""The ``SPECIAL_EVENT`` subtype of an event-start teaser. Client: ``MessageConst.SPECIAL_ID_SPECIAL_EVENT_START``"""
 
 # CastleMessageFactory.parseMessage (bundle line 135102) reads these types, and any it has no case for,
 # as a MessageUserVO, whose subject is the whole header
@@ -441,10 +443,8 @@ class SpecialEventStartHeader:
     """
     An event-start teaser: ``SPECIAL_EVENT`` (95), header ``12#eventId+...``.
 
-    Only subtype 12 (``SPECIAL_ID_SPECIAL_EVENT_START``) names a starting event.
-    ``event`` is None for a missing or unreadable id, with a warning; an unknown
-    event id stays an integer. Additional metadata is not interpreted. This
-    header does not establish whether the event is currently active.
+    ``event`` is None for a missing or unreadable id, with a warning; an unknown event id
+    stays an integer. An old teaser does not say the event is still running.
 
     Client: ``MessageSpecialEventVO.parseMessageHeader``, ``eventStartSubject``
     and ``dialogInfoSpecialEventStart``: parseInt of the first subtype component
@@ -459,8 +459,7 @@ class SpecialEventStartHeader:
         if message.message_type != MessageType.SPECIAL_EVENT:
             return None
         parts = message.decoded_header.split("#")
-        # MessageConst.SPECIAL_ID_SPECIAL_EVENT_START = 12.
-        if js_parse_int(parts[0].split("+")[0]) != 12:
+        if js_parse_int(parts[0].split("+")[0]) != _SPECIAL_EVENT_START:
             return None
         event_id = js_parse_int(parts[1].split("+")[0]) if len(parts) > 1 else None
         if event_id is None:
