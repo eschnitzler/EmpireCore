@@ -560,8 +560,7 @@ class GameState(
                     elif section not in self._handle_gbd({section: payload}):
                         self._packet_times[cmd_id] = time.time()
             elif cmd_id == "qli":
-                # Readiness must mean an applied list, not a malformed frame. The
-                # special-server introduction waits for this post-login push.
+                # Only an applied list counts as loaded.
                 if self._handle_qli(payload):
                     self._packet_times[cmd_id] = time.time()
             elif handler_name:

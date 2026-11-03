@@ -521,12 +521,9 @@ class EmpireClient:
         Leave this server for the Outer Realms or Beyond the Horizon, as the client
         does, and return a new client logged in there.
 
-        First it acknowledges the source session's event introduction and unread teaser: for Outer
-        Realms, it waits up to ``timeout`` for the quest list pushed after login (``qli``), then sends
-        ``qsc`` only for an active starter 3490, never the join objective 3491. For either event it
-        marks the first matching SPECIAL_EVENT start teaser read (``mmr``) if unread. Neither write
-        has a reply to wait for. A successful starter write is not repeated on a token retry unless
-        a quest push replaces the starter or a new session starts; no quest is removed locally.
+        First it clears what the client shows before the event dialog: the event's active starter
+        quest (``qsc``; Outer Realms only, after waiting up to ``timeout`` for the quest list) and its
+        first event-start mail, marked read (``mmr``) if unread.
 
         It then asks for a login token (``glt``, with its own ``timeout``), and closes this client, as the
         client logs out before it switches servers, and logs a new client in on the server the token
@@ -541,16 +538,13 @@ class EmpireClient:
         To come back, close the returned client and call :meth:`login` on this one, as the client's logout
         on a special server reconnects to the server it came from.
 
-        Concurrent transfers are serialized. Do not call :meth:`login` or :meth:`close` yourself on
-        this client during a transfer, or manipulate its connection; automatic ``keep_session``
-        re-logins are guarded so a transfer cannot send its token request on, or close, their new session.
+        Transfers run one at a time. Do not call :meth:`login` or :meth:`close` on this client during one.
 
         Raises:
             ValueError: ``server_type`` is the normal server
-            CommandError: The server refused the quest-list push or token; this client stays logged in
-            EmpireTimeoutError: The source quest list did not arrive; no acknowledgments or token are sent
-            ConnectionClosedError / NetworkError: The source session ended or an acknowledgment failed;
-                no transfer follows. A successfully sent acknowledgment is not rolled back
+            CommandError: The server refused the quest list or the token; this client stays logged in
+            EmpireTimeoutError: The quest list did not arrive; nothing was sent
+            ConnectionClosedError / NetworkError: This session ended, or a write failed, before the transfer
             SpecialServerUnavailableError: The special server is closed
             LoginError / EmpireTimeoutError / NetworkError: The login on the special server failed, as for
                 :meth:`login`; this client is closed by then
@@ -563,8 +557,6 @@ class EmpireClient:
         """
         if server_type is ServerType.NORMAL:
             raise ValueError("connect_to_special_server takes a Outer Realms or Beyond the Horizon server")
-        # Serialize preparation as well as glt: concurrent transfers must not repeat
-        # fire-and-forget writes or leave on another call's source session.
         with self.connection.command_lock("glt", timeout=timeout):
             return self._connect_to_special_server(server_type, timeout)
 

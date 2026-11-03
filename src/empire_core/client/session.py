@@ -204,12 +204,7 @@ class Session:
         self._end()
 
     def reserve_transfer(self, generation: int) -> None:
-        """Reserve the prepared source session's shutdown against automatic re-login.
-
-        Called immediately before close(). Neither lock is held while close joins
-        receive/re-login threads: their epilogues need those locks themselves.
-        Concurrent explicit login/close is not supported during a transfer.
-        """
+        """Stop an automatic re-login from replacing the source session a transfer is about to close."""
         client = self._client
 
         def reserve() -> None:
