@@ -220,6 +220,10 @@ class MessageInfo(BasePayload):
         """This message's event announcement header, or None when it is no event announcement."""
         return EventAnnouncementHeader.from_message(self)
 
+    def special_event_start_header(self) -> SpecialEventStartHeader | None:
+        """This message's event-start teaser, or None for other message types or subtypes."""
+        return SpecialEventStartHeader.from_message(self)
+
 
 @dataclass(frozen=True)
 class SpyLogHeader:
@@ -430,6 +434,38 @@ class EventAnnouncementHeader:
         if self.end_timestamp is None:
             return False
         return (time.time() if now is None else now) > self.end_timestamp
+
+
+@dataclass(frozen=True)
+class SpecialEventStartHeader:
+    """
+    An event-start teaser: ``SPECIAL_EVENT`` (95), header ``12#eventId+...``.
+
+    Only subtype 12 (``SPECIAL_ID_SPECIAL_EVENT_START``) names a starting event.
+    ``event`` is None for a missing or unreadable id, with a warning; an unknown
+    event id stays an integer. Additional metadata is not interpreted. This
+    header does not establish whether the event is currently active.
+
+    Client: ``MessageSpecialEventVO.parseMessageHeader``, ``eventStartSubject``
+    and ``dialogInfoSpecialEventStart``: parseInt of the first subtype component
+    and the first information component, from the decoded header.
+    """
+
+    event: Event | int | None
+
+    @classmethod
+    def from_message(cls, message: MessageInfo) -> SpecialEventStartHeader | None:
+        """Read a start teaser; other message types and subtypes return None."""
+        if message.message_type != MessageType.SPECIAL_EVENT:
+            return None
+        parts = message.decoded_header.split("#")
+        # MessageConst.SPECIAL_ID_SPECIAL_EVENT_START = 12.
+        if js_parse_int(parts[0].split("+")[0]) != 12:
+            return None
+        event_id = js_parse_int(parts[1].split("+")[0]) if len(parts) > 1 else None
+        if event_id is None:
+            logger.warning("Special event start message %s has no readable event id", message.message_id)
+        return cls(event=None if event_id is None else known(Event, event_id, warn=False))
 
 
 class SystemNotificationEvent(BaseResponse):
@@ -1166,6 +1202,7 @@ __all__ = [
     "BattleLogHeader",
     "PatchNoteHeader",
     "EventAnnouncementHeader",
+    "SpecialEventStartHeader",
     "SpyReportArea",
     "SpyReportResponse",
     "ServerMessage",
