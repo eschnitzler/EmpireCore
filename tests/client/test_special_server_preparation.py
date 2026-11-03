@@ -1,4 +1,4 @@
-"""Offline source-session introduction regression tests for issue #596."""
+"""The source session clears the event's starter quest and teaser mail before a special-server transfer."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ from empire_core.network.connection import Connection
 from tests.client.test_login_sequence import xt_packet
 from tests.client.test_special_server import TOKEN_REPLY
 
-ISSUE_ROW = [5023387889, 95, "12#106", "", -1, 6771, 0, 0, 0]
+TEASER_ROW = [10, 95, "12#106", "", -1, 0, 0, 0, 0]
 
 
 @pytest.fixture
@@ -73,7 +73,7 @@ def push(client, command, payload, error_code=0):
 
 def seed(client, quests=None, rows=None):
     push(client, "qli", {"QL": [{"QID": 3490}] if quests is None else quests})
-    push(client, "sne", {"MSG": [ISSUE_ROW.copy()] if rows is None else rows})
+    push(client, "sne", {"MSG": [TEASER_ROW.copy()] if rows is None else rows})
 
 
 def commands(calls):
@@ -91,13 +91,13 @@ def refuse_token(client, monkeypatch):
     monkeypatch.setattr(client.connection, "request", refuse)
 
 
-def test_exact_issue_row_precedes_token_close_and_login(source):
+def test_starter_and_teaser_precede_token_close_and_login(source):
     client, calls = source
     seed(client)
     transfer(client)
     assert calls == [
         ("qsc", {"QID": 3490}),
-        ("mmr", {"MID": 5023387889}),
+        ("mmr", {"MID": 10}),
         ("glt", {"GST": 2}),
         ("close", None),
         ("login", None),
@@ -156,7 +156,7 @@ def test_first_matching_archived_teaser_wins_over_later_unread(source, read):
 def test_horizon_needs_no_qli_and_never_invents_a_starter(source):
     client, calls = source
     push(client, "qst", {"QIDS": [3490, 3491]})
-    push(client, "sne", {"MSG": [ISSUE_ROW, [2, 95, "12#113"]]})
+    push(client, "sne", {"MSG": [TEASER_ROW, [2, 95, "12#113"]]})
     transfer(client, ServerType.HORIZON)
     assert calls[:2] == [("mmr", {"MID": 2}), ("glt", {"GST": 3})]
     assert commands(calls) == ["mmr", "glt", "close", "login"]

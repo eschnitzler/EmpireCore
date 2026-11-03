@@ -233,35 +233,19 @@ special.close()
 client.login()
 ```
 
-Before asking for the transfer token, the main session acknowledges the
-introduction and event-start mail that the game client opens on the way in:
+Before asking for the transfer token, the main session clears what the game
+client shows before the event dialog, as a player clicking the event icon would:
 
-- Outer Realms waits up to `timeout` for the `qli` quest list pushed after
-  login. An empty list is ready; a list that has not arrived is not. It sends
-  `qsc` only for the active, unfinished starter **3490**, never the join
-  objective **3491**. It does not remove the quest locally.
-- Either event marks its first matching `SPECIAL_EVENT` (95), subtype 12
-  teaser read with `mmr` if unread. Other messages are unchanged. This is
-  distinct from `EVENT_ANNOUNCEMENT` (123) mail.
-- Beyond the Horizon has no verified starter quest in items 788.03, so only
-  its event 113 teaser is acknowledged; no quest id or CDN download is needed.
+- the event's active starter quest, finished with `qsc`. Only the Outer Realms
+  has one (3490), so for it the call first waits up to `timeout` for the quest
+  list pushed after login.
+- the event's first event-start mail, marked read with `mmr` if unread.
 
-The token request has its own `timeout`. A missing quest list times out
-without sending acknowledgments or requesting the token. A source disconnect
-or failed acknowledgment also stops the transfer. A refused token leaves the
-main session open, with any successful acknowledgments kept. A token retry
-does not repeat a starter write unless a quest push replaces the starter or
-a new session starts. The writes have no replies to wait for, so sending one
-does not establish that the server applied it. If login on the event server
-fails, the main client has already been closed; log it in again to return.
-
-Concurrent transfers are serialized, and automatic `keep_session` reconnects
-are guarded. Do not call `login()` or `close()` yourself on the source client,
-or change its connection, while a transfer is running.
-
-This follows the public client's onboarding path for issue #596. Offline
-tests verify the packet order and failure behavior; whether it cures the
-reported camera/world-map glitch still needs a controlled in-game check.
+Neither write has a reply. A refused token leaves the main session open with
+those writes kept, and a retry does not resend the starter. If login on the
+event server fails, the main client is already closed; log it in again to
+return. Transfers run one at a time; don't call `login()` or `close()` on the
+main client during one.
 
 ## Leagues and pages
 

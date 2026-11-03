@@ -10,7 +10,6 @@ from pydantic import ValidationError
 from empire_core.enums import ServerType
 from empire_core.exceptions import CommandError, ConnectionClosedError, EmpireTimeoutError, PacketError
 from empire_core.gamedata.ids.events import Event
-from empire_core.gamedata.ids.quests import QuestId
 from empire_core.protocol.auth import GetSpecialServerTokenRequest, SpecialServerTokenResponse
 
 if TYPE_CHECKING:
@@ -34,9 +33,8 @@ class SpecialServerPreparation:
 
     def __init__(self, client: EmpireClient) -> None:
         self.client = client
-        # Avoid repeating a successful write when glt fails before qfi arrives. A new
-        # quest object from qli/qst, or a new connection, is authoritative again.
-        self._starter_sent: tuple[int, Quest] | None = None
+        # The session and quest a starter was last sent for, so a token retry does not resend it.
+        self._starter_sent: tuple[int, Quest | None] = (-1, None)
 
     def require_source(self, generation: int) -> None:
         client = self.client
@@ -51,38 +49,28 @@ class SpecialServerPreparation:
             self._wait_for_quests(generation, timeout)
 
         def acknowledge() -> None:
-            self.require_source(generation)
-            # Items 788.03: 3490 is event 106's starter; 3491 is its join objective.
-            # No event 113 starter is defined. Do not guess one or require a CDN load.
-            if server_type is ServerType.OUTER_REALMS:
-                quest = client.state.get_quest(QuestId.STARTER_3490)
-                if (
-                    quest is not None
-                    and not (quest.completed or quest.failed or quest.locked)
-                    and quest.remaining_seconds() != 0
-                    and not (
-                        self._starter_sent is not None
-                        and self._starter_sent[0] == generation
-                        and self._starter_sent[1] is quest
-                    )
-                ):
-                    client.quests.finish_starter(quest.quest_id)
-                    self._starter_sent = generation, quest
+            from empire_core.gamedata import QuestId
 
-            # The client finds the first matching teaser, including an archived one;
-            # a read first match does not cause it to open a later unread duplicate.
+            self.require_source(generation)
+            # Event 113 has no starter quest in the game data.
+            quest = client.state.get_quest(QuestId.STARTER_3490) if server_type is ServerType.OUTER_REALMS else None
+            if (
+                quest is not None
+                and not (quest.completed or quest.failed or quest.locked)
+                and quest.remaining_seconds() != 0
+                and not (self._starter_sent[0] == generation and self._starter_sent[1] is quest)
+            ):
+                client.quests.finish_starter(quest.quest_id)
+                self._starter_sent = generation, quest
             for message in client.messages.mailbox:
                 header = message.special_event_start_header()
                 if header is not None and header.event == _EVENTS[server_type]:
                     if not message.is_read:
-                        self.require_source(generation)
                         client.messages.mark_read(message.message_id)
                     break
 
-        # Keep these immediate writes on the source socket, never a replacement login.
         if not client.connection.run_if_current(generation, acknowledge):
-            self.require_source(generation)
-        self.require_source(generation)
+            raise ConnectionClosedError("The source session ended during the special-server transfer")
         return generation
 
     def request_token(self, server_type: ServerType, generation: int, timeout: float) -> SpecialServerTokenResponse:
@@ -99,30 +87,25 @@ class SpecialServerPreparation:
             raise PacketError(f"Could not parse 'glt' response: {error}") from error
 
     def _wait_for_quests(self, generation: int, timeout: float) -> None:
-        client = self.client
-        connection = client.connection
+        connection = self.client.connection
         deadline = time.monotonic() + timeout
-        while client.state.get_last_packet_time("qli") is None:
+        while not self._quests_loaded(generation):
+            # Register, then recheck: the push can land before the waiter exists, or reach
+            # another observer's waiter instead of ours.
             waiter = connection.create_waiter("qli")
             try:
-                self.require_source(generation)
-                # Register before rechecking: qli can arrive immediately after login,
-                # between the first state read and registration, or while we wait.
-                if client.state.get_last_packet_time("qli") is not None:
+                if self._quests_loaded(generation):
                     return
-                try:
-                    packet = connection.wait_for_result("qli", waiter, timeout=max(0.0, deadline - time.monotonic()))
-                except EmpireTimeoutError:
-                    # Another observer can consume the push's one waiter slot;
-                    # state is authoritative even when our waiter did not get it.
-                    self.require_source(generation)
-                    if client.state.get_last_packet_time("qli") is not None:
-                        return
-                    raise
-                self.require_source(generation)
-                if packet.error_code:
-                    raise CommandError("qli", packet.error_code, packet.payload)
-                if client.state.get_last_packet_time("qli") is None and time.monotonic() >= deadline:
-                    raise EmpireTimeoutError("Timeout waiting for the source session's quest list ('qli')")
+                packet = connection.wait_for_result("qli", waiter, timeout=max(0.0, deadline - time.monotonic()))
+            except EmpireTimeoutError:
+                if self._quests_loaded(generation):
+                    return
+                raise
             finally:
                 connection.cancel_waiter("qli", waiter)
+            if packet.error_code:
+                raise CommandError("qli", packet.error_code, packet.payload)
+
+    def _quests_loaded(self, generation: int) -> bool:
+        self.require_source(generation)
+        return self.client.state.get_last_packet_time("qli") is not None

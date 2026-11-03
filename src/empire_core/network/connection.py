@@ -485,10 +485,7 @@ class Connection:
                 raise EmpireTimeoutError(
                     f"Timeout waiting for '{cmd_id}': an earlier '{cmd_id}' request was still running"
                 )
-            # A transfer belongs to the session it prepared, even if a reconnect
-            # happens while queueing or settling an earlier request's late reply.
-            # Leave ordinary requests unchanged; never hold this lock while waiting
-            # for a reply, since disconnect needs it to cancel that waiter.
+            # Not held for the reply wait: disconnect needs it to cancel the waiter.
             with self._lifecycle_lock if expected_generation is not None else nullcontext():
                 if expected_generation is not None and (self._generation != expected_generation or not self.connected):
                     raise ConnectionClosedError("The source session ended before the request was sent")
