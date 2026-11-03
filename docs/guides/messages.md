@@ -55,6 +55,28 @@ and every push after it. Remove it with `client.messages.on_new_messages.remove(
 Spy reports arrive as mail too; [`client.spy.get_report`](spy.md#reports)
 reads one by its message id.
 
+## Event-start teasers
+
+`message.special_event_start_header()` reads `SPECIAL_EVENT` mail (type 95)
+with subtype 12, such as `12#106` for Outer Realms. It returns a frozen
+`SpecialEventStartHeader` whose `event` is an `Event` member, an integer for an
+unknown event, or `None` with a warning when the event id is unreadable. Other
+message types and subtypes return `None`. This is separate from
+`event_announcement_header()`, which only reads type 123 announcements.
+
+```python
+from empire_core.gamedata import Event
+
+for message in client.messages.mailbox:
+    header = message.special_event_start_header()
+    if header is not None and header.event is Event.OUTER_REALMS:
+        print("Outer Realms teaser", message.message_id)
+```
+
+Reading a teaser sends no request, and an old teaser does not prove the event
+is still running. Extra `+` metadata is ignored, as only the first information
+component identifies the event.
+
 ## Battle reports
 
 Every attack on or by you leaves a battle log in the mailbox. `is_battle_log`

@@ -1,6 +1,7 @@
 """The sne and bsd models, checked against payloads in the shape the client reads."""
 
 import copy
+from dataclasses import FrozenInstanceError
 
 import pytest
 
@@ -336,3 +337,58 @@ class TestEventAnnouncementHeader:
 
     def test_no_header_without_an_announcement(self):
         assert MessageInfo.model_validate([1, MessageType.PATCH_NOTES, "0#80#1"]).event_announcement_header() is None
+
+
+class TestSpecialEventStartHeader:
+    """MessageSpecialEventVO: only SPECIAL_EVENT subtype 12 names a starting event."""
+
+    def test_issue_596_outer_realms_teaser(self):
+        message = MessageInfo.model_validate([5023387889, 95, "12#106", "", -1, 6771, 0, 0, 0])
+        header = message.special_event_start_header()
+        assert header is not None and header.event is Event.OUTER_REALMS
+        assert message.event_announcement_header() is None
+
+    @pytest.mark.parametrize("raw", ["12+ignored#106+metadata", "12#106#80", "12tail#106tail", "12#0x6a"])
+    def test_client_parse_int_and_component_boundaries(self, raw):
+        header = MessageInfo.model_validate([1, MessageType.SPECIAL_EVENT, raw]).special_event_start_header()
+        assert header is not None and header.event is Event.OUTER_REALMS
+
+    def test_unknown_event_is_preserved_without_warning(self, caplog):
+        header = MessageInfo.model_validate([1, MessageType.SPECIAL_EVENT, "12#99999"]).special_event_start_header()
+        assert header is not None and header.event == 99999
+        assert not caplog.records
+
+    @pytest.mark.parametrize("raw", ["12", "12#", "12#garbage", "12#+106", "12##106"])
+    def test_unreadable_event_is_none_with_warning(self, raw, caplog):
+        header = MessageInfo.model_validate([1, MessageType.SPECIAL_EVENT, raw]).special_event_start_header()
+        assert header is not None and header.event is None
+        assert "special event start" in caplog.text.lower()
+
+    @pytest.mark.parametrize("raw", [None, "", "#106", "garbage#106", "13#106", "14#106", "99#106"])
+    def test_other_or_missing_subtypes_are_not_start_teasers(self, raw):
+        assert MessageInfo.model_validate([1, MessageType.SPECIAL_EVENT, raw]).special_event_start_header() is None
+
+    @pytest.mark.parametrize("message_type", [MessageType.EVENT_ANNOUNCEMENT, MessageType.PATCH_NOTES, 99999])
+    def test_wrong_message_type(self, message_type):
+        assert MessageInfo.model_validate([1, message_type, "12#106"]).special_event_start_header() is None
+
+    def test_missing_header(self):
+        assert MessageInfo.model_validate([1, MessageType.SPECIAL_EVENT]).special_event_start_header() is None
+
+    def test_public_exports_and_immutable_value(self):
+        from empire_core import SpecialEventStartHeader
+        from empire_core.messages import SpecialEventStartHeader as MessageHeader
+        from empire_core.protocol.models import SpecialEventStartHeader as ProtocolHeader
+
+        assert SpecialEventStartHeader is MessageHeader is ProtocolHeader
+        header = SpecialEventStartHeader(Event.OUTER_REALMS)
+        with pytest.raises(FrozenInstanceError):
+            setattr(header, "event", Event.SAMURAI_INVASION)  # noqa: B010 - test frozen dataclass at runtime
+
+    def test_duplicate_notifications_preserve_headers(self):
+        row = [5023387889, 95, "12#106", "", -1, 6771, 0, 0, 0]
+        response = SystemNotificationEvent.model_validate({"MSG": [row, row]})
+        assert len(response.messages) == 2
+        for message in response.messages:
+            header = message.special_event_start_header()
+            assert header is not None and header.event is Event.OUTER_REALMS
