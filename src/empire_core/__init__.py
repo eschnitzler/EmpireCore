@@ -84,7 +84,7 @@ from empire_core.map.models.areas import MapObject
 from empire_core.map.models.items import MapAreaItem
 from empire_core.map.models.world import MapSize
 from empire_core.map.scanner import ScanResult
-from empire_core.messages.models import SpecialEventStartHeader, SpyReportArea, SpyReportResponse
+from empire_core.messages.models import SpyReportArea, SpyReportResponse
 from empire_core.movements.tracked import Movement, MovementResources
 from empire_core.pool import AccountPool, PoolExhaustedError
 from empire_core.protocol.packet import Packet
@@ -161,7 +161,6 @@ __all__ = [
     "MapObject",
     "SpyReportArea",
     "SpyReportResponse",
-    "SpecialEventStartHeader",
     "Commander",
     "Castellan",
     "Equipment",
