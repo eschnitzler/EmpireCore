@@ -75,6 +75,21 @@ class TestQuestList:
 
         assert state.get_quests() == {} and state.get_last_packet_time("qli") is None
 
+    @pytest.mark.parametrize("payload", [None, [], "unreadable", {"raw": "broken frame"}])
+    def test_an_unreadable_list_does_not_mark_quests_loaded(self, state, payload):
+        state.update_from_packet("qli", payload)
+
+        assert state.get_quests() == {} and state.get_last_packet_time("qli") is None
+
+    def test_an_unreadable_list_preserves_a_loaded_list_and_its_timestamp(self, state):
+        state.update_from_packet("qli", QLI)
+        loaded_at = state.get_last_packet_time("qli")
+
+        state.update_from_packet("qli", {"raw": "broken frame"})
+
+        assert list(state.get_quests()) == [1001, 1203]
+        assert state.get_last_packet_time("qli") == loaded_at
+
     def test_the_snapshot_is_a_copy(self, state):
         state.update_from_packet("qli", QLI)
 

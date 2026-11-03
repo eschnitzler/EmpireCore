@@ -218,6 +218,51 @@ kingdoms league, the alliance Grand Tournament and raid boss events, the
 tournaments and the Outer Realms and Beyond the Horizon boards are not covered
 yet; the `client.ranking` calls reach their lists directly.
 
+## Entering the Outer Realms or Beyond the Horizon
+
+After picking a castle with `client.events.select_special_server_castle(...)`,
+or when you already own one, enter on a new client:
+
+```python
+from empire_core.enums import ServerType
+
+special = client.connect_to_special_server(ServerType.OUTER_REALMS, timeout=5.0)
+# The main client is now closed; special is logged in on the event server.
+# When finished:
+special.close()
+client.login()
+```
+
+Before asking for the transfer token, the main session acknowledges the
+introduction and event-start mail that the game client opens on the way in:
+
+- Outer Realms waits up to `timeout` for the `qli` quest list pushed after
+  login. An empty list is ready; a list that has not arrived is not. It sends
+  `qsc` only for the active, unfinished starter **3490**, never the join
+  objective **3491**. It does not remove the quest locally.
+- Either event marks its first matching `SPECIAL_EVENT` (95), subtype 12
+  teaser read with `mmr` if unread. Other messages are unchanged. This is
+  distinct from `EVENT_ANNOUNCEMENT` (123) mail.
+- Beyond the Horizon has no verified starter quest in items 788.03, so only
+  its event 113 teaser is acknowledged; no quest id or CDN download is needed.
+
+The token request has its own `timeout`. A missing quest list times out
+without sending acknowledgments or requesting the token. A source disconnect
+or failed acknowledgment also stops the transfer. A refused token leaves the
+main session open, with any successful acknowledgments kept. A token retry
+does not repeat a starter write unless a quest push replaces the starter or
+a new session starts. The writes have no replies to wait for, so sending one
+does not establish that the server applied it. If login on the event server
+fails, the main client has already been closed; log it in again to return.
+
+Concurrent transfers are serialized, and automatic `keep_session` reconnects
+are guarded. Do not call `login()` or `close()` yourself on the source client,
+or change its connection, while a transfer is running.
+
+This follows the public client's onboarding path for issue #596. Offline
+tests verify the packet order and failure behavior; whether it cures the
+reported camera/world-map glitch still needs a controlled in-game check.
+
 ## Leagues and pages
 
 Your league is the one the event's model holds (for the invasions, the one of

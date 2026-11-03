@@ -426,6 +426,8 @@ class Connection:
         cmd_id: str,
         timeout: float = 5.0,
         accepts: Callable[[Packet], bool] | None = None,
+        *,
+        expected_generation: int | None = None,
     ) -> Packet:
         """
         Send data and wait for the response to ``cmd_id``.
@@ -442,6 +444,8 @@ class Connection:
             accepts: Whether a successful reply is the answer to this request;
                 replies it rejects still reach state and subscribers. Error
                 replies carry nothing to check, so they are always taken.
+            expected_generation: When set, register and send only on this still-connected
+                session. The lifecycle lock protects those steps, never the reply wait.
 
         ``EmpireClient.send`` and ``request_packet`` pass the check of a request
         model that defines ``accepts_reply`` (gaa, ssi, ain, grc, dfc, mcm, spl,
@@ -481,12 +485,19 @@ class Connection:
                 raise EmpireTimeoutError(
                     f"Timeout waiting for '{cmd_id}': an earlier '{cmd_id}' request was still running"
                 )
-            waiter = self.create_waiter(cmd_id, accepts)
-            try:
-                self.send(data)
-            except Exception:
-                self.cancel_waiter(cmd_id, waiter)
-                raise
+            # A transfer belongs to the session it prepared, even if a reconnect
+            # happens while queueing or settling an earlier request's late reply.
+            # Leave ordinary requests unchanged; never hold this lock while waiting
+            # for a reply, since disconnect needs it to cancel that waiter.
+            with self._lifecycle_lock if expected_generation is not None else nullcontext():
+                if expected_generation is not None and (self._generation != expected_generation or not self.connected):
+                    raise ConnectionClosedError("The source session ended before the request was sent")
+                waiter = self.create_waiter(cmd_id, accepts)
+                try:
+                    self.send(data)
+                except Exception:
+                    self.cancel_waiter(cmd_id, waiter)
+                    raise
             answered = waiter.event.wait(max(0.0, deadline - time.monotonic()))
             if answered or not self._owe_reply(cmd_id, waiter, timeout):
                 return self.wait_for_result(cmd_id, waiter, timeout=timeout)

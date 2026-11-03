@@ -203,6 +203,24 @@ class Session:
         self._stop_relogin()
         self._end()
 
+    def reserve_transfer(self, generation: int) -> None:
+        """Reserve the prepared source session's shutdown against automatic re-login.
+
+        Called immediately before close(). Neither lock is held while close joins
+        receive/re-login threads: their epilogues need those locks themselves.
+        Concurrent explicit login/close is not supported during a transfer.
+        """
+        client = self._client
+
+        def reserve() -> None:
+            if not client.is_logged_in or not client.connection.connected:
+                raise ConnectionClosedError("The source session ended before the special-server transfer")
+            self._closed.set()
+
+        with self._session_lock:
+            if not client.connection.run_if_current(generation, reserve):
+                raise ConnectionClosedError("A new source session superseded the special-server transfer")
+
     def remaining_login_cooldown(self) -> float:
         """See :meth:`EmpireClient.remaining_login_cooldown`."""
         cooldown = self._login_cooldown
