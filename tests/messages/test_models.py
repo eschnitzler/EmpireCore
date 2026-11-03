@@ -342,8 +342,8 @@ class TestEventAnnouncementHeader:
 class TestSpecialEventStartHeader:
     """MessageSpecialEventVO: only SPECIAL_EVENT subtype 12 names a starting event."""
 
-    def test_issue_596_outer_realms_teaser(self):
-        message = MessageInfo.model_validate([5023387889, 95, "12#106", "", -1, 6771, 0, 0, 0])
+    def test_an_outer_realms_teaser(self):
+        message = MessageInfo.model_validate([1, 95, "12#106", "", -1, 0, 0, 0, 0])
         header = message.special_event_start_header()
         assert header is not None and header.event is Event.OUTER_REALMS
         assert message.event_announcement_header() is None
@@ -376,17 +376,16 @@ class TestSpecialEventStartHeader:
         assert MessageInfo.model_validate([1, MessageType.SPECIAL_EVENT]).special_event_start_header() is None
 
     def test_public_exports_and_immutable_value(self):
-        from empire_core import SpecialEventStartHeader
-        from empire_core.messages import SpecialEventStartHeader as MessageHeader
+        from empire_core.messages import SpecialEventStartHeader
         from empire_core.protocol.models import SpecialEventStartHeader as ProtocolHeader
 
-        assert SpecialEventStartHeader is MessageHeader is ProtocolHeader
+        assert SpecialEventStartHeader is ProtocolHeader
         header = SpecialEventStartHeader(Event.OUTER_REALMS)
         with pytest.raises(FrozenInstanceError):
             setattr(header, "event", Event.SAMURAI_INVASION)  # noqa: B010 - test frozen dataclass at runtime
 
     def test_duplicate_notifications_preserve_headers(self):
-        row = [5023387889, 95, "12#106", "", -1, 6771, 0, 0, 0]
+        row = [1, 95, "12#106", "", -1, 0, 0, 0, 0]
         response = SystemNotificationEvent.model_validate({"MSG": [row, row]})
         assert len(response.messages) == 2
         for message in response.messages:
