@@ -120,15 +120,18 @@ class TestConnectToSpecialServer:
         calls: list[Any] = []
         config = EmpireConfig(username="tester", password=SecretStr("pw"), request_timeout=2.5, client_version="1.2.3")
         main = EmpireClient(config=config, keep_session=True)
+        main.is_logged_in = True
+        monkeypatch.setattr(type(main.connection), "connected", property(lambda self: True))
+        main.state.update_from_packet("qli", {"QL": []})
 
-        def request(request: Any, response_type: Any, timeout: float = 5.0) -> Any:
-            calls.append(("request", request.to_payload(), timeout))
-            return response_type.model_validate(TOKEN_REPLY)
+        def request(data: str, command: str, timeout: float = 5.0, **kwargs: Any) -> Any:
+            calls.append(("request", json.loads(data.split("%")[5]), timeout))
+            return xt_packet(command, TOKEN_REPLY)
 
         def login(client: EmpireClient, *args: Any, **kwargs: Any) -> None:
             calls.append(("login", client))
 
-        monkeypatch.setattr(main, "request", request)
+        monkeypatch.setattr(main.connection, "request", request)
         monkeypatch.setattr(main, "close", lambda: calls.append("close"))
         monkeypatch.setattr(EmpireClient, "login", login)
         return main, calls
@@ -163,7 +166,7 @@ class TestConnectToSpecialServer:
         def refuse(*args: Any, **kwargs: Any) -> Any:
             raise CommandError("glt", 145, {})
 
-        monkeypatch.setattr(client, "request", refuse)
+        monkeypatch.setattr(client.connection, "request", refuse)
 
         with pytest.raises(CommandError):
             client.connect_to_special_server(ServerType.OUTER_REALMS)

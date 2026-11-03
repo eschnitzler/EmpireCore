@@ -23,6 +23,7 @@ from empire_core.army.service import ArmyService
 from empire_core.attack.service import AttackService
 from empire_core.castle.service import CastleService
 from empire_core.client.session import Session
+from empire_core.client.special_servers import SpecialServerPreparation
 from empire_core.client.stream import Args, EventStream, callback_sources
 from empire_core.commanders.service import CommandersService, EquipmentService
 from empire_core.config import EmpireConfig, NetworkInstance, default_config, generate_session_id
@@ -37,7 +38,7 @@ from empire_core.movements.models import GetMovementsRequest
 from empire_core.movements.service import MovementsService
 from empire_core.network.connection import NON_ERROR_COMMANDS, Connection
 from empire_core.player.service import PlayerService
-from empire_core.protocol.auth import GetSpecialServerTokenRequest, LoginTokenResponse, SpecialServerTokenResponse
+from empire_core.protocol.auth import LoginTokenResponse
 from empire_core.protocol.base import read_or_none
 from empire_core.protocol.models import BaseRequest, BaseResponse, parse_response
 from empire_core.protocol.packet import Packet
@@ -166,6 +167,7 @@ class EmpireClient:
         # Log in again by itself after a drop (see the class docstring).
         self.keep_session = keep_session
         self._session = Session(self)
+        self._special_server_preparation = SpecialServerPreparation(self)
 
         # Command -> handlers mapping for efficient dispatch
         # Only commands with handlers will be parsed.
@@ -519,7 +521,14 @@ class EmpireClient:
         Leave this server for the Outer Realms or Beyond the Horizon, as the client
         does, and return a new client logged in there.
 
-        On this logged-in session it asks for a login token (``glt``), then closes this client, as the
+        First it acknowledges the source session's event introduction and unread teaser: for Outer
+        Realms, it waits up to ``timeout`` for the quest list pushed after login (``qli``), then sends
+        ``qsc`` only for an active starter 3490, never the join objective 3491. For either event it
+        marks the first matching SPECIAL_EVENT start teaser read (``mmr``) if unread. Neither write
+        has a reply to wait for. A successful starter write is not repeated on a token retry unless
+        a quest push replaces the starter or a new session starts; no quest is removed locally.
+
+        It then asks for a login token (``glt``, with its own ``timeout``), and closes this client, as the
         client logs out before it switches servers, and logs a new client in on the server the token
         names: the same handshake as :meth:`login`, in that server's zone, ending in ``tlep`` with the token
         instead of ``lli``. The new client copies this one's config apart from the server, its zone and the
@@ -532,9 +541,16 @@ class EmpireClient:
         To come back, close the returned client and call :meth:`login` on this one, as the client's logout
         on a special server reconnects to the server it came from.
 
+        Concurrent transfers are serialized. Do not call :meth:`login` or :meth:`close` yourself on
+        this client during a transfer, or manipulate its connection; automatic ``keep_session``
+        re-logins are guarded so a transfer cannot send its token request on, or close, their new session.
+
         Raises:
             ValueError: ``server_type`` is the normal server
-            CommandError: The server refused the token; this client stays logged in
+            CommandError: The server refused the quest-list push or token; this client stays logged in
+            EmpireTimeoutError: The source quest list did not arrive; no acknowledgments or token are sent
+            ConnectionClosedError / NetworkError: The source session ended or an acknowledgment failed;
+                no transfer follows. A successfully sent acknowledgment is not rolled back
             SpecialServerUnavailableError: The special server is closed
             LoginError / EmpireTimeoutError / NetworkError: The login on the special server failed, as for
                 :meth:`login`; this client is closed by then
@@ -547,9 +563,15 @@ class EmpireClient:
         """
         if server_type is ServerType.NORMAL:
             raise ValueError("connect_to_special_server takes a Outer Realms or Beyond the Horizon server")
-        token = self.request(
-            GetSpecialServerTokenRequest(server_type=server_type), SpecialServerTokenResponse, timeout=timeout
-        )
+        # Serialize preparation as well as glt: concurrent transfers must not repeat
+        # fire-and-forget writes or leave on another call's source session.
+        with self.connection.command_lock("glt", timeout=timeout):
+            return self._connect_to_special_server(server_type, timeout)
+
+    def _connect_to_special_server(self, server_type: ServerType, timeout: float) -> EmpireClient:
+        generation = self._special_server_preparation.prepare(server_type, timeout)
+        token = self._special_server_preparation.request_token(server_type, generation, timeout)
+        self._special_server_preparation.require_source(generation)
         instance = NetworkInstance(
             instance_id=token.instance_id,
             server=token.server,
@@ -566,6 +588,7 @@ class EmpireClient:
         config = EmpireConfig.for_instance(
             instance, **self.config.model_dump(exclude={"game_url", "default_zone", "password"})
         )
+        self._session.reserve_transfer(generation)
         self.close()
         special = EmpireClient(username=self.username, config=config, special_server_token=token.login_token)
         special.login()

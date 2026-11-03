@@ -59,7 +59,7 @@ class QuestState(StateBase):
     Client: ``CastleQuestDataEvent.DAILYQUEST_REFRESHED`` from ``parse_DQL`` (bundle line 134062)
     """
 
-    def _handle_qli(self, data: Any) -> None:
+    def _handle_qli(self, data: Any) -> bool:
         """Handle the quest list: ``QL`` replaces the active quests, ``ANN``, ``R`` and ``D`` the quest book.
 
         The book is kept when the list lacks one of the three. The client empties its list first, so on
@@ -70,8 +70,8 @@ class QuestState(StateBase):
         Client: ``QLICommand.exec`` (bundle line 126587), ``CastleQuestData.parseActiveQuestList``
         (bundle line 20248), which sorts the quests by id
         """
-        if not isinstance(data, dict):
-            return
+        if not isinstance(data, dict) or "raw" in data:
+            return False
         now = _clock()
         listing = read_or_none(
             lambda body: QuestListResponse.model_validate(body, context={"now": now}),
@@ -80,12 +80,13 @@ class QuestState(StateBase):
             what="the quest list",
         )
         if listing is None:
-            return
+            return False
         quests = sorted(listing.quests, key=lambda quest: quest.quest_id)
         self.quests = {quest.quest_id: quest for quest in quests}
         if listing.book is not None:
             self.quest_book = listing.book
         self._fire(self.on_quests_updated, dict(self.quests))
+        return True
 
     def _handle_qst(self, data: Any) -> None:
         """Handle a quest start: each id in ``QIDS`` not active yet is a new active quest, without progress.
