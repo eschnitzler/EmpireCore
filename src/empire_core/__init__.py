@@ -41,6 +41,7 @@ from empire_core.enums import (
     MovementType,
     NPCOwner,
     Resource,
+    SessionLocation,
     SpyOutcome,
     SpyStep,
     SpyType,
@@ -178,6 +179,7 @@ __all__ = [
     "SpyStep",
     # Enums
     "Kingdom",
+    "SessionLocation",
     "AttackType",
     "LootPriority",
     "SpyType",

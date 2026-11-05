@@ -71,7 +71,7 @@ class TestTokenLogin:
 
         client.login()
 
-        assert connection.requested == ["apiOK", "rlu", "joinOK", "vck", "tlep"]
+        assert connection.requested == ["apiOK", "rlu", "joinOK", "vck", "tlep", "jaa"]
         assert _tlep_payload(connection) == {"TLT": "token-1"}
         assert connection.waited_for == ["gbd"]
         assert connection.events.index("create_waiter:gbd") < connection.events.index("request:tlep")

@@ -461,6 +461,7 @@ class EmpireClient:
         4. ``autoJoin``, answered by ``joinOK`` with the room id
         5. ``roundTrip`` and the version check ``vck``
         6. ``lli``, with the measured connection and round-trip times
+        7. After ``gbd``, join the main castle with ``jca`` and wait for ``jaa``
 
         With :attr:`password` set it logs in by password; without one, by the
         :attr:`login_token` an earlier login got. A client of a special server
@@ -815,6 +816,8 @@ class EmpireClient:
 
         if not wait:
             self.connection.send(packet)
+            if request.get_command() == "laa":
+                self.state._area_left()
             return None
 
         command = request.get_command()

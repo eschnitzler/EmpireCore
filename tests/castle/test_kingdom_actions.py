@@ -162,7 +162,9 @@ def test_a_refused_relocation_raises():
 
 
 def test_leave_area_sends_laa_without_waiting():
-    client = make_client()
+    from empire_core.state.manager import GameState
+
+    client = make_client(state=GameState())
     client.castle.leave_area()
     assert conn(client).requested == []
     (frame,) = conn(client).sent

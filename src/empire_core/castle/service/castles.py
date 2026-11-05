@@ -39,7 +39,7 @@ from empire_core.castle.models.resources import (
 from empire_core.castle.models.tax import TaxInfo
 from empire_core.castle.models.upkeep import ConstructionItemExpiryResponse, ResourcePoolResponse
 from empire_core.castle.models.villages import GetVillageListRequest, VillageListResponse
-from empire_core.enums import JudgementOption, Kingdom, KingdomDirection, MapItemType, ResourceCartType
+from empire_core.enums import JudgementOption, Kingdom, KingdomDirection, MapItemType, ResourceCartType, SessionLocation
 from empire_core.exceptions import UnknownCastleError
 from empire_core.gamedata import HorseStats
 from empire_core.map.models.items import MapAreaItem
@@ -112,6 +112,31 @@ class CastlesMixin(ServiceMixin):
     def joined_area(self) -> JoinedArea | None:
         """The area joined, with its slum level and builder discount; ``None`` before any join."""
         return self.client.state.get_joined_area()
+
+    @property
+    def session_location(self) -> SessionLocation | None:
+        """See :meth:`GameState.get_session_location`."""
+        return self.client.state.get_session_location()
+
+    @property
+    def is_on_map(self) -> bool:
+        """See :meth:`GameState.is_on_map`."""
+        return self.client.state.is_on_map()
+
+    @property
+    def is_in_own_castle(self) -> bool:
+        """See :meth:`GameState.is_in_own_castle`."""
+        return self.client.state.is_in_own_castle()
+
+    @property
+    def is_in_spectated_castle(self) -> bool:
+        """See :meth:`GameState.is_in_spectated_castle`."""
+        return self.client.state.is_in_spectated_castle()
+
+    @property
+    def is_in_occupied_castle(self) -> bool:
+        """See :meth:`GameState.is_in_occupied_castle`."""
+        return self.client.state.is_in_occupied_castle()
 
     @property
     def mines(self) -> dict[int, MineStatus]:
