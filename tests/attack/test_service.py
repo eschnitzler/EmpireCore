@@ -734,21 +734,21 @@ class TestTargetPrecalculation:
         client = make_client(castles=OWN)
 
         client.attack.get_attack_info(
-            700, 710, 5, 6, kingdom_id=Kingdom.BERIMOND, area_type=MapItemType.FACTION_CAMP, conquer=True
+            700, 710, 5, 6, kingdom_id=Kingdom.BERIMOND, area_type=MapItemType.BERIMOND_CAMP, conquer=True
         )
 
         assert conn(client).request_payloads[0] == ("cfi", {"KID": 10, "TX": 700, "TY": 710, "SX": 5, "SY": 6})
 
     def test_a_faction_camp_conquest_reads_its_barons(self):
-        from empire_core.protocol.models import GetFactionCampConquerInfoResponse
+        from empire_core.protocol.models import GetBerimondCampConquerInfoResponse
 
         client = make_client({"cfi": xt_packet("cfi", dict(LIVE_ADI, AB=1, MB=3))}, castles=OWN)
 
         info = client.attack.get_attack_info(
-            700, 710, 5, 6, kingdom_id=Kingdom.BERIMOND, area_type=MapItemType.FACTION_CAMP, conquer=True
+            700, 710, 5, 6, kingdom_id=Kingdom.BERIMOND, area_type=MapItemType.BERIMOND_CAMP, conquer=True
         )
 
-        assert isinstance(info, GetFactionCampConquerInfoResponse)
+        assert isinstance(info, GetBerimondCampConquerInfoResponse)
         assert (info.available_barons, info.max_barons) == (1, 3)
 
     def test_an_alliance_tower_reply_reads_as_a_castles(self):

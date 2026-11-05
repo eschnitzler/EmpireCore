@@ -161,7 +161,7 @@ class CastleState(StateBase):
                     logger.debug(f"Skipping unreadable gcl area entry {area_entry!r}: {e}")
                     continue
                 if row.location_id is None or row.owner_id != self.local_player.id:
-                    # A castle is tracked by its object id; a faction capital's row has none
+                    # A castle is tracked by its object id; a Berimond capital's row has none
                     continue
                 x, y, area_id, name, kingdom = row.x, row.y, row.location_id, row.name or "", row.kingdom
                 gate_count = area_entry.get("OGC")

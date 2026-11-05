@@ -189,9 +189,9 @@ class TestTypedEvents:
         berimond = state.get_event(Event.BATTLE_FOR_BERIMOND)
         assert isinstance(berimond, BerimondEvent)
         assert (berimond.league_id, berimond.unlocked, berimond.reward_set_id) == (2, True, 4)
-        assert (berimond.faction_id, berimond.main_camp_id, berimond.faction_protection_status) == (1, 9, 2)
+        assert (berimond.faction_id, berimond.main_camp_id, berimond.berimond_protection_status) == (1, 9, 2)
         assert berimond.faction_id is BerimondFaction.GERBRANDT
-        assert (berimond.faction_protection_end, berimond.own_rank) == (1030.0, -1)
+        assert (berimond.berimond_protection_end, berimond.own_rank) == (1030.0, -1)
 
     def test_the_trigger_events(self, state, clock):
         state.update_from_packet("tei", LIVE_TEI)

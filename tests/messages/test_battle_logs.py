@@ -142,8 +142,8 @@ class TestShortLog:
         assert (npc.player_id, npc.front, npc.start_army_size, npc.lost_units) == (NPC_ID, 0, 79, -79)
         assert player.is_defender and not npc.is_defender
         assert [(good.kind, good.amount) for good in player.loot] == [(CollectableKind.COINS, 3790)]
-        assert (player.xp, player.faction_points, player.morale_boost) == (69, -1, -100)
-        assert (player.reputation_blue, player.reputation_red) == (0, 0)
+        assert (player.xp, player.gallantry_points, player.morale_boost) == (69, -1, -100)
+        assert (player.reputation_ursidae, player.reputation_gerbrandt) == (0, 0)
         assert log.attackers == [npc]
         assert log.defenders == [player]
         assert log.winners == [player]
@@ -194,8 +194,8 @@ class TestShortLog:
         payload["PBI"][1].append([4, 9])
         payload["PBI"][0].append({"0": 2, "1": 5})
         log = BattleLogShortResponse.model_validate(payload)
-        assert (log.participants[1].reputation_blue, log.participants[1].reputation_red) == (4, 9)
-        assert (log.participants[0].reputation_blue, log.participants[0].reputation_red) == (2, 5)
+        assert (log.participants[1].reputation_ursidae, log.participants[1].reputation_gerbrandt) == (4, 9)
+        assert (log.participants[0].reputation_ursidae, log.participants[0].reputation_gerbrandt) == (2, 5)
 
     def test_auto_skip_costs_split_as_the_client_splits_them(self):
         # BattleLogVO.fillFromParamObject: ASMS rows above 0 are costs, the others refunds; ASC rubies a cost

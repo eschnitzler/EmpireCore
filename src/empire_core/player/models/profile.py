@@ -88,7 +88,7 @@ class PlayerProfileBase(BasePayload):
         default=0,
         description="Seconds until the player's castle relocation ends",
     )
-    faction: OwnerFaction | None = Field(validation_alias="FN", default=None, description="Faction event standing")
+    faction: OwnerFaction | None = Field(validation_alias="FN", default=None, description="Berimond standing")
     alliance_emblem: AllianceEmblem | None = Field(
         validation_alias="aee",
         default=None,

@@ -179,7 +179,7 @@ Pass a boost to count it instead of the state's, or `()` for none:
 total = client.spy.total_spies(
     research_ids=[171, 172, 173],             # finished research, the rei section's BR
     legend_skill_ids=(),                      # no legend skills
-    island_title_id=54,                       # your Storm Islands title, -1 for none
+    storm_islands_title_id=54,                       # your Storm Islands title, -1 for none
     legend_target=True,
 )
 ```

@@ -195,7 +195,7 @@ class TestMalformedMovementBatch:
         assert (horse(1002), horse("1002"), horse(-1), horse(None)) == (Horse.WARHORSE_STABLE1,) * 2 + (None, None)
 
     def test_the_area_rows_are_map_rows_in_the_movements_kingdom(self):
-        # A faction tower's row names no kingdom; the castle's names its own
+        # A Berimond watchtower's row names no kingdom; the castle's names its own
         tower = [17, 10, 20, 900, 0, [], 30, 5]
         movement = {**GOOD_MOVEMENT, "M": {**GOOD_MOVEMENT["M"], "KID": 2, "TA": tower}}
         record = GetMovementsResponse.model_validate({"M": [movement]}).movements[0].movement

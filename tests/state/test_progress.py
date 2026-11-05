@@ -13,8 +13,8 @@ from empire_core.player import PERMANENT_BOOSTER_DURATION, BoosterInfoResponse
 from empire_core.player.models.progress import (
     AchievementsResponse,
     AllianceCityTitle,
-    IslandTitle,
     RelocationInfoResponse,
+    StormIslandsTitle,
     TitleRanksResponse,
 )
 
@@ -62,8 +62,8 @@ class TestLoginSections:
 
         assert state.get_might().might_points == 1000
         assert state.get_glory_points().glory_points == 7000
-        assert state.get_title_ranks().prefix_system is TitleSystem.FACTION
-        assert state.get_title_ranks().island_title.held_title_id == -1
+        assert state.get_title_ranks().prefix_system is TitleSystem.GALLANTRY
+        assert state.get_title_ranks().storm_islands_title.held_title_id == -1
         assert state.get_achievements().achievement_points == 300
         assert state.get_relocation().relocation_count == 3
         assert state.get_plague_doctors().total_plague_doctors == 2
@@ -73,9 +73,9 @@ class TestLoginSections:
     def test_the_login_ufp_is_ignored_and_the_push_read(self, state):
         # GBDCommand.exec never reads n.ufp; UFPCommand does
         state.update_from_packet("gbd", LOGIN)
-        assert state.get_faction_points() is None
+        assert state.get_gallantry_points() is None
         state.update_from_packet("ufp", {"CFP": "450", "HFP": 800})
-        assert state.get_faction_points().faction_points == 450
+        assert state.get_gallantry_points().gallantry_points == 450
 
     def test_reset_forgets_them(self, state):
         state.update_from_packet("gbd", LOGIN)
@@ -210,7 +210,7 @@ class TestModels:
     @pytest.mark.parametrize(("sent", "title"), [(50, Title.STORM_LORD), (0, Title.KNIGHT), (-1, None), ("50", None)])
     def test_the_island_title_is_one_above_minus_1(self, sent, title):
         # CastleTitleData.parseIslandDataFromServer: TID > -1 names a title
-        island = IslandTitle.model_validate({"TID": sent})
+        island = StormIslandsTitle.model_validate({"TID": sent})
         assert island.title_id == title
         assert island.held_title_id == (-1 if title is None else title)
 
@@ -222,8 +222,8 @@ class TestModels:
 
     def test_the_top_player_and_title_systems(self):
         ranks = TitleRanksResponse.model_validate({"FTM": {"TOID": 42}, "PFX": "ISLE", "SFX": "NEW", "BTM": {}})
-        assert (ranks.glory.top_player_id, ranks.faction.top_player_id) == (42, None)
-        assert (ranks.prefix_system, ranks.suffix_system) == (TitleSystem.ISLAND, "NEW")
+        assert (ranks.glory.top_player_id, ranks.gallantry.top_player_id) == (42, None)
+        assert (ranks.prefix_system, ranks.suffix_system) == (TitleSystem.STORM_ISLANDS, "NEW")
         assert TitleRanksResponse.model_validate({"PFX": 3}).prefix_system is None
 
     def test_premium_account(self):

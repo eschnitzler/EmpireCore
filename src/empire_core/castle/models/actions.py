@@ -73,7 +73,7 @@ class JoinAreaRequest(BaseRequest):
     else. Its callers pass either your own areas from the castle lists or,
     from a double click on the world map or the ring menu's visit button,
     an object whose ``canBeVisited`` is true: outposts, capitals and
-    metropolises, and faction camps that are not destroyed. Every other
+    metropolises, and Berimond camps that are not destroyed. Every other
     object (NPC camps, dungeons, kings towers, villages, monuments and the
     rest) says false, and the client never joins it; a live server answered
     INVALID_POSITION (6) for NPC camps and a kings tower. ``ARCCommand``

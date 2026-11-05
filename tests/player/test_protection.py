@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from empire_core.enums import FactionProtectionStatus, Kingdom, PeaceModeDuration, PeaceModeStatus
+from empire_core.enums import BerimondProtectionStatus, Kingdom, PeaceModeDuration, PeaceModeStatus
 from empire_core.events.models import BerimondEvent
 from empire_core.exceptions import CommandError
 from empire_core.gamedata.ids.events import Event
-from empire_core.player import ProtectionResponse, StartFactionProtectionResponse
+from empire_core.player import ProtectionResponse, StartBerimondProtectionResponse
 from empire_core.protocol.base import parse_response
 from empire_core.state import events as event_state
 from tests.service_helpers import conn, logged_in_state, make_client, xt_packet
@@ -37,14 +37,14 @@ class TestProtectionModels:
 
     def test_a_berimond_block_reads_as_faction_protection(self):
         reply = ProtectionResponse.model_validate({"KID": 10, "NS": 0, "PMS": 2, "PMT": 60})
-        assert reply.faction_protection_status is FactionProtectionStatus.COOLDOWN
+        assert reply.berimond_protection_status is BerimondProtectionStatus.COOLDOWN
 
     def test_an_ffp_reply(self):
         reply = parse_response(
             "ffp", {"gcu": {"C1": 10, "C2": 500}, "FN": {"FID": 2, "MC": 7, "PMT": 216000, "PMS": 0, "NS": 0}}
         )
 
-        assert isinstance(reply, StartFactionProtectionResponse)
+        assert isinstance(reply, StartBerimondProtectionResponse)
         assert reply.currencies is not None and reply.currencies.rubies == 500
         assert reply.faction is not None
         assert (reply.faction.faction_id, reply.faction.main_camp_id, reply.faction.protection_seconds) == (
@@ -52,7 +52,7 @@ class TestProtectionModels:
             7,
             216000,
         )
-        assert reply.faction.faction_protection_status is FactionProtectionStatus.PRETIME
+        assert reply.faction.berimond_protection_status is BerimondProtectionStatus.PRETIME
 
     def test_peace_mode_durations_are_the_client_list(self):
         assert [(d.value, d.seconds, d.rubies) for d in PeaceModeDuration] == [
@@ -112,7 +112,7 @@ class TestFactionProtection:
     def test_sends_the_only_option(self):
         client = make_client({"ffp": xt_packet("ffp", {"gcu": {"C1": 1, "C2": 2}, "FN": {"FID": 1, "PMS": 0}})})
 
-        reply = client.player.start_faction_protection(spend_rubies=True)
+        reply = client.player.start_berimond_protection(spend_rubies=True)
 
         assert reply.faction is not None and reply.faction.faction_id == 1
         assert conn(client).request_payloads == [("ffp", {"ID": 0})]
@@ -120,13 +120,13 @@ class TestFactionProtection:
     def test_needs_ruby_consent(self):
         client = make_client()
         with pytest.raises(ValueError, match="7500 rubies"):
-            client.player.start_faction_protection()
+            client.player.start_berimond_protection()
         assert conn(client).request_payloads == []
 
     def test_a_refusal_raises(self):
         client = make_client({"ffp": xt_packet("ffp", error_code=1)})
         with pytest.raises(CommandError):
-            client.player.start_faction_protection(spend_rubies=True)
+            client.player.start_berimond_protection(spend_rubies=True)
 
 
 class TestProtectionState:
@@ -158,7 +158,7 @@ class TestProtectionState:
 
         berimond = state.get_event(Event.BATTLE_FOR_BERIMOND)
         assert isinstance(berimond, BerimondEvent)
-        assert (berimond.faction_protection_status, berimond.faction_protection_end) == (1, 1200.0)
+        assert (berimond.berimond_protection_status, berimond.berimond_protection_end) == (1, 1200.0)
         assert berimond.beginner_protection_end == 1030.0
         state.shutdown()
 
@@ -169,7 +169,7 @@ class TestProtectionState:
         state.update_from_packet("uap", {"KID": 0, "NS": 30, "PMS": 1, "PMT": 200})
 
         berimond = state.get_event(Event.BATTLE_FOR_BERIMOND)
-        assert isinstance(berimond, BerimondEvent) and berimond.faction_protection_status == -1
+        assert isinstance(berimond, BerimondEvent) and berimond.berimond_protection_status == -1
         state.shutdown()
 
     @pytest.mark.parametrize(
@@ -215,7 +215,7 @@ class TestProtectionState:
         )
 
         berimond = state.get_event(Event.BATTLE_FOR_BERIMOND)
-        assert isinstance(berimond, BerimondEvent) and berimond.faction_protection_end == 1200.0
+        assert isinstance(berimond, BerimondEvent) and berimond.berimond_protection_end == 1200.0
         state.shutdown()
 
     def test_ffp_applies_its_coins_and_faction(self, clock):
@@ -226,7 +226,7 @@ class TestProtectionState:
 
         berimond = state.get_event(Event.BATTLE_FOR_BERIMOND)
         assert isinstance(berimond, BerimondEvent)
-        assert (berimond.faction_id, berimond.main_camp_id, berimond.faction_protection_end) == (2, 5, 1090.0)
+        assert (berimond.faction_id, berimond.main_camp_id, berimond.berimond_protection_end) == (2, 5, 1090.0)
         assert (state.get_local_player().coins, state.get_local_player().rubies) == (3, 4)
         state.shutdown()
 

@@ -112,12 +112,12 @@ MAP_ROWS = [
     (_map_row(MapItemType.DAIMYO_CASTLE, *DAIMYO_ROW), "daimyo_castle_id", DaimyoCastle.RANK_1_L83),
     (_map_row(MapItemType.DAIMYO_TOWNSHIP, *DAIMYO_ROW), "daimyo_township_id", DaimyoTownship.RANK_1_L83),
     (
-        _map_row(MapItemType.FACTION_CAPITAL, -1, [], 0, 60, 0, 3),
+        _map_row(MapItemType.BERIMOND_CAPITAL, -1, [], 0, 60, 0, 3),
         "special_camp_id",
         BerimondSpecialCamp.URSIDAE_CAPITAL,
     ),
     (
-        _map_row(MapItemType.FACTION_TOWER, -1, 0, [], 0, 50, 92, 4),
+        _map_row(MapItemType.BERIMOND_WATCHTOWER, -1, 0, [], 0, 50, 92, 4),
         "special_camp_id",
         BerimondSpecialCamp.GERBRANDT_MIDDLE_WATCHTOWER_4,
     ),

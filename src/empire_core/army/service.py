@@ -159,9 +159,9 @@ class ArmyService(BaseService):
 
     def get_camp_unit_capacity(self, camp_id: int, *, timeout: float = 5.0) -> int:
         """
-        How many more soldiers a camp of the faction kingdom takes.
+        How many more soldiers a camp of the Berimond kingdom takes.
 
-        Your own main faction camp or a camp you send support to; no castle is joined first.
+        Your own main Berimond camp or a camp you send support to; no castle is joined first.
 
         Args:
             camp_id: The camp's area id
@@ -172,7 +172,7 @@ class ArmyService(BaseService):
 
         Client: ``CastleTransferTroopsToKingdomProperties.additionalDataUpdateCommands`` (bundle line
         37467) and ``CastleTroopSupportDialog.onSupportDefenceInfos`` (bundle line 129177) ask only for
-        faction kingdom camps; the reply goes through ``FUCCommand`` (bundle line 127902)
+        Berimond kingdom camps; the reply goes through ``FUCCommand`` (bundle line 127902)
         """
         request = GetCampUnitCapacityRequest(camp_id=camp_id)
         return self.request(request, GetCampUnitCapacityResponse, timeout=timeout).capacity

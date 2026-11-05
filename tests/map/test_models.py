@@ -472,17 +472,17 @@ class TestLandmarkRows:
 
 class TestFactionRows:
     def test_a_faction_village(self):
-        item = _row(MapItemType.FACTION_VILLAGE, 4242, [[1, 2]], 60, "5", "30")
+        item = _row(MapItemType.BERIMOND_RESOURCE_VILLAGE, 4242, [[1, 2]], 60, "5", "30")
         assert (item.owner_id, item.protector_positions, item.dungeon_level, item.attack_cooldown_seconds) == (
             4242,
             [[1, 2]],
             5,
             30,
         )
-        assert _row(MapItemType.FACTION_VILLAGE, 4242, 0).protector_positions == []
+        assert _row(MapItemType.BERIMOND_RESOURCE_VILLAGE, 4242, 0).protector_positions == []
 
     def test_a_faction_tower(self):
-        item = _row(MapItemType.FACTION_TOWER, 4242, 1, [], 60, 5, 2, 17)
+        item = _row(MapItemType.BERIMOND_WATCHTOWER, 4242, 1, [], 60, 5, 2, 17)
         assert (item.owner_id, item.is_destroyed, item.dungeon_level, item.attacks_left, item.special_camp_id) == (
             4242,
             True,
@@ -492,7 +492,7 @@ class TestFactionRows:
         )
 
     def test_a_faction_capital(self):
-        item = _row(MapItemType.FACTION_CAPITAL, 4242, [], 60, 5, 0, 18)
+        item = _row(MapItemType.BERIMOND_CAPITAL, 4242, [], 60, 5, 0, 18)
         assert (item.owner_id, item.dungeon_level, item.is_destroyed, item.special_camp_id) == (4242, 5, False, 18)
         assert item.location_id is None
 
@@ -689,7 +689,7 @@ class TestKingdomProtection:
         assert (protection.kingdom_id, protection.protection_status, protection.protection_seconds) == (None, 0, 0)
 
     def test_a_berimond_status_the_peace_mode_does_not_define(self):
-        # In Berimond PMS is the faction protection status (FactionEventVO.parse_uap, bundle line 7366)
+        # In Berimond PMS is the Berimond protection status (FactionEventVO.parse_uap, bundle line 7366)
         protection = GetMapAreaResponse.model_validate({"uap": {"KID": 10, "PMS": 5, "PMT": 60}}).protection
         assert protection is not None
         assert (protection.protection_status, protection.peace_mode_status) == (5, None)

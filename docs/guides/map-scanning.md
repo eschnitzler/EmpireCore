@@ -218,7 +218,7 @@ gives the row it found.
 - `client.map.scan_map_area(x1, y1, x2, y2)` reads one rectangle of the map;
   as in the game, a side reaching more than 100 tiles past `x1` (or `y1`) is cut to 100.
 - `client.castle.join_area(x, y)` joins an outpost, capital, metropolis or
-  faction camp by its position.
+  Berimond camp by its position.
 
 ## Treasure maps
 

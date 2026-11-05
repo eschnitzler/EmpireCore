@@ -436,7 +436,7 @@ class MovementsService(BaseService):
 
         Targets the client offers: your castle (main or kingdom castle), your
         outposts not under conquer control, your villages and resource isles,
-        your king's towers, monuments and laboratories, and your faction camps.
+        your king's towers, monuments and laboratories, and your Berimond camps.
         Sources: your castles and outposts (not occupied ones), villages,
         resource isles, king's towers, monuments and laboratories. Both must
         sit in the same kingdom; to move troops between kingdoms use

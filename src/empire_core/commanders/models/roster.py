@@ -78,15 +78,15 @@ CommanderEffects = Annotated[list[CommanderEffect], BeforeValidator(partial(read
 effects it cannot resolve (``LordVO.parseRawEffects``, bundle line 26483)."""
 
 
-PICTURE_FACTION_CASTELLAN = 5
+PICTURE_BERIMOND_CASTELLAN = 5
 """``EquipmentConst.PICK_BARON_FACTION`` (dll line 19249)"""
 
 
-PICTURE_ISLAND_CASTELLAN = 13
+PICTURE_STORM_ISLANDS_CASTELLAN = 13
 """``EquipmentConst.PICK_BARON_ISLAND`` (dll line 19249)"""
 
 
-FACTION_BARON_ID = -16
+BERIMOND_BARON_ID = -16
 """``FactionConst.BARON_ID`` (dll line 19333)"""
 
 
@@ -468,9 +468,9 @@ class Castellan(LeaderBase):
         """
         if self.is_locked_in_castle:
             return False
-        if self.picture_id == PICTURE_FACTION_CASTELLAN and kingdom_id != FACTION_BARON_ID:
+        if self.picture_id == PICTURE_BERIMOND_CASTELLAN and kingdom_id != BERIMOND_BARON_ID:
             return False
-        return not (self.picture_id == PICTURE_ISLAND_CASTELLAN and kingdom_id != Kingdom.STORM)
+        return not (self.picture_id == PICTURE_STORM_ISLANDS_CASTELLAN and kingdom_id != Kingdom.STORM)
 
 
 class GetCommandersRequest(BaseRequest):

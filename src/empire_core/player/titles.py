@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 from empire_core.enums import TitleSystem
 from empire_core.gamedata import GameData
 
-from .models.progress import FactionPointsResponse, GloryPointsResponse, TitleRanksResponse
+from .models.progress import GallantryPointsResponse, GloryPointsResponse, TitleRanksResponse
 
 if TYPE_CHECKING:
     from empire_core.gamedata import Title
@@ -50,7 +50,7 @@ def held_titles(
 
     Args:
         game_data: Optional tables override; uses the process game data by default.
-        system: :attr:`TitleSystem.GLORY` or :attr:`TitleSystem.FACTION`
+        system: :attr:`TitleSystem.GLORY` or :attr:`TitleSystem.GALLANTRY`
         points: Your glory points (``ufa`` ``CF``) or Berimond points (``ufp`` ``CFP``); None before they arrived
         top_rank: The system's ``uar`` top rank (``CTXT``); None before it arrived
 
@@ -70,19 +70,19 @@ def held_titles(
     return held
 
 
-def island_title_chain(island_title_id: int, *, game_data: GameData | None = None) -> list[Title | int]:
+def storm_islands_title_chain(storm_islands_title_id: int, *, game_data: GameData | None = None) -> list[Title | int]:
     """
-    The island titles you hold with one: it and every title below it, lowest first.
+    The Storm Islands titles you hold with one: it and every title below it, lowest first.
 
     Args:
         game_data: Optional tables override; uses the process game data by default.
-        island_title_id: Your current Storm Islands title, -1 or an unknown id for none
+        storm_islands_title_id: Your current Storm Islands title, -1 or an unknown id for none
 
     Client: ``CastleTitleData.getUsersTitleVectorFromSystem`` for ``ISLAND_TITLE`` (bundle line 21119)
     """
     game_data = game_data if game_data is not None else GameData.require()
     chain: list[Title | int] = []
-    title_id: Title | int | None = island_title_id
+    title_id: Title | int | None = storm_islands_title_id
     while title_id is not None and title_id in game_data.titles and title_id not in chain:
         chain.insert(0, title_id)
         title_id = game_data.titles[title_id].previous_title_id
@@ -91,7 +91,7 @@ def island_title_chain(island_title_id: int, *, game_data: GameData | None = Non
 
 def player_title_ids(
     glory: GloryPointsResponse | None,
-    faction: FactionPointsResponse | None,
+    gallantry: GallantryPointsResponse | None,
     ranks: TitleRanksResponse | None,
     *,
     game_data: GameData | None = None,
@@ -102,21 +102,21 @@ def player_title_ids(
     Args:
         game_data: Optional tables override; uses the process game data by default.
         glory: ``client.state.get_glory_points()``
-        faction: ``client.state.get_faction_points()``
+        gallantry: ``client.state.get_gallantry_points()``
         ranks: ``client.state.get_title_ranks()``
 
     Client: ``CastleTitleData.thisUsersTitles`` (bundle line 21073)
     """
     game_data = game_data if game_data is not None else GameData.require()
     glory_points = glory.glory_points if glory is not None else None
-    faction_points = faction.faction_points if faction is not None else None
+    gallantry_points = gallantry.gallantry_points if gallantry is not None else None
     return [
         *held_titles(TitleSystem.GLORY, glory_points, ranks.glory.top_rank if ranks else None, game_data=game_data),
         *held_titles(
-            TitleSystem.FACTION, faction_points, ranks.faction.top_rank if ranks else None, game_data=game_data
+            TitleSystem.GALLANTRY, gallantry_points, ranks.gallantry.top_rank if ranks else None, game_data=game_data
         ),
-        *island_title_chain(ranks.island_title.held_title_id if ranks else -1, game_data=game_data),
+        *storm_islands_title_chain(ranks.storm_islands_title.held_title_id if ranks else -1, game_data=game_data),
     ]
 
 
-__all__ = ["held_titles", "island_title_chain", "player_title_ids", "titles_in_order"]
+__all__ = ["held_titles", "storm_islands_title_chain", "player_title_ids", "titles_in_order"]

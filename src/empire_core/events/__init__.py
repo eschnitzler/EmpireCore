@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 from empire_core.enums import (
     BerimondFaction,
-    FactionProtectionStatus,
+    BerimondProtectionStatus,
     Kingdom,
     KingdomTransferType,
     RankingType,
@@ -434,7 +434,7 @@ __all__ = [
     "VoteWorldCupResponse",
     "EventsService",
     "get_event_titles",
-    "FactionProtectionStatus",
+    "BerimondProtectionStatus",
     "Kingdom",
     "KingdomTransferType",
     "RankingType",

@@ -11,8 +11,8 @@ class TitleSystem(str, Enum):
     """
 
     GLORY = "FAME"
-    FACTION = "FACTION"
-    ISLAND = "ISLE"
+    GALLANTRY = "FACTION"
+    STORM_ISLANDS = "ISLE"
 
 
 class PremiumAccountType(IntEnum):

@@ -593,7 +593,7 @@ class CancelMovementRequest(BaseRequest):
       heading to the target, from level 5, and no more than 600 seconds after
       leaving, unless the movement is force-cancelable (``FC``), attacks
       nomads while the alliance nomad invasion is not running, or attacks a
-      faction tower
+      Berimond watchtower
     - supports: your own, in either direction
     - travel between your areas: your own, heading to the target, from a
       source area that is still yours

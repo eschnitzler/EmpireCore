@@ -262,7 +262,7 @@ class GGECommand:
     CRL = "crl"  # Cancel a recruitment loop
     DRI = "dri"  # Castles a list's queue can be copied to
     DRL = "drl"  # Copy a list's queue to other castles
-    FUC = "fuc"  # Soldiers a faction camp still takes
+    FUC = "fuc"  # Soldiers a Berimond camp still takes
 
     # Hospital
     HRU = "hru"  # Heal units

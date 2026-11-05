@@ -13,8 +13,8 @@ def _client(reply):
 
 
 def test_the_request():
-    assert SelectTitleRequest(prefix=TitleSystem.FACTION).to_payload() == {"PRE": "FACTION", "SUF": ""}
-    request = SelectTitleRequest(prefix=TitleSystem.GLORY, suffix=TitleSystem.ISLAND)
+    assert SelectTitleRequest(prefix=TitleSystem.GALLANTRY).to_payload() == {"PRE": "FACTION", "SUF": ""}
+    request = SelectTitleRequest(prefix=TitleSystem.GLORY, suffix=TitleSystem.STORM_ISLANDS)
     assert request.to_payload() == {"PRE": "FAME", "SUF": "ISLE"}
 
 
@@ -26,29 +26,29 @@ def test_the_reply_may_be_empty():
 def test_the_reply_updates_the_displayed_systems():
     client = _client(xt_packet("ste", {"PFX": "FACTION", "SFX": "ISLE"}))
 
-    selected = client.player.select_titles(TitleSystem.FACTION, TitleSystem.ISLAND)
+    selected = client.player.select_titles(TitleSystem.GALLANTRY, TitleSystem.STORM_ISLANDS)
 
     assert conn(client).request_payloads == [("ste", {"PRE": "FACTION", "SUF": "ISLE"})]
-    assert (selected.prefix_system, selected.suffix_system) == (TitleSystem.FACTION, TitleSystem.ISLAND)
+    assert (selected.prefix_system, selected.suffix_system) == (TitleSystem.GALLANTRY, TitleSystem.STORM_ISLANDS)
     ranks = client.player.title_ranks
-    assert (ranks.prefix_system, ranks.suffix_system) == (TitleSystem.FACTION, TitleSystem.ISLAND)
+    assert (ranks.prefix_system, ranks.suffix_system) == (TitleSystem.GALLANTRY, TitleSystem.STORM_ISLANDS)
 
 
 def test_a_system_the_reply_leaves_out_keeps_its_value():
     # parseSTE sets each only when it is truthy
     client = _client(xt_packet("ste", {"PFX": "FACTION", "SFX": ""}))
 
-    client.player.select_titles(TitleSystem.FACTION)
+    client.player.select_titles(TitleSystem.GALLANTRY)
 
     ranks = client.player.title_ranks
-    assert (ranks.prefix_system, ranks.suffix_system) == (TitleSystem.FACTION, TitleSystem.GLORY)
+    assert (ranks.prefix_system, ranks.suffix_system) == (TitleSystem.GALLANTRY, TitleSystem.GLORY)
 
 
 def test_a_refusal_raises():
     client = _client(xt_packet("ste", {}, error_code=GGEError.TITLE_ON_COOLDOWN))
 
     with pytest.raises(CommandError) as raised:
-        client.player.select_titles(TitleSystem.FACTION)
+        client.player.select_titles(TitleSystem.GALLANTRY)
 
     assert raised.value.error is GGEError.TITLE_ON_COOLDOWN
     assert client.player.title_ranks.prefix_system is TitleSystem.GLORY

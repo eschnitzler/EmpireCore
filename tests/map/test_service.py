@@ -200,7 +200,11 @@ class TestFindNextTower:
         assert isinstance(response, FindNextTowerResponse)
         found = response.found()
         assert found is not None
-        assert (found.item_type, found.kingdom, found.dungeon_level) == (MapItemType.FACTION_TOWER, Kingdom.BERIMOND, 5)
+        assert (found.item_type, found.kingdom, found.dungeon_level) == (
+            MapItemType.BERIMOND_WATCHTOWER,
+            Kingdom.BERIMOND,
+            5,
+        )
 
     def test_no_match_is_none(self):
         client = make_client({"fnt": xt_packet("fnt", error_code=153)})

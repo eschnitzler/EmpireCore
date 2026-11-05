@@ -409,7 +409,7 @@ class CastlesMixin(ServiceMixin):
         Join an area by its position (``jaa``), making it the active area, and return its state.
 
         The client joins this way the objects it may visit that are not
-        castles: outposts, capitals, metropolises and faction camps that are
+        castles: outposts, capitals, metropolises and Berimond camps that are
         not destroyed, and a kingdom castle just after its first naming. It
         joins main and kingdom castles otherwise by id, as :meth:`join` does.
         It never joins anything else (see :class:`JoinAreaRequest`).

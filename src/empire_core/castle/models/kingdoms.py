@@ -154,7 +154,7 @@ class KingdomInfoResponse(BaseResponse):
 
     A ``kpi`` updates only the kingdoms it lists; the client keeps the others as they were, and
     ``client.state.get_kingdoms()`` does the same. The transfers are replaced whole. The Berimond
-    faction block (``fki``) belongs to the faction event and is not read here.
+    faction block (``fki``) belongs to the Battle for Berimond and is not read here.
 
     Command: kpi, as a login section of ``gbd``, a reply, and inside the ``kgt``, ``kst``, ``kut``, ``msk``
     and ``fjf`` replies.

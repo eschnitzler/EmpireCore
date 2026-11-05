@@ -89,10 +89,10 @@ Membership in this list does not establish attack eligibility: faction, spectato
 protection and destroyed-target restrictions still apply.
 These identifiers are not map area ids or coordinates. Obtain map positions separately;
 `client.attack.get_attack_info()` supports Berimond village, tower and capital
-attack pre-calculations through its `area_type` argument, and the faction camp conquest
-(`cfi`) with `area_type=MapItemType.FACTION_CAMP, conquer=True`.
+attack pre-calculations through its `area_type` argument, and the Berimond camp conquest
+(`cfi`) with `area_type=MapItemType.BERIMOND_CAMP, conquer=True`.
 
-`get_berimond_balance()` returns a `BerimondBalance` with `red_players` and `blue_players`.
+`get_berimond_balance()` returns a `BerimondBalance` with `gerbrandt_players` and `ursidae_players`.
 Negative counts clamp to zero as in the client. No faction percentage is inferred when
 both counts are zero because the client retains its prior percentage in that case.
 
@@ -101,7 +101,7 @@ and return fresh results without caching them. Choosing or joining a faction is 
 required. Refusals raise `CommandError`, transport failures retain their typed exception,
 and missing or malformed successful payloads raise `PacketError`.
 
-`get_berimond_points()` returns `BerimondPoints`, the `red_points` and `blue_points` of
+`get_berimond_points()` returns `BerimondPoints`, the `gerbrandt_points` and `ursidae_points` of
 the two factions.
 
 `join_berimond(camp)` joins the event with one of its prebuilt camps, a `PrebuiltCastle`

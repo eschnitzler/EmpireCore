@@ -44,8 +44,8 @@ _LEAGUE_PART = {
     RankingType.BLOODCROW_INVASION_ALLIANCE: "A",
     RankingType.ALLIANCE_NOMADINVASION_ALLIANCE: "A",
     RankingType.SAMURAI_ALLIANCE: "A",
-    RankingType.BERIMOND_INVASION_PLAYER_BLUE: "FB",
-    RankingType.BERIMOND_INVASION_PLAYER_RED: "FR",
+    RankingType.BERIMOND_INVASION_PLAYER_URSIDAE: "FB",
+    RankingType.BERIMOND_INVASION_PLAYER_GERBRANDT: "FR",
     RankingType.BERIMOND_INVASION_ALLIANCE: "A",
 }
 
@@ -123,7 +123,7 @@ class ScoresMixin(ServiceMixin):
             event: The event, e.g. ``Event.BATTLE_FOR_BERIMOND``; those with a board are in :data:`EVENT_SCOREBOARDS`
             alliance: Read the alliance board instead of the player board
             list_type: One of the event's boards by its list, for Berimond invasion's
-                player boards (``BERIMOND_INVASION_PLAYER_BLUE`` or ``BERIMOND_INVASION_PLAYER_RED``)
+                player boards (``BERIMOND_INVASION_PLAYER_URSIDAE`` or ``BERIMOND_INVASION_PLAYER_GERBRANDT``)
             rank: The page from this rank (leaderboards), or the page around it (``hgh`` boards)
             name: The page around this name: ``hgh``'s search, or for a leaderboard its
                 search (``slse``) and the page of the first hit

@@ -102,7 +102,7 @@ class Scoreboard(EmpireModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     player_lists: tuple[RankingType, ...] = Field(
-        description="The player boards; Berimond invasion has one per faction, blue first"
+        description="The player boards; Berimond invasion has one per faction, the House of Ursidae first"
     )
     alliance_list: RankingType | None = Field(default=None, description="The alliance board, or None without one")
     is_leaderboard: bool = Field(
@@ -118,7 +118,7 @@ class Scoreboard(EmpireModel):
 
 EVENT_SCOREBOARDS: dict[Event, Scoreboard] = {
     Event.BATTLE_FOR_BERIMOND: Scoreboard(
-        player_lists=(RankingType.FACTION_TOURNAMENT,),
+        player_lists=(RankingType.BATTLE_FOR_BERIMOND,),
         source="FactionRankingComponent.generateProperties (bundle line 95410)",
     ),
     Event.NOBILITY_CONTEST: Scoreboard(
@@ -148,7 +148,7 @@ EVENT_SCOREBOARDS: dict[Event, Scoreboard] = {
         source="LongtermPointEventGlobalLeaderBoardDialog (bundle line 100413)",
     ),
     Event.BERIMOND_INVASION: Scoreboard(
-        player_lists=(RankingType.BERIMOND_INVASION_PLAYER_BLUE, RankingType.BERIMOND_INVASION_PLAYER_RED),
+        player_lists=(RankingType.BERIMOND_INVASION_PLAYER_URSIDAE, RankingType.BERIMOND_INVASION_PLAYER_GERBRANDT),
         alliance_list=RankingType.BERIMOND_INVASION_ALLIANCE,
         source="CastleFactionInvasionEventHighscoreDialog (bundle lines 53151-53155)",
     ),
@@ -739,11 +739,11 @@ class BerimondInvasionEvent(InvasionEvent):
         """
         Your score for the faction of an invasion camp with this owner, whose league sets where its camps start.
 
-        ``FB`` for the blue faction king's camps, ``FR`` for any other owner, as the client splits them.
+        ``FB`` for the Ursidae king's camps, ``FR`` for any other owner, as the client splits them.
 
         Client: ``FactionInvasionEventVO.baseCampLevel`` (bundle line 116095)
         """
-        return self.parts.get("FB" if owner_id == NPCOwner.BLUE_FACTION_KING else "FR")
+        return self.parts.get("FB" if owner_id == NPCOwner.URSIDAE_KING else "FR")
 
 
 class AlienInvasionEvent(InvasionEvent):
@@ -849,9 +849,9 @@ class BerimondEvent(SpecialEvent):
     own_points: int = Field(default=0, description="Your points, from the pep pushes")
     faction_id: EnumOrInt[BerimondFaction] = Field(default=BerimondFaction.URSIDAE, description="Your faction")
     main_camp_id: int = Field(default=0, description="Your faction's main camp")
-    faction_protection_status: int = Field(default=0, description="Your faction protection's status")
-    faction_protection_end: float | None = Field(
-        default=0.0, description="When your faction protection ends, in time.monotonic() seconds"
+    berimond_protection_status: int = Field(default=0, description="Your Berimond protection's status")
+    berimond_protection_end: float | None = Field(
+        default=0.0, description="When your Berimond protection ends, in time.monotonic() seconds"
     )
     beginner_protection_end: float = Field(
         default=0.0, description="When your beginner protection ends, in time.monotonic() seconds"
@@ -890,7 +890,7 @@ class BerimondEvent(SpecialEvent):
         return rows[-1] if rows else None
 
     def with_faction(self, faction: FactionStanding, now: float) -> BerimondEvent:
-        """This event with an ``FN`` block read over it, as a faction protection purchase sends one."""
+        """This event with an ``FN`` block read over it, as a Berimond protection purchase sends one."""
         return self.model_copy(update=self._faction_update(faction, now))
 
     @staticmethod
@@ -899,8 +899,8 @@ class BerimondEvent(SpecialEvent):
         update: dict[str, Any] = {
             "faction_id": faction.faction_id,
             "main_camp_id": faction.main_camp_id,
-            "faction_protection_end": now + faction.protection_seconds,
-            "faction_protection_status": faction.protection_status,
+            "berimond_protection_end": now + faction.protection_seconds,
+            "berimond_protection_status": faction.protection_status,
         }
         if faction.beginner_protection_seconds:
             update["beginner_protection_end"] = now + faction.beginner_protection_seconds
@@ -914,8 +914,8 @@ class BerimondEvent(SpecialEvent):
         """
         return self.model_copy(
             update={
-                "faction_protection_status": protection.protection_status,
-                "faction_protection_end": now + protection.protection_seconds,
+                "berimond_protection_status": protection.protection_status,
+                "berimond_protection_end": now + protection.protection_seconds,
                 "beginner_protection_end": now + protection.noob_protection_seconds,
             }
         )

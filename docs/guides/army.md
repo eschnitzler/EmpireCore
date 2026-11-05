@@ -68,7 +68,7 @@ there; `copy_recruitment` copies it, and needs `spend_rubies=True` when a target
 spend_rubies=True)` repeats the queue, always for rubies. Both raise
 `ProductionSlotsNeededError`, with `missing_slots`, when the list needs more unlocked slots.
 
-`get_camp_unit_capacity(camp_id)` gives how many more soldiers a faction kingdom camp takes,
+`get_camp_unit_capacity(camp_id)` gives how many more soldiers a Berimond kingdom camp takes,
 yours or one you send support to.
 
 ## The hospital

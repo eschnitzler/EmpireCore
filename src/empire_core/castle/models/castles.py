@@ -82,7 +82,7 @@ _ROW_LAYOUTS: dict[Any, _RowLayout] = {
     MapItemType.CASTLE: _INTERACTIVE_ROW,
     MapItemType.OUTPOST: _INTERACTIVE_ROW,
     MapItemType.KINGDOM_CASTLE: _INTERACTIVE_ROW,
-    MapItemType.FACTION_CAMP: _INTERACTIVE_ROW,
+    MapItemType.BERIMOND_CAMP: _INTERACTIVE_ROW,
     MapItemType.CAPITAL: _CAPITAL_ROW,
     MapItemType.METROPOL: _CAPITAL_ROW,
     MapItemType.KINGS_TOWER: _RowLayout(object_id=3, owner=4, owner_through_int=True, name=7, kingdom=5, spy=6),
@@ -92,7 +92,7 @@ _ROW_LAYOUTS: dict[Any, _RowLayout] = {
     MapItemType.LABORATORY: _RowLayout(
         object_id=3, owner=4, owner_through_int=False, name=8, kingdom=6, landmark_level=5, spy=7
     ),
-    MapItemType.FACTION_CAPITAL: _RowLayout(object_id=None, owner=3, owner_through_int=False, name=None, kingdom=None),
+    MapItemType.BERIMOND_CAPITAL: _RowLayout(object_id=None, owner=3, owner_through_int=False, name=None, kingdom=None),
 }
 
 
@@ -101,7 +101,7 @@ class PlayerCastle(BasePayload):
     One row of a castle list's ``AI`` entries, read by field position as its
     area type's client parser reads it.
 
-    - Castles, outposts, kingdom castles and faction camps
+    - Castles, outposts, kingdom castles and Berimond camps
       (``InteractiveMapobjectVO.parseAreaInfo``): object id 3, owner 4, keep,
       wall, gate, tower and moat 5 to 9 through ``int()`` with keep, wall and
       gate at least 1, name 10, attack cooldown 11, sabotage cooldown 12,
@@ -115,7 +115,7 @@ class PlayerCastle(BasePayload):
       seconds since the last spy 8, name 9.
     - Laboratories: object id 3, owner 4, level 5, kingdom 6, seconds since
       the last spy 7, name 8.
-    - Faction capitals: owner 3, and no object id, name or kingdom.
+    - Berimond capitals: owner 3, and no object id, name or kingdom.
 
     The client stores the row's kingdom as sent; one that is not a Kingdom
     reads as the kingdom the row is listed under. An occupier the row lacks
@@ -187,8 +187,8 @@ class PlayerCastle(BasePayload):
         layout = _ROW_LAYOUTS.get(area_type) if isinstance(area_type, int) and not isinstance(area_type, bool) else None
         if layout is None:
             raise ValueError(f"No castle list layout for area type {area_type!r}")
-        if area_type == MapItemType.FACTION_CAMP and len(data) <= 3:
-            raise ValueError("A faction camp row without its fields is not on the map")
+        if area_type == MapItemType.BERIMOND_CAMP and len(data) <= 3:
+            raise ValueError("A Berimond camp row without its fields is not on the map")
 
         def field(index: int | None) -> Any:
             if index is None:
@@ -302,7 +302,7 @@ class CastleInfo(BasePayload):
     are the entry's keys, read through ``int()`` (``OGT`` and ``OGC`` only when
     they are not 0), so one the entry lacks reads as 0. ``KID`` is the row's own
     kingdom when it carries one (``InteractiveMapobjectVO.parseAreaInfo``, bundle
-    line 3637), else the block the entry is listed under. A faction capital's row carries no object
+    line 3637), else the block the entry is listed under. A Berimond capital's row carries no object
     id, so it has no CastleInfo.
 
     Client: ``CastleListVO.parseCastleList`` (bundle line 13698), which reads
@@ -389,10 +389,10 @@ class CastleInfo(BasePayload):
         Parse a ``gcl.C[].AI[]`` entry; its ``AI`` row is read by its area type (see :class:`PlayerCastle`).
 
         None for a row the client reads but that names no castle: a faction
-        capital, which has no object id, or a faction camp that is not on the map.
+        capital, which has no object id, or a Berimond camp that is not on the map.
         """
         row = entry["AI"]
-        if isinstance(row, list) and row and row[0] == MapItemType.FACTION_CAMP and len(row) <= 3:
+        if isinstance(row, list) and row and row[0] == MapItemType.BERIMOND_CAMP and len(row) <= 3:
             return None
         parsed = PlayerCastle.from_list(row, kingdom)
         if parsed.location_id is None:

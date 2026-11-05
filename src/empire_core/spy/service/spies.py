@@ -10,9 +10,9 @@ from empire_core.gamedata import EnumOrInt
 from empire_core.player.titles import held_titles
 from empire_core.services.base import ServiceMixin
 from empire_core.spy.pool import (
-    island_title_chain,
     legend_spy_bonus,
     research_spy_bonus,
+    storm_islands_title_chain,
     title_spy_percent,
     total_spies,
 )
@@ -56,7 +56,7 @@ class SpiesMixin(ServiceMixin):
         research_ids: Iterable[EnumOrInt["Research"]] | None = None,
         legend_skill_ids: Iterable[EnumOrInt["LegendSkill"]] | None = None,
         title_ids: Iterable[int] | None = None,
-        island_title_id: int | None = None,
+        storm_islands_title_id: int | None = None,
         legend_target: bool = False,
     ) -> int:
         """
@@ -73,7 +73,7 @@ class SpiesMixin(ServiceMixin):
             legend_skill_ids: ``SkillList.legend_skill_ids``; counted only with ``legend_target``
             title_ids: Every glory and Berimond title you hold, each one below your current
                 title included, as the client lists them
-            island_title_id: Your Storm Islands title, -1 for none; the titles below it count too
+            storm_islands_title_id: Your Storm Islands title, -1 for none; the titles below it count too
             legend_target: Add legend skills: the client does for a target whose owner is a
                 legend or that is a landmark, for your own legend status, and always in the
                 attack screen's spy alert
@@ -98,13 +98,13 @@ class SpiesMixin(ServiceMixin):
             skills = state.get_skills()
             legend_skill_ids = skills.legend_skill_ids if skills is not None else ()
         ranks = state.get_title_ranks()
-        if island_title_id is None:
-            island_title_id = ranks.island_title.held_title_id
-        glory, faction = state.get_glory_points(), state.get_faction_points()
+        if storm_islands_title_id is None:
+            storm_islands_title_id = ranks.storm_islands_title.held_title_id
+        glory, gallantry = state.get_glory_points(), state.get_gallantry_points()
         titles_from_state = title_ids is None
         research_ids, legend_skill_ids = list(research_ids), list(legend_skill_ids)
         title_ids = [] if title_ids is None else list(title_ids)
-        boosted = research_ids or (legend_target and legend_skill_ids) or title_ids or island_title_id >= 0
+        boosted = research_ids or (legend_target and legend_skill_ids) or title_ids or storm_islands_title_id >= 0
         if not (boosted or titles_from_state):
             return total_spies(max_spies.max_spies)
         game_data = self._require_game_data()
@@ -112,13 +112,13 @@ class SpiesMixin(ServiceMixin):
             title_ids = [
                 *held_titles(TitleSystem.GLORY, glory.glory_points, ranks.glory.top_rank, game_data=game_data),
                 *held_titles(
-                    TitleSystem.FACTION,
-                    faction.faction_points if faction else None,
-                    ranks.faction.top_rank,
+                    TitleSystem.GALLANTRY,
+                    gallantry.gallantry_points if gallantry else None,
+                    ranks.gallantry.top_rank,
                     game_data=game_data,
                 ),
             ]
-        titles = title_ids + island_title_chain(island_title_id, game_data=game_data)
+        titles = title_ids + storm_islands_title_chain(storm_islands_title_id, game_data=game_data)
         return total_spies(
             max_spies.max_spies,
             research_bonus=research_spy_bonus(game_data, research_ids),
@@ -132,7 +132,7 @@ class SpiesMixin(ServiceMixin):
         research_ids: Iterable[EnumOrInt["Research"]] | None = None,
         legend_skill_ids: Iterable[EnumOrInt["LegendSkill"]] | None = None,
         title_ids: Iterable[int] | None = None,
-        island_title_id: int | None = None,
+        storm_islands_title_id: int | None = None,
         legend_target: bool = False,
     ) -> int:
         """
@@ -156,7 +156,7 @@ class SpiesMixin(ServiceMixin):
             research_ids=research_ids,
             legend_skill_ids=legend_skill_ids,
             title_ids=title_ids,
-            island_title_id=island_title_id,
+            storm_islands_title_id=storm_islands_title_id,
             legend_target=legend_target,
         )
         return total - self.spies_in_use()

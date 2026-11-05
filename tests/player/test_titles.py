@@ -4,7 +4,7 @@ import pytest
 
 from empire_core.enums import TitleSystem
 from empire_core.gamedata import GameData
-from empire_core.player import FactionPointsResponse, GloryPointsResponse, TitleRanksResponse
+from empire_core.player import GallantryPointsResponse, GloryPointsResponse, TitleRanksResponse
 from empire_core.player.titles import held_titles, player_title_ids, titles_in_order
 
 _FAME_THRESHOLDS = [
@@ -45,8 +45,8 @@ def game_data() -> GameData:
 class TestHeldTitles:
     def test_each_system_in_chain_order(self, game_data):
         assert titles_in_order(TitleSystem.GLORY, game_data=game_data) == list(range(34))
-        assert titles_in_order(TitleSystem.FACTION, game_data=game_data) == list(range(100, 118))
-        assert titles_in_order(TitleSystem.ISLAND, game_data=game_data) == [54, 53, 52, 51, 50]
+        assert titles_in_order(TitleSystem.GALLANTRY, game_data=game_data) == list(range(100, 118))
+        assert titles_in_order(TitleSystem.STORM_ISLANDS, game_data=game_data) == [54, 53, 52, 51, 50]
 
     # Expected values from CastleTitleData.setupThisUsersTitlesinSystem (bundle line 21048) run in node
     @pytest.mark.parametrize(
@@ -58,9 +58,9 @@ class TestHeldTitles:
             (TitleSystem.GLORY, 34494489, 101, list(range(30))),
             (TitleSystem.GLORY, 0, 1, [0]),
             (TitleSystem.GLORY, 99999999, 10, list(range(33))),
-            (TitleSystem.FACTION, 4999, -1, list(range(100, 104))),
-            (TitleSystem.FACTION, 195000, 20, list(range(100, 117))),
-            (TitleSystem.FACTION, None, 5, []),
+            (TitleSystem.GALLANTRY, 4999, -1, list(range(100, 104))),
+            (TitleSystem.GALLANTRY, 195000, 20, list(range(100, 117))),
+            (TitleSystem.GALLANTRY, None, 5, []),
         ],
     )
     def test_as_the_client_works_them_out(self, game_data, system, points, rank, expected):
@@ -68,7 +68,7 @@ class TestHeldTitles:
 
     def test_every_title_you_hold(self, game_data):
         glory = GloryPointsResponse.model_validate({"CF": "10000", "HF": 20000})
-        faction = FactionPointsResponse.model_validate({"CFP": 800, "HFP": 900})
+        faction = GallantryPointsResponse.model_validate({"CFP": 800, "HFP": 900})
         ranks = TitleRanksResponse.model_validate(
             {"FTM": {"CTXT": -1}, "BTM": {"CTXT": -1}, "ITM": {"TID": 53}, "PFX": "FAME", "SFX": "FACTION"}
         )

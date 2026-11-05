@@ -78,16 +78,16 @@ class LeagueScore(Protocol):
     def sub_type(self) -> int: ...
 
 
-# The blue faction king owns the blue camps; the client takes any other owner as red.
+# The Ursidae king owns the House of Ursidae's camps; the client takes any other owner as Gerbrandt.
 # Client: CastleNPCOwnerFactory.generateBlueFactionNPC / generateRedFactionNPC (bundle lines 14591, 14587),
 # FactionConst (dll line 19333), EventConst.LEAGUETYPE_EVENT_SUBTYPE_FACTION_INVASION_BLUE / _RED (dll line 19291)
-BLUE_BERIMOND_INVASION = BerimondInvasionSide(faction_id=BerimondFaction.URSIDAE, sub_type=2)
-RED_BERIMOND_INVASION = BerimondInvasionSide(faction_id=BerimondFaction.GERBRANDT, sub_type=3)
+URSIDAE_BERIMOND_INVASION = BerimondInvasionSide(faction_id=BerimondFaction.URSIDAE, sub_type=2)
+GERBRANDT_BERIMOND_INVASION = BerimondInvasionSide(faction_id=BerimondFaction.GERBRANDT, sub_type=3)
 
 
 def berimond_invasion_side(owner_id: int | None) -> BerimondInvasionSide:
     """The side of a Berimond invasion camp with this owner (its row's ``owner_id``)."""
-    return BLUE_BERIMOND_INVASION if owner_id == NPCOwner.BLUE_FACTION_KING else RED_BERIMOND_INVASION
+    return URSIDAE_BERIMOND_INVASION if owner_id == NPCOwner.URSIDAE_KING else GERBRANDT_BERIMOND_INVASION
 
 
 def invasion_camp_level(

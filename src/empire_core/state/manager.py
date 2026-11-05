@@ -770,7 +770,7 @@ class GameState(
         daimyo's "gda", "gdc" and "gdw", the coat of arms symbols' "gus", the player name change's "gnci" and the
         account deletion's "psd" (each only a successful one),
         the officers' school's "gtp" (only a successful one), the quest pushes "qli", "qst", "qpg", "qfi", "msp" and the
-        campaign's "cqs", the castle pushes "rue", "kik", the gem push "gec", the faction protection reply "ffp", the
+        campaign's "cqs", the castle pushes "rue", "kik", the gem push "gec", the Berimond protection reply "ffp", the
         rage points push "rpr", the alien reroll counts push "rce", the server kind "tse", the special server castles
         "tcc", the joined area's "jaa", "cmr", "rcc", "ghw", the events shutting down "sde", the map read "gaa" (refused
         too), the spy screen "ssi" (only a successful one) — and the login sections "gpi", "gxp", "gcu", "vip", "gal",
