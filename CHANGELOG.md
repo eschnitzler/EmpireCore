@@ -2,6 +2,121 @@
 
 <!-- version list -->
 
+## v0.64.0 (2026-11-05)
+
+### Bug Fixes
+
+- **client**: Acknowledge special-server onboarding before transfer
+  ([`b1b67b9`](https://github.com/eschnitzler/EmpireCore/commit/b1b67b975cbb00470c99e6d39688d00dcd778134))
+
+- **messages**: Parse special event start teaser headers
+  ([`06196c0`](https://github.com/eschnitzler/EmpireCore/commit/06196c004e3613351924ac0aa79153ae2e8c8569))
+
+- **state**: Keep an army push's movement when its owner record is unreadable
+  ([`7cf102b`](https://github.com/eschnitzler/EmpireCore/commit/7cf102b64fd51a81ca20f43dee4a789b1eb43733))
+
+### Code Style
+
+- **tests**: Format the event push tests
+  ([`1f44f63`](https://github.com/eschnitzler/EmpireCore/commit/1f44f632cf7c8db7706f2640ac7c720621cd2bce))
+
+- **tests**: Type and format the movement push tests
+  ([`a6774d9`](https://github.com/eschnitzler/EmpireCore/commit/a6774d96fa5007e01e30d2590f9141acdc69eb03))
+
+- **tests**: Type and format the quest push tests
+  ([`4893ee4`](https://github.com/eschnitzler/EmpireCore/commit/4893ee42f23a89721cd2e61ce07d0f4cc964ee24))
+
+### Features
+
+- **state**: Read the event pushes through typed models
+  ([`84f7a69`](https://github.com/eschnitzler/EmpireCore/commit/84f7a69db3a7ea73ba0e808b0b1c62015d6791f6))
+
+- **state**: Read the movement pushes through typed models
+  ([`210e956`](https://github.com/eschnitzler/EmpireCore/commit/210e956a199b9d3c3aea77f462d46abe730d3f5c))
+
+- **state**: Read the player's login sections through typed models
+  ([`059fa03`](https://github.com/eschnitzler/EmpireCore/commit/059fa03965f78e065176a13b13cc8b0fc1841ac5))
+
+- **state**: Read the quest, popup and alliance pushes through typed models
+  ([`c7695a2`](https://github.com/eschnitzler/EmpireCore/commit/c7695a2ea508d7673cb47bd367b6a4f0648babd5))
+
+- **state**: Type the login data and the faction join reply
+  ([`378c5ab`](https://github.com/eschnitzler/EmpireCore/commit/378c5ab4b15dc512fe160ccb53c84977c2b319c9))
+
+### Refactoring
+
+- File the login-section models by game area
+  ([`de901bd`](https://github.com/eschnitzler/EmpireCore/commit/de901bd79e972d045c3a5c653eba9d459051994c))
+
+- Name Berimond's objects, points and sides as the game does
+  ([`fbef82a`](https://github.com/eschnitzler/EmpireCore/commit/fbef82a3947c2c05624cb28302ff465a995e7643))
+
+- Name metropolises, royal towers, Wolfgard, glory and Legendary as the game does
+  ([`e4ed46e`](https://github.com/eschnitzler/EmpireCore/commit/e4ed46ee0374986b07a666b638e747416dbb57e5))
+
+- Name the new popups, filters and Berimond join reply as the game does
+  ([`4b6ed43`](https://github.com/eschnitzler/EmpireCore/commit/4b6ed43e479bce2e5d510e126e12a4ce82fc7ba8))
+
+- Say commander for the default commanders of the game data
+  ([`9860780`](https://github.com/eschnitzler/EmpireCore/commit/9860780d9d066680edeca43934cfc824ec126b00))
+
+- **client**: Tighten the special-server preparation
+  ([`5e399cc`](https://github.com/eschnitzler/EmpireCore/commit/5e399cc38fa7a8fcfb7227d4c0ff040bb11fbf40))
+
+- **messages**: Name the event-start subtype and keep the header off the top level
+  ([`6ad6d3e`](https://github.com/eschnitzler/EmpireCore/commit/6ad6d3ef1420f64f482fbbe0a3567d03879eb495))
+
+### Breaking Changes
+
+- DefaultLordDef is DefaultCommanderDef, GameData.default_lords and get_default_lord are
+  default_commanders and get_default_commander, and the lord_id and lord_type fields of the camp and
+  default commander rows are commander_id and commander_type (the lordID and type keys are
+  unchanged).
+
+- Empire_core.player.models.login is gone; import each model from its area. Alliance is gone (also
+  from empire_core and empire_core.state): Player.alliance and the login data's alliance are an
+  AllianceMembership, whose is_searching is looking_for_alliance. AllianceMembership now defaults
+  alliance_id to 0, reads R through int(), accepts the N name live servers send and is frozen.
+
+- MapItemType.FACTION_CAMP/TOWER/CAPITAL/VILLAGE are
+  BERIMOND_CAMP/WATCHTOWER/CAPITAL/RESOURCE_VILLAGE; FactionProtectionStatus is
+  BerimondProtectionStatus; NPCOwner.BLUE/RED_FACTION_KING are URSIDAE/GERBRANDT_KING;
+  MovementType.FACTION_ATTACK is BERIMOND_ATTACK; RankingType.FACTION_TOURNAMENT is
+  BATTLE_FOR_BERIMOND and BERIMOND_INVASION_PLAYER_BLUE/RED are _URSIDAE/_GERBRANDT;
+  TitleSystem.FACTION/ISLAND are GALLANTRY/STORM_ISLANDS; FactionPointsResponse is
+  GallantryPointsResponse, faction_points is gallantry_points, get_faction_points is
+  get_gallantry_points, TitleRanksResponse.faction is gallantry and player_title_ids takes
+  gallantry=; IslandTitle, island_title, island_title_chain and island_title_id say storm_islands;
+  FACTION_PROTECTION_RUBIES, StartFactionProtection* and start_faction_protection say berimond, as
+  do faction_protection_status/end; the red/blue players, points, reputations, capitals and invasion
+  sides say gerbrandt/ursidae; GetFactionCampConquerInfo* is GetBerimondCampConquerInfo*;
+  PICTURE_FACTION_CASTELLAN, FACTION_BARON_ID and PICTURE_ISLAND_CASTELLAN say BERIMOND and
+  STORM_ISLANDS.
+
+- MapItemType/NPCOwner METROPOL, KINGS_TOWER, ISLE_RESOURCE, ISLE_DUNGEON and WOLF_KING are
+  TRADING_METROPOLIS, ROYAL_TOWER, RESOURCE_ISLAND, STORM_FORT, WOLF_FORTRESS (map item) and
+  WOLFGARD (owner); METROPOL_CONQUER is METROPOLIS_CONQUER; GetMetropolConquerInfo*,
+  KingsTowerListResponse, OwnKingsTower, kings_tower*, get_kings_towers, LaunchWolfKingTaunt*,
+  taunt_wolf_king and WOLFKING_TAUNT_ATTACK say metropolis, royal tower and wolfgard; the
+  Abg*/abg_*/ABG_* names say horizon; aqua_points and the AquaPoints models say cargo points, as
+  does RankingType.ALLIANCE_CARGO_POINTS; HighscoreIslandRow is HighscoreStormIslandsRow and
+  is_stormlord is is_storm_lord; AllianceFameResponse is AllianceGloryResponse and the alliance
+  fame_points, highest_fame_points, current_fame, daily_fame and HighscoreAlliance.fame say glory;
+  LegendSkill, LegendSkillDef, every legend_* name, RELIC_FORGE_MIN_LEGEND_LEVEL and the
+  gamedata.ids.legend_skills module say legendary.
+
+- The renamed PopupType and MovementFilter members, BerimondFactionJoinedResponse and
+  LevelUpResponse.is_legendary_level_up.
+
+- **state**: Alliance moved to empire_core.player.models.login as the gal response and its id is
+  alliance_id; Player.PF, Player.VF, premium_flag and vip_flag are gone; Player.E is empty when the
+  server sends "-1"; GemInventoryResponse.changed takes a GemsChangedResponse; an sce push now
+  reaches packet handlers as a SpecialCurrenciesResponse.
+
+- **state**: CampaignEvent.with_campaign takes a CampaignQuestStatusResponse instead of the payload
+  and a clock.
+
+
 ## v0.63.0 (2026-11-02)
 
 ### Bug Fixes
