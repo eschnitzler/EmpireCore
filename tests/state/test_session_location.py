@@ -122,3 +122,53 @@ def test_failed_relocation_does_not_leave_castle(state):
     state.update_from_packet("jaa", joined())
     state.update_from_packet("rst", {}, error_code=int(GGEError.NOT_ENOUGH_RUBIES))
     assert state.get_session_location() is SessionLocation.ISO
+
+
+@pytest.mark.parametrize("intervening", ["reset", "join", "map", "disconnect", "new_session"])
+def test_leave_does_not_overwrite_intervening_state(state, intervening):
+    from unittest.mock import patch
+
+    from tests.service_helpers import conn, make_client
+
+    login(state, 1001)
+    state.update_from_packet("jaa", joined())
+    client = make_client(state=state)
+    connection = conn(client)
+
+    def during_send(_frame):
+        if intervening == "reset":
+            state.reset()
+        elif intervening == "join":
+            state.update_from_packet("jaa", joined(owner=2002))
+        elif intervening == "map":
+            state.update_from_packet("gaa", {})
+        elif intervening == "disconnect":
+            connection.connected = False
+        else:
+            connection.generation += 1
+
+    with patch.object(connection, "send", side_effect=during_send):
+        client.castle.leave_area()
+    expected = {"reset": None, "map": SessionLocation.WORLDMAP}.get(intervening, SessionLocation.ISO)
+    assert state.get_session_location() is expected
+
+
+def test_leaving_advances_area_revision(state):
+    from tests.service_helpers import make_client
+
+    state.update_from_packet("jaa", joined())
+    revision = state.area_revision
+    make_client(state=state).castle.leave_area()
+    assert state.area_revision > revision
+
+
+@pytest.mark.parametrize("owner,occupier", [(1001, 2002), (2002, 1001)])
+def test_unreadable_outpost_does_not_claim_to_be_unconquered(state, caplog, owner, occupier):
+    login(state, 1001)
+    payload = joined(owner=owner, occupier=occupier, kind=MapItemType.OUTPOST)
+    payload["gca"]["A"][10] = {"unexpected": "name shape"}
+    state.update_from_packet("jaa", payload)
+    assert not state.is_in_own_castle()
+    assert not state.is_in_occupied_castle()
+    assert not state.is_in_spectated_castle()
+    assert "map row" in caplog.text
