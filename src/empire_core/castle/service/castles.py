@@ -18,7 +18,6 @@ from empire_core.castle.models.kingdoms import KingdomInfoRequest, KingdomInfoRe
 from empire_core.castle.models.landmarks import (
     GetLaboratoryProgressRequest,
     GetMonumentProgressRequest,
-    KingsTowerListResponse,
     LaboratoryListResponse,
     LaboratoryProgressResponse,
     LaboratoryResetResponse,
@@ -26,6 +25,7 @@ from empire_core.castle.models.landmarks import (
     MonumentListResponse,
     MonumentProgressResponse,
     MonumentResetResponse,
+    RoyalTowerListResponse,
 )
 from empire_core.castle.models.mercenaries import MercenaryMissionsResponse
 from empire_core.castle.models.research import ResearchInfoResponse
@@ -138,9 +138,9 @@ class CastlesMixin(ServiceMixin):
         return self.client.state.get_laboratory_reset()
 
     @property
-    def kings_towers(self) -> KingsTowerListResponse | None:
-        """Your kings towers, from the last ``gkl``; None until one arrived."""
-        return self.client.state.get_kings_towers()
+    def royal_towers(self) -> RoyalTowerListResponse | None:
+        """Your royal towers, from the last ``gkl``; None until one arrived."""
+        return self.client.state.get_royal_towers()
 
     @property
     def monuments(self) -> MonumentListResponse | None:
@@ -423,7 +423,7 @@ class CastlesMixin(ServiceMixin):
         Raises:
             CommandError: The server refused the join; a live server answered
                 INVALID_POSITION (6) for objects the client never joins, such as NPC camps
-                and kings towers
+                and royal towers
 
         Client: ``JoinAreaAndSavePositionCommand.execute`` (bundle line 100892),
         ``JAACommand.executeCommand`` (bundle line 130190)

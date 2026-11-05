@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 class AllianceSearchResult(BasePayload):
     """
-    One row of an alliance highscore list: ``[rank, score, [alliance_id, name, member_count, fame_points]]``.
+    One row of an alliance highscore list: ``[rank, score, [alliance_id, name, member_count, glory_points]]``.
 
     Client: ``CastleHighscoreDialog.onGetHighscoreData`` (bundle line 27538)
     shifts rank and score off an alliance list's row and fills an
@@ -48,7 +48,7 @@ class AllianceSearchResult(BasePayload):
     alliance_id: ClientInt = Field(default=0, description="Alliance id")
     name: str = Field(default="", description="Alliance name")
     member_count: ClientInt = Field(default=0, description="Number of members")
-    fame_points: ClientInt = Field(default=0, description="The alliance's current fame")
+    glory_points: ClientInt = Field(default=0, description="The alliance's current glory points")
 
     @model_validator(mode="before")
     @classmethod
@@ -58,7 +58,7 @@ class AllianceSearchResult(BasePayload):
         fields: dict[str, Any] = dict(zip(("rank", "score"), data[:2], strict=False))
         info = data[2] if len(data) > 2 else None
         if isinstance(info, list):
-            fields.update(zip(("alliance_id", "name", "member_count", "fame_points"), info, strict=False))
+            fields.update(zip(("alliance_id", "name", "member_count", "glory_points"), info, strict=False))
             if "name" in fields:
                 fields["name"] = "" if fields["name"] is None else str(fields["name"])
         return fields

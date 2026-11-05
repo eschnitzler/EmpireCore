@@ -18,9 +18,9 @@ RELIC_GEM = [5001, 1, 2, 300, [[10, 5, [1]]], 0]
 ESL = {"E": 4, "TE": 50, "G": 10, "TG": 20}
 
 
-def forge_state(*, legend_level: int = 0, able: int = 1) -> GameState:
+def forge_state(*, legendary_level: int = 0, able: int = 1) -> GameState:
     state = GameState()
-    state.local_player = Player(PID=7, PN="Player", legendary_level=legend_level)
+    state.local_player = Player(PID=7, PN="Player", legendary_level=legendary_level)
     state.update_from_packet("gal", {"AID": 301, "R": 0})
     state.update_from_packet("ain", {"A": {**ALLIANCE, "MF": able}})
     return state
@@ -71,7 +71,7 @@ def test_forge_crafts_and_applies_alliance_gem_and_space():
 
 
 def test_forge_relic_gem_joins_the_relic_gems():
-    client, state = forge_client(({"ain": {"A": ALLIANCE}, "RGEM": RELIC_GEM}, 0), legend_level=1, able=0)
+    client, state = forge_client(({"ain": {"A": ALLIANCE}, "RGEM": RELIC_GEM}, 0), legendary_level=1, able=0)
     client.alliance.forge(timeout=0.2)
     gems = state.get_gems()
     assert gems is not None and [gem.gem_id for gem in gems.relic_gems] == [5001]
@@ -81,13 +81,13 @@ def test_alliance_forge_needs_its_flag_and_takes_no_rubies():
     client, _ = forge_client(({"ain": {"A": ALLIANCE}}, 0), able=0)
     with pytest.raises(ValueError, match="cannot craft"):
         client.alliance.forge()
-    with pytest.raises(ValueError, match="legend level"):
+    with pytest.raises(ValueError, match="Legendary level"):
         client.alliance.forge(pay_with_rubies=True, spend_rubies=True)
     assert conn(client).request_payloads == []
 
 
 def test_relic_forge_rubies_need_consent():
-    client, _ = forge_client(({"ain": {"A": ALLIANCE}, "GEM": 7}, 0), legend_level=3, able=0)
+    client, _ = forge_client(({"ain": {"A": ALLIANCE}, "GEM": 7}, 0), legendary_level=3, able=0)
     with pytest.raises(ValueError, match="12500 rubies"):
         client.alliance.forge(pay_with_rubies=True)
     assert conn(client).request_payloads == []

@@ -14,7 +14,7 @@ if TYPE_CHECKING:
         FusionForgeId,
         Horse,
         Judgement,
-        LegendSkill,
+        LegendarySkill,
         Tool,
         TreasureMapId,
         Unit,
@@ -37,7 +37,7 @@ __all__ = [
     "FusionForgeId",
     "Horse",
     "Judgement",
-    "LegendSkill",
+    "LegendarySkill",
     "Tool",
     "Unit",
     "TreasureMapId",
@@ -49,5 +49,5 @@ if not TYPE_CHECKING:
     __getattr__ = lazy_exports(
         __name__,
         "empire_core.gamedata.ids",
-        ("Currency", "Event", "FusionForgeId", "Horse", "Judgement", "LegendSkill", "Tool", "TreasureMapId", "Unit"),
+        ("Currency", "Event", "FusionForgeId", "Horse", "Judgement", "LegendarySkill", "Tool", "TreasureMapId", "Unit"),
     )

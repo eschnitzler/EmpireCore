@@ -12,7 +12,7 @@ from typing import Any
 
 from pydantic import Field, ValidationError, field_validator, model_validator
 
-from empire_core.castle.models.landmarks import KingsTowerListResponse, LaboratoryListResponse, MonumentListResponse
+from empire_core.castle.models.landmarks import LaboratoryListResponse, MonumentListResponse, RoyalTowerListResponse
 from empire_core.enums import Kingdom, MapItemType
 from empire_core.gamedata import EnumOrInt
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, Position, enum_or_none, object_or_none
@@ -84,8 +84,8 @@ _ROW_LAYOUTS: dict[Any, _RowLayout] = {
     MapItemType.KINGDOM_CASTLE: _INTERACTIVE_ROW,
     MapItemType.BERIMOND_CAMP: _INTERACTIVE_ROW,
     MapItemType.CAPITAL: _CAPITAL_ROW,
-    MapItemType.METROPOL: _CAPITAL_ROW,
-    MapItemType.KINGS_TOWER: _RowLayout(object_id=3, owner=4, owner_through_int=True, name=7, kingdom=5, spy=6),
+    MapItemType.TRADING_METROPOLIS: _CAPITAL_ROW,
+    MapItemType.ROYAL_TOWER: _RowLayout(object_id=3, owner=4, owner_through_int=True, name=7, kingdom=5, spy=6),
     MapItemType.MONUMENT: _RowLayout(
         object_id=3, owner=4, owner_through_int=False, name=9, kingdom=7, landmark_level=6, spy=8, monument_type=5
     ),
@@ -110,7 +110,7 @@ class PlayerCastle(BasePayload):
       11 to 19 through ``int()``, so one the row lacks reads as 0.
     - Capitals and metropolises: as above, but the levels as sent, 13 as sent,
       the occupier at 14 and the skin at 15, both as sent, and no outpost type.
-    - Kings towers: object id 3, owner 4, kingdom 5, seconds since the last spy 6, name 7.
+    - Royal towers: object id 3, owner 4, kingdom 5, seconds since the last spy 6, name 7.
     - Monuments: object id 3, owner 4, monument type 5, level 6, kingdom 7,
       seconds since the last spy 8, name 9.
     - Laboratories: object id 3, owner 4, level 5, kingdom 6, seconds since
@@ -498,8 +498,8 @@ class NameCastleInvitationResponse(BaseResponse):
     command = "mir"
 
     castles: GetCastlesResponse | None = Field(validation_alias="gcl", default=None, description="Your castle list")
-    kings_towers: KingsTowerListResponse | None = Field(
-        validation_alias="gkl", default=None, description="Your kings' towers"
+    royal_towers: RoyalTowerListResponse | None = Field(
+        validation_alias="gkl", default=None, description="Your royal towers"
     )
     monuments: MonumentListResponse | None = Field(validation_alias="gml", default=None, description="Your monuments")
     laboratories: LaboratoryListResponse | None = Field(
@@ -512,7 +512,7 @@ class NameCastleInvitationResponse(BaseResponse):
         validation_alias="KID", default=None, description="Its kingdom; None when no whole number was sent"
     )
 
-    @field_validator("castles", "kings_towers", "monuments", "laboratories", mode="before")
+    @field_validator("castles", "royal_towers", "monuments", "laboratories", mode="before")
     @classmethod
     def _section(cls, value: Any) -> Any:
         return object_or_none(value)

@@ -970,10 +970,10 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
             (Attr("general_id", "int", "The general it belongs to, a ``General`` value."), LEVEL),
         ),
         Table(
-            "legend_skills",
-            "LegendSkill",
+            "legendary_skills",
+            "LegendarySkill",
             "L",
-            "Legend skill ids from the ``legendskills`` table, named effect type, tree, group and level.",
+            "Legendary skill ids from the ``legendskills`` table, named effect type, tree, group and level.",
             "``CastleLegendSkillVO.parseXML`` (bundle line 48652)",
             [
                 Row(
@@ -982,7 +982,7 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
                     id_text(s.skill_id),
                     (s.skill_tree_id, s.skill_group_id, s.level),
                 )
-                for s in data.legend_skills.values()
+                for s in data.legendary_skills.values()
             ],
             (
                 Attr("skill_tree_id", "int", "The tree it sits in."),
@@ -1568,7 +1568,7 @@ Anything a balance patch can change is not baked in: for the full row, load a
 member, e.g. ``game_data.units[Unit.MEAD_RANGER_L6]``.
 
 Enums whose rows the game names by a text (units, tools, currencies,
-researches, generals, legend and sceat skills, events, gems, achievements,
+researches, generals, Legendary and sceat skills, events, gems, achievements,
 titles, crest layouts, main quests, prebuilt castles, private villages,
 fusion forges, judgements, treasure maps, league types) have ``display_name(lang="en")``, the
 name the game shows: ``Unit.MEAD_RANGER_L6.display_name("de")``. It reads the

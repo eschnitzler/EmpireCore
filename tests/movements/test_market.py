@@ -319,7 +319,7 @@ class TestKingdomGoodsTransfer:
         client = make_client(
             state=StubState(local_player=StubPlayer(level=70)), castles=[(1234, Kingdom.GREEN), (99, Kingdom.FIRE)]
         )
-        with pytest.raises(UnsendableGoodsError, match="below legend level"):
+        with pytest.raises(UnsendableGoodsError, match="below Legendary level"):
             client.movements.transfer_goods_to_kingdom(1234, Kingdom.FIRE, {Resource.COAL: 1})
 
     def test_the_reply(self):

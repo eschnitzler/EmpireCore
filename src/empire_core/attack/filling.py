@@ -51,7 +51,7 @@ def _has_row_protection(item: MapAreaItem) -> bool:
     """
     Whether the row gives the target's own wall, gate and moat protection.
 
-    Alien, invasion, alliance and daimyo camps and the wolf king return the
+    Alien, invasion, alliance and daimyo camps and Wolfgard return the
     row's value as their ``baseWallBonus``, ``baseGateBonus`` and
     ``baseMoatBonus`` (e.g. ``AAlienInvasionMapobjectVO``, bundle lines
     41571-41577); a castle-style row gives building levels instead.
@@ -110,7 +110,7 @@ def _target_defense(game_data: GameData, target: "_Target") -> dict[Flank, Defen
             gate_bonus=gate,
             moat_bonus=moat,
             castellan=target.castellan,
-            defender_legend_skill_ids=target.defender_legend_skill_ids,
+            defender_legendary_skill_ids=target.defender_legendary_skill_ids,
             area_type=target.area_type,
             game_data=game_data,
         )

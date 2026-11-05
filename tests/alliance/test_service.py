@@ -290,7 +290,7 @@ class TestAllianceSearch:
         assert results[0].alliance_id == 301
         assert results[0].name == "Test Alliance"
         assert results[0].member_count == 47
-        assert (results[0].rank, results[0].score, results[0].fame_points) == (1, 4213377, 1520300)
+        assert (results[0].rank, results[0].score, results[0].glory_points) == (1, 4213377, 1520300)
 
     def test_search_sends_the_search_term(self):
         client = make_client({"hgh": xt_packet("hgh", self.GOLDEN_HGH)})

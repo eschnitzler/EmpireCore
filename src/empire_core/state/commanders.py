@@ -1,4 +1,4 @@
-"""The player's commanders and castellans (gli) and legend and sceat skills (skl)."""
+"""The player's commanders and castellans (gli) and Legendary and sceat skills (skl)."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from empire_core.protocol.js import js_truthy
 from empire_core.state.base import StateBase, loaded
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import LegendSkill
+    from empire_core.gamedata import LegendarySkill
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ class CommanderState(StateBase):
         return True
 
     def _parse_skills(self, data: dict[str, Any]) -> bool:
-        """Apply a ``skl`` section: the legend and sceat skills; whether it was applied.
+        """Apply a ``skl`` section: the Legendary and sceat skills; whether it was applied.
 
         Client: ``CastleLegendSkillData.parse_SKL`` (bundle line 112051), from ``GBDCommand.exec``
         (bundle line 129381) and ``EGOCommand`` (bundle line 122801) when the section is truthy,
@@ -49,10 +49,10 @@ class CommanderState(StateBase):
         self.skills = skills
         return True
 
-    def add_legend_skills(self, bought: Mapping[LegendSkill | int, LegendSkill | int | None]) -> None:
-        """Apply the legend skill levels a ``skp`` reply bought, each with the level it replaces.
+    def add_legendary_skills(self, bought: Mapping[LegendarySkill | int, LegendarySkill | int | None]) -> None:
+        """Apply the Legendary skill levels a ``skp`` reply bought, each with the level it replaces.
 
-        ``client.player.add_legend_skill_point`` calls it with the replaced levels from the game data.
+        ``client.player.add_legendary_skill_point`` calls it with the replaced levels from the game data.
         Nothing is applied before a skill list arrived.
 
         Client: ``CastleLegendSkillData.parse_SKP`` (bundle line 112073)
@@ -60,13 +60,13 @@ class CommanderState(StateBase):
         with self._lock:
             if self.skills is None:
                 return
-            held = list(self.skills.legend_skill_ids)
+            held = list(self.skills.legendary_skill_ids)
             for skill, previous in bought.items():
                 if previous is not None and previous in held:
                     held.remove(previous)
                 if skill not in held:
                     held.append(skill)
-            self.skills = self.skills.model_copy(update={"legend_skill_ids": tuple(held)})
+            self.skills = self.skills.model_copy(update={"legendary_skill_ids": tuple(held)})
 
     def get_commanders(self) -> CommanderRoster:
         """Your commanders and castellans as the last ``gli`` listed them.
@@ -82,7 +82,7 @@ class CommanderState(StateBase):
             return loaded(self.commanders, "Commanders").model_copy(deep=True)
 
     def get_skills(self) -> SkillList | None:
-        """Your legend and sceat skills as the last ``skl`` listed them; None until one arrived.
+        """Your Legendary and sceat skills as the last ``skl`` listed them; None until one arrived.
 
         The login gbd brings them, and so do a ``skl`` reply or push and an ``ego`` push
         that carries one. A copy: changing it changes nothing in state.

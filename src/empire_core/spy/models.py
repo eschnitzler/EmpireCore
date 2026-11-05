@@ -414,7 +414,7 @@ class AutoSpyResponse(SpyReportResponse):
 
 class MaxSpiesResponse(BaseResponse):
     """
-    How many spies you have, before research, title and legend skill boosts.
+    How many spies you have, before research, title and Legendary skill boosts.
 
     Command: gms, as a login section of ``gbd`` and as a push. The client
     never sends a ``gms`` request.

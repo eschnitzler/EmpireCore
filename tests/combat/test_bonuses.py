@@ -18,7 +18,7 @@ from empire_core.combat import (
     general_skill_bonuses,
     global_effect_bonuses,
     global_unit_attack_bonuses,
-    legend_skill_value,
+    legendary_skill_value,
     parse_bonus_entries,
     sceat_skill_bonuses,
 )
@@ -694,10 +694,10 @@ class TestSources:
     def test_legend_skills_sum_by_effect_type_name(self):
         game = source_data()
 
-        assert legend_skill_value([1, 2], "gateReduction", game_data=game) == 10
-        assert legend_skill_value([1, 9], "wallReduction", game_data=game) == 5
-        assert legend_skill_value([1], "moatReduction", game_data=game) == 0
-        assert legend_skill_value([999], "gateReduction", game_data=game) == 0
+        assert legendary_skill_value([1, 2], "gateReduction", game_data=game) == 10
+        assert legendary_skill_value([1, 9], "wallReduction", game_data=game) == 5
+        assert legendary_skill_value([1], "moatReduction", game_data=game) == 0
+        assert legendary_skill_value([999], "gateReduction", game_data=game) == 0
 
 
 class TestAttackerFlankEffects:
@@ -746,11 +746,11 @@ class TestAttackerFlankEffects:
         assert tool is not None
 
         effects = attacker_flank_effects(
-            EffectResolver(game), self.COMMANDER, legend_skill_ids=[1, 2, 9], legendary=True, support_tools=[tool]
+            EffectResolver(game), self.COMMANDER, legendary_skill_ids=[1, 2, 9], legendary=True, support_tools=[tool]
         )
 
         # FightScreenHelper.getAttackerFlankEffectVO in node, for the same
-        # commander terms, legend skills and tool.
+        # commander terms, Legendary skills and tool.
         assert (
             effects.melee_bonus,
             effects.range_bonus,
@@ -762,7 +762,7 @@ class TestAttackerFlankEffects:
 
     def test_legend_skills_need_a_legendary_fight(self):
         effects = attacker_flank_effects(
-            EffectResolver(source_data()), self.COMMANDER, legend_skill_ids=[1, 2, 9], legendary=False
+            EffectResolver(source_data()), self.COMMANDER, legendary_skill_ids=[1, 2, 9], legendary=False
         )
 
         # The same getAttackerFlankEffectVO run with isLegendaryFight false.

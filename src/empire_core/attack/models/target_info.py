@@ -25,7 +25,7 @@ from empire_core.protocol.js import js_int
 from .info import AttackInfoResponse, GetAttackInfoResponse
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import LegendSkill, TreasureMapId
+    from empire_core.gamedata import LegendarySkill, TreasureMapId
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ class GetDungeonAttackInfoRequest(BaseRequest):
 
     Every target whose map object attacks as a dungeon answers this command:
     robber baron camps, event and isle dungeons, invasion and alien camps, the
-    wolf king and the alliance raid portal. The server refuses ``aci`` for a
+    Wolfgard and the alliance raid portal. The server refuses ``aci`` for a
     camp with INVALID_AREA.
 
     Command: adi
@@ -105,7 +105,7 @@ class GetBossDungeonAttackInfoResponse(GetAttackInfoResponse):
 
 class GetLandmarkAttackInfoRequest(BaseRequest):
     """
-    Ask for the attack pre-calculation against a kings tower, monument or laboratory.
+    Ask for the attack pre-calculation against a royal tower, monument or laboratory.
 
     Command: ali
     Payload: {"KID": kingdom_id, "TX": target_x, "TY": target_y, "SX": source_x, "SY": source_y}
@@ -169,7 +169,7 @@ class GetVillageAttackInfoResponse(GetAttackInfoResponse):
 
 class GetIslandAttackInfoRequest(BaseRequest):
     """
-    Ask for the attack pre-calculation against an isle resource.
+    Ask for the attack pre-calculation against a resource island.
 
     An isle dungeon attacks as a dungeon and answers ``adi`` instead.
 
@@ -189,7 +189,7 @@ class GetIslandAttackInfoRequest(BaseRequest):
 
 class GetIslandAttackInfoResponse(GetAttackInfoResponse):
     """
-    The attack pre-calculation for an isle resource.
+    The attack pre-calculation for a resource island.
 
     Command: aii
 
@@ -328,10 +328,10 @@ class GetTreasureNodeAttackInfoResponse(BaseResponse):
     spied_castellan: Castellan | None = Field(
         validation_alias="B", default=None, description="The castellan defending the node, from the spy report"
     )
-    defender_legend_skill_ids: tuple[EnumOrInt["LegendSkill"], ...] = Field(
+    defender_legendary_skill_ids: tuple[EnumOrInt["LegendarySkill"], ...] = Field(
         validation_alias="LS",
         default=(),
-        description="The defender's legend skills, part of the spy report",
+        description="The defender's Legendary skills, part of the spy report",
     )
     unit_inventory: UnitInventory = Field(
         validation_alias="gui",
@@ -349,10 +349,10 @@ class GetTreasureNodeAttackInfoResponse(BaseResponse):
         castellan = read_or_none(handler, value, warn=logger, what="the defending castellan of a treasure node")
         return None if castellan is None else castellan.model_copy(update={"without_equipment": True})
 
-    @field_validator("defender_legend_skill_ids", mode="before")
+    @field_validator("defender_legendary_skill_ids", mode="before")
     @classmethod
-    def _legend_skills(cls, value: object) -> list[int]:
-        return int_entries(value, warn=logger, what="legend skills of a treasure node pre-calculation")
+    def _legendary_skills(cls, value: object) -> list[int]:
+        return int_entries(value, warn=logger, what="Legendary skills of a treasure node pre-calculation")
 
     @model_validator(mode="after")
     def _no_spy_report_without_an_army(self) -> "GetTreasureNodeAttackInfoResponse":
@@ -360,7 +360,7 @@ class GetTreasureNodeAttackInfoResponse(BaseResponse):
         if self.spy_army is None:
             self.spy_age_seconds = -1
             self.spied_castellan = None
-            self.defender_legend_skill_ids = ()
+            self.defender_legendary_skill_ids = ()
         return self
 
 
@@ -471,7 +471,7 @@ class GetCapitalConquerInfoResponse(GetAttackInfoResponse):
     command = "cci"
 
 
-class GetMetropolConquerInfoRequest(BaseRequest):
+class GetMetropolisConquerInfoRequest(BaseRequest):
     """
     Ask for the conquest pre-calculation against a metropolis.
 
@@ -489,7 +489,7 @@ class GetMetropolConquerInfoRequest(BaseRequest):
     target_y: int = Field(validation_alias="TY", description="Target map y")
 
 
-class GetMetropolConquerInfoResponse(GetAttackInfoResponse):
+class GetMetropolisConquerInfoResponse(GetAttackInfoResponse):
     """
     The conquest pre-calculation for a metropolis. The client reads no barons from it.
 
@@ -518,8 +518,8 @@ __all__ = [
     "GetOutpostConquerInfoResponse",
     "GetCapitalConquerInfoRequest",
     "GetCapitalConquerInfoResponse",
-    "GetMetropolConquerInfoRequest",
-    "GetMetropolConquerInfoResponse",
+    "GetMetropolisConquerInfoRequest",
+    "GetMetropolisConquerInfoResponse",
     "GetBerimondCampConquerInfoRequest",
     "GetBerimondCampConquerInfoResponse",
     "GetAllianceTowerAttackInfoRequest",

@@ -187,7 +187,7 @@ class EventState(StateBase):
     def _handle_tei(self, data: Any) -> None:
         """Handle 'trigger event info': each ``TE`` entry updates or adds its event, keyed by ``TRID``.
 
-        The trigger events (the kingdoms league and the global effect events) join the
+        The trigger events (the Kingdom's League and the global effect events) join the
         other running events; their ends come from their own fields, as their models say.
 
         Client: ``TEICommand`` (bundle line 128447) and ``CastleSpecialEventData.parseTEI``
@@ -661,7 +661,7 @@ class EventState(StateBase):
         self._expire_events()
 
     def _expire_events(self) -> None:
-        """Drop the events whose time is up, the kingdoms league's end read anew first.
+        """Drop the events whose time is up, the Kingdom's League's end read anew first.
 
         Client: ``CastleSpecialEventData.executeUpdateForEvents`` (bundle line 139833):
         ``remainingEventTimeInSeconds<=0``; ``SeasonLeagueEventVO.endTimestamp`` (bundle line 118061)

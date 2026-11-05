@@ -56,7 +56,7 @@ if TYPE_CHECKING:
         GlobalEffect,
         Horse,
         LeagueType,
-        LegendSkill,
+        LegendarySkill,
         RaidBoss,
         SceatSkill,
         Tool,
@@ -1219,14 +1219,14 @@ class EquipmentSetDef(EquipmentEffectSpecRow):
     )
 
 
-class LegendSkillDef(_Row):
+class LegendarySkillDef(_Row):
     """
-    One level of a legend skill, e.g. ``gateReduction``.
+    One level of a Legendary skill, e.g. ``gateReduction``.
 
     Client: ``CastleLegendSkillVO.parseXML`` (bundle line 48652); ``isMaxLevel`` (bundle line 48717)
     """
 
-    skill_id: GameDataId["LegendSkill"] = Field(validation_alias="skillID", description="The legend skill")
+    skill_id: GameDataId["LegendarySkill"] = Field(validation_alias="skillID", description="The Legendary skill")
     level: int = 0
     tier: int = 0
     skill_tree_id: int = Field(validation_alias="skillTreeID", default=0)
@@ -1237,15 +1237,15 @@ class LegendSkillDef(_Row):
     cost_skill_points: int = Field(
         validation_alias="costSkillPoints", default=0, description="Skill points this level costs over the one before"
     )
-    required_skill_id: GameDataId["LegendSkill"] | None = Field(
+    required_skill_id: GameDataId["LegendarySkill"] | None = Field(
         validation_alias="requiredSkillID", default=None, description="The skill this level needs; None for none"
     )
-    previous_skill_id: GameDataId["LegendSkill"] | None = Field(
+    previous_skill_id: GameDataId["LegendarySkill"] | None = Field(
         validation_alias="previousSkillID",
         default=None,
         description="The level this one replaces when bought; the required skill when the row names none",
     )
-    following_skill_id: GameDataId["LegendSkill"] | None = Field(
+    following_skill_id: GameDataId["LegendarySkill"] | None = Field(
         validation_alias="followingSkillID", default=None, description="The next level; None at the last"
     )
 
@@ -1255,7 +1255,7 @@ class LegendSkillDef(_Row):
         return None if js_parse_int(value) == 0 else value
 
     @model_validator(mode="after")
-    def _previous_defaults_to_required(self) -> LegendSkillDef:
+    def _previous_defaults_to_required(self) -> LegendarySkillDef:
         if "previous_skill_id" not in self.model_fields_set:
             self.previous_skill_id = self.required_skill_id
         return self
@@ -1800,7 +1800,7 @@ __all__ = [
     "EquipmentEffectDef",
     "GeneralDef",
     "HorseStats",
-    "LegendSkillDef",
+    "LegendarySkillDef",
     "AllianceBuffDef",
     "ConstructionItemDef",
     "CurrencyDef",

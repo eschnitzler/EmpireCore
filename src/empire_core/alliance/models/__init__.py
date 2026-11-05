@@ -30,7 +30,7 @@ from empire_core.alliance.models.settings import (
 )
 from empire_core.alliance.models.upgrades import AllianceUpgradeRequest, AllianceUpgradeResponse
 
-from .aqua import AllianceMemberAquaPoints, AllianceMemberAquaPointsRequest, AllianceMemberAquaPointsResponse
+from .aqua import AllianceMemberCargoPoints, AllianceMemberCargoPointsRequest, AllianceMemberCargoPointsResponse
 from .bookmarks import (
     ATTACK_ORDER_MAX_SECONDS,
     ATTACK_ORDER_MIN_SECONDS,
@@ -91,7 +91,7 @@ from .diplomacy import (
     SetAutoWarResponse,
 )
 from .forge import (
-    RELIC_FORGE_MIN_LEGEND_LEVEL,
+    RELIC_FORGE_MIN_LEGENDARY_LEVEL,
     ForgeCraftRequest,
     ForgeCraftResponse,
     relic_forge_coin_cost,
@@ -168,7 +168,7 @@ from .info import (
     AllianceCrestChangedResponse,
     AllianceCrests,
     AllianceDiplomacyStatus,
-    AllianceFameResponse,
+    AllianceGloryResponse,
     AllianceInfo,
     AllianceMember,
     AllianceMemberInfo,
@@ -232,9 +232,9 @@ __all__ = [
     "AutoJoinedAllianceResponse",
     "DonationResourcesResponse",
     "GetDonationResourcesRequest",
-    "AllianceMemberAquaPoints",
-    "AllianceMemberAquaPointsRequest",
-    "AllianceMemberAquaPointsResponse",
+    "AllianceMemberCargoPoints",
+    "AllianceMemberCargoPointsRequest",
+    "AllianceMemberCargoPointsResponse",
     "ActivateAllianceTowerBuffsRequest",
     "ActivateAllianceTowerBuffsResponse",
     "AllianceInfluenceResponse",
@@ -262,7 +262,7 @@ __all__ = [
     "IncreaseAllianceTowerBuffsRequest",
     "IncreaseAllianceTowerBuffsResponse",
     "PlayerInfluenceResponse",
-    "RELIC_FORGE_MIN_LEGEND_LEVEL",
+    "RELIC_FORGE_MIN_LEGENDARY_LEVEL",
     "ForgeCraftRequest",
     "ForgeCraftResponse",
     "relic_forge_coin_cost",
@@ -361,7 +361,7 @@ __all__ = [
     "AllianceCrests",
     "AllianceBuffsResponse",
     "AllianceCrestChangedResponse",
-    "AllianceFameResponse",
+    "AllianceGloryResponse",
     "CrestLayout",
     "PeaceOffer",
     "AllianceMember",

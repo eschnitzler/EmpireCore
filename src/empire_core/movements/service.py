@@ -188,7 +188,7 @@ class MovementsService(BaseService):
         sending: an amount that is not a positive int (the client drops zeros
         and refuses a send of nothing; this raises on a zero instead), goods
         from more than one of the dialog's tabs (classic, kingdom, mead), or,
-        once the player is known and has no legend level, anything but wood,
+        once the player is known and has no Legendary level, anything but wood,
         stone and food (the client then shows only that tab). The client sends
         one tab's goods per send, and the server refuses a send that mixes tabs
         with INVALID_PARAMETER_VALUE (seen live for wood with coal and coal
@@ -266,7 +266,7 @@ class MovementsService(BaseService):
             beyond = [key.value for key in amounts if key not in _CLASSIC_GOODS]
             if beyond:
                 raise UnsendableGoodsError(
-                    f"Only wood, stone and food can be sent below legend level, not {', '.join(map(str, beyond))}",
+                    f"Only wood, stone and food can be sent below Legendary level, not {', '.join(map(str, beyond))}",
                     goods,
                 )
         return amounts
@@ -435,10 +435,10 @@ class MovementsService(BaseService):
         recalled with ``client.movements.recall``.
 
         Targets the client offers: your castle (main or kingdom castle), your
-        outposts not under conquer control, your villages and resource isles,
-        your king's towers, monuments and laboratories, and your Berimond camps.
+        outposts not under conquer control, your villages and resource islands,
+        your royal towers, monuments and laboratories, and your Berimond camps.
         Sources: your castles and outposts (not occupied ones), villages,
-        resource isles, king's towers, monuments and laboratories. Both must
+        resource islands, royal towers, monuments and laboratories. Both must
         sit in the same kingdom; to move troops between kingdoms use
         :meth:`transfer_units_to_kingdom`.
 
@@ -587,7 +587,7 @@ class MovementsService(BaseService):
 
         The goods pass the checks of :meth:`send_resources`, since the client
         sends them from the same send component: positive amounts, one tab per
-        send, classic goods only below legend level. The source castle may not
+        send, classic goods only below Legendary level. The source castle may not
         sit in the target kingdom or in Berimond, which the client leaves out
         of its castle picker, and the target kingdom must hold a castle of
         yours, which the client sends the goods to. The travel tax and the

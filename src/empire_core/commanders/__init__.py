@@ -109,7 +109,7 @@ if TYPE_CHECKING:
         GeneralAbility,
         GeneralsHubCharacter,
         GeneralSkill,
-        LegendSkill,
+        LegendarySkill,
         SceatSkill,
     )
 
@@ -217,7 +217,7 @@ __all__ = [
     "GeneralAbility",
     "GeneralsHubCharacter",
     "GeneralSkill",
-    "LegendSkill",
+    "LegendarySkill",
     "SceatSkill",
     "Effect",
     "EquipmentEffect",
@@ -240,7 +240,7 @@ if not TYPE_CHECKING:
             "GeneralAbility",
             "GeneralSkill",
             "GeneralsHubCharacter",
-            "LegendSkill",
+            "LegendarySkill",
             "SceatSkill",
         ),
     )

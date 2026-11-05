@@ -43,7 +43,7 @@ for item in scan.items:
 
 From the coordinates it reads the target's area type and structures, the
 defenders each flank holds and the castellan holding it, the area effects that
-widen your flanks, your general's skills, and your own legend and Hall of
+widen your flanks, your general's skills, and your own Legendary and Hall of
 Legends skills. A robber baron camp's level comes from the victory count in its map row; a
 player's from the owner records beside it. A robber baron camp's defenders
 and tools come from its row in the game data
@@ -93,7 +93,7 @@ level rather than the attacker's: a level 13 castle holds far fewer troops
 than a level 70 one, whatever the attacker's level. Some targets defend at a
 level of their own; a monument is built for level 70 however low its owner is.
 On top come the commander's own equipment, its general's unit-limit skills,
-the Hall of Legends skills, and the legend skills when both sides are at the
+the Hall of Legends skills, and the Legendary skills when both sides are at the
 level cap.
 
 ## How each flank is filled

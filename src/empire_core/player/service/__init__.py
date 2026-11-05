@@ -1,5 +1,5 @@
 """
-Other players' details, player search and your legend skills.
+Other players' details, player search and your Legendary skills.
 """
 
 from __future__ import annotations

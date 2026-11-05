@@ -7,9 +7,9 @@ from enum import IntEnum
 from empire_core.texts import text
 
 
-class LegendSkill(IntEnum):
+class LegendarySkill(IntEnum):
     """
-    Legend skill ids from the ``legendskills`` table, named effect type, tree, group and level.
+    Legendary skill ids from the ``legendskills`` table, named effect type, tree, group and level.
 
     Client: ``CastleLegendSkillVO.parseXML`` (bundle line 48652)
     """
@@ -22,7 +22,7 @@ class LegendSkill(IntEnum):
     level: int
     """Upgrade level; -1 when the row has none."""
 
-    def __new__(cls, value: int, skill_tree_id: int = 0, skill_group_id: int = 0, level: int = 0) -> LegendSkill:
+    def __new__(cls, value: int, skill_tree_id: int = 0, skill_group_id: int = 0, level: int = 0) -> LegendarySkill:
         member = int.__new__(cls, value)
         member._value_ = value
         member.skill_tree_id = skill_tree_id

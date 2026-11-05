@@ -192,7 +192,7 @@ class TestPlayerInfoLandmarks:
         castles = response.get_castles()
         assert [(c.castle_id, c.castle_type, c.castle_name) for c in castles] == [
             (12345, MapItemType.CASTLE, "Main"),
-            (888, MapItemType.KINGS_TOWER, "Tower"),
+            (888, MapItemType.ROYAL_TOWER, "Tower"),
             (889, MapItemType.MONUMENT, "Monument"),
             (890, MapItemType.LABORATORY, "Lab"),
         ]

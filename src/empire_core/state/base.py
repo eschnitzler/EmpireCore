@@ -28,11 +28,11 @@ from empire_core.castle.models.fusion_forge import FusionForge
 from empire_core.castle.models.hunter import HunterInfo
 from empire_core.castle.models.kingdoms import KingdomInfoResponse
 from empire_core.castle.models.landmarks import (
-    KingsTowerListResponse,
     LaboratoryListResponse,
     LaboratoryResetResponse,
     MonumentListResponse,
     MonumentResetResponse,
+    RoyalTowerListResponse,
 )
 from empire_core.castle.models.mercenaries import MercenaryMissionsResponse
 from empire_core.castle.models.objects import BuildingConstructionItems
@@ -271,11 +271,11 @@ class StateBase:
         self.decoration_storages: dict[DecorationStorageKey, DecorationStorage] = {}
         self.laboratories: LaboratoryListResponse | None = None
         self.laboratory_reset: LaboratoryResetResponse | None = None
-        self.kings_towers: KingsTowerListResponse | None = None
+        self.royal_towers: RoyalTowerListResponse | None = None
         self.monuments: MonumentListResponse | None = None
         self.monument_reset: MonumentResetResponse | None = None
         self.villages: VillageListResponse | None = None
-        self.aqua_points: int | float | None = None
+        self.cargo_points: int | float | None = None
         # Treasure maps by map id, swapped, never edited; the treasure hunt's current map
         self.treasure_maps: dict[TreasureMapId | int, TreasureMap] | None = None
         self.treasure_hunt_map_id: TreasureMapId | int | None = None

@@ -27,8 +27,8 @@ from empire_core.attack.models.target_info import (
     GetIslandAttackInfoResponse,
     GetLandmarkAttackInfoRequest,
     GetLandmarkAttackInfoResponse,
-    GetMetropolConquerInfoRequest,
-    GetMetropolConquerInfoResponse,
+    GetMetropolisConquerInfoRequest,
+    GetMetropolisConquerInfoResponse,
     GetOutpostConquerInfoRequest,
     GetOutpostConquerInfoResponse,
     GetVillageAttackInfoRequest,
@@ -46,7 +46,7 @@ from empire_core.protocol.base import BaseRequest
 
 if TYPE_CHECKING:
     from empire_core.attack.service.sending import SendingMixin
-    from empire_core.gamedata import LegendSkill
+    from empire_core.gamedata import LegendarySkill
 
 logger = logging.getLogger(__name__)
 
@@ -67,11 +67,11 @@ _ATTACK_PRECALCULATION: dict[int, _Precalculation] = {
     # ACTION_TYPE_OUTPOSTATTACK: OutpostMapobjectVO, extended by CapitalMapobjectVO and MetropolMapobjectVO
     MapItemType.OUTPOST: _ACI,
     MapItemType.CAPITAL: _ACI,
-    MapItemType.METROPOL: _ACI,
+    MapItemType.TRADING_METROPOLIS: _ACI,
     # ACTION_TYPE_DUNGEONATTACK
     MapItemType.DUNGEON: _ADI,
     MapItemType.EVENT_DUNGEON: _ADI,
-    MapItemType.ISLE_DUNGEON: _ADI,
+    MapItemType.STORM_FORT: _ADI,
     MapItemType.ALIEN_CAMP: _ADI,
     MapItemType.BLOODCROW_CAMP: _ADI,
     MapItemType.NOMAD_CAMP: _ADI,
@@ -80,18 +80,18 @@ _ATTACK_PRECALCULATION: dict[int, _Precalculation] = {
     MapItemType.ALLIANCE_NOMAD_CAMP: _ADI,
     MapItemType.DAIMYO_CASTLE: _ADI,
     MapItemType.HORIZON_RESOURCE_TOWER: _ADI,
-    MapItemType.WOLF_KING: _ADI,
+    MapItemType.WOLF_FORTRESS: _ADI,
     MapItemType.ARE_PORTAL: _ADI,
     # ACTION_TYPE_BOSSDUNGEONATTACK
     MapItemType.BOSS_DUNGEON: (GetBossDungeonAttackInfoRequest, GetBossDungeonAttackInfoResponse),
     # ACTION_TYPE_LANDMARK_ATTACK
-    MapItemType.KINGS_TOWER: _ALI,
+    MapItemType.ROYAL_TOWER: _ALI,
     MapItemType.MONUMENT: _ALI,
     MapItemType.LABORATORY: _ALI,
     # ACTION_TYPE_VILLAGE_ATTACK
     MapItemType.VILLAGE: (GetVillageAttackInfoRequest, GetVillageAttackInfoResponse),
     # ACTION_TYPE_ISLAND_ATTACK
-    MapItemType.ISLE_RESOURCE: (GetIslandAttackInfoRequest, GetIslandAttackInfoResponse),
+    MapItemType.RESOURCE_ISLAND: (GetIslandAttackInfoRequest, GetIslandAttackInfoResponse),
     # ACTION_TYPE_ATTACK_ABG_TOWERS
     MapItemType.HORIZON_TOWER: (GetAllianceTowerAttackInfoRequest, GetAllianceTowerAttackInfoResponse),
 }
@@ -99,7 +99,7 @@ _ATTACK_PRECALCULATION: dict[int, _Precalculation] = {
 _CONQUER_PRECALCULATION: dict[int, _Precalculation] = {
     MapItemType.OUTPOST: (GetOutpostConquerInfoRequest, GetOutpostConquerInfoResponse),
     MapItemType.CAPITAL: (GetCapitalConquerInfoRequest, GetCapitalConquerInfoResponse),
-    MapItemType.METROPOL: (GetMetropolConquerInfoRequest, GetMetropolConquerInfoResponse),
+    MapItemType.TRADING_METROPOLIS: (GetMetropolisConquerInfoRequest, GetMetropolisConquerInfoResponse),
     MapItemType.BERIMOND_CAMP: (GetBerimondCampConquerInfoRequest, GetBerimondCampConquerInfoResponse),
 }
 
@@ -186,13 +186,13 @@ class _Target:
     row: list[Any] | None = None
     area_type: int | None = None
     level: int | None = None
-    owner_legend_level: int | None = None
+    owner_legendary_level: int | None = None
     is_player: bool = False
     robber_baron_camp_victories: int | None = None
     robber_baron_camp_kingdom: Kingdom = Kingdom.GREEN
     spy_army: SpyArmy | None = None
     castellan: LeaderBase | None = None
-    defender_legend_skill_ids: Sequence[EnumOrInt["LegendSkill"]] | None = None
+    defender_legendary_skill_ids: Sequence[EnumOrInt["LegendarySkill"]] | None = None
     area_bonuses: list[Bonus] | None = None
     conquer: bool = False
     inventory: dict[int, int] | None = None
@@ -279,12 +279,12 @@ def _read_target(service: SendingMixin, target: "_Target", *, castle_id: int, ti
                 ),
             )
     elif item.dungeon_level is not None and item.dungeon_level > 0:
-        # A camp whose row gives its level (an alien camp, the wolf king, an event
+        # A camp whose row gives its level (an alien camp, Wolfgard, an event
         # or boss dungeon, a faction object) has an NPC owner and no record to read;
         # an alien camp at level 0 or below is not on the map (bundle line 41545)
         if target.level is None:
             target.level = item.dungeon_level
-    elif target.level is None or target.owner_legend_level is None:
+    elif target.level is None or target.owner_legendary_level is None:
         # A player's level is not in the row; it sits in the owner records a
         # scan returns beside it.
         if area is None:
@@ -293,8 +293,8 @@ def _read_target(service: SendingMixin, target: "_Target", *, castle_id: int, ti
         if target.level is None:
             target.level = owner.level if owner is not None else None
             target.is_player = target.is_player or target.level is not None
-        if target.owner_legend_level is None and owner is not None:
-            target.owner_legend_level = owner.legendary_level
+        if target.owner_legendary_level is None and owner is not None:
+            target.owner_legendary_level = owner.legendary_level
 
 
 def _take_scanned_row(target: "_Target", area: GetMapAreaResponse | None) -> None:
@@ -328,9 +328,9 @@ def _scan_tile(service: SendingMixin, target: "_Target", *, timeout: float) -> G
 
 
 def _read_precalculation(service: SendingMixin, target: "_Target", *, timeout: float) -> None:
-    """Take the target's row, defenders, castellan, legend skills and area effects from its pre-calculation.
+    """Take the target's row, defenders, castellan, Legendary skills and area effects from its pre-calculation.
 
-    The defender's legend skills come with the spy report only, as in
+    The defender's Legendary skills come with the spy report only, as in
     ``CastleSpyArmyInfoVO.parseArmyInfo``, which sets them when ``S`` is not empty.
 
     The server refuses the pre-calculation of a target it will not let this player
@@ -369,7 +369,7 @@ def _read_precalculation(service: SendingMixin, target: "_Target", *, timeout: f
         target.spy_army = info.spy_army
     if target.castellan is None:
         target.castellan = info.defending_castellan()
-    if target.level is None or target.owner_legend_level is None:
+    if target.level is None or target.owner_legendary_level is None:
         # The owner records (gaa.OI) carry the owner's level (L) and legend
         # level (LL), as WorldMapOwnerInfoVO reads them, so no scan is needed
         owner_id = owner_id_from_row(target.row)
@@ -378,10 +378,10 @@ def _read_precalculation(service: SendingMixin, target: "_Target", *, timeout: f
             if target.level is None and record.level > 0:
                 target.level = record.level
                 target.is_player = True
-            if target.owner_legend_level is None and "legendary_level" in record.model_fields_set:
-                target.owner_legend_level = record.legendary_level
-    if target.defender_legend_skill_ids is None and info.spy_army is not None:
-        target.defender_legend_skill_ids = info.defender_legend_skill_ids
+            if target.owner_legendary_level is None and "legendary_level" in record.model_fields_set:
+                target.owner_legendary_level = record.legendary_level
+    if target.defender_legendary_skill_ids is None and info.spy_army is not None:
+        target.defender_legendary_skill_ids = info.defender_legendary_skill_ids
     if target.area_bonuses is None:
         target.area_bonuses = info.attacker_bonuses()
 

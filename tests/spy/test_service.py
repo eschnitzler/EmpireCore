@@ -981,7 +981,7 @@ class TestNpcDungeonsHaveNoPlayerFloor:
         [
             [11, 700, 710, -1, 5, 0, -1, 1],  # boss dungeon: -230 minus the kingdom
             [25, 700, 710, 4, -1, 1, 0, 0, 0],  # isle dungeon: NPC_ID_EILAND_DUNGEON
-            [42, 700, 710, -1, 5, 0, 0, 0, 0],  # wolf king: -1201
+            [42, 700, 710, -1, 5, 0, 0, 0, 0],  # Wolfgard: -1201
         ],
     )
     def test_a_ceiling_under_the_player_floor_still_spies(self, no_sleep, row):

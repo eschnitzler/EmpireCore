@@ -163,7 +163,6 @@ from .kingdoms import (
 from .landmarks import (
     GetLaboratoryProgressRequest,
     GetMonumentProgressRequest,
-    KingsTowerListResponse,
     LaboratoryListResponse,
     LaboratoryProgressResponse,
     LaboratoryResetResponse,
@@ -172,9 +171,10 @@ from .landmarks import (
     MonumentProgressResponse,
     MonumentResetResponse,
     OwnArea,
-    OwnKingsTower,
     OwnLaboratory,
     OwnMonument,
+    OwnRoyalTower,
+    RoyalTowerListResponse,
 )
 from .lookups import (
     FeastCostReductionResponse,
@@ -333,11 +333,11 @@ __all__ = [
     "OwnVillage",
     "PrivateVillage",
     "VillageListResponse",
-    "KingsTowerListResponse",
+    "RoyalTowerListResponse",
     "MonumentListResponse",
     "MonumentResetResponse",
     "OwnArea",
-    "OwnKingsTower",
+    "OwnRoyalTower",
     "OwnMonument",
     "ConstructionItemPlacement",
     "EquipConstructionItemRequest",

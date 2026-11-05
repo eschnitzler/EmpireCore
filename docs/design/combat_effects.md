@@ -198,7 +198,7 @@ so a boost of 0 yields the multiplier 1.0. (`EffectConst.BASE_BOOST_PERCENTAGE =
 
 **This is not an effect type.** The catalog gap that said "no effect type
 governs siege-tool capacity" is correct; the quantity is a level step function
-plus one legend skill.
+plus one Legendary skill.
 
 The level here is the **target owner's**, like the flanks: the wave army is
 built with `_army.init(this.targetOwnerLevel, ...)` and each wave added with
@@ -787,7 +787,7 @@ Combat effect types actually present in each, joined `effects` → `effects` tab
 | Global / event effects | `GlobalEffectData.getGlobalEffectsByType`, `.getBonusByEffectType` | `globalEffects` (19 rows) | 148×5, 154×6, 15×2, 33×1 |
 | Subscriptions | `SubscriptionData.getSubscriptionEffectsByType` | `subscriptionsBuffs` (94 rows) | 75×9, 13×8, 0×4, 38×4, 39×4, 14×3, 36×1 |
 | Sceat (second legend tree) | `CastleLegendSkillData.getSceatSkillEffectsByType` | `sceatSkills` (333 rows) | **none** — only types 57, 79, 90, 169 |
-| Classic legend skills | `CastleLegendSkillData.getTotalValueOfLegendSkillEffect` — **flat ints, entirely outside the BonusVO/cap pipeline** | `legendskills` (353 rows; `effectType` is a *string*, not an effect-type id) | see §3.4 |
+| Classic Legendary skills | `CastleLegendSkillData.getTotalValueOfLegendSkillEffect` — **flat ints, entirely outside the BonusVO/cap pipeline** | `legendskills` (353 rows; `effectType` is a *string*, not an effect-type id) | see §3.4 |
 | Player crest | `PremiumCrestSymbolVO.getEffectsByType` (line 111656); parsed by `CastleCrestSymbolData.parseXML` (line 111550) | `crestsymbols` (82 rows, 44 carry `effects`) | 13×7 only (plus 22, 80, 92, 93, 164, 165) |
 | Alliance crest layout | `AllianceCrestLayoutVO.parseEffects` (line 111025); read back via `AllianceInfoVO.getLayoutEffectsByType` (line 26153) | `allianceCoatLayouts` (19 rows, 11 carry `effects`) | 33×3, 28×1, 34×1 (plus 86, 161) |
 | Alliance buffs | `AllianceInfoVO.getTotalAllianceBuffEffectsByType`; `allianceBuffData.getAllianceBuffVoBySeriesIDAndLevel(...).getBonusVOsByType()` | `alliancebuffs` (261 rows, 213 carry `effects`) | 36×23, 44×21, 114×21, 31×6, 39×32, 13×1 |
@@ -820,7 +820,7 @@ is **not established**, so the runtime contribution of *global*
 construction-item effects is unknown. (Area-scoped construction items still
 arrive via the building path.)
 
-### 3.4 Legend skills
+### 3.4 Legendary skills
 
 `CastleLegendSkillData.getTotalValueOfLegendSkillEffect(enumMember)` returns a
 flat integer and bypasses the `BonusVO` / cap pipeline entirely.
@@ -972,7 +972,7 @@ with their all being `capID` 99.
 | `ignoreCap = true` | `getTotalEffectValue` second parameter; `EffectsHandlerVO` / `SimpleEffectSource` `ignoreCap` | no clamp applied |
 | Missing `maxTotalBonus` | `EffectCapVO.parseXml`: `int(e.maxTotalBonus) \|\| Number.MAX_VALUE` | uncapped — **and an explicit `maxTotalBonus="0"` would also become uncapped.** No shipped row has 0, so this is a latent-behavior note, not an observed case. |
 | `GemBonusVO.triggerChance` | proc-chance gems are kept as separate, unmerged entries | not merged into a bucket |
-| Legend skills | `getTotalValueOfLegendSkillEffect` returns a plain int | outside the pipeline entirely |
+| Legendary skills | `getTotalValueOfLegendSkillEffect` returns a plain int | outside the pipeline entirely |
 
 A third clamp point exists **before** capID grouping: `LordVO.mergeBoni` /
 `mergeBoniWithSameEffectID` merges equipment bonuses sharing an `effectID` and
@@ -1782,7 +1782,7 @@ A bot gets most values without extra round-trips.
 | Set a general's abilities | `gaae` | C2S only (`GASAIDS`) |
 | Generals hub status | `gcs` | `{CHR:[{CID,…}]}` — **not** a combat-bonus carrier |
 | Which global effects are currently boosted | `bie` | `GlobalEffectData.parse_GIE` line 143676: `{GE:[globalEffectID]}` (`S2C_GLOBAL_EFFECT_BOOSTER_INFO_EVENT`) |
-| Legend skills + sceat skills | `skl` | `CastleLegendSkillData.parse_SKL`: `SID[] SIDS[] SP RS RC SSA[{ID,RS}]`. Also pushed via `ego` (`i.skl` branch) |
+| Legendary skills + sceat skills | `skl` | `CastleLegendSkillData.parse_SKL`: `SID[] SIDS[] SP RS RC SSA[{ID,RS}]`. Also pushed via `ego` (`i.skl` branch) |
 | Research | `rei` | `CastleResearchData.parse_REI` line 139330: `BR[] ARID ARRT` |
 | Unequipped equipment (swap candidates) | `gei` | `CastleEquipmentData.parse_GEI` line 143731: `{I:[equipArray]}` |
 | **Attack pre-calculation** | `aci` | `CastleAttackData.parse_ACI` line 133821 → `CastleAttackInfoVO.fillFromParamObject` line 30620: `gaa.AI` (target area, incl. `baseWallBonus`/`baseGateBonus`/`baseMoatBonus`), `gui.I`, `gui.SHI`, `SCID`, `KID`, **`KTB`** (kingstower bonus), **`MB`** (monument bonus), `S`, `AS`, `abe`/`B`, `LS`, an embedded `gli`, `HAWL` |
@@ -1916,7 +1916,7 @@ Stated plainly; none of these are resolved by the three files.
     parser exists (§6.4).
 25. `raidBossStages`' VO declares `_attackerStageEffects` with no matching ITEMS
     column (§6.5).
-26. Legend skill `DEFENSE_YARD_BONUS` (id 36) and effect types 182 / 184 appear
+26. Legendary skill `DEFENSE_YARD_BONUS` (id 36) and effect types 182 / 184 appear
     in no defender strength or bonus path.
 27. ITEMS `titles.titleEffectID` appears **0 times** in the bundle and once in
     the DLL. Its use is **not established**.
@@ -1933,5 +1933,5 @@ Stated plainly; none of these are resolved by the three files.
     missing `S` means the target was never spied (`_timeSinceSpying = -1`).
     `AS` is the age of the spy report in seconds, `abe`/`B` the defending
     castellan (`LordFactory.createLord(lord, true, true)`), and `LS` the
-    defender's legend skills. EmpireCore models it in `AttackInfoResponse`
+    defender's Legendary skills. EmpireCore models it in `AttackInfoResponse`
     (`attack/models/info.py`).

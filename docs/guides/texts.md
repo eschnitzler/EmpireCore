@@ -86,7 +86,7 @@ Event titles come from the same file; see [Events](events.md).
 
 The [game-data id enums](game-data-ids.md) whose rows the game names by a
 text have `display_name(lang="en")`: units, tools, currencies, researches,
-generals, legend and sceat skills, events, gems, achievements, titles,
+generals, Legendary and sceat skills, events, gems, achievements, titles,
 alliance crest layouts and main quests. Each member's `text_id` is the text
 id the game reads for it, so `cached_text(member.text_id)` is the variant
 that never downloads. Not every event and general has a text: theirs is

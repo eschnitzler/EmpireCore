@@ -21,8 +21,8 @@ from .info import AllianceInfo, alliance_of_ain
 if TYPE_CHECKING:
     from empire_core.gamedata import Gem
 
-RELIC_FORGE_MIN_LEGEND_LEVEL = 1
-"""The legend level from which the relic forge replaces the alliance forge.
+RELIC_FORGE_MIN_LEGENDARY_LEVEL = 1
+"""The Legendary level from which the relic forge replaces the alliance forge.
 
 Client: ``AllianceForgeConst.MINIMUM_LEGEND_LEVEL_FOR_RELIC_ALLIANCE_FORGE`` (dll line 18812), read by
 ``CastleAllianceDialog`` when the forge tab opens (bundle line 4911)
@@ -123,7 +123,7 @@ class ForgeCraftResponse(BaseResponse):
 
 
 __all__ = [
-    "RELIC_FORGE_MIN_LEGEND_LEVEL",
+    "RELIC_FORGE_MIN_LEGENDARY_LEVEL",
     "ForgeCraftRequest",
     "ForgeCraftResponse",
     "relic_forge_coin_cost",

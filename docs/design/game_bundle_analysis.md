@@ -146,7 +146,7 @@ whose unit total is zero (`isWaveComplete`). Each entry is:
 Slot lists come from `CastleFightItemContainer.getSlotList`.
 
 Wave count is `CombatConst.getMaxWaveCountWithBonus(userLevel, areaType, bonus)`,
-where the bonus is the `ADDITIONAL_WAVE` legend skill.
+where the bonus is the `ADDITIONAL_WAVE` Legendary skill.
 
 ## 5. Fill Waves
 

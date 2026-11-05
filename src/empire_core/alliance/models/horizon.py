@@ -362,12 +362,12 @@ class CentersOfPowerResponse(BaseResponse):
     metropolis_alliance_limit: ClientInt = Field(
         validation_alias="CSAL", default=0, description="Metropolises your alliance may hold"
     )
-    towers: ClientInt = Field(validation_alias="TWM", default=0, description="Kings' towers your alliance holds")
+    towers: ClientInt = Field(validation_alias="TWM", default=0, description="Royal towers your alliance holds")
     tower_player_limit: ClientInt = Field(
-        validation_alias="TPL", default=0, description="Kings' towers a member may hold"
+        validation_alias="TPL", default=0, description="Royal towers a member may hold"
     )
     tower_alliance_limit: ClientInt = Field(
-        validation_alias="TAL", default=0, description="Kings' towers your alliance may hold"
+        validation_alias="TAL", default=0, description="Royal towers your alliance may hold"
     )
 
 
@@ -395,7 +395,7 @@ class CenterOfPower(BasePayload):
     One center of power your alliance holds: its map row, its holder and what it yields.
 
     The client shows the largest of the three numbers: a metropolis's time left, a capital's
-    influence, a kings' tower's percent bonus.
+    influence, a royal tower's percent bonus.
 
     Client: ``CastleAllianceCentersOfPowerDialog.onCPDArrived`` (bundle line 69070) reads ``AI`` with
     ``WorldmapObjectFactory.parseWorldMapArea`` and ``max(int(AMT), int(AOT), int(PB))``;
@@ -408,7 +408,7 @@ class CenterOfPower(BasePayload):
     player_name: str | None = Field(validation_alias="PN", default=None, description="The member holding it")
     amount: ClientInt = Field(validation_alias="AMT", default=0, description="A capital's influence")
     seconds_left: ClientInt = Field(validation_alias="AOT", default=0, description="A metropolis's time left")
-    percent_boost: ClientInt = Field(validation_alias="PB", default=0, description="A kings' tower's percent bonus")
+    percent_boost: ClientInt = Field(validation_alias="PB", default=0, description="A royal tower's percent bonus")
 
     @field_validator("area", mode="before")
     @classmethod

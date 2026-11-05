@@ -98,13 +98,13 @@ class TestCommanders:
 class TestSkills:
     def test_login_section_push_and_ego(self, state):
         state.update_from_packet("gbd", {**PLAYER, "skl": SKILLS})
-        assert state.get_skills().legend_skill_ids == (251, 221)
+        assert state.get_skills().legendary_skill_ids == (251, 221)
 
         state.update_from_packet("skl", {**SKILLS, "SID": [1]})
-        assert state.get_skills().legend_skill_ids == (1,)
+        assert state.get_skills().legendary_skill_ids == (1,)
 
         state.update_from_packet("ego", {"skl": {**SKILLS, "SID": [2]}})
-        assert state.get_skills().legend_skill_ids == (2,)
+        assert state.get_skills().legendary_skill_ids == (2,)
 
     def test_a_falsy_section_is_not_read(self, state):
         # GBDCommand.exec and EGOCommand: n.skl&&parse_SKL(n.skl)
@@ -138,7 +138,7 @@ class TestOwnAlliance:
 
         own = state.get_own_alliance()
         assert own.name == "Renamed"
-        assert (own.application_count, own.auto_war, own.aqua_points) == (3, True, 5)
+        assert (own.application_count, own.auto_war, own.cargo_points) == (3, True, 5)
         assert own.storage is not None and own.storage.wood == 2
         assert (own.is_able_to_forge, own.soft_relic_forge_uses, own.hard_relic_forge_uses) == (True, 4, 2)
 

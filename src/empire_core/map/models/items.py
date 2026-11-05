@@ -23,11 +23,11 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class AbgCastleConnection(BasePayload):
+class HorizonCastleConnection(BasePayload):
     """
     A Beyond the Horizon castle's line to its tower: a castle row's ``[x, y, is_attackable, tower_points]``.
 
-    The client reads it only on a battle ground server that scores towers.
+    The client reads it only on a Beyond the Horizon server that scores towers.
 
     Client: ``CastleMapobjectVO.parseAreaInfo`` (bundle lines 18911-18912), ``ABGHelper.isOnABGAndTower``
     (bundle line 2037)
@@ -49,7 +49,7 @@ class AbgCastleConnection(BasePayload):
         return row
 
 
-class AbgTowerConnection(BasePayload):
+class HorizonTowerConnection(BasePayload):
     """
     One of a Beyond the Horizon tower's connections: ``[x, y, player_name, status]``.
 
@@ -132,7 +132,7 @@ def _castle(row: _Row) -> dict[str, Any]:
     fields = _interactive(row)
     connection = row.raw(18)
     if isinstance(connection, list) and connection:
-        fields["abg_tower_connection"] = AbgCastleConnection.model_validate(connection)
+        fields["horizon_tower_connection"] = HorizonCastleConnection.model_validate(connection)
     return fields
 
 
@@ -165,10 +165,10 @@ def _capital(row: _Row) -> dict[str, Any]:
 
 
 def _metropol(row: _Row) -> dict[str, Any]:
-    """``MetropolMapobjectVO.parseAreaInfo`` (bundle line 21609): a capital's row, plus its ABG mine."""
+    """``MetropolMapobjectVO.parseAreaInfo`` (bundle line 21609): a capital's row, plus its Beyond the Horizon mine."""
     fields = _capital(row)
     if len(row) > 17:
-        fields.update(abg_mine_out_seconds=row.as_int(17), abg_max_influence_points=row.as_int(18))
+        fields.update(horizon_mine_out_seconds=row.as_int(17), horizon_max_influence_points=row.as_int(18))
     return fields
 
 
@@ -298,7 +298,7 @@ def _event_dungeon(row: _Row) -> dict[str, Any]:
     return {"seconds_since_espionage": row.raw(3), "dungeon_level": row.as_int(4), "is_defeated": row.one(5)}
 
 
-def _wolf_king(row: _Row) -> dict[str, Any]:
+def _wolf_fortress(row: _Row) -> dict[str, Any]:
     """``WolfkingCastleMapObjectVO.parseAreaInfo`` (bundle line 34409); a row of three fields is not on the map."""
     if len(row) <= 3:
         return {}
@@ -424,7 +424,9 @@ def _abg_tower(row: _Row) -> dict[str, Any]:
         "alliance_id": row.as_int(7),
         "alliance_name": row.raw(8),
         "alliance_crest": {"ACLI": crest[0], "ACCS": crest[1]} if isinstance(crest, list) and len(crest) > 1 else None,
-        "abg_connections": tuple(readable_list(AbgTowerConnection, row.raw(10), accept=lambda e: isinstance(e, list))),
+        "horizon_connections": tuple(
+            readable_list(HorizonTowerConnection, row.raw(10), accept=lambda e: isinstance(e, list))
+        ),
     }
 
 
@@ -457,10 +459,10 @@ ROW_PARSERS: dict[MapItemType, Callable[[_Row], dict[str, Any]]] = {
     MapItemType.BERIMOND_CAPITAL: _faction_capital,
     MapItemType.PLAGUE_AREA: _attack_area,
     MapItemType.ALIEN_CAMP: _alien_camp,
-    MapItemType.METROPOL: _metropol,
-    MapItemType.KINGS_TOWER: _kings_tower,
-    MapItemType.ISLE_RESOURCE: _resource_isle,
-    MapItemType.ISLE_DUNGEON: _isle_dungeon,
+    MapItemType.TRADING_METROPOLIS: _metropol,
+    MapItemType.ROYAL_TOWER: _kings_tower,
+    MapItemType.RESOURCE_ISLAND: _resource_isle,
+    MapItemType.STORM_FORT: _isle_dungeon,
     MapItemType.MONUMENT: _monument,
     MapItemType.NOMAD_CAMP: _invasion_camp,
     MapItemType.LABORATORY: _laboratory,
@@ -473,7 +475,7 @@ ROW_PARSERS: dict[MapItemType, Callable[[_Row], dict[str, Any]]] = {
     MapItemType.DAIMYO_TOWNSHIP: partial(_daimyo, camp_field="daimyo_township_id"),
     MapItemType.HORIZON_RESOURCE_TOWER: _alliance_camp,
     MapItemType.HORIZON_TOWER: _abg_tower,
-    MapItemType.WOLF_KING: _wolf_king,
+    MapItemType.WOLF_FORTRESS: _wolf_fortress,
     MapItemType.ARE_PORTAL: _position_only,
 }
 
@@ -541,13 +543,13 @@ class MapAreaItem(BasePayload):
     )
     skin_id: int | None = Field(default=None, description="Unique id of the castle skin equipment it shows")
     has_sabotage_protection: bool | None = Field(default=None, description="Temporary sabotage protection is on")
-    abg_tower_connection: AbgCastleConnection | None = Field(
+    horizon_tower_connection: HorizonCastleConnection | None = Field(
         default=None, description="On Beyond the Horizon: the castle's tower connection"
     )
-    abg_mine_out_seconds: int | None = Field(
+    horizon_mine_out_seconds: int | None = Field(
         default=None, description="Beyond the Horizon: seconds until the metropolis is mined out"
     )
-    abg_max_influence_points: int | None = Field(
+    horizon_max_influence_points: int | None = Field(
         default=None, description="Beyond the Horizon: the metropolis's most influence points"
     )
     is_destroyed: bool | None = Field(default=None, description="The faction object is destroyed")
@@ -595,7 +597,7 @@ class MapAreaItem(BasePayload):
     alliance_id: int | None = Field(default=None, description="Id of the alliance holding the tower")
     alliance_name: str | None = Field(default=None, description="Name of the alliance holding the tower")
     alliance_crest: AllianceCrest | None = Field(default=None, description="Crest of the alliance holding the tower")
-    abg_connections: tuple[AbgTowerConnection, ...] | None = Field(
+    horizon_connections: tuple[HorizonTowerConnection, ...] | None = Field(
         default=None, description="The alliance tower's connections to the castles around it"
     )
     raw_data: list[Any] = Field(default_factory=list, description="The whole row as sent")
@@ -698,7 +700,7 @@ class MapAreaItem(BasePayload):
             MapItemType.CAPITAL,
             MapItemType.OUTPOST,
             MapItemType.KINGDOM_CASTLE,
-            MapItemType.METROPOL,
+            MapItemType.TRADING_METROPOLIS,
         )
 
 

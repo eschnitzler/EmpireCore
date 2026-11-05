@@ -1,13 +1,13 @@
-"""Your kings towers, monuments, villages and the monument reset, from GKLCommand, GMLCommand, KGVCommand,
+"""Your royal towers, monuments, villages and the monument reset, from GKLCommand, GMLCommand, KGVCommand,
 MRECommand, GBDCommand and CastleUserData.parse_MIR, and the kgv and kpi requests."""
 
 import pytest
 
 from empire_core.castle import (
     KingdomInfoResponse,
-    KingsTowerListResponse,
     MonumentListResponse,
     MonumentResetResponse,
+    RoyalTowerListResponse,
     VillageListResponse,
 )
 from empire_core.enums import Kingdom, MapItemType
@@ -28,8 +28,8 @@ KGV = {"VI": [[VILLAGE_ROW, UNITS], [ISLE_ROW, []]], "PV": [{"VID": 9, "XID": "4
 
 
 def test_kings_tower_and_monument_rows_read_map_row_and_units():
-    (tower,) = KingsTowerListResponse.model_validate(GKL).kings_towers
-    assert tower.location.location_id == 501 and tower.location.item_type == MapItemType.KINGS_TOWER
+    (tower,) = RoyalTowerListResponse.model_validate(GKL).royal_towers
+    assert tower.location.location_id == 501 and tower.location.item_type == MapItemType.ROYAL_TOWER
     assert tower.units == {Unit.SWORDMAN: 30}
     (monument,) = MonumentListResponse.model_validate(GML).monuments
     assert monument.location.location_id == 601 and monument.units == {}
@@ -37,7 +37,7 @@ def test_kings_tower_and_monument_rows_read_map_row_and_units():
 
 def test_villages_read_both_lists_and_keep_unknown_private_village_types():
     villages = VillageListResponse.model_validate(KGV)
-    assert [v.location.item_type for v in villages.villages] == [MapItemType.VILLAGE, MapItemType.ISLE_RESOURCE]
+    assert [v.location.item_type for v in villages.villages] == [MapItemType.VILLAGE, MapItemType.RESOURCE_ISLAND]
     assert villages.villages[0].units == {Unit.SWORDMAN: 30}
     assert [(p.village_id, p.village_type_id) for p in villages.private_villages] == [(9, 41), (10, 999)]
     assert villages.private_villages[0].village_type_id is PrivateVillageType.ICE_PRIVATE_WOOD_VILLAGE_L1
@@ -47,7 +47,7 @@ def test_villages_read_both_lists_and_keep_unknown_private_village_types():
 def test_login_brings_the_lists_and_the_monument_reset_read_through_the_castle_service():
     state = logged_in_state(gkl=GKL, gml=GML, kgv=KGV, mre={"MRS": 3600})
     client = make_client(state=state)
-    assert (towers := client.castle.kings_towers) is not None and len(towers.kings_towers) == 1
+    assert (towers := client.castle.royal_towers) is not None and len(towers.royal_towers) == 1
     assert (monuments := client.castle.monuments) is not None and len(monuments.monuments) == 1
     assert (villages := client.castle.villages) is not None and len(villages.villages) == 2
     assert (reset := client.castle.monument_reset) is not None and 3590 <= reset.remaining_seconds() <= 3600
@@ -60,11 +60,11 @@ def test_pushes_and_mir_replace_the_kings_towers_and_monuments():
     state.update_from_packet("gkl", GKL)
     state.update_from_packet("gml", GML)
     state.update_from_packet("mir", {"gkl": {"AI": []}, "gml": {"AI": []}})
-    assert (towers := state.get_kings_towers()) is not None and towers.kings_towers == []
+    assert (towers := state.get_royal_towers()) is not None and towers.royal_towers == []
     assert (monuments := state.get_monuments()) is not None and monuments.monuments == []
     state.update_from_packet("gkl", GKL)
     state.update_from_packet("gkl", {"AI": []}, 1)
-    assert (towers := state.get_kings_towers()) is not None and len(towers.kings_towers) == 1
+    assert (towers := state.get_royal_towers()) is not None and len(towers.royal_towers) == 1
 
 
 def test_monument_reset_keeps_the_countdown_only_when_it_counts_down():

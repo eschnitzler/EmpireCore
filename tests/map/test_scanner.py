@@ -196,7 +196,7 @@ class TestScanChunks:
         """scan_kingdom grew include_unowned_types in 0.29.0; scan_chunks must
         honour it too — the consumer's cached re-scans go through scan_chunks,
         and dropping the flag there silently loses every unowned item (e.g.
-        Kings Towers) between discoveries."""
+        royal towers) between discoveries."""
         unowned = [1, 5, 5, -1]  # owner -1: skipped unless explicitly included
         fake = _FakeClient(
             content_chunks=set(),

@@ -214,7 +214,7 @@ for event in client.events.running_score_events:
 The nomad and samurai invasions have only an alliance board in the game. Events
 the game shows no board for are not listed: the Wheel of Fortune and the gacha
 events show only your own rank (`get_own_points` reads it), and the colossus uses a command of its own. The
-kingdoms league, the alliance Grand Tournament and raid boss events, the
+Kingdom's League, the alliance Grand Tournament and raid boss events, the
 tournaments and the Outer Realms and Beyond the Horizon boards are not covered
 yet; the `client.ranking` calls reach their lists directly.
 
@@ -294,9 +294,9 @@ update their event.
 
 An event runs from the `sei` packet that names it until a `see` push ends it or
 its time (the entry's `RS`) runs out; one never given a time has ended, as in
-the game. The kingdoms league and the global effect events come in `tei`
+the game. The Kingdom's League and the global effect events come in `tei`
 packets instead and end with a `tee` (or a `see`); they carry no `RS`: the
-kingdoms league runs while it has more than a day left, and on its last day
+Kingdom's League runs while it has more than a day left, and on its last day
 ends with the season event, and a global effect event ends with the last of its
 effects.
 

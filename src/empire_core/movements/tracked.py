@@ -31,7 +31,7 @@ DUNGEON_OWNER_IDS = frozenset(
         *range(NPCOwner.ISLAND_VILLAGE, NPCOwner.ISLAND_VILLAGE + 5),
         NPCOwner.URSIDAE_KING,
         NPCOwner.GERBRANDT_KING,
-        NPCOwner.KINGS_TOWER,
+        NPCOwner.ROYAL_TOWER,
         NPCOwner.MONUMENT,
         NPCOwner.CLASSIC_LABORATORY,
         NPCOwner.ICE_LABORATORY,
@@ -57,7 +57,7 @@ DUNGEON_OWNER_IDS = frozenset(
         NPCOwner.ALIEN_INVASION,
         NPCOwner.BLOODCROW_INVASION,
         *(owner for owner in NPCOwner if owner.name.startswith("COLLECTOR_")),
-        NPCOwner.WOLF_KING,
+        NPCOwner.WOLFGARD,
         NPCOwner.ARE_PORTAL,
         NPCOwner.UNKNOWN_EVENT_OWNER,
     }

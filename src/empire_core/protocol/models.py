@@ -7,7 +7,7 @@ registry. The models live in their area packages and are exported from them
 from there, never from here.
 """
 
-from empire_core.alliance.models.aqua import AllianceMemberAquaPointsRequest, AllianceMemberAquaPointsResponse
+from empire_core.alliance.models.aqua import AllianceMemberCargoPointsRequest, AllianceMemberCargoPointsResponse
 from empire_core.alliance.models.bookmarks import (
     ATTACK_ORDER_MAX_SECONDS,
     ATTACK_ORDER_MIN_SECONDS,
@@ -138,7 +138,7 @@ from empire_core.alliance.models.info import (
     AllianceCrestChangedResponse,
     AllianceCrests,
     AllianceDiplomacyStatus,
-    AllianceFameResponse,
+    AllianceGloryResponse,
     AllianceInfo,
     AllianceMember,
     AllianceMemberInfo,
@@ -345,8 +345,8 @@ from empire_core.attack.models.target_info import (
     GetIslandAttackInfoResponse,
     GetLandmarkAttackInfoRequest,
     GetLandmarkAttackInfoResponse,
-    GetMetropolConquerInfoRequest,
-    GetMetropolConquerInfoResponse,
+    GetMetropolisConquerInfoRequest,
+    GetMetropolisConquerInfoResponse,
     GetOutpostConquerInfoRequest,
     GetOutpostConquerInfoResponse,
     GetTreasureNodeAttackInfoRequest,
@@ -357,8 +357,8 @@ from empire_core.attack.models.target_info import (
 from empire_core.attack.models.taunts import (
     LaunchTauntAttackRequest,
     LaunchTauntAttackResponse,
-    LaunchWolfKingTauntRequest,
-    LaunchWolfKingTauntResponse,
+    LaunchWolfgardTauntRequest,
+    LaunchWolfgardTauntResponse,
     RagePointsResponse,
 )
 from empire_core.attack.models.tools import (
@@ -986,7 +986,7 @@ from empire_core.player.models.account import (
     SendGiftPackagesResponse,
     VipStatusResponse,
 )
-from empire_core.player.models.aqua import AquaPointsResponse, GetAquaPointsRequest
+from empire_core.player.models.aqua import CargoPointsResponse, GetCargoPointsRequest
 from empire_core.player.models.coat_of_arms import (
     ChangeCoatOfArmsRequest,
     ChangeCoatOfArmsResponse,
@@ -1148,8 +1148,8 @@ from empire_core.ranking.models import (
     GetRankingWindowResponse,
     HighscoreAlliance,
     HighscoreAllianceRow,
-    HighscoreIslandRow,
     HighscorePlayerRow,
+    HighscoreStormIslandsRow,
     HighscoreTournamentRow,
     LeaderboardScore,
     LeaderboardSearchResult,
@@ -1323,8 +1323,8 @@ __all__ = [
     "NewRelicItemsResponse",
     "GetGemsRequest",
     "GetInventorySpaceRequest",
-    "AquaPointsResponse",
-    "GetAquaPointsRequest",
+    "CargoPointsResponse",
+    "GetCargoPointsRequest",
     "LaboratoryListResponse",
     "LaboratoryResetResponse",
     "AllianceSearchListResponse",
@@ -1333,8 +1333,8 @@ __all__ = [
     "AutoJoinedAllianceResponse",
     "DonationResourcesResponse",
     "GetDonationResourcesRequest",
-    "AllianceMemberAquaPointsRequest",
-    "AllianceMemberAquaPointsResponse",
+    "AllianceMemberCargoPointsRequest",
+    "AllianceMemberCargoPointsResponse",
     "ActivateAllianceTowerBuffsRequest",
     "ActivateAllianceTowerBuffsResponse",
     "AllianceInfluenceResponse",
@@ -1370,8 +1370,8 @@ __all__ = [
     "RerollAlienCampResponse",
     "LaunchTauntAttackRequest",
     "LaunchTauntAttackResponse",
-    "LaunchWolfKingTauntRequest",
-    "LaunchWolfKingTauntResponse",
+    "LaunchWolfgardTauntRequest",
+    "LaunchWolfgardTauntResponse",
     "RagePointsResponse",
     "BoughtTools",
     "BuyToolsRequest",
@@ -1720,8 +1720,8 @@ __all__ = [
     "GetIslandAttackInfoResponse",
     "GetLandmarkAttackInfoRequest",
     "GetLandmarkAttackInfoResponse",
-    "GetMetropolConquerInfoRequest",
-    "GetMetropolConquerInfoResponse",
+    "GetMetropolisConquerInfoRequest",
+    "GetMetropolisConquerInfoResponse",
     "GetBerimondCampConquerInfoRequest",
     "GetBerimondCampConquerInfoResponse",
     "GetAllianceTowerAttackInfoRequest",
@@ -1962,7 +1962,7 @@ __all__ = [
     "RankingType",
     "HighscoreAlliance",
     "HighscoreAllianceRow",
-    "HighscoreIslandRow",
+    "HighscoreStormIslandsRow",
     "HighscorePlayerRow",
     "HighscoreTournamentRow",
     "GetHighscoreRequest",
@@ -2037,7 +2037,7 @@ __all__ = [
     "AllianceCrests",
     "AllianceBuffsResponse",
     "AllianceCrestChangedResponse",
-    "AllianceFameResponse",
+    "AllianceGloryResponse",
     "CrestLayout",
     "PeaceOffer",
     "AllianceMember",

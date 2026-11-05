@@ -30,7 +30,7 @@ currencies = client.player.currencies           # by Currency; a newer key stays
 spies = client.spy.max_spies                    # spies owned, before boosts
 events = client.events.running                  # the running events, by id
 roster = client.commanders.roster               # commanders and castellans
-skills = client.player.skills                   # legend and sceat skills
+skills = client.player.skills                   # Legendary and sceat skills
 alliance = client.alliance.own_alliance         # your alliance's details and members
 chat = client.alliance.chat                     # the alliance chat history, oldest first
 research = client.castle.research               # finished and running research
@@ -106,7 +106,7 @@ every value is as old as the last packet that carried it:
 | Special currencies | `sce` (pushed) | none |
 | Spies owned, before boosts | `gms` (pushed) | log in again |
 | Commanders and castellans | `gli`, and the replies that carry it (`arl`, `gla`, `seq`, `sdi`, `sti`, the attack and conquer info replies) | `client.commanders.get_all()` |
-| Legend and sceat skills | `skl`, `ego` (pushed) | `client.player.get_skills()` |
+| Legendary and sceat skills | `skl`, `ego` (pushed) | `client.player.get_skills()` |
 | Your alliance's details and members | `ain`, `acn`, `cal`, `acd`, `ado`, `akm`, `arm`; an `acm` marks its sender online | `client.alliance.get_alliance_info(alliance_id)` |
 | Alliance chat history | `acl`, `acm` (pushed) | none |
 | Research | `rei` (pushed), the `res` and `msr` replies | log in again |
@@ -130,10 +130,10 @@ every value is as old as the last packet that carried it:
 | Loot boxes, key progress | `gls` (pushed, also before the login data); a `gls` updates only the key progress it lists | log in again |
 | Equipment and gem inventory space | `esl` (pushed), the `bgm`, `ceq`, `cge`, `frc` and `seq` replies | log in again |
 | Kingdoms, transfers between them | `kpi`, the `kgt`, `kst`, `kut`, `msk` and `fjf` replies; a `kpi` updates only the kingdoms it lists; an `ikr` (pushed) locks the Storm Islands | `client.castle.get_kingdoms()` |
-| Kings towers, monuments, laboratories | `gkl`, `gml`, `gll` (pushed), the castle list an `mir` brings | log in again |
+| Royal towers, monuments, laboratories | `gkl`, `gml`, `gll` (pushed), the castle list an `mir` brings | log in again |
 | Monument and laboratory resets | `mre`, `lrr` (pushed) | log in again |
 | Villages | `kgv` | `client.castle.get_villages()` |
-| Storm Islands standing, aqua points | `sii`, `gap`; an `ikr` (pushed) zeroes the aqua points | `client.player.get_storm_islands_info()` |
+| Storm Islands standing, cargo points | `sii`, `gap`; an `ikr` (pushed) zeroes the cargo points | `client.player.get_storm_islands_info()` |
 | Mercenary missions | `mpe` | log in again |
 | Tax collection | `txi`, the `txs`, `txc` and `btx` replies | `client.castle.get_tax_info()` |
 | Construction item expiry | `nec` (pushed) | log in again |
@@ -226,7 +226,7 @@ is a `SamuraiInvasionEvent | None` to mypy and pyright, so its fields complete
 in the editor. An event without a model of its own, or a bare id, is a
 `SpecialEvent | None`.
 
-An event starts with the `sei` (or, for the kingdoms league and the global
+An event starts with the `sei` (or, for the Kingdom's League and the global
 effects, `tei`) entry that names it, and later entries are read over it the way
 the game reads them: a field the entry leaves out mostly keeps its value. It
 ends with a `see` or `tee`, or when its time runs out. Your points come with

@@ -97,7 +97,7 @@ class HorizonMixin(OwnAllianceMixin):
 
     def get_centers_of_power(self, *, timeout: float = 5.0) -> CentersOfPowerResponse:
         """
-        How many capitals, metropolises and kings' towers your alliance holds, against their limits.
+        How many capitals, metropolises and royal towers your alliance holds, against their limits.
 
         Only on the Beyond the Horizon server, in alliance collector scoring.
 

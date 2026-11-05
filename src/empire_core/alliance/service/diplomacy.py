@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from empire_core.alliance.models.aqua import (
-    AllianceMemberAquaPoints,
-    AllianceMemberAquaPointsRequest,
-    AllianceMemberAquaPointsResponse,
+    AllianceMemberCargoPoints,
+    AllianceMemberCargoPointsRequest,
+    AllianceMemberCargoPointsResponse,
 )
 from empire_core.alliance.models.diplomacy import (
     AllianceDonation,
@@ -22,7 +22,7 @@ from empire_core.alliance.models.diplomacy import (
     SetAutoWarResponse,
 )
 from empire_core.alliance.models.forge import (
-    RELIC_FORGE_MIN_LEGEND_LEVEL,
+    RELIC_FORGE_MIN_LEGENDARY_LEVEL,
     ForgeCraftRequest,
     ForgeCraftResponse,
     relic_forge_ruby_cost,
@@ -163,9 +163,9 @@ class DiplomacyMixin(OwnAllianceMixin):
         with self._own_alliance():
             return self.request(request, DonationResourcesResponse, timeout=timeout)
 
-    def get_member_aqua_points(self, *, timeout: float = 5.0) -> list[AllianceMemberAquaPoints]:
+    def get_member_cargo_points(self, *, timeout: float = 5.0) -> list[AllianceMemberCargoPoints]:
         """
-        Your alliance members' aqua points, in the order the server lists them.
+        Your alliance members' cargo points, in the order the server lists them.
 
         Client: ``CastleEilandRankingDialogPlayer.requestHighscoreData`` (bundle line 98145) asks with
         your alliance's id
@@ -173,8 +173,8 @@ class DiplomacyMixin(OwnAllianceMixin):
         alliance_id = self._require_local_alliance_id()
         with self._own_alliance():
             return self.request(
-                AllianceMemberAquaPointsRequest(alliance_id=alliance_id),
-                AllianceMemberAquaPointsResponse,
+                AllianceMemberCargoPointsRequest(alliance_id=alliance_id),
+                AllianceMemberCargoPointsResponse,
                 timeout=timeout,
             ).members
 
@@ -184,18 +184,18 @@ class DiplomacyMixin(OwnAllianceMixin):
         """
         Craft in the alliance forge: an equipment item, a gem or a relic gem.
 
-        Below legend level 1 the alliance forge crafts when your alliance's ``is_able_to_forge`` allows it.
-        From legend level 1 the relic forge crafts instead, paid in coins, or in rubies with
+        Below Legendary level 1 the alliance forge crafts when your alliance's ``is_able_to_forge`` allows it.
+        From Legendary level 1 the relic forge crafts instead, paid in coins, or in rubies with
         ``pay_with_rubies``; its price rises with each craft of the day (:func:`relic_forge_coin_cost`,
         :func:`relic_forge_ruby_cost`). Your alliance and a crafted gem are applied to state.
 
         Raises:
-            ValueError: The forge cannot craft now, rubies are asked below legend level 1, or rubies
+            ValueError: The forge cannot craft now, rubies are asked below Legendary level 1, or rubies
                 are spent without ``spend_rubies``
             NotInAllianceError: You are in no alliance (nothing is sent), or the server answered ``ALLI_NOT_FOUND``
             CommandError: The server refused
 
-        Client: ``CastleAllianceDialog`` picks the forge by legend level (bundle line 4911);
+        Client: ``CastleAllianceDialog`` picks the forge by Legendary level (bundle line 4911);
         ``CastleAllianceDialogForge.isAllowedToCraft`` (bundle line 45123), and
         ``CastleAllianceDialogForgeHigh`` (bundle lines 69578-69599), which allows every craft and prices it
         by the alliance's uses of the day
@@ -204,9 +204,11 @@ class DiplomacyMixin(OwnAllianceMixin):
         alliance = self.client.state.get_own_alliance()
         if alliance is None or alliance.alliance_id != alliance_id:
             raise ValueError("your alliance's details have not arrived; read them with get_alliance_info first")
-        relic_forge = self.client.state.get_local_player().legendary_level >= RELIC_FORGE_MIN_LEGEND_LEVEL
+        relic_forge = self.client.state.get_local_player().legendary_level >= RELIC_FORGE_MIN_LEGENDARY_LEVEL
         if pay_with_rubies and not relic_forge:
-            raise ValueError(f"only the relic forge, from legend level {RELIC_FORGE_MIN_LEGEND_LEVEL}, takes rubies")
+            raise ValueError(
+                f"only the relic forge, from Legendary level {RELIC_FORGE_MIN_LEGENDARY_LEVEL}, takes rubies"
+            )
         if not relic_forge and not alliance.is_able_to_forge:
             raise ValueError("the alliance forge cannot craft now")
         self._require_spend_rubies(

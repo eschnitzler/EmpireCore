@@ -18,8 +18,8 @@ from empire_core.ranking.models import (
     GetRankingWindowResponse,
     HighscoreAlliance,
     HighscoreAllianceRow,
-    HighscoreIslandRow,
     HighscorePlayerRow,
+    HighscoreStormIslandsRow,
     HighscoreTournamentRow,
     SearchRankingListRequest,
     SearchRankingListResponse,
@@ -36,7 +36,7 @@ HIGHSCORE_CONST_LISTS = {
     "ALLIANCE_HONOR": 10,
     "ALLIANCE_MIGHT_POINTS": 11,
     "ALLIANCE_LANDMARKS": 12,
-    "ALLIANCE_AQUA_POINTS": 13,
+    "ALLIANCE_CARGO_POINTS": 13,
     "TOURNAMENT_FAME": 20,
     "ALLIANCE_TOURNAMENT_FAME": 21,
     "BATTLE_FOR_BERIMOND": 30,
@@ -329,14 +329,14 @@ class TestHighscoreRows:
         (row,) = GetHighscoreResponse.model_validate(payload).rows
         assert type(row) is HighscoreAllianceRow
         assert (row.rank, row.score) == (1, 8000)
-        assert row.alliance == HighscoreAlliance(alliance_id=8, name="Alliance", member_count=65, fame=1234)
+        assert row.alliance == HighscoreAlliance(alliance_id=8, name="Alliance", member_count=65, glory_points=1234)
 
     def test_a_storm_islands_row_starts_with_the_stormlord_flag(self):
         payload = {"LT": 13, "L": [[1, 3, 777777, [8, "Isle", 10, 5]], [0, 4, 6, [9, "Other"]]]}
         first, second = GetHighscoreResponse.model_validate(payload).rows
-        assert isinstance(first, HighscoreIslandRow) and isinstance(second, HighscoreIslandRow)
-        assert (first.is_stormlord, first.rank, first.score, first.alliance.name) == (True, 3, 777777, "Isle")
-        assert (second.is_stormlord, second.alliance.alliance_id) == (False, 9)
+        assert isinstance(first, HighscoreStormIslandsRow) and isinstance(second, HighscoreStormIslandsRow)
+        assert (first.is_storm_lord, first.rank, first.score, first.alliance.name) == (True, 3, 777777, "Isle")
+        assert (second.is_storm_lord, second.alliance.alliance_id) == (False, 9)
 
     def test_a_tournament_row_names_the_player_flat(self):
         (row,) = GetHighscoreResponse.model_validate({"LT": 20, "L": [[4, 666, 7004, "FlatGuy"]]}).rows
@@ -356,7 +356,7 @@ class TestHighscoreRows:
 
     def test_the_layouts_are_registered_by_list(self):
         assert HIGHSCORE_ROW_LAYOUTS == {
-            RankingType.ALLIANCE_AQUA_POINTS: HighscoreIslandRow,
+            RankingType.ALLIANCE_CARGO_POINTS: HighscoreStormIslandsRow,
             RankingType.TOURNAMENT_FAME: HighscoreTournamentRow,
         }
 

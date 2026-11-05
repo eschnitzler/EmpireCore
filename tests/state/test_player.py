@@ -171,7 +171,7 @@ class TestAllianceMembership:
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gal": gal})
         alliance = state.get_local_player().alliance
         assert alliance is not None
-        assert (alliance.alliance_id, alliance.name, alliance.rank, alliance.current_fame) == (301, "Iron Pact", 1, 22)
+        assert (alliance.alliance_id, alliance.name, alliance.rank, alliance.current_glory) == (301, "Iron Pact", 1, 22)
         assert alliance.looking_for_alliance is False
 
     def test_name_under_an_as_the_client_reads_it(self, state):

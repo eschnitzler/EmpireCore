@@ -1,8 +1,8 @@
-"""Taunts: making the nomad khan or the wolf king attack you.
+"""Taunts: making the nomad khan or Wolfgard attack you.
 
 Commands:
 - lta: Taunt the khan of the alliance nomad invasion
-- lwta: Taunt the wolf king
+- lwta: Taunt Wolfgard
 - rpr: Rage points received on the khan camp (push)
 """
 
@@ -53,24 +53,24 @@ class LaunchTauntAttackResponse(BaseResponse):
 
 
 # =============================================================================
-# LWTA - Wolf king taunt
+# LWTA - Wolfgard taunt
 # =============================================================================
 
 
-class LaunchWolfKingTauntRequest(BaseRequest):
+class LaunchWolfgardTauntRequest(BaseRequest):
     """
-    Taunt the wolf king into attacking you.
+    Taunt Wolfgard into attacking you.
 
     Command: lwta
     Payload: {}
     Client: ``C2SLaunchWolfkingTauntAttackVO`` (bundle line 110112), sent by
-    ``ButtonTauntComponent.onClick`` (bundle line 110098) on a wolf king map object
+    ``ButtonTauntComponent.onClick`` (bundle line 110098) on a Wolfgard map object
     """
 
     command = "lwta"
 
 
-class LaunchWolfKingTauntResponse(BaseResponse):
+class LaunchWolfgardTauntResponse(BaseResponse):
     """
     The server took the taunt.
 
@@ -105,7 +105,7 @@ class RagePointsResponse(BaseResponse):
 __all__ = [
     "LaunchTauntAttackRequest",
     "LaunchTauntAttackResponse",
-    "LaunchWolfKingTauntRequest",
-    "LaunchWolfKingTauntResponse",
+    "LaunchWolfgardTauntRequest",
+    "LaunchWolfgardTauntResponse",
     "RagePointsResponse",
 ]

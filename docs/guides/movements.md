@@ -241,7 +241,7 @@ bare `gli` entry.
 
 `commander_bonuses` leaves the general's passive effects out, as the game's
 movement tooltip does; `attack_dialog_bonuses` with the commander's
-`general_skill_ids` adds them. Legend skills belong to the attacking player and
+`general_skill_ids` adds them. Legendary skills belong to the attacking player and
 a movement does not carry them.
 
 ## Asking for movements
@@ -310,7 +310,7 @@ carries goods from one tab only:
 | Kingdom | `COAL`, `OIL`, `GLASS`, `IRON` |
 | Mead | `HONEY`, `MEAD`, `BEEF` |
 
-A player without a legend level gets only the classic tab. `send_resources`
+A player without a Legendary level gets only the classic tab. `send_resources`
 raises `UnsendableGoodsError`, without sending anything, for goods from more
 than one tab, anything but classic goods for such a player, or an amount that
 is not a positive int. The target owner's level, the carriage capacity and the
@@ -354,7 +354,7 @@ client.movements.skip_kingdom_transfer_time(Kingdom.ICE, KingdomTransferType.GOO
 ```
 
 The goods pass the same checks as `send_resources` (one tab per send, classic
-goods only below legend level). Like the game, `transfer_goods_to_kingdom`
+goods only below Legendary level). Like the game, `transfer_goods_to_kingdom`
 raises `ValueError` for a source castle in the target kingdom or in Berimond,
 and for a kingdom with no castle of yours to receive them. The travel tax and
 the target's storage are left to the server.

@@ -5,7 +5,7 @@ import logging
 
 import pytest
 
-from empire_core.gamedata import General, GeneralAbility, GeneralDef, GeneralSkill, LegendSkill, SceatSkill
+from empire_core.gamedata import General, GeneralAbility, GeneralDef, GeneralSkill, LegendarySkill, SceatSkill
 from empire_core.protocol.models import (
     AddGeneralXpRequest,
     AssignGeneralRequest,
@@ -177,9 +177,9 @@ class TestPlayerSkills:
     def test_the_two_lists_are_kept_apart(self):
         response = GetSkillsResponse.model_validate({"SID": [3, 4, 5], "SIDS": [90, 91], "SP": 40, "RS": 7200})
 
-        assert response.legend_skill_ids == (3, 4, 5)
+        assert response.legendary_skill_ids == (3, 4, 5)
         assert response.sceat_skill_ids == (90, 91)
-        assert all(isinstance(skill, LegendSkill) for skill in response.legend_skill_ids)
+        assert all(isinstance(skill, LegendarySkill) for skill in response.legendary_skill_ids)
         assert all(isinstance(skill, SceatSkill) for skill in response.sceat_skill_ids)
         assert response.total_points == 40
         assert response.seconds_until_reset == 7200
@@ -187,7 +187,7 @@ class TestPlayerSkills:
     def test_a_player_with_no_skills(self):
         response = GetSkillsResponse.model_validate({"SP": 0})
 
-        assert response.legend_skill_ids == ()
+        assert response.legendary_skill_ids == ()
         assert response.sceat_skill_ids == ()
         assert response.reset_count == 0
         assert response.activating == []
@@ -209,7 +209,7 @@ class TestObjectUpdate:
         event = ObjectUpdateEvent.model_validate({"skl": {"SID": [3], "SIDS": [90], "SP": 10, "RS": 0, "RC": 1}})
 
         assert event.skills is not None
-        assert event.skills.legend_skill_ids == (3,)
+        assert event.skills.legendary_skill_ids == (3,)
         assert event.skills.reset_count == 1
 
     @pytest.mark.parametrize("payload", [{}, {"skl": None}, {"skl": 0}, {"A": {"OID": 5}}])
@@ -273,4 +273,4 @@ def test_null_skill_lists_read_as_no_skills():
     response = GetGeneralsResponse.model_validate({"G": [{"GID": 1}, {"GID": 2, "SIDS": None}, "junk"]})
     assert [(g.general_id, g.skill_ids) for g in response.generals] == [(1, ()), (2, ())]
     skills = SkillList.model_validate({"SID": None, "SIDS": [5, None], "RS": None})
-    assert (skills.legend_skill_ids, skills.sceat_skill_ids, skills.seconds_until_reset) == ((), (5,), 0)
+    assert (skills.legendary_skill_ids, skills.sceat_skill_ids, skills.seconds_until_reset) == ((), (5,), 0)

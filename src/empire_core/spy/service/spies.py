@@ -10,7 +10,7 @@ from empire_core.gamedata import EnumOrInt
 from empire_core.player.titles import held_titles
 from empire_core.services.base import ServiceMixin
 from empire_core.spy.pool import (
-    legend_spy_bonus,
+    legendary_spy_bonus,
     research_spy_bonus,
     storm_islands_title_chain,
     title_spy_percent,
@@ -18,7 +18,7 @@ from empire_core.spy.pool import (
 )
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import LegendSkill, Research
+    from empire_core.gamedata import LegendarySkill, Research
     from empire_core.spy.models import MaxSpiesResponse, PlagueDoctorInfoResponse
 
 
@@ -54,27 +54,27 @@ class SpiesMixin(ServiceMixin):
         self,
         *,
         research_ids: Iterable[EnumOrInt["Research"]] | None = None,
-        legend_skill_ids: Iterable[EnumOrInt["LegendSkill"]] | None = None,
+        legendary_skill_ids: Iterable[EnumOrInt["LegendarySkill"]] | None = None,
         title_ids: Iterable[int] | None = None,
         storm_islands_title_id: int | None = None,
-        legend_target: bool = False,
+        legendary_target: bool = False,
     ) -> int:
         """
         All your spies, home or out, counted as the client does: the ``gms`` count plus boosts.
 
         The count is for the whole account, not one castle. Each boost left as None is read
-        from state: your finished research (``rei``), legend skills (``skl``), and the glory,
+        from state: your finished research (``rei``), Legendary skills (``skl``), and the glory,
         Berimond and Storm Islands titles your points and ranks give (``ufa``, ``ufp``, ``uar``).
         Pass a value to count that instead, ``()`` for none. A boost reads
         the game data, loaded on first use; after login the state's titles always count.
 
         Args:
             research_ids: Your finished research ids, the ``BR`` of the ``rei`` section
-            legend_skill_ids: ``SkillList.legend_skill_ids``; counted only with ``legend_target``
+            legendary_skill_ids: ``SkillList.legendary_skill_ids``; counted only with ``legendary_target``
             title_ids: Every glory and Berimond title you hold, each one below your current
                 title included, as the client lists them
             storm_islands_title_id: Your Storm Islands title, -1 for none; the titles below it count too
-            legend_target: Add legend skills: the client does for a target whose owner is a
+            legendary_target: Add Legendary skills: the client does for a target whose owner is a
                 legend or that is a landmark, for your own legend status, and always in the
                 attack screen's spy alert
 
@@ -94,17 +94,17 @@ class SpiesMixin(ServiceMixin):
         max_spies = state.get_max_spies()
         if research_ids is None:
             research_ids = state.get_research().bought_research_ids
-        if legend_skill_ids is None:
+        if legendary_skill_ids is None:
             skills = state.get_skills()
-            legend_skill_ids = skills.legend_skill_ids if skills is not None else ()
+            legendary_skill_ids = skills.legendary_skill_ids if skills is not None else ()
         ranks = state.get_title_ranks()
         if storm_islands_title_id is None:
             storm_islands_title_id = ranks.storm_islands_title.held_title_id
         glory, gallantry = state.get_glory_points(), state.get_gallantry_points()
         titles_from_state = title_ids is None
-        research_ids, legend_skill_ids = list(research_ids), list(legend_skill_ids)
+        research_ids, legendary_skill_ids = list(research_ids), list(legendary_skill_ids)
         title_ids = [] if title_ids is None else list(title_ids)
-        boosted = research_ids or (legend_target and legend_skill_ids) or title_ids or storm_islands_title_id >= 0
+        boosted = research_ids or (legendary_target and legendary_skill_ids) or title_ids or storm_islands_title_id >= 0
         if not (boosted or titles_from_state):
             return total_spies(max_spies.max_spies)
         game_data = self._require_game_data()
@@ -122,7 +122,7 @@ class SpiesMixin(ServiceMixin):
         return total_spies(
             max_spies.max_spies,
             research_bonus=research_spy_bonus(game_data, research_ids),
-            legend_bonus=legend_spy_bonus(game_data, legend_skill_ids) if legend_target else 0,
+            legendary_bonus=legendary_spy_bonus(game_data, legendary_skill_ids) if legendary_target else 0,
             title_percent=title_spy_percent(game_data, titles),
         )
 
@@ -130,10 +130,10 @@ class SpiesMixin(ServiceMixin):
         self,
         *,
         research_ids: Iterable[EnumOrInt["Research"]] | None = None,
-        legend_skill_ids: Iterable[EnumOrInt["LegendSkill"]] | None = None,
+        legendary_skill_ids: Iterable[EnumOrInt["LegendarySkill"]] | None = None,
         title_ids: Iterable[int] | None = None,
         storm_islands_title_id: int | None = None,
-        legend_target: bool = False,
+        legendary_target: bool = False,
     ) -> int:
         """
         Spies at home: :meth:`total_spies` less :meth:`spies_in_use`, as the client counts them.
@@ -154,9 +154,9 @@ class SpiesMixin(ServiceMixin):
         """
         total = self.total_spies(
             research_ids=research_ids,
-            legend_skill_ids=legend_skill_ids,
+            legendary_skill_ids=legendary_skill_ids,
             title_ids=title_ids,
             storm_islands_title_id=storm_islands_title_id,
-            legend_target=legend_target,
+            legendary_target=legendary_target,
         )
         return total - self.spies_in_use()

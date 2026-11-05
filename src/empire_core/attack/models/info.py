@@ -30,7 +30,7 @@ from empire_core.protocol.base import (
 
 if TYPE_CHECKING:
     from empire_core.combat import Bonus
-    from empire_core.gamedata import LegendSkill
+    from empire_core.gamedata import LegendarySkill
 
 
 logger = logging.getLogger(__name__)
@@ -95,7 +95,7 @@ class AttackInfoResponse(BaseResponse):
          "AE": [[effect_id, [value], source_tag], ...],
          "S": [left, middle, right, keep, stronghold, support, reserve],
          "AS": spy_age_seconds, "abe": {castellan}, "B": {castellan}, "LS": [...],
-         "KTB": kings_tower_bonus, "HAWL": home_workshop_level,
+         "KTB": royal_tower_bonus, "HAWL": home_workshop_level,
          "gaa": {"AI": [target map row], "OI": [owner records]},
          "gui": {"I": [[wod_id, count], ...], "SHI": [[wod_id, count], ...]},
          "gli": {"C": [...], "B": [...]}}
@@ -146,12 +146,12 @@ class AttackInfoResponse(BaseResponse):
         default=None,
         description="The castellan defending the target when spied_castellan is missing",
     )
-    defender_legend_skill_ids: tuple[EnumOrInt["LegendSkill"], ...] = Field(
+    defender_legendary_skill_ids: tuple[EnumOrInt["LegendarySkill"], ...] = Field(
         validation_alias="LS",
         default=(),
-        description="The defender's legend skills, part of the spy report",
+        description="The defender's Legendary skills, part of the spy report",
     )
-    kings_tower_bonus: float = Field(validation_alias="KTB", default=0, description="Kings tower bonus")
+    royal_tower_bonus: float = Field(validation_alias="KTB", default=0, description="Royal tower bonus")
     home_workshop_level: int = Field(
         validation_alias="HAWL",
         default=0,
@@ -199,18 +199,18 @@ class AttackInfoResponse(BaseResponse):
         )
         return None if castellan is None else castellan.model_copy(update={"without_equipment": True})
 
-    @field_validator("defender_legend_skill_ids", mode="before")
+    @field_validator("defender_legendary_skill_ids", mode="before")
     @classmethod
-    def _legend_skills(cls, value: object) -> list[int]:
+    def _legendary_skills(cls, value: object) -> list[int]:
         # Client: parseArmyInfo(t.S, t.AS, a, t.LS) (bundle line 30633), each looked up as sent by getSkillByID
-        return int_entries(value, warn=logger, what="legend skills of an attack pre-calculation")
+        return int_entries(value, warn=logger, what="Legendary skills of an attack pre-calculation")
 
     @model_validator(mode="after")
     def _no_spy_report_without_an_army(self) -> "AttackInfoResponse":
-        """Client: ``CastleSpyArmyInfoVO.parseArmyInfo`` sets the age and legend skills only when S is not empty."""
+        """Client: ``CastleSpyArmyInfoVO.parseArmyInfo`` sets the age and Legendary skills only when S is not empty."""
         if self.spy_army is None:
             self.spy_age_seconds = -1
-            self.defender_legend_skill_ids = ()
+            self.defender_legendary_skill_ids = ()
         return self
 
     def attacker_bonuses(self) -> list["Bonus"]:

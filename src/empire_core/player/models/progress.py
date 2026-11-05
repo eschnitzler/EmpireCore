@@ -862,5 +862,5 @@ class LevelUpResponse(BaseResponse):
 
     @field_validator("is_legendary_level_up", mode="before")
     @classmethod
-    def _legend_flag(cls, value: Any) -> bool:
+    def _legendary_flag(cls, value: Any) -> bool:
         return js_loose_equals(value, 1)

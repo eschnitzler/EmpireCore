@@ -52,7 +52,9 @@ RATIO_GUARD_SPY = MAX_GUARD / MAX_SPY
 RATIO_ACCURACY = 50 - (MAX_ACCURACY + MIN_ACCURACY) / 2
 RATIO_DAMAGE = 50 - (MAX_DAMAGE + MIN_DAMAGE) / 2
 
-OUTPOST_AREA_TYPES = frozenset({int(MapItemType.OUTPOST), int(MapItemType.CAPITAL), int(MapItemType.METROPOL)})
+OUTPOST_AREA_TYPES = frozenset(
+    {int(MapItemType.OUTPOST), int(MapItemType.CAPITAL), int(MapItemType.TRADING_METROPOLIS)}
+)
 """
 Area types built as an ``OutpostMapobjectVO``: the outpost and its capital and
 metropolis subclasses (``WorldmapObjectFactory.mapObjectVOs``, bundle line 5357;
@@ -64,9 +66,9 @@ _NPC_OWNED_AREA_TYPES = frozenset(
         int(MapItemType.DUNGEON),
         int(MapItemType.BOSS_DUNGEON),
         int(MapItemType.EVENT_DUNGEON),
-        int(MapItemType.ISLE_DUNGEON),
+        int(MapItemType.STORM_FORT),
         int(MapItemType.DAIMYO_CASTLE),
-        int(MapItemType.WOLF_KING),
+        int(MapItemType.WOLF_FORTRESS),
     }
 )
 """
@@ -82,10 +84,10 @@ does not fight like a player:
   to ``EASTER_DUNGEON_EVENT`` or ``DungeonConst.INVALID`` (-1)
   (``EventdungeonMapobjectVO.parseAreaInfo``, bundle lines 34488-34490;
   ``getEventDungeonOwnerIDBySkinID``, dll line 19123)
-- ``ISLE_DUNGEON``: ``ISLAND_DUNGEON`` (``DungeonIsleMapobjectVO``, bundle
+- ``STORM_FORT``: ``ISLAND_DUNGEON`` (``DungeonIsleMapobjectVO``, bundle
   lines 76287-76288)
 - ``DAIMYO_CASTLE``: ``DAIMYO_CASTLE`` (bundle line 19651)
-- ``WOLF_KING``: ``WOLF_KING`` (bundle line 34409)
+- ``WOLF_FORTRESS``: ``WOLF_KING`` (bundle line 34409)
 """
 
 _NPC_CAMP_OWNERS = {

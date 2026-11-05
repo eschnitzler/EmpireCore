@@ -62,7 +62,7 @@ from .models import (
     GlobalEffectDef,
     HorseStats,
     LeagueBracketDef,
-    LegendSkillDef,
+    LegendarySkillDef,
     NpcCampDefence,
     RaidBossDef,
     RelicEffectDef,
@@ -185,7 +185,7 @@ if TYPE_CHECKING:
         GlobalEffect,
         Horse,
         Judgement,
-        LegendSkill,
+        LegendarySkill,
         LootBox,
         LootBoxType,
         PrebuiltCastle,
@@ -229,7 +229,7 @@ _CACHED_MODELS = (
     DaimyoCastleDef,
     DaimyoTownshipDef,
     LeagueBracketDef,
-    LegendSkillDef,
+    LegendarySkillDef,
     AttackSlotDef,
     HorseStats,
     DefaultLordDef,
@@ -456,7 +456,7 @@ _TABLES: dict[str, _TableSource] = {
     ),
     "global_effects": _TableSource("globalEffects", GlobalEffectDef, "global_effect_id"),
     "general_skills": _TableSource("generalSkills", GeneralSkillDef, "skill_id"),
-    "legend_skills": _TableSource("legendskills", LegendSkillDef, "skill_id"),
+    "legendary_skills": _TableSource("legendskills", LegendarySkillDef, "skill_id"),
     "generals": _TableSource("generals", GeneralDef, "general_id"),
     "general_abilities": _TableSource("generalAbilities", GeneralAbilityDef, "ability_id"),
     "general_rarities": _TableSource("generalRarities", GeneralRarityDef, "rarity_id"),
@@ -686,9 +686,9 @@ class GameData(EmpireModel):
         return self._table("general_skills")
 
     @cached_property
-    def legend_skills(self) -> Table[GameDataId["LegendSkill"], LegendSkillDef]:
-        """Legend skill levels by ``LegendSkill``."""
-        return self._table("legend_skills")
+    def legendary_skills(self) -> Table[GameDataId["LegendarySkill"], LegendarySkillDef]:
+        """Legendary skill levels by ``LegendarySkill``."""
+        return self._table("legendary_skills")
 
     @cached_property
     def generals(self) -> Table[GameDataId["General"], GeneralDef]:
@@ -1378,17 +1378,17 @@ class GameData(EmpireModel):
             lambda r: r.skill_id,
         )
 
-    def legend_skill(self, tree_id: int, group_id: int, level: int) -> LegendSkillDef | None:
+    def legendary_skill(self, tree_id: int, group_id: int, level: int) -> LegendarySkillDef | None:
         """
-        A legend skill by its tree, group and level.
+        A Legendary skill by its tree, group and level.
 
         Its ``effectType`` is no key: the same effect sits in more than one tree.
         """
         return _single(
-            f"legend skill tree {tree_id} group {group_id} level {level}",
+            f"Legendary skill tree {tree_id} group {group_id} level {level}",
             [
                 r
-                for r in self.legend_skills.values()
+                for r in self.legendary_skills.values()
                 if r.skill_tree_id == tree_id and r.skill_group_id == group_id and r.level == level
             ],
             lambda r: r.skill_id,

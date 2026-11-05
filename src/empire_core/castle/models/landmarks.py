@@ -1,9 +1,9 @@
-"""Kings towers, monuments and laboratories: upgrade progress, the ones you hold and their resets.
+"""Royal towers, monuments and laboratories: upgrade progress, the ones you hold and their resets.
 
 Commands:
 - glp: A laboratory's progress
 - gmp: A monument's progress
-- gkl: Your kings towers, a login section of ``gbd`` and a push
+- gkl: Your royal towers, a login section of ``gbd`` and a push
 - gml: Your monuments, a login section of ``gbd`` and a push
 - gll: Your laboratories, a login section of ``gbd`` and a push
 - mre: When monuments reset, a login section of ``gbd`` and a push
@@ -113,8 +113,8 @@ class OwnArea(BasePayload):
         return {"location": MapAreaItem.from_list(data[0]), "units": data[1] if len(data) > 1 else []}
 
 
-class OwnKingsTower(OwnArea):
-    """One of your kings towers. Client: ``KingstowerMapobjectVO.parseGKL`` (bundle line 19066)"""
+class OwnRoyalTower(OwnArea):
+    """One of your royal towers. Client: ``KingstowerMapobjectVO.parseGKL`` (bundle line 19066)"""
 
 
 class OwnMonument(OwnArea):
@@ -125,9 +125,9 @@ class OwnLaboratory(OwnArea):
     """One of your laboratories. Client: ``LaboratoryMapobjectVO.parseGLL`` (bundle line 25952)"""
 
 
-class KingsTowerListResponse(BaseResponse):
+class RoyalTowerListResponse(BaseResponse):
     """
-    Your kings towers, listed whole.
+    Your royal towers, listed whole.
 
     Command: gkl, as a login section of ``gbd``, a push and inside an ``mir``
     Payload: {"AI": [row, ...]}
@@ -140,15 +140,15 @@ class KingsTowerListResponse(BaseResponse):
 
     command = "gkl"
 
-    kings_towers: list[OwnKingsTower] = Field(
-        validation_alias="AI", default_factory=list, description="Your kings towers"
+    royal_towers: list[OwnRoyalTower] = Field(
+        validation_alias="AI", default_factory=list, description="Your royal towers"
     )
 
-    @field_validator("kings_towers", mode="before")
+    @field_validator("royal_towers", mode="before")
     @classmethod
     def _rows(cls, value: Any) -> Any:
         return readable_list(
-            OwnKingsTower, value, accept=lambda row: isinstance(row, list), warn=logger, what="kings towers"
+            OwnRoyalTower, value, accept=lambda row: isinstance(row, list), warn=logger, what="royal towers"
         )
 
 
@@ -251,11 +251,11 @@ class MonumentResetResponse(TimedResponse):
 
 
 __all__ = [
-    "KingsTowerListResponse",
+    "RoyalTowerListResponse",
     "MonumentListResponse",
     "MonumentResetResponse",
     "OwnArea",
-    "OwnKingsTower",
+    "OwnRoyalTower",
     "OwnMonument",
     "LaboratoryListResponse",
     "LaboratoryResetResponse",

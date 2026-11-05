@@ -1,7 +1,7 @@
-"""The Storm Islands: aqua points, your and your alliance's standing, and the islands' reset.
+"""The Storm Islands: cargo points, your and your alliance's standing, and the islands' reset.
 
 Commands:
-- gap: Your and your alliance's aqua points
+- gap: Your and your alliance's cargo points
 - sii: Your and your alliance's standing on the Storm Islands
 - ikr: The Storm Islands reset, pushed
 """
@@ -16,9 +16,9 @@ from empire_core.protocol.base import BaseRequest, BaseResponse
 from empire_core.protocol.js import ClientInt, ClientNumber, js_loose_equals
 
 
-class GetAquaPointsRequest(BaseRequest):
+class GetCargoPointsRequest(BaseRequest):
     """
-    Ask for your and your alliance's aqua points.
+    Ask for your and your alliance's cargo points.
 
     Command: gap
     Payload: {}
@@ -30,9 +30,9 @@ class GetAquaPointsRequest(BaseRequest):
     command = "gap"
 
 
-class AquaPointsResponse(BaseResponse):
+class CargoPointsResponse(BaseResponse):
     """
-    Your and your alliance's aqua points, as a reply or pushed when a building yields some.
+    Your and your alliance's cargo points, as a reply or pushed when a building yields some.
 
     Command: gap
     Payload: {"P": player_points, "A": alliance_points, "O": building_id, "DP": gained}
@@ -44,8 +44,8 @@ class AquaPointsResponse(BaseResponse):
 
     command = "gap"
 
-    player_points: ClientNumber = Field(validation_alias="P", default=0, description="Your aqua points")
-    alliance_points: ClientNumber = Field(validation_alias="A", default=0, description="Your alliance's aqua points")
+    player_points: ClientNumber = Field(validation_alias="P", default=0, description="Your cargo points")
+    alliance_points: ClientNumber = Field(validation_alias="A", default=0, description="Your alliance's cargo points")
     building_id: ClientNumber = Field(
         validation_alias="O", default=0, description="The building that yielded the points; 0 or less for none"
     )
@@ -73,7 +73,7 @@ class StormIslandsInfo(BaseResponse):
     Your and your alliance's standing on the Storm Islands.
 
     Command: sii
-    Payload: {"IR": rank, "AP": aqua_points, "AR": alliance_rank, "KA": 0 or 1, "AE": 0 or 1}
+    Payload: {"IR": rank, "AP": cargo_points, "AR": alliance_rank, "KA": 0 or 1, "AE": 0 or 1}
 
     Client: ``SIICommand.executeCommand`` (bundle line 127742) keeps ``IR`` and ``AP`` on the player and
     hands the rest to ``AllianceInfoVO.parse_SII`` (bundle line 26188), which takes each flag as ``1 == value``
@@ -82,7 +82,7 @@ class StormIslandsInfo(BaseResponse):
     command = "sii"
 
     rank: ClientInt = Field(validation_alias="IR", default=0, description="Your rank in your alliance's contest")
-    aqua_points: ClientNumber = Field(validation_alias="AP", default=0, description="Your aqua points")
+    cargo_points: ClientNumber = Field(validation_alias="AP", default=0, description="Your cargo points")
     alliance_rank: ClientInt = Field(
         validation_alias="AR", default=0, description="Your alliance's rank among the alliances on the islands"
     )
@@ -107,7 +107,7 @@ class StormIslandsReset(BaseResponse):
 
     Client: ``IKRCommand.executeCommand`` (bundle line 127728) reads nothing from the push; it locks the
     islands' kingdom (``CastleKingdomData.resetEilandData``, bundle line 134673), sets your and your
-    alliance's aqua points to 0, drops the movements there
+    alliance's cargo points to 0, drops the movements there
     (``CastleArmyData.removeAllMovementsByKingdomID``, bundle line 133728) and asks for ``kpi`` and the
     bookmarks again
     """
@@ -116,8 +116,8 @@ class StormIslandsReset(BaseResponse):
 
 
 __all__ = [
-    "AquaPointsResponse",
-    "GetAquaPointsRequest",
+    "CargoPointsResponse",
+    "GetCargoPointsRequest",
     "StormIslandsInfo",
     "StormIslandsInfoRequest",
     "StormIslandsReset",

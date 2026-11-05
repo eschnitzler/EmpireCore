@@ -99,7 +99,7 @@ class SendingMixin(ServiceMixin):
         Known gap: for a conquer attack (``AttackType.CONQUER``, which ``CastleAttackData.sendAttack``,
         bundle line 133852, sends exactly when ``isConquerAttack``, bundle line 30550) the client sends
         ``BPC`` 0 without asking for rubies, whichever commander leads, unless the target is a capital,
-        village, kings tower, resource isle, monument or laboratory (``CastlePostAttackDialog.startAttack``,
+        village, royal tower, resource island, monument or laboratory (``CastlePostAttackDialog.startAttack``,
         bundle line 38360). The target's area type is not known here, so such an attack is checked like
         any other; ``use_premium_commander=False`` with ``spend_rubies=True`` sends what the client sends there.
 

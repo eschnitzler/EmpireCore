@@ -302,7 +302,7 @@ class GameState(
     spies owned, before boosts           ``gms`` (pushed)             re-login
     commanders and castellans            ``gli``, the replies that    ``client.commanders.get_all()``
                                          carry one (``arl``, ...)
-    legend and sceat skills              ``skl``, ``ego``             ``client.player.get_skills()``
+    Legendary and sceat skills              ``skl``, ``ego``             ``client.player.get_skills()``
     your alliance's details, members     ``ain``, ``acn``, ``akm``,   ``client.alliance.get_alliance_info(id)``
                                          ..., ``acm`` (online)
     alliance chat history                ``acl``, ``acm`` (pushed)    --
@@ -341,7 +341,7 @@ class GameState(
                                          selling replies
     kingdoms, transfers between them     ``kpi``, the transfer        ``client.castle.get_kingdoms()``
                                          replies
-    kings towers, monuments, labs        ``gkl``/``gml``/``gll``,     re-login
+    royal towers, monuments, labs        ``gkl``/``gml``/``gll``,     re-login
                                          ``mir`` (pushed)
     monument and laboratory resets       ``mre``/``lrr`` (pushed)     re-login
     villages                             ``kgv``                      ``client.castle.get_villages()``
@@ -688,9 +688,9 @@ class GameState(
             self._handle_gbd({key: data[key] for key in ("gcl", "gkl", "gml", "gll") if js_truthy(data.get(key))})
 
     def _handle_ikr(self, data: Any) -> None:
-        """The Storm Islands reset: lock their kingdom, zero the aqua points, drop the movements there.
+        """The Storm Islands reset: lock their kingdom, zero the cargo points, drop the movements there.
 
-        Your and your alliance's aqua points go to 0. A movement is dropped as an ``mrm`` drops it, its
+        Your and your alliance's cargo points go to 0. A movement is dropped as an ``mrm`` drops it, its
         callbacks told, when it or either of its areas is in the Storm Islands.
 
         Client: ``IKRCommand.executeCommand`` (bundle line 127728), ``CastleKingdomVO.resetUnlockData``
@@ -702,7 +702,7 @@ class GameState(
                 for kingdom in self.kingdoms.kingdoms
             )
             self.kingdoms = self.kingdoms.model_copy(update={"kingdoms": kingdoms})
-        self.aqua_points = 0
+        self.cargo_points = 0
         self._patch_own_alliance({"AP": 0})
         for movement_id, movement in list(self.movements.items()):
             areas = (movement.source_area, movement.target_area)

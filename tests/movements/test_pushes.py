@@ -70,7 +70,7 @@ class TestNameCastleInvitation:
         mir = parse_response("mir", body)
         assert isinstance(mir, NameCastleInvitationResponse)
         assert mir.castles is not None and mir.castles.player_id == 7
-        assert (mir.kings_towers, mir.monuments, mir.laboratories) == (None, None, None)
+        assert (mir.royal_towers, mir.monuments, mir.laboratories) == (None, None, None)
         assert (mir.castle_id, mir.kingdom_id) == (42, 2)
 
     def test_ids_that_are_no_whole_numbers_name_nothing(self):

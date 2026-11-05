@@ -117,7 +117,7 @@ class AllianceChronicleAction(IntEnum):
     What an entry of the alliance chronicle records.
 
     Names follow ``AllianceConst`` with its abbreviations spelled out
-    (C1 coins, C2 rubies, RES resources, TRIBUT tribute, METROPOL metropolis).
+    (C1 coins, C2 rubies, RES resources, TRIBUT tribute, TRADING_METROPOLIS metropolis).
 
     Client: ``AllianceConst`` action values (dll line 18805)
     """

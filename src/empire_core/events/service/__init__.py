@@ -45,7 +45,7 @@ class EventsService(
 
         The server's answer updates the events as any ``sei`` does; events it does not
         name keep running until a ``see`` or their time ends them. It asks for the ``sei``
-        events only: the trigger events (the kingdoms league, the global effects) come with
+        events only: the trigger events (the Kingdom's League, the global effects) come with
         the login data's ``tei`` and the ``tei`` pushes.
 
         Raises:

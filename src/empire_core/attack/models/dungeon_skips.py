@@ -62,7 +62,7 @@ def _row_kingdom(area: MapAreaItem, fallback: Kingdom) -> int | None:
         MapItemType.DUNGEON: 6,
         MapItemType.TREASURE_DUNGEON: 6,
         MapItemType.BOSS_DUNGEON: 7,
-        MapItemType.ISLE_DUNGEON: 3,
+        MapItemType.STORM_FORT: 3,
     }.get(area.item_type)
     if index is None:
         return int(fallback)

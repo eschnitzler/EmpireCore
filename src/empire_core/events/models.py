@@ -429,7 +429,7 @@ class SpecialEvent(EmpireModel):
     # The parts the class rebuilds from every entry, so a part an entry lacks is gone
     _rebuilt_parts: ClassVar[tuple[str, ...]] = ()
     is_trigger: ClassVar[bool] = False
-    """Whether the event is a trigger event (``tei``): the kingdoms league or a global effect event."""
+    """Whether the event is a trigger event (``tei``): the Kingdom's League or a global effect event."""
 
     event_id: EnumOrInt[Event] = Field(validation_alias="EID", description="The event; its id for one the enum lacks")
     end_time: float = Field(
@@ -439,7 +439,7 @@ class SpecialEvent(EmpireModel):
     kingdoms_league_mode: bool = Field(
         default=False,
         validation_alias="KL",
-        description="Whether the event runs in the kingdoms league's season mode",
+        description="Whether the event runs in the Kingdom's League's season mode",
     )
     raw: _Raw = Field(
         default_factory=ReadOnlyDict,
@@ -1072,7 +1072,7 @@ class ImperialPatronageEvent(SpecialEvent):
 
 class KingdomsLeagueEvent(SpecialEvent):
     """
-    The kingdoms league, a trigger event. It runs while it has more than a day left; on its last
+    The Kingdom's League, a trigger event. It runs while it has more than a day left; on its last
     day it ends with the season event (the running event with ``kingdoms_league_mode``), and
     without one it runs on at one day and has ended at none.
 
@@ -2057,7 +2057,7 @@ class SpecialEventsResponse(BaseResponse):
 
 class TriggerEventsResponse(BaseResponse):
     """
-    The running trigger events (the kingdoms league and the global effect events), keyed by ``TRID``.
+    The running trigger events (the Kingdom's League and the global effect events), keyed by ``TRID``.
 
     They share the special events' id space and tables. An empty list leaves every event as it is.
 
