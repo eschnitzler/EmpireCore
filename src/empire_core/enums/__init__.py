@@ -33,6 +33,7 @@ from .castle import (
     MarketScope,
     Resource,
     ResourceCartType,
+    SessionLocation,
     TaxStatus,
     Weekday,
 )
@@ -164,6 +165,7 @@ __all__ = [
     "WorldCupVote",
     # Map / kingdom
     "Kingdom",
+    "SessionLocation",
     "KingdomDirection",
     "MapItemType",
     "NPCOwner",

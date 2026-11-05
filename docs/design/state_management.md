@@ -126,6 +126,21 @@ crashing with `dictionary changed size during iteration`. Re-read the attribute
 (or call `get_special_currencies()` / `get_castles()`) on each pass instead of caching
 the container.
 
+## Session location
+
+Login waits for `gbd`, then joins the main castle (`jca`, `CID=-1`, `KID=0`)
+and waits for `jaa`. A failed join fails the login and closes the connection.
+`client.castle.session_location` is `SessionLocation.ISO` after a join,
+`WORLDMAP` after `gaa`, `gtwara` or a successful relocation (`rst`), and
+`KINGDOM_MAP` after sending `laa`. Reset clears it to `None`.
+
+`joined_area` retains the last area's identity on maps. Its owner and outpost
+occupier let `is_in_own_castle`, `is_in_spectated_castle` and
+`is_in_occupied_castle` follow the client's checks. These properties and
+`is_on_map` are exposed on `client.castle`. UI-only map changes, including the
+season-map button, cannot be inferred from packets. Services still perform
+their existing pre-joins; skipping them is a separate optimization.
+
 ## Movement Lifecycle
 
 * `created_at` is set once, when a movement is first seen, and preserved

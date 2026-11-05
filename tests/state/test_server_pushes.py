@@ -4,7 +4,7 @@ shutting down (sde), the new day (kik), the joined castle moving (ghw), and the 
 import pytest
 
 from empire_core.castle.models.updates import JoinedAreaMoved, NewDay
-from empire_core.enums import Kingdom, Weekday
+from empire_core.enums import Kingdom, MapItemType, Weekday
 from empire_core.events.models import ShuttingDownEvents
 from empire_core.gamedata import Event
 from empire_core.messages.models import ServerShutdownWarning
@@ -149,7 +149,9 @@ class TestJoinedAreaMoved:
     def test_the_jaa_brings_the_position(self, state):
         state.update_from_packet("jaa", jaa_payload())
 
-        assert state.get_joined_area() == JoinedArea(kingdom_id=Kingdom.GREEN, castle_id=1, x=10, y=20)
+        assert state.get_joined_area() == JoinedArea(
+            kingdom_id=Kingdom.GREEN, castle_id=1, x=10, y=20, owner_id=7, area_type=MapItemType.CASTLE
+        )
 
     def test_ghw_moves_the_joined_area_and_calls_back(self):
         client = make_client(state=GameState())

@@ -4,6 +4,14 @@ collection and the server's weekdays."""
 from enum import Enum, IntEnum
 
 
+class SessionLocation(IntEnum):
+    """Server-visible layout states, from ``CastleLayoutManager`` (bundle line 944)."""
+
+    ISO = 10
+    KINGDOM_MAP = 17
+    WORLDMAP = 50
+
+
 class BuildingState(IntEnum):
     """
     What a building in a castle is doing.

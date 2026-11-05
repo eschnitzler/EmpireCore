@@ -42,6 +42,7 @@ from empire_core.enums import (
     MercenaryMissionState,
     Resource,
     ResourceCartType,
+    SessionLocation,
     TaxStatus,
     Weekday,
 )
@@ -394,6 +395,7 @@ __all__ = [
     "MarketScope",
     "Resource",
     "ResourceCartType",
+    "SessionLocation",
     "TaxStatus",
     "Weekday",
     "KingdomTransferType",

@@ -45,7 +45,7 @@ from empire_core.protocol.packet import MALFORMED_STATUS_CODE, Packet
 # The requests in wire order: XML version check, XML zone login, XML autojoin,
 # the XT version check, then the XT auth. The round trip is sent, not
 # requested, and gbd is awaited on a waiter, so neither is in this list.
-HANDSHAKE_STEPS = ["apiOK", "rlu", "joinOK", "vck", "lli"]
+HANDSHAKE_STEPS = ["apiOK", "rlu", "joinOK", "vck", "lli", "jaa"]
 
 # 453 is the one refusal the login treats as a cooldown. 401 and 440 have
 # unrelated meanings in GGEError; they pin that any other code is an ordinary
@@ -128,7 +128,7 @@ class ScriptedConnection:
         self.subscribers[cmd_id].remove(callback)
         self.events.append(f"unsubscribe:{cmd_id}")
 
-    def request(self, data: str, cmd_id: str, timeout: float = 5.0) -> Packet:
+    def request(self, data: str, cmd_id: str, timeout: float = 5.0, **kwargs: Any) -> Packet:
         self.requested.append(cmd_id)
         self.request_data[cmd_id] = data
         self.events.append(f"request:{cmd_id}")
@@ -726,7 +726,7 @@ class TestJoinedRoom:
         conn = ScriptedConnection({"rlu": room_list("1", "Other"), "joinOK": join_ok("2")})
         original = conn.request
 
-        def request(data, cmd_id, timeout=5.0):
+        def request(data, cmd_id, timeout=5.0, **kwargs):
             result = original(data, cmd_id, timeout)
             if cmd_id == "rlu":
                 for callback in list(conn.subscribers.get("rlu", [])):
@@ -927,3 +927,21 @@ class TestLoginTokenPushShapes:
             client._on_packet(xt_packet("slt", {}))
         assert client.login_token is None
         assert "slt" in caplog.text
+
+
+class TestJoinOnLogin:
+    def test_main_castle_join_follows_login_data(self):
+        conn = ScriptedConnection()
+        client = make_client(conn)
+        client.login()
+        assert conn.requested[-1] == "jaa"
+        assert conn.events.index("wait_for_result:gbd") < conn.events.index("request:jaa")
+        assert json.loads(conn.request_data["jaa"].split("%", 5)[5].rstrip("%")) == {"CID": -1, "KID": 0}
+
+    def test_join_timeout_fails_login_and_closes_connection(self):
+        conn = ScriptedConnection({"jaa": EmpireTimeoutError("join timeout")})
+        client = make_client(conn)
+        with pytest.raises(EmpireTimeoutError):
+            client.login()
+        assert not client.is_logged_in
+        assert not conn.connected
