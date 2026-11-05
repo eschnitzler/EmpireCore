@@ -783,7 +783,7 @@ class ExperienceResponse(BaseResponse):
     Your level and XP: the ``gxp`` login section, pushed as they change.
 
     The client ignores the ``LL``, ``XPFCL`` and ``XPTNL`` the server sends alongside and computes
-    the legend level and the level's XP range from these two; so does ``client.state``.
+    the Legendary level and the level's XP range from these two; so does ``client.state``.
 
     Command: gxp, as a login section of ``gbd``, a push, and inside a ``glu``.
 
@@ -800,7 +800,7 @@ class ExperienceResponse(BaseResponse):
         validation_alias="LVL",
         default=None,
         description=(
-            "Your level; 70 is the cap before legend levels. None when the server sent nothing parseInt"
+            "Your level; 70 is the cap before Legendary levels. None when the server sent nothing parseInt"
             " reads as a number, which the client stores as it came"
         ),
     )
@@ -851,8 +851,8 @@ class LevelUpResponse(BaseResponse):
         validation_alias="gxp", default=None, description="Level and XP after the level-up"
     )
     level: ClientInt = Field(validation_alias="L", default=0, description="The level reached, as the dialog shows it")
-    is_legend_level_up: bool = Field(
-        validation_alias="LL", default=False, description="The level-up is a legend level (1 == LL)"
+    is_legendary_level_up: bool = Field(
+        validation_alias="LL", default=False, description="The level-up is a Legendary level (1 == LL)"
     )
 
     @field_validator("experience", mode="before")
@@ -860,7 +860,7 @@ class LevelUpResponse(BaseResponse):
     def _experience(cls, value: Any) -> Any:
         return object_or_none(value)
 
-    @field_validator("is_legend_level_up", mode="before")
+    @field_validator("is_legendary_level_up", mode="before")
     @classmethod
     def _legend_flag(cls, value: Any) -> bool:
         return js_loose_equals(value, 1)

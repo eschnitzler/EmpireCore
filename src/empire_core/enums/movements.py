@@ -98,6 +98,6 @@ class MovementFilter(IntEnum):
     ``toggleMapMarketBarrows``
     """
 
-    PVP_ATTACKS = 0
-    ALLIANCE_PVP_ATTACKS = 1
+    PLAYER_ATTACKS = 0
+    ALLIANCE_MEMBER_PLAYER_ATTACKS = 1
     MARKET_BARROWS = 2

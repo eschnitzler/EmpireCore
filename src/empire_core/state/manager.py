@@ -8,7 +8,7 @@ from typing import Any
 
 from empire_core.castle.models.castles import NameCastleInvitationResponse
 from empire_core.enums import Kingdom
-from empire_core.events.models import FactionJoinedResponse
+from empire_core.events.models import BerimondFactionJoinedResponse
 from empire_core.movements.models import MovementOwner
 from empire_core.player.models.progress import LevelUpResponse
 from empire_core.protocol.base import readable_list
@@ -714,9 +714,9 @@ class GameState(
     def _handle_fjf(self, data: Any) -> None:
         """Apply a faction join reply's kingdoms (``kpi``), events (``sei``) and castle lists (``mir``), in that order.
 
-        Client: ``FJFCommand.executeCommand`` (bundle line 127820); see :class:`FactionJoinedResponse`
+        Client: ``FJFCommand.executeCommand`` (bundle line 127820); see :class:`BerimondFactionJoinedResponse`
         """
-        joined = read_section(FactionJoinedResponse, data, "a faction join")
+        joined = read_section(BerimondFactionJoinedResponse, data, "a faction join")
         if joined is None:
             return
         if joined.kingdoms is not None:
