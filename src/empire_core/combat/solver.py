@@ -306,7 +306,7 @@ def fill_wave(
     inventory: Inventory,
     capacity: WaveCapacity,
     *,
-    attacker: AttackerFlankEffects | None = None,
+    attacker: AttackerFlankEffects | Mapping[Flank, AttackerFlankEffects] | None = None,
     defense: Mapping[Flank, DefenderFlankEffects] | None = None,
     options: FillOptions | None = None,
     unit_attack_bonuses: Mapping[int, float] | None = None,
@@ -329,7 +329,7 @@ def fill_wave(
         inventory: Pool to draw from; placed stacks are deducted
         game_data: Loaded unit and tool stats
         capacity: The wave's size, from :meth:`WaveCapacity.for_level`
-        attacker: Attacker multipliers
+        attacker: Attacker multipliers, shared or keyed by flank
         defense: Defender strength per flank, if known
         options: Which flanks to fill and which units to allow
         unit_attack_bonuses: Per-unit attack buffs from active global effects
@@ -395,7 +395,7 @@ def fill_wave(
                 capacity.tool_slot_type(flank),
                 usable,
                 pool,
-                attacker=attacker,
+                attacker=attacker.get(flank) if isinstance(attacker, Mapping) else attacker,
                 defender=defender,
                 target=TargetContext(
                     area_type=area_type,
@@ -444,6 +444,7 @@ def fill_yard_wave(
     *,
     slots: int = YARD_SLOTS,
     defender: DefenderFlankEffects | None = None,
+    attacker: AttackerFlankEffects | None = None,
     options: FillOptions | None = None,
     unit_attack_bonuses: Mapping[int, float] | None = None,
     game_data: GameData | None = None,
@@ -452,8 +453,8 @@ def fill_yard_wave(
     Fill the courtyard wave, which goes out in ``cra``'s RW field.
 
     ``AFillWaveStrategy.fillYardContainer`` fills it with soldiers only - no
-    tools - and passes no attacker effects, so units are scored on their raw
-    values against the yard's own defenders.
+    tools. The library also accepts courtyard attacker effects so scoring
+    includes the strength bonuses the client's auto-fill omits.
 
     Args:
         inventory: Pool to draw from
@@ -462,6 +463,7 @@ def fill_yard_wave(
         slots: How many unit slots the yard offers; all eight are open from
             level 0
         defender: The yard's defenders, if known
+        attacker: Courtyard attack multipliers
         options: Unit filters
         unit_attack_bonuses: Per-unit attack buffs from active global effects
 
@@ -474,7 +476,7 @@ def fill_yard_wave(
         capacity,
         slots,
         inventory,
-        attacker=None,
+        attacker=attacker,
         defender=defender,
         options=options,
         unit_attack_bonuses=unit_attack_bonuses,
@@ -494,7 +496,7 @@ def fill_waves(
     flank_bonus_percent: float = 0.0,
     front_bonus_percent: float = 0.0,
     tool_bonus: float = 0.0,
-    attacker: AttackerFlankEffects | None = None,
+    attacker: AttackerFlankEffects | Mapping[Flank, AttackerFlankEffects] | None = None,
     defense: Mapping[Flank, DefenderFlankEffects] | None = None,
     options: FillOptions | None = None,
     unit_attack_bonuses: Mapping[int, float] | None = None,
@@ -524,7 +526,7 @@ def fill_waves(
         flank_bonus_percent: Percentage bonus to units on each side flank
         front_bonus_percent: Percentage bonus to units in the middle
         tool_bonus: Extra flank tool capacity
-        attacker: Attacker multipliers
+        attacker: Attacker multipliers, shared or keyed by flank
         defense: Defender strength per flank, if known
         options: Which flanks to fill and which units to allow
         unit_attack_bonuses: Per-unit attack buffs from active global effects
