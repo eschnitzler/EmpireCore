@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 from pydantic import ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
-from empire_core.enums import FactionProtectionStatus, Kingdom, MapItemType, PeaceModeStatus
+from empire_core.enums import BerimondProtectionStatus, Kingdom, MapItemType, PeaceModeStatus
 from empire_core.gamedata import EnumOrInt
 from empire_core.protocol.base import (
     BasePayload,
@@ -188,7 +188,7 @@ class MapObject(BasePayload):
     remaining_noob_protection: ParseInt = Field(
         validation_alias="RNP", default=0, description="Seconds of beginner protection left"
     )
-    faction: OwnerFaction | None = Field(validation_alias="FN", default=None, description="Faction event standing")
+    faction: OwnerFaction | None = Field(validation_alias="FN", default=None, description="Berimond standing")
     via_refer_a_friend: bool = Field(validation_alias="IRF", default=False, description="Joined through refer-a-friend")
 
     @property
@@ -287,12 +287,12 @@ class KingdomProtection(BasePayload):
     protection_status: ClientInt = Field(
         validation_alias="PMS",
         default=0,
-        description="Peace mode status (see peace_mode_status), or in Berimond the faction protection status",
+        description="Peace mode status (see peace_mode_status), or in Berimond the Berimond protection status",
     )
     protection_seconds: ClientInt = Field(
         validation_alias="PMT",
         default=0,
-        description="Seconds left of the peace mode stage, or in Berimond of faction protection",
+        description="Seconds left of the peace mode stage, or in Berimond of Berimond protection",
     )
 
     @property
@@ -306,9 +306,9 @@ class KingdomProtection(BasePayload):
         return enum_or_none(PeaceModeStatus, self.protection_status)
 
     @property
-    def faction_protection_status(self) -> FactionProtectionStatus | None:
-        """``protection_status`` as a Berimond faction protection stage; None for a value the client does not define."""
-        return enum_or_none(FactionProtectionStatus, self.protection_status)
+    def berimond_protection_status(self) -> BerimondProtectionStatus | None:
+        """``protection_status`` as a Berimond protection stage; None for a value the client does not define."""
+        return enum_or_none(BerimondProtectionStatus, self.protection_status)
 
 
 class MapArea(BasePayload):
@@ -436,7 +436,7 @@ class FindNextMapObjectRequest(BaseRequest):
     bundle line 143000), alien camps (bundle lines 114204, 117711), faction
     invasion, samurai and nomad camps and the alliance raid portal, naming the
     NPC owner of the camps it wants (bundle lines 75451, 91575, 98463, 98544,
-    98951), and Berimond faction camps with LMIN -3 (bundle line 54675); quest
+    98951), and Berimond camps with LMIN -3 (bundle line 54675); quest
     jumps default LMIN to -3 too (bundle line 97692). What LMIN -3 asks for is
     not settled by the client. The server answers NO_PLAYER_FOUND (153) when
     nothing matches.

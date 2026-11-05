@@ -96,10 +96,10 @@ class MapItemType(IntEnum):
     KINGDOM_CASTLE = 12  # Player castle in another kingdom
     EVENT_DUNGEON = 13
     NO_LANDMARK = 14
-    FACTION_CAMP = 15
-    FACTION_VILLAGE = 16
-    FACTION_TOWER = 17
-    FACTION_CAPITAL = 18
+    BERIMOND_CAMP = 15
+    BERIMOND_RESOURCE_VILLAGE = 16
+    BERIMOND_WATCHTOWER = 17
+    BERIMOND_CAPITAL = 18
     PLAGUE_AREA = 19
     TROOP_HOSTEL = 20
     ALIEN_CAMP = 21
@@ -159,8 +159,8 @@ class NPCOwner(IntEnum):
     PLAGUE_DOCTOR = -334
     UNKNOWN = -366
     ISLAND_VILLAGE = -403
-    BLUE_FACTION_KING = -410
-    RED_FACTION_KING = -411
+    URSIDAE_KING = -410
+    GERBRANDT_KING = -411
     CLASSIC_CAPITAL = -432
     ICE_CAPITAL = -433
     DESERT_CAPITAL = -434
@@ -255,9 +255,9 @@ class PeaceModeDuration(IntEnum):
     DAYS_60 = 3, 5184000, 20000
 
 
-class FactionProtectionStatus(IntEnum):
+class BerimondProtectionStatus(IntEnum):
     """
-    Where your Berimond faction protection stands, a ``uap`` block's ``PMS`` in Berimond.
+    Where your Berimond protection stands, a ``uap`` block's ``PMS`` in Berimond.
 
     Client: ``FactionEventVO.FACTION_PROTECTION_STATUS_*`` (bundle line 7511)
     """

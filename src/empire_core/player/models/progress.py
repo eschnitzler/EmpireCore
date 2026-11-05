@@ -9,8 +9,8 @@ Commands:
 - boi: boosters, the premium account and production slots (bfs: the festival)
 - gmu: might points
 - ufa: glory points
-- ufp: Berimond (faction) points
-- uar: top-X title ranks, the island title and the displayed title systems
+- ufp: gallantry points
+- uar: top-X title ranks, the Storm Islands title and the displayed title systems
 - uht: when the glory top-X titles reset
 - iot: titles info, which the client ignores
 - apt: assigning a Storm Islands title
@@ -281,9 +281,9 @@ class GloryPointsResponse(TimedResponse):
         return value if isinstance(value, (int, float)) and not isinstance(value, bool) else None
 
 
-class FactionPointsResponse(TimedResponse):
+class GallantryPointsResponse(TimedResponse):
     """
-    Your Berimond (faction) points, which give the Berimond titles.
+    Your gallantry points, which give the Berimond titles.
 
     Command: ufp, a push. The client ignores the copy in ``gbd``.
 
@@ -292,12 +292,12 @@ class FactionPointsResponse(TimedResponse):
 
     command = "ufp"
 
-    faction_points: ParsedInt = Field(
+    gallantry_points: ParsedInt = Field(
         validation_alias="CFP",
         default=None,
         description="Berimond points; None when unreadable",
     )
-    highest_faction_points: ParsedInt = Field(
+    highest_gallantry_points: ParsedInt = Field(
         validation_alias="HFP",
         default=None,
         description="The most Berimond points ever; None when unreadable",
@@ -342,7 +342,7 @@ class TopTitleRanking(TimedPayload):
         return None if value is None else js_parse_int(value)
 
 
-class IslandTitle(BasePayload):
+class StormIslandsTitle(BasePayload):
     """A ``uar``'s ``ITM``. Client: ``CastleTitleData.parseIslandDataFromServer`` (bundle lines 21023-21027)"""
 
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
@@ -410,14 +410,14 @@ class TitleRanksResponse(TimedResponse):
         default_factory=TopTitleRanking,
         description="The glory system",
     )
-    faction: TopTitleRanking = Field(
+    gallantry: TopTitleRanking = Field(
         validation_alias="BTM",
         default_factory=TopTitleRanking,
-        description="The Berimond system",
+        description="The gallantry system",
     )
-    island_title: IslandTitle = Field(
+    storm_islands_title: StormIslandsTitle = Field(
         validation_alias="ITM",
-        default_factory=IslandTitle,
+        default_factory=StormIslandsTitle,
         description="Your Storm Islands title",
     )
     alliance_city_title: AllianceCityTitle | None = Field(
@@ -436,7 +436,7 @@ class TitleRanksResponse(TimedResponse):
         description="The title system shown after your name; None when not sent",
     )
 
-    @field_validator("glory", "faction", "island_title", mode="before")
+    @field_validator("glory", "gallantry", "storm_islands_title", mode="before")
     @classmethod
     def _block(cls, value: Any) -> Any:
         return value if isinstance(value, (dict, BasePayload)) else {}
@@ -761,13 +761,13 @@ __all__ = [
     "AssignTitleResponse",
     "Booster",
     "BoosterInfoResponse",
-    "FactionPointsResponse",
+    "GallantryPointsResponse",
     "Festival",
     "GetAchievementsRequest",
     "GetTitleRanksRequest",
     "GloryPointsResponse",
     "GloryTitleResetResponse",
-    "IslandTitle",
+    "StormIslandsTitle",
     "MightPointsResponse",
     "RelocationInfoResponse",
     "SelectTitleRequest",

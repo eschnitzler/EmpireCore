@@ -581,7 +581,7 @@ _PARTICIPANT_ROW = (
     "fame_points",
     "xp",
     "kingstower_bonus",
-    "faction_points",
+    "gallantry_points",
     "highest_fame_title_bonus",
     "wounded_units",
     "morale_boost",
@@ -621,13 +621,13 @@ class BattleParticipant(BasePayload):
     fame_points: ClientInt = Field(default=0, description="Glory points won or lost")
     xp: ClientInt = Field(default=0, description="Experience won")
     kingstower_bonus: ClientInt = Field(default=0, description="Bonus from the king's towers")
-    faction_points: ClientInt = Field(default=0, description="Berimond faction points")
+    gallantry_points: ClientInt = Field(default=0, description="Gallantry points")
     highest_fame_title_bonus: ClientInt = Field(default=0, description="Bonus from the highest glory title")
     wounded_units: ClientInt = Field(default=0, description="Soldiers wounded instead of lost")
     morale_boost: ClientInt = Field(default=0, description="Morale boost")
     capital_tokens: ClientInt = Field(default=0, description="Capital tokens won")
-    reputation_blue: ClientInt = Field(default=0, description="Reputation won with the blue faction")
-    reputation_red: ClientInt = Field(default=0, description="Reputation won with the red faction")
+    reputation_ursidae: ClientInt = Field(default=0, description="Ursidae reputation won")
+    reputation_gerbrandt: ClientInt = Field(default=0, description="Gerbrandt reputation won")
 
     @model_validator(mode="before")
     @classmethod
@@ -640,11 +640,11 @@ class BattleParticipant(BasePayload):
         if js_truthy(reputation):
             # Client: i[13][FactionConst.BLUE_FACTION], i[13][FactionConst.RED_FACTION]
             if isinstance(reputation, list):
-                row["reputation_blue"] = reputation[0] if reputation else None
-                row["reputation_red"] = reputation[1] if len(reputation) > 1 else None
+                row["reputation_ursidae"] = reputation[0] if reputation else None
+                row["reputation_gerbrandt"] = reputation[1] if len(reputation) > 1 else None
             elif isinstance(reputation, dict):
-                row["reputation_blue"] = reputation.get("0")
-                row["reputation_red"] = reputation.get("1")
+                row["reputation_ursidae"] = reputation.get("0")
+                row["reputation_gerbrandt"] = reputation.get("1")
         return row
 
     @property

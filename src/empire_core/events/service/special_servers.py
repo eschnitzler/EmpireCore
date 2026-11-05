@@ -236,7 +236,7 @@ class SpecialServersMixin(EventsBaseMixin):
         return self.request(GetBerimondBalanceRequest(), BerimondBalance, timeout=timeout)
 
     def get_berimond_points(self, *, timeout: float = 5.0) -> BerimondPoints:
-        """Request the red and blue faction points in Battle for Berimond.
+        """Request the Gerbrandt and Ursidae points in Battle for Berimond.
 
         Requires the running event.
         Client: ``C2SGetFactionPointsVO`` (bundle 66177), ``GFPCommand`` (127917).

@@ -24,7 +24,7 @@ class MovementType(IntEnum):
     PLAGUE_DOCTOR = 14
     OCCUPY_FACTION = 15
     ALIEN_ATTACK = 17
-    FACTION_ATTACK = 18
+    BERIMOND_ATTACK = 18
     ALLIANCE_CITY_ATTACK = 19
     ALLIANCE_CAMP_TAUNT_ATTACK = 20
     ALLIANCE_CAMP_ATTACK = 21
@@ -71,7 +71,7 @@ _ATTACK_MOVEMENT_TYPES = frozenset(
         MovementType.ATTACK,
         MovementType.NPC_ATTACK,
         MovementType.ALIEN_ATTACK,
-        MovementType.FACTION_ATTACK,
+        MovementType.BERIMOND_ATTACK,
         MovementType.ALLIANCE_CITY_ATTACK,
         MovementType.ALLIANCE_CAMP_TAUNT_ATTACK,
         MovementType.ALLIANCE_CAMP_ATTACK,

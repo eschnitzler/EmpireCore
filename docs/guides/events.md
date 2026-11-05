@@ -199,7 +199,7 @@ Berimond Invasion has a player board per faction; name the one you want:
 ```python
 from empire_core.enums import RankingType
 
-client.events.get_scores(Event.BERIMOND_INVASION, list_type=RankingType.BERIMOND_INVASION_PLAYER_RED)
+client.events.get_scores(Event.BERIMOND_INVASION, list_type=RankingType.BERIMOND_INVASION_PLAYER_GERBRANDT)
 ```
 
 The top of every board of every running event:

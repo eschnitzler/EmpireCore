@@ -5,7 +5,7 @@ Commands:
 - dup: Dismiss units
 - sts: Store soldiers in the stronghold
 - tas: Take soldiers out of the stronghold
-- fuc: How many more soldiers a faction camp takes
+- fuc: How many more soldiers a Berimond camp takes
 
 AttackWave and WaveFlank are the waves a cra attack sends.
 """
@@ -214,12 +214,12 @@ class TakeSoldiersResponse(BaseResponse, UnitInventory):
 
 class GetCampUnitCapacityRequest(BaseRequest):
     """
-    Ask how many more soldiers a camp of the faction kingdom takes.
+    Ask how many more soldiers a camp of the Berimond kingdom takes.
 
     Command: fuc
     Payload: {"CID": camp_id}
 
-    Client: ``C2SGetCampUnitCapacity`` (bundle line 54623), sent for your main faction camp by
+    Client: ``C2SGetCampUnitCapacity`` (bundle line 54623), sent for your main Berimond camp by
     ``CastleTransferTroopsToKingdomProperties.additionalDataUpdateCommands`` (bundle line 37467) and
     for the camp a support goes to by ``CastleTroopSupportDialog.onSupportDefenceInfos`` (bundle line 129177)
     """

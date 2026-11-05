@@ -184,7 +184,7 @@ class TestWaveCapacity:
         pytest.param((70, 1, 70, 70, -202, 0, 2), (False, False, False), id="robber baron camp"),
         pytest.param((70, 1, 70, 70, -1103, 0, 1), (False, False, True), id="listed collector"),
         pytest.param((70, 1, 70, 70, -1108, 0, 1), (False, False, False), id="collector isCollectorPlayer skips"),
-        pytest.param((70, 1, 70, 70, 4242, 1, 17), (True, True, False), id="faction tower"),
+        pytest.param((70, 1, 70, 70, 4242, 1, 17), (True, True, False), id="Berimond watchtower"),
     ]
 
     @pytest.mark.parametrize(("case", "flags"), LEGENDARY_CASES)

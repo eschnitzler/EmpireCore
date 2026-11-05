@@ -1,6 +1,6 @@
 """Owner records and the pieces they share with movements and player profiles.
 
-A player's crest, faction standing, castle positions and alliance crest.
+A player's crest, Berimond standing, castle positions and alliance crest.
 """
 
 from __future__ import annotations
@@ -76,22 +76,22 @@ def _layout(layouts: type[SymbolLayout] | type[CoatOfArmsBackground], value: Any
 
 
 class OwnerFaction(BasePayload):
-    """Faction event standing: an owner record's ``FN``.
+    """Berimond standing: an owner record's ``FN``.
 
     Client: ``WorldMapOwnerInfoVO.fillFromParamObject`` (bundle line 10794), which reads each key through ``parseInt``.
     """
 
     faction_id: ParseInt = Field(validation_alias="FID", default=0, description="Faction id")
-    protection_status: ParseInt = Field(validation_alias="PMS", default=0, description="Faction protection status")
+    protection_status: ParseInt = Field(validation_alias="PMS", default=0, description="Berimond protection status")
     protection_end_seconds: ParseInt = Field(
         validation_alias="PMT",
         default=0,
-        description="Seconds until faction protection ends",
+        description="Seconds until Berimond protection ends",
     )
     title_id: EnumOrInt["Title"] | None = Field(
         validation_alias="TID",
         default=None,
-        description="The faction title; None when TID is -1 or not a number",
+        description="The gallantry title; None when TID is -1 or not a number",
     )
 
     @field_validator("title_id", mode="before")

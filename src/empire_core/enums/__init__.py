@@ -75,7 +75,7 @@ from .gamedata import (
 )
 from .login import ServerType, VersionCheckStatus
 from .map import (
-    FactionProtectionStatus,
+    BerimondProtectionStatus,
     Kingdom,
     KingdomDirection,
     MapItemType,
@@ -169,7 +169,7 @@ __all__ = [
     "NPCOwner",
     "PeaceModeStatus",
     "PeaceModeDuration",
-    "FactionProtectionStatus",
+    "BerimondProtectionStatus",
     "TreasureMapProgress",
     "TreasureMapType",
     # Movement

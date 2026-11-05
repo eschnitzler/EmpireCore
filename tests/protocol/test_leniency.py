@@ -68,7 +68,8 @@ class TestPositionalArrayParsers:
         assert (item.location_id, item.owner_id, item.has_player_owner) == (900, 4242, True)
 
     @pytest.mark.parametrize(
-        "item_type", [MapItemType.FACTION_VILLAGE, MapItemType.FACTION_TOWER, MapItemType.FACTION_CAPITAL]
+        "item_type",
+        [MapItemType.BERIMOND_RESOURCE_VILLAGE, MapItemType.BERIMOND_WATCHTOWER, MapItemType.BERIMOND_CAPITAL],
     )
     def test_map_area_item_faction_landmark_owner_is_field_three(self, item_type):
         item = MapAreaItem.from_list([item_type, 1, 2, 4242])
@@ -230,7 +231,7 @@ class TestPositionalArrayParsers:
         assert entry is not None and (entry.castle_id, entry.castle_name) == (12345, "")
 
     def test_rows_that_name_no_castle_are_left_out_quietly(self, caplog):
-        # FactionCapitalMapobjectVO has no object id; a faction camp of 3 fields is not on the map
+        # FactionCapitalMapobjectVO has no object id; a Berimond camp of 3 fields is not on the map
         payload = {"C": [{"KID": 10, "AI": [[18, 50, 60, -600, [], -1, 40, 0, 12]]}, {"KID": 10, "AI": [[15, 1, 2]]}]}
         with caplog.at_level(logging.WARNING, logger="empire_core.castle.models.castles"):
             response = GetCastlesResponse.model_validate(payload)

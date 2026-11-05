@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 from empire_core.combat.bonuses import EffectResolver, effect_value_bonuses, legend_skill_value
 from empire_core.gamedata import EnumOrInt, GameData
-from empire_core.player.titles import island_title_chain
+from empire_core.player.titles import storm_islands_title_chain
 from empire_core.protocol.js import js_int
 
 if TYPE_CHECKING:
@@ -87,7 +87,7 @@ def title_spy_percent(game_data: GameData, title_ids: Iterable[int]) -> float:
 
     Args:
         game_data: Loaded tables
-        title_ids: Every title you hold; for a Storm Islands title, :func:`island_title_chain`
+        title_ids: Every title you hold; for a Storm Islands title, :func:`storm_islands_title_chain`
 
     Client: ``CastleTitleSystemHelper.returnTitleEffectValue`` and ``returnTitleEffectsByType``
     (bundle lines 4420-4428), ``EffectsHandlerVO.getBonusVOByEffectType`` (bundle line 25098)
@@ -107,7 +107,7 @@ def title_spy_percent(game_data: GameData, title_ids: Iterable[int]) -> float:
 
 
 __all__ = [
-    "island_title_chain",
+    "storm_islands_title_chain",
     "legend_spy_bonus",
     "research_spy_bonus",
     "title_spy_percent",

@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from empire_core.gamedata import Title
     from empire_core.player.models.progress import (
         BoosterInfoResponse,
-        FactionPointsResponse,
+        GallantryPointsResponse,
         GloryPointsResponse,
         MightPointsResponse,
     )
@@ -90,7 +90,7 @@ class StandingMixin(ServiceMixin):
             GameDataNotLoadedError: The game data cannot be loaded
         """
         return player_title_ids(
-            self.glory_points, self.faction_points, self.title_ranks, game_data=self._require_game_data()
+            self.glory_points, self.gallantry_points, self.title_ranks, game_data=self._require_game_data()
         )
 
     @property
@@ -127,9 +127,9 @@ class StandingMixin(ServiceMixin):
         return self.client.state.get_food_production()
 
     @property
-    def faction_points(self) -> FactionPointsResponse | None:
+    def gallantry_points(self) -> GallantryPointsResponse | None:
         """Your Berimond points, from the last ``ufp`` push; None until one arrived (the login data has none)."""
-        return self.client.state.get_faction_points()
+        return self.client.state.get_gallantry_points()
 
     @property
     def title_ranks(self) -> TitleRanksResponse:

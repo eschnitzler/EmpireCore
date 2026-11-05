@@ -407,9 +407,9 @@ class GetOutpostConquerInfoResponse(AttackInfoResponse):
     max_barons: int = Field(validation_alias="MB", default=0, description="Most barons the player may hold")
 
 
-class GetFactionCampConquerInfoRequest(BaseRequest):
+class GetBerimondCampConquerInfoRequest(BaseRequest):
     """
-    Ask for the conquest pre-calculation against a Berimond faction camp.
+    Ask for the conquest pre-calculation against a Berimond camp.
 
     Command: cfi
     Payload: {"KID": kingdom_id, "TX": target_x, "TY": target_y, "SX": source_x, "SY": source_y}
@@ -427,9 +427,9 @@ class GetFactionCampConquerInfoRequest(BaseRequest):
     source_y: int = Field(validation_alias="SY", description="Attacking camp's map y")
 
 
-class GetFactionCampConquerInfoResponse(GetOutpostConquerInfoResponse):
+class GetBerimondCampConquerInfoResponse(GetOutpostConquerInfoResponse):
     """
-    The conquest pre-calculation for a faction camp, read as the outpost one is.
+    The conquest pre-calculation for a Berimond camp, read as the outpost one is.
 
     Command: cfi
 
@@ -520,8 +520,8 @@ __all__ = [
     "GetCapitalConquerInfoResponse",
     "GetMetropolConquerInfoRequest",
     "GetMetropolConquerInfoResponse",
-    "GetFactionCampConquerInfoRequest",
-    "GetFactionCampConquerInfoResponse",
+    "GetBerimondCampConquerInfoRequest",
+    "GetBerimondCampConquerInfoResponse",
     "GetAllianceTowerAttackInfoRequest",
     "GetAllianceTowerAttackInfoResponse",
     "GetCollectorAttackInfoRequest",

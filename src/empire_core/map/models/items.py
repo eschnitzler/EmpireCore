@@ -103,7 +103,7 @@ def _sabotage_protection(row: _Row) -> bool:
 
 
 def _interactive(row: _Row) -> dict[str, Any]:
-    """``InteractiveMapobjectVO.parseAreaInfo`` (bundle line 3631): castles, outposts and faction camps."""
+    """``InteractiveMapobjectVO.parseAreaInfo`` (bundle line 3631): castles, outposts and Berimond camps."""
     return {
         "location_id": row.raw(3),
         "owner_id": row.as_int(4),
@@ -451,10 +451,10 @@ ROW_PARSERS: dict[MapItemType, Callable[[_Row], dict[str, Any]]] = {
     MapItemType.BOSS_DUNGEON: _boss_dungeon,
     MapItemType.KINGDOM_CASTLE: _castle,
     MapItemType.EVENT_DUNGEON: _event_dungeon,
-    MapItemType.FACTION_CAMP: _faction_camp,
-    MapItemType.FACTION_VILLAGE: _faction_village,
-    MapItemType.FACTION_TOWER: _faction_tower,
-    MapItemType.FACTION_CAPITAL: _faction_capital,
+    MapItemType.BERIMOND_CAMP: _faction_camp,
+    MapItemType.BERIMOND_RESOURCE_VILLAGE: _faction_village,
+    MapItemType.BERIMOND_WATCHTOWER: _faction_tower,
+    MapItemType.BERIMOND_CAPITAL: _faction_capital,
     MapItemType.PLAGUE_AREA: _attack_area,
     MapItemType.ALIEN_CAMP: _alien_camp,
     MapItemType.METROPOL: _metropol,
@@ -560,7 +560,7 @@ class MapAreaItem(BasePayload):
         default=None, description="Positions of the faction object's protectors still standing"
     )
     dungeon_level: int | None = Field(default=None, description="The camp's level as its row gives it")
-    attacks_left: int | None = Field(default=None, description="Attacks the faction tower has left")
+    attacks_left: int | None = Field(default=None, description="Attacks the Berimond watchtower has left")
     special_camp_id: EnumOrInt["BerimondSpecialCamp"] | None = Field(
         default=None, description="A Battle for Berimond watchtower's or capital's special camp"
     )

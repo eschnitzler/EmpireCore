@@ -84,7 +84,7 @@ class TestService:
         reply = client.player.get_title_ranks()
 
         assert conn(client).request_payloads == [("uar", {})]
-        assert isinstance(reply, TitleRanksResponse) and reply.island_title.title_id is Title.STORM_LORD
+        assert isinstance(reply, TitleRanksResponse) and reply.storm_islands_title.title_id is Title.STORM_LORD
 
     def test_assign_title(self):
         client = make_client({"apt": xt_packet("apt", {"TI": 50, "PN": "Ally"})})
@@ -153,7 +153,7 @@ class TestState:
         state.update_from_packet("uht", {"RS": 3600})
 
         ranks = state.get_title_ranks()
-        assert ranks.glory.reset_seconds == 3600 and ranks.faction.reset_seconds == 0
+        assert ranks.glory.reset_seconds == 3600 and ranks.gallantry.reset_seconds == 0
         assert state.get_last_packet_time("uht") is not None
 
     @pytest.mark.parametrize(("payload", "error_code"), [({"RS": 3600}, 1), ({"RS": "x"}, 0), ({}, 0)])
@@ -169,7 +169,7 @@ class TestState:
         state = logged_in_state(uar={**UAR, "ITM": {"TID": -1}})
 
         state.update_from_packet("apt", {"TI": 50, "PN": "Ally"})
-        assert state.get_title_ranks().island_title.title_id is None
+        assert state.get_title_ranks().storm_islands_title.title_id is None
 
         state.update_from_packet("apt", {"TI": 50})
-        assert state.get_title_ranks().island_title.title_id is Title.STORM_LORD
+        assert state.get_title_ranks().storm_islands_title.title_id is Title.STORM_LORD

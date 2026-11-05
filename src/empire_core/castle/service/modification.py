@@ -89,7 +89,7 @@ class CastleModificationMixin(CastlesMixin):
 
         Looks the castle up in the castle list for its kingdom, as :meth:`rename`
         does. Any castle may be abandoned but the kingdom's main castle; a
-        faction event's main camp, which the client also counts as one, is
+        Battle for Berimond main camp, which the client also counts as one, is
         left to the server. It is free.
         The castle goes after ``OutpostConst.ABANDON_TIME`` (86400 s) and
         :meth:`cancel_abandon` keeps it within ``ABANDON_CANCEL_TIME`` (10800 s).

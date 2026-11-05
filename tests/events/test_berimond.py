@@ -40,7 +40,7 @@ def test_empty_targets_are_a_valid_success():
 def test_balance_returns_both_player_counts():
     client = berimond_client({"fgb": xt_packet("fgb", {"RP": 13, "BP": 7})})
     balance = client.events.get_berimond_balance(timeout=0.2)
-    assert (balance.red_players, balance.blue_players) == (13, 7)
+    assert (balance.gerbrandt_players, balance.ursidae_players) == (13, 7)
     assert conn(client).request_payloads == [("fgb", {})]
 
 
@@ -48,7 +48,7 @@ def test_balance_returns_both_player_counts():
 def test_balance_clamps_negative_counts_like_client(red, blue, expected):
     client = berimond_client({"fgb": xt_packet("fgb", {"RP": red, "BP": blue})})
     balance = client.events.get_berimond_balance()
-    assert (balance.red_players, balance.blue_players) == expected
+    assert (balance.gerbrandt_players, balance.ursidae_players) == expected
 
 
 @pytest.mark.parametrize(
@@ -94,7 +94,7 @@ def test_inactive_event_refuses_read_before_sending(method):
 def test_points_read_both_factions():
     client = berimond_client({"gfp": xt_packet("gfp", {"RFP": 1200, "BFP": "800"})})
     points = client.events.get_berimond_points(timeout=0.2)
-    assert (points.red_points, points.blue_points) == (1200, 800)
+    assert (points.gerbrandt_points, points.ursidae_points) == (1200, 800)
     assert conn(client).request_payloads == [("gfp", {})]
 
 
@@ -163,7 +163,7 @@ def test_kingdom_status_push_is_kept_on_the_event():
     status = client.events.berimond_kingdom_status
     assert status is not None
     assert (status.blue_last_man_standing, status.red_last_man_standing, status.active_in_event) == (True, False, True)
-    assert (status.blue_capital_reachable, status.red_capital_reachable) == (True, False)
+    assert (status.ursidae_capital_reachable, status.gerbrandt_capital_reachable) == (True, False)
 
 
 def test_kingdom_status_survives_a_new_event_entry():
@@ -192,4 +192,4 @@ def test_kingdom_status_inside_the_login_kpi_follows_the_sei():
     )
     event = state.get_event(Event.BATTLE_FOR_BERIMOND)
     assert event is not None and event.kingdom_status is not None
-    assert event.kingdom_status.blue_capital_reachable
+    assert event.kingdom_status.ursidae_capital_reachable

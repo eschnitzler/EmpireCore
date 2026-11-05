@@ -3,8 +3,8 @@
 from typing import TYPE_CHECKING
 
 from empire_core.enums import (
+    BerimondProtectionStatus,
     CoatOfArmsBackground,
-    FactionProtectionStatus,
     Kingdom,
     MapItemType,
     NPCOwner,
@@ -123,7 +123,7 @@ __all__ = [
     "scan_kingdom_with",
     "MapService",
     "PeaceModeStatus",
-    "FactionProtectionStatus",
+    "BerimondProtectionStatus",
     "TreasureMapProgress",
     "BuyTreasureMapPiecesRequest",
     "BuyTreasureMapPiecesResponse",

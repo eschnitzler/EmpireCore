@@ -208,7 +208,7 @@ class CastleProductionArea(BasePayload):
     faction_buff: float = Field(
         validation_alias="RFPPA",
         default=0.0,
-        description="Faction strength balance, 0 to 1: below 0.5 boosts red faction morale, above 0.5 blue",
+        description="Faction strength balance, 0 to 1: below 0.5 boosts Gerbrandt morale, above 0.5 Ursidae",
     )
     food_consumption_delta: float = Field(
         validation_alias="DFC",

@@ -10,9 +10,9 @@ from empire_core.gamedata import GameData
 from empire_core.movements.models import MovementSpy
 from empire_core.movements.tracked import Movement
 from empire_core.spy.pool import (
-    island_title_chain,
     legend_spy_bonus,
     research_spy_bonus,
+    storm_islands_title_chain,
     title_spy_percent,
     total_spies,
 )
@@ -105,13 +105,13 @@ class TestBoosts:
         assert legend_spy_bonus(game_data, []) == 0
 
     def test_an_island_title_holds_every_title_below_it(self, game_data):
-        assert island_title_chain(50, game_data=game_data) == [54, 53, 52, 51, 50]
-        assert island_title_chain(54, game_data=game_data) == [54]
-        assert island_title_chain(-1, game_data=game_data) == []
-        assert island_title_chain(999, game_data=game_data) == []
+        assert storm_islands_title_chain(50, game_data=game_data) == [54, 53, 52, 51, 50]
+        assert storm_islands_title_chain(54, game_data=game_data) == [54]
+        assert storm_islands_title_chain(-1, game_data=game_data) == []
+        assert storm_islands_title_chain(999, game_data=game_data) == []
 
     def test_only_the_lowest_island_title_boosts_spies(self, game_data):
-        assert title_spy_percent(game_data, island_title_chain(50, game_data=game_data)) == 100
+        assert title_spy_percent(game_data, storm_islands_title_chain(50, game_data=game_data)) == 100
         assert title_spy_percent(game_data, [50, 51, 52, 53]) == 0
 
 
@@ -138,7 +138,7 @@ class TestSpyService:
 
     def test_boosts_from_game_data(self, game_data):
         client = self.client(gms={"MS": 10, "BS": 0}, movements=[spy_movement(1, 4)], game_data=game_data)
-        kwargs = {"research_ids": ALL_SPY_RESEARCH, "legend_skill_ids": [53], "island_title_id": 50}
+        kwargs = {"research_ids": ALL_SPY_RESEARCH, "legend_skill_ids": [53], "storm_islands_title_id": 50}
 
         assert client.spy.total_spies(**kwargs, legend_target=True) == 40
         assert client.spy.available_spies(**kwargs, legend_target=True) == 36
@@ -151,7 +151,7 @@ class TestSpyService:
     def test_boosts_load_the_game_data_on_first_use(self, game_data, stub_game_data_load):
         client = self.client(gms={"MS": 10}, movements=[spy_movement(1, 4)])
         loads = stub_game_data_load(game_data)
-        kwargs = {"research_ids": ALL_SPY_RESEARCH, "legend_skill_ids": [53], "island_title_id": 50}
+        kwargs = {"research_ids": ALL_SPY_RESEARCH, "legend_skill_ids": [53], "storm_islands_title_id": 50}
 
         assert client.spy.total_spies(**kwargs, legend_target=True) == 40
         assert client.spy.available_spies(**kwargs, legend_target=True) == 36
@@ -176,8 +176,8 @@ class TestSpyService:
         assert client.spy.available_spies(legend_target=True) == 36
         assert client.spy.total_spies() == 34
         # A passed value wins over state; () counts none
-        assert client.spy.total_spies(research_ids=(), island_title_id=-1) == 10
-        assert client.spy.total_spies(title_ids=[], island_title_id=54) == 34
+        assert client.spy.total_spies(research_ids=(), storm_islands_title_id=-1) == 10
+        assert client.spy.total_spies(title_ids=[], storm_islands_title_id=54) == 34
 
     def test_state_boosts_fail_when_the_game_data_cannot_be_loaded(self):
         client = self.client(gms={"MS": 10})

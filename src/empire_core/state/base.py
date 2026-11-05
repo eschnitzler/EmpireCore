@@ -73,7 +73,7 @@ from empire_core.player.models.officers_school import TrainingProgramsResponse
 from empire_core.player.models.progress import (
     AchievementsResponse,
     BoosterInfoResponse,
-    FactionPointsResponse,
+    GallantryPointsResponse,
     GloryPointsResponse,
     MightPointsResponse,
     RelocationInfoResponse,
@@ -243,7 +243,7 @@ class StateBase:
         self.boosts: BoosterInfoResponse | None = None
         self.might: MightPointsResponse | None = None
         self.glory_points: GloryPointsResponse | None = None
-        self.faction_points: FactionPointsResponse | None = None
+        self.gallantry_points: GallantryPointsResponse | None = None
         self.title_ranks: TitleRanksResponse | None = None
         self.achievements: AchievementsResponse | None = None
         self.relocation: RelocationInfoResponse | None = None

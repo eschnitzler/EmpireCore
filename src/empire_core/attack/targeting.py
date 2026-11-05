@@ -15,14 +15,14 @@ from empire_core.attack.models.info import AttackInfoResponse, GetAttackInfoRequ
 from empire_core.attack.models.target_info import (
     GetAllianceTowerAttackInfoRequest,
     GetAllianceTowerAttackInfoResponse,
+    GetBerimondCampConquerInfoRequest,
+    GetBerimondCampConquerInfoResponse,
     GetBossDungeonAttackInfoRequest,
     GetBossDungeonAttackInfoResponse,
     GetCapitalConquerInfoRequest,
     GetCapitalConquerInfoResponse,
     GetDungeonAttackInfoRequest,
     GetDungeonAttackInfoResponse,
-    GetFactionCampConquerInfoRequest,
-    GetFactionCampConquerInfoResponse,
     GetIslandAttackInfoRequest,
     GetIslandAttackInfoResponse,
     GetLandmarkAttackInfoRequest,
@@ -61,9 +61,9 @@ _ATTACK_PRECALCULATION: dict[int, _Precalculation] = {
     # ACTION_TYPE_ATTACK: CastleMapobjectVO, and KingdomCastleMapobjectVO extends it
     MapItemType.CASTLE: _ACI,
     MapItemType.KINGDOM_CASTLE: _ACI,
-    MapItemType.FACTION_VILLAGE: _ACI,
-    MapItemType.FACTION_TOWER: _ACI,
-    MapItemType.FACTION_CAPITAL: _ACI,
+    MapItemType.BERIMOND_RESOURCE_VILLAGE: _ACI,
+    MapItemType.BERIMOND_WATCHTOWER: _ACI,
+    MapItemType.BERIMOND_CAPITAL: _ACI,
     # ACTION_TYPE_OUTPOSTATTACK: OutpostMapobjectVO, extended by CapitalMapobjectVO and MetropolMapobjectVO
     MapItemType.OUTPOST: _ACI,
     MapItemType.CAPITAL: _ACI,
@@ -100,7 +100,7 @@ _CONQUER_PRECALCULATION: dict[int, _Precalculation] = {
     MapItemType.OUTPOST: (GetOutpostConquerInfoRequest, GetOutpostConquerInfoResponse),
     MapItemType.CAPITAL: (GetCapitalConquerInfoRequest, GetCapitalConquerInfoResponse),
     MapItemType.METROPOL: (GetMetropolConquerInfoRequest, GetMetropolConquerInfoResponse),
-    MapItemType.FACTION_CAMP: (GetFactionCampConquerInfoRequest, GetFactionCampConquerInfoResponse),
+    MapItemType.BERIMOND_CAMP: (GetBerimondCampConquerInfoRequest, GetBerimondCampConquerInfoResponse),
 }
 
 

@@ -93,7 +93,7 @@ OTHER_PLAYER_INFO_AREA_TYPES = frozenset(
         int(MapItemType.KINGS_TOWER),
         int(MapItemType.MONUMENT),
         int(MapItemType.LABORATORY),
-        int(MapItemType.FACTION_CAMP),
+        int(MapItemType.BERIMOND_CAMP),
         int(MapItemType.HORIZON_TOWER),
     }
 )
@@ -106,7 +106,7 @@ another player owns it: ``CastleMapobjectVO`` (bundle line 18933),
 (42650) for monuments and laboratories (21675, 25920),
 ``FactionCampMapobjectVO`` (21547) and ``ABGAllianceTowerMapobjectVO``
 (32307). The base ``InteractiveMapobjectVO`` answers false (3684), and so do
-the Berimond faction capital, tower and village (22776, 22822, 28502).
+the Berimond Berimond capital, tower and village (22776, 22822, 28502).
 """
 
 
@@ -121,7 +121,7 @@ ROW_OWNER_AREA_TYPES = frozenset(
         int(MapItemType.KINGS_TOWER),
         int(MapItemType.MONUMENT),
         int(MapItemType.LABORATORY),
-        int(MapItemType.FACTION_CAMP),
+        int(MapItemType.BERIMOND_CAMP),
     }
 )
 """

@@ -167,7 +167,7 @@ if castle.buildings:
 ```
 
 `client.castle.select(castle_id)` joins without returning the state, and
-`join_area(x, y)` joins an outpost, capital, metropolis or faction camp by its
+`join_area(x, y)` joins an outpost, capital, metropolis or Berimond camp by its
 position, as the client does for the areas it may visit that are not castles.
 
 !!! note "Scans and other castles move the session"

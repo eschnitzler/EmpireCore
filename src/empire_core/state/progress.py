@@ -7,14 +7,14 @@ from empire_core.player.models.progress import (
     AchievementProgress,
     AchievementsResponse,
     BoosterInfoResponse,
-    FactionPointsResponse,
     Festival,
+    GallantryPointsResponse,
     GloryPointsResponse,
     GloryTitleResetResponse,
-    IslandTitle,
     MightPointsResponse,
     RelocationInfoResponse,
     SelectTitleResponse,
+    StormIslandsTitle,
     TitleRanksResponse,
 )
 from empire_core.protocol.js import js_int, js_truthy
@@ -94,8 +94,8 @@ class ProgressState(StateBase):
 
         Client: ``UFPCommand`` (bundle line 121010), ``CastleTitleData.parseUFP`` (bundle line 21039)
         """
-        if (points := read_section(FactionPointsResponse, data, "the Berimond points")) is not None:
-            self.faction_points = points
+        if (points := read_section(GallantryPointsResponse, data, "the Berimond points")) is not None:
+            self.gallantry_points = points
 
     def _apply_title_ranks(self, body: Any) -> bool:
         """Read a ``uar``; an alliance city title it does not send keeps its value.
@@ -137,8 +137,8 @@ class ProgressState(StateBase):
         if self.title_ranks is None or not isinstance(data, dict) or js_truthy(data.get("PN")):
             return
         if js_truthy(title_id := data.get("TI")):
-            island_title = IslandTitle(title_id=js_int(title_id))
-            self.title_ranks = self.title_ranks.model_copy(update={"island_title": island_title})
+            storm_islands_title = StormIslandsTitle(title_id=js_int(title_id))
+            self.title_ranks = self.title_ranks.model_copy(update={"storm_islands_title": storm_islands_title})
 
     def _apply_achievements(self, body: Any) -> bool:
         """Read a ``vli`` over what is known: finished achievements stay finished, unlisted progress stays.
@@ -197,10 +197,10 @@ class ProgressState(StateBase):
         with self._lock:
             return loaded(self.glory_points, "Glory points")
 
-    def get_faction_points(self) -> FactionPointsResponse | None:
+    def get_gallantry_points(self) -> GallantryPointsResponse | None:
         """Your Berimond points, from the last ``ufp`` push; None until one arrived (the login data has none)."""
         with self._lock:
-            return self.faction_points
+            return self.gallantry_points
 
     def select_title_systems(self, selected: SelectTitleResponse) -> None:
         """Apply an ``ste`` reply to the title systems of the kept ``uar``: each one the reply names.

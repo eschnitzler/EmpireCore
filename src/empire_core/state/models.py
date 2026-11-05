@@ -251,7 +251,7 @@ class Player(EmpireModel):
     )
     protection: dict[Kingdom, KingdomProtection] = Field(
         default_factory=dict,
-        description="Your beginner, peace mode and Berimond faction protection, by kingdom, as last sent",
+        description="Your beginner, peace mode and Berimond protection, by kingdom, as last sent",
     )
 
     # Python-friendly properties

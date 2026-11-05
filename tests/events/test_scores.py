@@ -28,13 +28,13 @@ def _owner(oid: int, name: str, aid: int = 0, alliance: str = "") -> dict[str, A
 
 class TestScoreboards:
     def test_the_boards_are_the_dialogs_lists(self):
-        assert EVENT_SCOREBOARDS[Event.BATTLE_FOR_BERIMOND].player_lists == (RankingType.FACTION_TOURNAMENT,)
+        assert EVENT_SCOREBOARDS[Event.BATTLE_FOR_BERIMOND].player_lists == (RankingType.BATTLE_FOR_BERIMOND,)
         alien = EVENT_SCOREBOARDS[Event.WAR_OF_THE_REALMS]
         assert alien.alliance_list is RankingType.WAR_OF_THE_REALMS_ALLIANCE
         assert EVENT_SCOREBOARDS[Event.NOMAD_INVASION_72].player_lists == ()
         assert EVENT_SCOREBOARDS[Event.BERIMOND_INVASION].lists == (
-            RankingType.BERIMOND_INVASION_PLAYER_BLUE,
-            RankingType.BERIMOND_INVASION_PLAYER_RED,
+            RankingType.BERIMOND_INVASION_PLAYER_URSIDAE,
+            RankingType.BERIMOND_INVASION_PLAYER_GERBRANDT,
             RankingType.BERIMOND_INVASION_ALLIANCE,
         )
 
@@ -79,7 +79,7 @@ class TestHighscoreBoards:
         assert conn(client).request_payloads == [("hgh", {"LT": 30, "LID": 2, "SV": "-1"})]
         assert (scores.event, scores.list_type, scores.league_id, scores.total) == (
             Event.BATTLE_FOR_BERIMOND,
-            RankingType.FACTION_TOURNAMENT,
+            RankingType.BATTLE_FOR_BERIMOND,
             2,
             640,
         )
@@ -143,10 +143,10 @@ class TestHighscoreBoards:
         client = _running({"hgh": xt_packet("hgh", {"L": []})}, {"EID": 85, "FB": {"LID": 2}, "FR": {"LID": 3}})
 
         with pytest.raises(
-            ValueError, match="BERIMOND_INVASION_PLAYER_BLUE or RankingType.BERIMOND_INVASION_PLAYER_RED"
+            ValueError, match="BERIMOND_INVASION_PLAYER_URSIDAE or RankingType.BERIMOND_INVASION_PLAYER_GERBRANDT"
         ):
             client.events.get_scores(Event.BERIMOND_INVASION)
-        client.events.get_scores(Event.BERIMOND_INVASION, list_type=RankingType.BERIMOND_INVASION_PLAYER_RED)
+        client.events.get_scores(Event.BERIMOND_INVASION, list_type=RankingType.BERIMOND_INVASION_PLAYER_GERBRANDT)
 
         assert conn(client).request_payloads == [("hgh", {"LT": 55, "LID": 3, "SV": "-1"})]
 
@@ -353,7 +353,7 @@ class TestClientDivergencesFixed:
 
         with pytest.raises(ValueError, match="not BERIMOND_INVASION's alliance board"):
             client.events.get_scores(
-                Event.BERIMOND_INVASION, alliance=True, list_type=RankingType.BERIMOND_INVASION_PLAYER_BLUE
+                Event.BERIMOND_INVASION, alliance=True, list_type=RankingType.BERIMOND_INVASION_PLAYER_URSIDAE
             )
 
     def test_an_event_without_a_board(self):

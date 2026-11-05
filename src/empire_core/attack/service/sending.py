@@ -376,7 +376,7 @@ class SendingMixin(ServiceMixin):
             kingdom_id: Kingdom both sit in
             area_type: The target's area type, the first field of its map row
             conquer: Ask for the conquest pre-calculation instead, for an
-                outpost, capital, metropolis or faction camp
+                outpost, capital, metropolis or Berimond camp
             timeout: Timeout in seconds
 
         Raises:

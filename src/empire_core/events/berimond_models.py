@@ -1,4 +1,4 @@
-"""Battle for Berimond: targets, faction balance and points, joining, the kingdom status and your faction standing."""
+"""Battle for Berimond: targets, faction balance and points, joining, the kingdom status and your Berimond standing."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 from pydantic import Field, field_serializer, field_validator
 
-from empire_core.enums import BerimondFaction, FactionProtectionStatus, Kingdom
+from empire_core.enums import BerimondFaction, BerimondProtectionStatus, Kingdom
 from empire_core.gamedata import EnumOrInt
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, enum_or_none
 from empire_core.protocol.js import ClientInt, ClientNumber, js_loose_equals
@@ -62,10 +62,10 @@ class BerimondBalance(BaseResponse):
     """
 
     command: ClassVar[str] = "fgb"
-    red_players: int = Field(validation_alias="RP", description="Players in the red faction")
-    blue_players: int = Field(validation_alias="BP", description="Players in the blue faction")
+    gerbrandt_players: int = Field(validation_alias="RP", description="Players in the House of Gerbrandt")
+    ursidae_players: int = Field(validation_alias="BP", description="Players in the House of Ursidae")
 
-    @field_validator("red_players", "blue_players")
+    @field_validator("gerbrandt_players", "ursidae_players")
     @classmethod
     def _population(cls, value: int) -> int:
         return max(value, 0)
@@ -78,15 +78,15 @@ class GetBerimondPointsRequest(BaseRequest):
 
 
 class BerimondPoints(BaseResponse):
-    """The red and blue factions' points.
+    """The House of Gerbrandt's and the House of Ursidae's points.
 
     Client: ``GFPCommand.executeCommand`` (bundle 127917), which reads them only when either is set,
     ``FactionEventVO.parseFactionPointsFromParamObject`` (7376).
     """
 
     command: ClassVar[str] = "gfp"
-    red_points: ClientInt = Field(validation_alias="RFP", default=0, description="The red faction's points")
-    blue_points: ClientInt = Field(validation_alias="BFP", default=0, description="The blue faction's points")
+    gerbrandt_points: ClientInt = Field(validation_alias="RFP", default=0, description="Gerbrandt's points")
+    ursidae_points: ClientInt = Field(validation_alias="BFP", default=0, description="Ursidae's points")
 
 
 class SelectBerimondCampRequest(BaseRequest):
@@ -129,29 +129,33 @@ class BerimondKingdomStatus(BaseResponse):
 
     command: ClassVar[str] = "fki"
     blue_last_man_standing: bool = Field(
-        validation_alias="BFLMS", default=False, description="Last man standing is on for the blue faction"
+        validation_alias="BFLMS", default=False, description="Last man standing is on for the House of Ursidae"
     )
     red_last_man_standing: bool = Field(
-        validation_alias="RFLMS", default=False, description="Last man standing is on for the red faction"
+        validation_alias="RFLMS", default=False, description="Last man standing is on for the House of Gerbrandt"
     )
     active_in_event: bool = Field(
         validation_alias="PA",
         default=False,
         description="You may still attack and send troops; False once last man standing shuts you out",
     )
-    blue_capital_reachable: bool = Field(
-        validation_alias="BCR", default=False, description="The blue capital is open to attack: its towers are down"
+    ursidae_capital_reachable: bool = Field(
+        validation_alias="BCR",
+        default=False,
+        description="Ursidae's capital is open to attack: its towers are down",
     )
-    red_capital_reachable: bool = Field(
-        validation_alias="RCR", default=False, description="The red capital is open to attack: its towers are down"
+    gerbrandt_capital_reachable: bool = Field(
+        validation_alias="RCR",
+        default=False,
+        description="Gerbrandt's capital is open to attack: its towers are down",
     )
 
     @field_validator(
         "blue_last_man_standing",
         "red_last_man_standing",
         "active_in_event",
-        "blue_capital_reachable",
-        "red_capital_reachable",
+        "ursidae_capital_reachable",
+        "gerbrandt_capital_reachable",
         mode="before",
     )
     @classmethod
@@ -171,12 +175,12 @@ class FactionStanding(BasePayload):
     )
     main_camp_id: ClientInt = Field(validation_alias="MC", default=0, description="Your faction's main camp")
     protection_seconds: ClientNumber = Field(
-        validation_alias="PMT", default=0, description="Seconds left of the faction protection stage"
+        validation_alias="PMT", default=0, description="Seconds left of the Berimond protection stage"
     )
     protection_status: ClientInt = Field(
         validation_alias="PMS",
         default=0,
-        description="The faction protection stage, see faction_protection_status",
+        description="The Berimond protection stage, see berimond_protection_status",
     )
     beginner_protection_seconds: ClientNumber = Field(
         validation_alias="NS",
@@ -185,6 +189,6 @@ class FactionStanding(BasePayload):
     )
 
     @property
-    def faction_protection_status(self) -> FactionProtectionStatus | None:
+    def berimond_protection_status(self) -> BerimondProtectionStatus | None:
         """``protection_status`` as a stage; None for a value the client does not define."""
-        return enum_or_none(FactionProtectionStatus, self.protection_status)
+        return enum_or_none(BerimondProtectionStatus, self.protection_status)

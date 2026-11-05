@@ -1,4 +1,4 @@
-"""Peace mode and faction protection."""
+"""Peace mode and Berimond protection."""
 
 from __future__ import annotations
 
@@ -6,12 +6,12 @@ from typing import TYPE_CHECKING
 
 from empire_core.enums import Kingdom, PeaceModeDuration
 from empire_core.player.models.protection import (
+    BERIMOND_PROTECTION_RUBIES,
     CANCEL_PEACE_MODE,
-    FACTION_PROTECTION_RUBIES,
     GetProtectionRequest,
     ProtectionResponse,
-    StartFactionProtectionRequest,
-    StartFactionProtectionResponse,
+    StartBerimondProtectionRequest,
+    StartBerimondProtectionResponse,
     StartPeaceModeRequest,
 )
 from empire_core.player.service.base import PlayerBaseMixin
@@ -83,14 +83,14 @@ class ProtectionMixin(PlayerBaseMixin):
         """
         self.execute(StartPeaceModeRequest(duration=CANCEL_PEACE_MODE), timeout=timeout)
 
-    def start_faction_protection(
+    def start_berimond_protection(
         self, *, spend_rubies: bool = False, timeout: float = 5.0
-    ) -> StartFactionProtectionResponse:
+    ) -> StartBerimondProtectionResponse:
         """
-        Buy Berimond faction protection; the reply also updates the running Berimond event.
+        Buy Berimond protection; the reply also updates the running Berimond event.
 
         Args:
-            spend_rubies: Allow the rubies it costs, ``FACTION_PROTECTION_RUBIES`` before discounts
+            spend_rubies: Allow the rubies it costs, ``BERIMOND_PROTECTION_RUBIES`` before discounts
             timeout: Timeout in seconds
 
         Raises:
@@ -100,5 +100,5 @@ class ProtectionMixin(PlayerBaseMixin):
         Client: ``CastleFactionProtectionModeDialog.onClick`` (bundle line 64918), priced by
         ``FactionConst.getPeaceC2Cost`` (dll line 19316); ``FFPCommand`` (bundle line 127785)
         """
-        self._require_spend_rubies(spend_rubies, f"faction protection costs {FACTION_PROTECTION_RUBIES} rubies")
-        return self.request(StartFactionProtectionRequest(), StartFactionProtectionResponse, timeout=timeout)
+        self._require_spend_rubies(spend_rubies, f"Berimond protection costs {BERIMOND_PROTECTION_RUBIES} rubies")
+        return self.request(StartBerimondProtectionRequest(), StartBerimondProtectionResponse, timeout=timeout)

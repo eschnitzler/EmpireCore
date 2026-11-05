@@ -87,7 +87,7 @@ class TestTargetReading(FillClient):
         assert target.unread[TargetRead.PRECALCULATION].error is GGEError.GENERAL_ERROR
         assert [r.levelno for r in caplog.records] == [logging.WARNING]
 
-    @pytest.mark.parametrize("area_type", [4242, MapItemType.FACTION_CAMP])
+    @pytest.mark.parametrize("area_type", [4242, MapItemType.BERIMOND_CAMP])
     def test_an_area_type_without_a_pre_calculation_raises_before_sending(self, area_type):
         from empire_core.attack.targeting import _Target
 

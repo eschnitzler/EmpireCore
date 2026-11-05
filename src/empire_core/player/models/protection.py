@@ -1,9 +1,9 @@
-"""Your protection: beginner protection, peace mode and Berimond faction protection.
+"""Your protection: beginner protection, peace mode and Berimond protection.
 
 Commands:
 - uap: Get your protection in a kingdom (also pushed)
 - mps: Start or cancel peace mode
-- ffp: Start Berimond faction protection
+- ffp: Start Berimond protection
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ class GetProtectionRequest(BaseRequest):
     Ask for your protection in a kingdom.
 
     The client asks for the kingdom it shows while a peace mode stage runs out, and for
-    Berimond while a faction protection stage runs out.
+    Berimond while a Berimond protection stage runs out.
 
     Command: uap
     Payload: {"KID": kingdom}
@@ -101,17 +101,17 @@ class StartPeaceModeResponse(BaseResponse):
 
 
 # =============================================================================
-# FFP - Berimond faction protection
+# FFP - Berimond protection
 # =============================================================================
 
 
-FACTION_PROTECTION_RUBIES = 7500
-"""Berimond faction protection's price before ruby discounts: ``FactionConst.getPeaceC2Cost`` (dll line 19316)."""
+BERIMOND_PROTECTION_RUBIES = 7500
+"""Berimond protection's price before ruby discounts: ``FactionConst.getPeaceC2Cost`` (dll line 19316)."""
 
 
-class StartFactionProtectionRequest(BaseRequest):
+class StartBerimondProtectionRequest(BaseRequest):
     """
-    Buy Berimond faction protection.
+    Buy Berimond protection.
 
     Command: ffp
     Payload: {"ID": option}
@@ -125,9 +125,9 @@ class StartFactionProtectionRequest(BaseRequest):
     option: int = Field(validation_alias="ID", default=0, description="The offered protection, 0 being the only one")
 
 
-class StartFactionProtectionResponse(BaseResponse):
+class StartBerimondProtectionResponse(BaseResponse):
     """
-    Your coins and rubies after buying faction protection, and your faction standing with it.
+    Your coins and rubies after buying Berimond protection, and your Berimond standing with it.
 
     Command: ffp
     Client: ``FFPCommand.executeCommand`` (bundle line 127785): ``parseGCU(gcu)``, then
@@ -149,11 +149,11 @@ class StartFactionProtectionResponse(BaseResponse):
 
 __all__ = [
     "CANCEL_PEACE_MODE",
-    "FACTION_PROTECTION_RUBIES",
+    "BERIMOND_PROTECTION_RUBIES",
     "GetProtectionRequest",
     "ProtectionResponse",
-    "StartFactionProtectionRequest",
-    "StartFactionProtectionResponse",
+    "StartBerimondProtectionRequest",
+    "StartBerimondProtectionResponse",
     "StartPeaceModeRequest",
     "StartPeaceModeResponse",
 ]

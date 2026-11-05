@@ -76,7 +76,7 @@ from empire_core.events.special_server_models import CurrentServer, SpecialServe
 from empire_core.events.status_models import GrandTournamentQuestStatus, GrandTournamentQuestUpdate, RiftRaidStatus
 from empire_core.gamedata.ids.events import Event
 from empire_core.map.models.areas import KingdomProtection
-from empire_core.player.models.protection import StartFactionProtectionResponse
+from empire_core.player.models.protection import StartBerimondProtectionResponse
 from empire_core.protocol.base import read_or_none
 from empire_core.protocol.js import js_int, js_truthy
 from empire_core.quests.models import CampaignQuestStatusResponse
@@ -355,7 +355,7 @@ class EventState(StateBase):
         """Handle a Berimond kingdom status, pushed on its own or inside a ``kpi``: kept on the running event.
 
         Client: ``FKICommand.executeCommand`` (bundle line 127859) and ``CastleKingdomData.parse_KPI``
-        (bundle line 134604) hand a set one to the running faction event's ``parse_FKI`` (bundle line 7365)
+        (bundle line 134604) hand a set one to the running Battle for Berimond's ``parse_FKI`` (bundle line 7365)
         """
         self._expire_events()
         event = self.events.get(Event.BATTLE_FOR_BERIMOND)
@@ -424,13 +424,13 @@ class EventState(StateBase):
         self._replace_event(event)
 
     def _handle_ffp(self, data: Any) -> None:
-        """Apply a faction protection purchase's ``FN`` to the running Berimond event; its ``gcu`` is a nested section.
+        """Apply a Berimond protection purchase's ``FN`` to the running Berimond event; its ``gcu`` is a nested section.
 
         Client: ``FFPCommand.executeCommand`` (bundle line 127785), ``CastleSpecialEventData.parse_FN``
         (bundle line 139876), which does nothing without the event or the block
         """
         event = self.events.get(Event.BATTLE_FOR_BERIMOND)
-        reply = read_section(StartFactionProtectionResponse, data, "the faction protection")
+        reply = read_section(StartBerimondProtectionResponse, data, "the Berimond protection")
         if isinstance(event, BerimondEvent) and reply is not None and reply.faction is not None:
             self._replace_event(event.with_faction(reply.faction, _clock()))
 
