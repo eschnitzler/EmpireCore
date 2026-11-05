@@ -197,23 +197,23 @@ class Player(EmpireModel):
     level: int = Field(
         default=0,
         validation_alias="LVL",
-        description="Level; 70 is the cap before legend levels",
+        description="Level; 70 is the cap before Legendary levels",
     )
     xp: int = Field(default=0, validation_alias="XP", description="Total XP")
     legendary_level: int = Field(
         default=0,
         validation_alias="LL",
-        description="Legend level, computed from XP once level reaches 70, else 0",
+        description="Legendary level, computed from XP once level reaches 70, else 0",
     )
     xp_for_current_level: int = Field(
         default=0,
         validation_alias="XPFCL",
-        description="Total XP at which the current level (or legend level) starts, computed from level and XP",
+        description="Total XP at which the current level (or Legendary level) starts, computed from level and XP",
     )
     xp_to_next_level: int = Field(
         default=0,
         validation_alias="XPTNL",
-        description="Total XP at which the next level (or legend level) starts, computed from level and XP",
+        description="Total XP at which the next level (or Legendary level) starts, computed from level and XP",
     )
 
     # Resources
@@ -271,8 +271,8 @@ class Player(EmpireModel):
     def xp_progress(self) -> float:
         """How far through the current level the player is, as a percentage (0-100).
 
-        0 when the level has no XP range: before any gxp, or at the legend level cap.
-        Clamped, because the client puts XP just past level 70 in legend level 1,
+        0 when the level has no XP range: before any gxp, or at the Legendary level cap.
+        Clamped, because the client puts XP just past level 70 in Legendary level 1,
         whose range starts 250 XP later.
         """
         span = self.xp_to_next_level - self.xp_for_current_level

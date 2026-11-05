@@ -1,5 +1,5 @@
 """Castle tracking: the castle list (gcl), castle details (dcl), castle resources (grc), units received (rue),
-the open-gate counter reset (kik), unlocked units and horses (gpc), and your kings towers, monuments,
+the open-gate counter reset (kik), unlocked units and horses (gpc), and your royal towers, monuments,
 laboratories and villages (gkl, gml, gll, kgv) with the landmark resets (mre, lrr)."""
 
 import logging
@@ -11,11 +11,11 @@ from pydantic import ValidationError
 from empire_core.castle.models.castles import PlayerCastle
 from empire_core.castle.models.details import DetailedCastleInfo, ResourceProduction, SafeAmount, StorageCapacity
 from empire_core.castle.models.landmarks import (
-    KingsTowerListResponse,
     LaboratoryListResponse,
     LaboratoryResetResponse,
     MonumentListResponse,
     MonumentResetResponse,
+    RoyalTowerListResponse,
 )
 from empire_core.castle.models.permanent import PermanentCastle, PermanentCastleDataResponse
 from empire_core.castle.models.resources import CastleResources
@@ -41,7 +41,7 @@ AREA_LIST_SECTIONS = ("gkl", "gml", "gll", "kgv", "mre", "lrr")
 
 class CastleState(StateBase):
     def _parse_area_lists(self, data: dict[str, Any]) -> set[str]:
-        """Apply the kings tower, monument, laboratory and village lists and the landmark resets of a gbd,
+        """Apply the royal tower, monument, laboratory and village lists and the landmark resets of a gbd,
         or the one a push, a reply or an ``mir`` carries; return those not applied.
 
         Client: ``GBDCommand.exec`` (bundle line 129430) hands ``gkl``, ``gml``, ``gll`` and ``kgv`` to
@@ -52,8 +52,8 @@ class CastleState(StateBase):
         """
         applied: set[str] = set()
         if js_truthy(gkl := data.get("gkl")):
-            if (kings_towers := read_section(KingsTowerListResponse, gkl, "your kings towers")) is not None:
-                self.kings_towers = kings_towers
+            if (royal_towers := read_section(RoyalTowerListResponse, gkl, "your royal towers")) is not None:
+                self.royal_towers = royal_towers
                 applied.add("gkl")
         if js_truthy(gml := data.get("gml")):
             if (monuments := read_section(MonumentListResponse, gml, "your monuments")) is not None:
@@ -81,10 +81,10 @@ class CastleState(StateBase):
                     applied.add("lrr")
         return {section for section in AREA_LIST_SECTIONS if section in data} - applied
 
-    def get_kings_towers(self) -> KingsTowerListResponse | None:
-        """Your kings towers, from the last ``gkl``; None until one arrived."""
+    def get_royal_towers(self) -> RoyalTowerListResponse | None:
+        """Your royal towers, from the last ``gkl``; None until one arrived."""
         with self._lock:
-            return self.kings_towers
+            return self.royal_towers
 
     def get_monuments(self) -> MonumentListResponse | None:
         """Your monuments, from the last ``gml``; None until one arrived."""

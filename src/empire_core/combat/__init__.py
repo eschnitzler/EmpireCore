@@ -21,7 +21,7 @@ from .bonuses import (
     general_skill_bonuses,
     global_effect_bonuses,
     global_unit_attack_bonuses,
-    legend_skill_value,
+    legendary_skill_value,
     parse_bonus_entries,
     sceat_skill_bonuses,
     support_tool_waves,
@@ -90,7 +90,7 @@ from .tools import (
 )
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import GeneralSkill, GlobalEffect, LegendSkill, RaidBoss, SceatSkill
+    from empire_core.gamedata import GeneralSkill, GlobalEffect, LegendarySkill, RaidBoss, SceatSkill
 
 __all__ = [
     "AttackerFlankEffects",
@@ -132,7 +132,7 @@ __all__ = [
     "general_skill_bonuses",
     "global_effect_bonuses",
     "global_unit_attack_bonuses",
-    "legend_skill_value",
+    "legendary_skill_value",
     "ReduceDefenceBonusStrategy",
     "conditioned_effect_bonus",
     "TargetContext",
@@ -174,7 +174,7 @@ __all__ = [
     "GlobalEffect",
     "BerimondFaction",
     "GeneralSkill",
-    "LegendSkill",
+    "LegendarySkill",
     "RaidBoss",
     "SceatSkill",
 ]
@@ -182,5 +182,7 @@ __all__ = [
 
 if not TYPE_CHECKING:
     __getattr__ = lazy_exports(
-        __name__, "empire_core.gamedata.ids", ("GeneralSkill", "GlobalEffect", "LegendSkill", "RaidBoss", "SceatSkill")
+        __name__,
+        "empire_core.gamedata.ids",
+        ("GeneralSkill", "GlobalEffect", "LegendarySkill", "RaidBoss", "SceatSkill"),
     )

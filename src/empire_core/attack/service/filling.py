@@ -31,7 +31,7 @@ from empire_core.gamedata import EnumOrInt
 from empire_core.map.models.items import MapAreaItem
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import GeneralSkill, LegendSkill, RaidBoss, Tool
+    from empire_core.gamedata import GeneralSkill, LegendarySkill, RaidBoss, Tool
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ class FillAttackMixin(WavesMixin, SendingMixin):
         target_level: int | None = None,
         target_is_player: bool = False,
         target_owner_id: int | None = None,
-        target_owner_legend_level: int | None = None,
+        target_owner_legendary_level: int | None = None,
         robber_baron_camp_victories: int | None = None,
         robber_baron_camp_kingdom: Kingdom = Kingdom.GREEN,
         target_row: list[Any] | None = None,
@@ -60,10 +60,10 @@ class FillAttackMixin(WavesMixin, SendingMixin):
         area_bonuses: list[Bonus] | None = None,
         spy_army: SpyArmy | None = None,
         defending_castellan: LeaderBase | None = None,
-        defender_legend_skill_ids: Sequence[EnumOrInt["LegendSkill"]] | None = None,
+        defender_legendary_skill_ids: Sequence[EnumOrInt["LegendarySkill"]] | None = None,
         commander: Commander | None = None,
         general_skill_ids: Sequence[EnumOrInt["GeneralSkill"]] | None = None,
-        legend_skill_ids: Sequence[EnumOrInt["LegendSkill"]] | None = None,
+        legendary_skill_ids: Sequence[EnumOrInt["LegendarySkill"]] | None = None,
         global_effects: Iterable[GlobalEffectTimer] | None = None,
         support_tools: Sequence[Tool | int | None] | None = None,
         conquer: bool = False,
@@ -121,8 +121,8 @@ class FillAttackMixin(WavesMixin, SendingMixin):
                 ``robber_baron_camp_victories`` for a robber baron camp
             target_is_player: True for a player's castle or outpost
             target_owner_id: The target owner's player id, which decides the
-                legend skills; taken from ``target_row`` when not given
-            target_owner_legend_level: The target owner's legend level. Read
+                Legendary skills; taken from ``target_row`` when not given
+            target_owner_legendary_level: The target owner's Legendary level. Read
                 from the owner records of a one-tile scan when coordinates are
                 given, 0 otherwise
             robber_baron_camp_victories: A robber baron camp's victory count
@@ -145,7 +145,7 @@ class FillAttackMixin(WavesMixin, SendingMixin):
                 raise the fortification and multiply the defenders, differently
                 per flank; the client builds it without its equipment, whose
                 effects the server folds into ``E``
-            defender_legend_skill_ids: The defender's legend skills, the
+            defender_legendary_skill_ids: The defender's Legendary skills, the
                 attack pre-calculation's ``LS`` list. With a spy report they
                 raise the defenders and the fortification
             area_type: The target's area type, which scopes effects and decides
@@ -154,7 +154,7 @@ class FillAttackMixin(WavesMixin, SendingMixin):
             commander: The commander leading the attack
             general_skill_ids: Its general's unlocked skills. Left out, they
                 are read with ``gie`` for the general this commander carries
-            legend_skill_ids: The player's legend skills. Left out, they are
+            legendary_skill_ids: The player's Legendary skills. Left out, they are
                 read with ``skl``
             global_effects: The global effects running, as the timers of
                 ``GlobalEffectEvent.effects``; the ``Event.GLOBAL_EFFECT`` event's
@@ -165,7 +165,7 @@ class FillAttackMixin(WavesMixin, SendingMixin):
             conquer: A conquest attack carries two extra waves
             active_raid_boss_id: The boss of the alliance raid-boss event
                 running now, None when none is; see ``GameData.require().raid_boss(name)``
-            tool_bonus: Extra flank tool capacity on top of the legend skill
+            tool_bonus: Extra flank tool capacity on top of the Legendary skill
             yard_bonus: Absolute courtyard capacity bonus, effect type 179
             yard_boost: Courtyard capacity boost, effect type 180
             options: Which flanks to fill and which units to allow
@@ -207,13 +207,13 @@ class FillAttackMixin(WavesMixin, SendingMixin):
             row=target_row,
             area_type=area_type,
             level=target_level,
-            owner_legend_level=target_owner_legend_level,
+            owner_legendary_level=target_owner_legendary_level,
             is_player=target_is_player,
             robber_baron_camp_victories=robber_baron_camp_victories,
             robber_baron_camp_kingdom=Kingdom(robber_baron_camp_kingdom),
             spy_army=spy_army,
             castellan=defending_castellan,
-            defender_legend_skill_ids=defender_legend_skill_ids,
+            defender_legendary_skill_ids=defender_legendary_skill_ids,
             area_bonuses=area_bonuses,
             conquer=conquer,
         )
@@ -257,12 +257,12 @@ class FillAttackMixin(WavesMixin, SendingMixin):
             except CommandError as e:
                 logger.warning(f"Could not read the general's skills, sizing without them: {e}")
                 read.unread[TargetRead.GENERAL_SKILLS] = e
-        if legend_skill_ids is None:
+        if legendary_skill_ids is None:
             try:
-                legend_skill_ids = self.client.player.get_skills(timeout=timeout).legend_skill_ids
+                legendary_skill_ids = self.client.player.get_skills(timeout=timeout).legendary_skill_ids
             except CommandError as e:
                 logger.warning(f"Could not read the player's skills, sizing without them: {e}")
-                read.unread[TargetRead.LEGEND_SKILLS] = e
+                read.unread[TargetRead.LEGENDARY_SKILLS] = e
 
         owner_id = target_owner_id if target_owner_id is not None else owner_id_from_row(read.row)
         # One inventory read for both passes: the waves deduct what they take,
@@ -286,12 +286,12 @@ class FillAttackMixin(WavesMixin, SendingMixin):
             defense=defense,
             commander=commander,
             general_skill_ids=general_skill_ids,
-            legend_skill_ids=legend_skill_ids,
+            legendary_skill_ids=legendary_skill_ids,
             global_effects=global_effects,
             support_tools=support_tools,
             target_is_player=read.is_player,
             owner_id=owner_id,
-            owner_legend_level=read.owner_legend_level or 0,
+            owner_legendary_level=read.owner_legendary_level or 0,
             under_conquer_control=under_conquer_control,
             active_raid_boss_id=active_raid_boss_id,
             area_type=read.area_type,

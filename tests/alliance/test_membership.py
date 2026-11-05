@@ -404,7 +404,7 @@ def test_accepted_leave_without_gal_invalidates_pending_join(monkeypatch):
 class TestGal:
     def test_a_live_gal(self):
         alliance = AllianceMembership.model_validate({"AID": 301, "R": 1, "N": "Iron Pact", "ACF": 22, "SA": 0})
-        assert (alliance.alliance_id, alliance.rank, alliance.name, alliance.current_fame) == (301, 1, "Iron Pact", 22)
+        assert (alliance.alliance_id, alliance.rank, alliance.name, alliance.current_glory) == (301, 1, "Iron Pact", 22)
         assert alliance.is_member and not alliance.looking_for_alliance
 
     def test_the_registry_knows_gal(self):

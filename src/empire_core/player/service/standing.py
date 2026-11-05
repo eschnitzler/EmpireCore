@@ -1,4 +1,4 @@
-"""Your aqua points, skills, boosts, titles and achievements."""
+"""Your cargo points, skills, boosts, titles and achievements."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING
 from empire_core.commanders.models.skills import SkillList
 from empire_core.player.models.account import FoodProductionStatus
 from empire_core.player.models.aqua import (
-    AquaPointsResponse,
-    GetAquaPointsRequest,
+    CargoPointsResponse,
+    GetCargoPointsRequest,
     StormIslandsInfo,
     StormIslandsInfoRequest,
 )
@@ -35,17 +35,17 @@ if TYPE_CHECKING:
 
 class StandingMixin(ServiceMixin):
     @property
-    def aqua_points(self) -> int | float | None:
-        """Your aqua points, from the last ``gap``; None until one arrived (:meth:`get_aqua_points` asks)."""
-        return self.client.state.get_aqua_points()
+    def cargo_points(self) -> int | float | None:
+        """Your cargo points, from the last ``gap``; None until one arrived (:meth:`get_cargo_points` asks)."""
+        return self.client.state.get_cargo_points()
 
-    def get_aqua_points(self, *, timeout: float = 5.0) -> AquaPointsResponse:
+    def get_cargo_points(self, *, timeout: float = 5.0) -> CargoPointsResponse:
         """
-        Your and your alliance's aqua points; both are applied to state.
+        Your and your alliance's cargo points; both are applied to state.
 
         Client: ``CastleEilandPanel`` (bundle line 56736) asks while it knows none
         """
-        return self.request(GetAquaPointsRequest(), AquaPointsResponse, timeout=timeout)
+        return self.request(GetCargoPointsRequest(), CargoPointsResponse, timeout=timeout)
 
     @property
     def storm_islands(self) -> StormIslandsInfo | None:
@@ -54,7 +54,7 @@ class StandingMixin(ServiceMixin):
 
     def get_storm_islands_info(self, *, timeout: float = 5.0) -> StormIslandsInfo:
         """
-        Your and your alliance's Storm Islands standing; it and your aqua points are applied to state.
+        Your and your alliance's Storm Islands standing; it and your cargo points are applied to state.
 
         Raises:
             CommandError: The server refused
@@ -66,18 +66,18 @@ class StandingMixin(ServiceMixin):
 
     @property
     def skills(self) -> SkillList | None:
-        """Your legend and sceat skills as the last ``skl`` listed them; None until one arrived."""
+        """Your Legendary and sceat skills as the last ``skl`` listed them; None until one arrived."""
         return self.client.state.get_skills()
 
     @property
     def spent_skill_points(self) -> int | None:
-        """Points spent on your held legend skills; None until a skill list arrived."""
+        """Points spent on your held Legendary skills; None until a skill list arrived."""
         skills = self.skills
         return skills.spent_points(game_data=self._require_game_data()) if skills is not None else None
 
     @property
     def available_skill_points(self) -> int | None:
-        """Legend skill points left to spend; None until a skill list arrived."""
+        """Legendary skill points left to spend; None until a skill list arrived."""
         skills = self.skills
         return skills.available_points(game_data=self._require_game_data()) if skills is not None else None
 

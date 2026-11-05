@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 LEVEL_CAP = 70
-LEGEND_LEVEL_CAP = 950
+LEGENDARY_LEVEL_CAP = 950
 _LEVEL_CAP_XP = LEVEL_CAP * LEVEL_CAP * 30
 
 
@@ -33,31 +33,31 @@ def xp_for_level(level: int) -> int:
     return min(_LEVEL_CAP_XP, level * level * 30)
 
 
-def legend_level_for_xp(xp: int) -> int:
-    """Legend level reached with ``xp`` total XP. Client: ``PlayerConst.getLegendLevelFromXP``."""
+def legendary_level_for_xp(xp: int) -> int:
+    """Legendary level reached with ``xp`` total XP. Client: ``PlayerConst.getLegendLevelFromXP``."""
     past_cap = xp - _LEVEL_CAP_XP
     if past_cap < 0:
         return 0
-    return min(LEGEND_LEVEL_CAP, max(1, math.floor(((past_cap + 2750) / 3000) ** (1 / 1.19))))
+    return min(LEGENDARY_LEVEL_CAP, max(1, math.floor(((past_cap + 2750) / 3000) ** (1 / 1.19))))
 
 
-def xp_for_legend_level(legend_level: int) -> int:
-    """Total XP at which ``legend_level`` starts. Client: ``PlayerConst.getXPFromLegendLevel``."""
-    if legend_level < 1:
+def xp_for_legendary_level(legendary_level: int) -> int:
+    """Total XP at which ``legendary_level`` starts. Client: ``PlayerConst.getXPFromLegendLevel``."""
+    if legendary_level < 1:
         return 0
-    legend_level = min(LEGEND_LEVEL_CAP, legend_level)
-    return math.ceil(3000 * legend_level**1.19) - 2750 + _LEVEL_CAP_XP
+    legendary_level = min(LEGENDARY_LEVEL_CAP, legendary_level)
+    return math.ceil(3000 * legendary_level**1.19) - 2750 + _LEVEL_CAP_XP
 
 
 def level_progress(level: int, xp: int) -> tuple[int, int, int]:
-    """Legend level and the XP at which the current and next level start.
+    """Legendary level and the XP at which the current and next level start.
 
     Client: ``CastleUserData.parse_GXP``, which ignores the LL, XPFCL and
     XPTNL the server sends alongside and computes them from LVL and XP.
     """
-    legend = legend_level_for_xp(xp) if level >= LEVEL_CAP else 0
+    legend = legendary_level_for_xp(xp) if level >= LEVEL_CAP else 0
     if legend > 0:
-        return legend, xp_for_legend_level(legend), xp_for_legend_level(legend + 1)
+        return legend, xp_for_legendary_level(legend), xp_for_legendary_level(legend + 1)
     return 0, xp_for_level(level), xp_for_level(level + 1)
 
 

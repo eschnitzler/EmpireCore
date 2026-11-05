@@ -18,8 +18,8 @@ from .areas import (
 from .items import (
     INVASION_AREA_TYPES,
     ROW_PARSERS,
-    AbgCastleConnection,
-    AbgTowerConnection,
+    HorizonCastleConnection,
+    HorizonTowerConnection,
     MapAreaItem,
     parse_area_rows,
 )
@@ -64,8 +64,8 @@ __all__ = [
     "FindNextTowerResponse",
     "INVASION_AREA_TYPES",
     "ROW_PARSERS",
-    "AbgCastleConnection",
-    "AbgTowerConnection",
+    "HorizonCastleConnection",
+    "HorizonTowerConnection",
     "MapAreaItem",
     "parse_area_rows",
     "OwnerCastlePosition",

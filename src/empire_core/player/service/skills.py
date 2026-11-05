@@ -1,4 +1,4 @@
-"""Legend skills, opening loot boxes and choosing titles."""
+"""Legendary skills, opening loot boxes and choosing titles."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from empire_core.player.models.progress import SelectTitleRequest, SelectTitleRe
 from empire_core.player.service.base import PlayerBaseMixin
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import LegendSkill, LootBox
+    from empire_core.gamedata import LegendarySkill, LootBox
 
 # LegendSkillConst.BASE_COST, EXPONENT, BASE_SKILL_POINTS, POINTS_FACTOR (dll line 19477)
 _RESET_BASE_RUBIES = 20
@@ -29,7 +29,7 @@ _RESET_RUBIES_PER_POINT = 30
 class SkillsMixin(PlayerBaseMixin):
     def get_skills(self, *, timeout: float = 5.0) -> GetSkillsResponse:
         """
-        The player's legend and sceat skills.
+        The player's Legendary and sceat skills.
 
         Args:
             timeout: Timeout in seconds
@@ -42,9 +42,10 @@ class SkillsMixin(PlayerBaseMixin):
         """
         return self.request(GetSkillsRequest(), GetSkillsResponse, timeout=timeout)
 
-    def add_legend_skill_point(self, skill: LegendSkill, *, timeout: float = 5.0) -> AddSkillPointResponse:
+    def add_legendary_skill_point(self, skill: LegendarySkill, *, timeout: float = 5.0) -> AddSkillPointResponse:
         """
-        Buy a legend skill level with skill points: the next level of a skill you hold, or the first of one you don't.
+        Buy a Legendary skill level with skill points: the next level of a skill you hold, or the first
+        of one you don't.
 
         The client offers it when the skill is not at its last level, its tier and node are unlocked,
         enough points are left (``SkillList.available_points``) and no sceat skill is being activated;
@@ -54,7 +55,7 @@ class SkillsMixin(PlayerBaseMixin):
         ``CastleLegendSkillData.parse_SKP`` (bundle line 112073)
 
         Args:
-            skill: The level to buy, e.g. ``LegendSkill.GATE_REDUCTION_T0_G1_L2`` when holding level 1
+            skill: The level to buy, e.g. ``LegendarySkill.GATE_REDUCTION_T0_G1_L2`` when holding level 1
             timeout: Timeout in seconds
 
         Returns:
@@ -67,16 +68,16 @@ class SkillsMixin(PlayerBaseMixin):
             GameDataNotLoadedError: The game data cannot be loaded
             EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
         """
-        skills = self._require_game_data().legend_skills
+        skills = self._require_game_data().legendary_skills
         response = self.request(AddSkillPointRequest(skill=skill), AddSkillPointResponse, timeout=timeout)
-        self.client.state.add_legend_skills(
+        self.client.state.add_legendary_skills(
             {bought: row.previous_skill_id if (row := skills.get(bought)) else None for bought in response.skill_ids}
         )
         return response
 
     def reset_skills(self, *, spend_rubies: bool = False, timeout: float = 5.0) -> GetSkillsResponse:
         """
-        Take back every legend skill point, and the sceat skills with them.
+        Take back every Legendary skill point, and the sceat skills with them.
 
         Free once the reset cooldown of 15 days has run out. Inside it the same request skips the
         cooldown for ``20 * resets**5 + (points spent + 50) * 30`` rubies, priced from a fresh skill

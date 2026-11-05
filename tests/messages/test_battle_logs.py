@@ -313,7 +313,7 @@ class TestMiddleLog:
         assert (log.attacker_triggered_gems, log.defender_triggered_gems) == ((Gem.LIZARDS_EYE_12, 999), ())
         # getGemVO finds no gem for "13" and the client then throws; it is skipped, and said so
         assert "Skipped 1/3 attacker_triggered_gems of a battle log that are not ids, first: '13'" in caplog.text
-        assert (log.attacker_legend_skill_ids, log.defender_legend_skill_ids) == ((5,), ())
+        assert (log.attacker_legendary_skill_ids, log.defender_legendary_skill_ids) == ((5,), ())
         assert log.defender_used_support_tools is True
         (ability,) = log.attacker_abilities
         assert ability.ability_id == 33

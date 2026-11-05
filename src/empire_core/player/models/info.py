@@ -137,7 +137,7 @@ class GetPlayerInfoResponse(BaseResponse):
     def _fold_landmark_lists_into_gcl(cls, data: Any) -> Any:
         """
         Client: ``GDICommand.addGKLToGC``, ``addGMLToGC`` and ``addGLLToGC``
-        (bundle line 129458) push each kings tower, monument and laboratory
+        (bundle line 129458) push each royal tower, monument and laboratory
         row of ``gkl``, ``gml`` and ``gll``, sent wrapped in one list, into
         the first kingdom of ``gcl`` before parsing it.
         """

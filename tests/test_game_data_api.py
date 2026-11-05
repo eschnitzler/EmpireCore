@@ -2,7 +2,7 @@
 
 import pytest
 
-from empire_core.combat import EffectResolver, Inventory, construction_item_bonuses, legend_skill_value
+from empire_core.combat import EffectResolver, Inventory, construction_item_bonuses, legendary_skill_value
 from empire_core.commanders import SkillList
 from empire_core.enums import TitleSystem
 from empire_core.exceptions import GameDataNotLoadedError
@@ -26,7 +26,7 @@ def test_standalone_reads_use_the_loaded_data(stub_game_data_load):
     assert is_current() is False
     assert EffectResolver().game_data is data
     assert construction_item_bonuses([]) == []
-    assert legend_skill_value([], "spyAmountBonus") == 0
+    assert legendary_skill_value([], "spyAmountBonus") == 0
     assert titles_in_order(TitleSystem.GLORY) == []
     assert describe_effects([]) == []
     assert len(loads) == 1

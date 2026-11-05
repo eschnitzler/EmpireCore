@@ -130,7 +130,7 @@ def test_newer_push_is_preserved_when_settings_reply_wakes_caller():
     client.alliance.set_description("New description")
     current = state.get_own_alliance()
     assert current is not None and current.description == "New description"
-    assert current.fame_points == 77 and current.highest_fame_points == 88
+    assert current.glory_points == 77 and current.highest_glory_points == 88
     assert current.buildings[0].level == 4
 
 

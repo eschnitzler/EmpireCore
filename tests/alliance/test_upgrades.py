@@ -212,7 +212,7 @@ def test_upgrade_reply_preserves_later_alliance_details_and_fame_push():
     conn(client).on_packet = incoming
     client.alliance.upgrade(6)
     alliance = client.alliance.own_alliance
-    assert alliance is not None and alliance.name == "Later" and alliance.fame_points == 42
+    assert alliance is not None and alliance.name == "Later" and alliance.glory_points == 42
     assert alliance.storage is not None and alliance.storage.rubies == 7
     assert alliance.buildings[0].level == 3
 

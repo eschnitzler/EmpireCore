@@ -34,7 +34,7 @@ row the first time it is read, so loading the game data stays cheap:
 `data.buildings[171]` validates one building, while iterating a table or
 taking its `len()` validates every row once. Besides the ones above, these are
 `tools`, `effects`, `effect_types`, `currencies` (by `CurrencyId`),
-`general_abilities`, `general_skills`, `legend_skills`, `raid_bosses`,
+`general_abilities`, `general_skills`, `legendary_skills`, `raid_bosses`,
 `global_effects`, `construction_items`, `loot_boxes`, `loot_box_types`,
 `equipment_groups`, `difficulty_types`, `titles`, `gems`, `sceat_skills`,
 `horses`, `achievements`, `alliance_crest_layouts` and `alliance_crest_colors`.
@@ -136,7 +136,7 @@ if toril is not None:
 surge = data.general_ability("PowerSurge", 1)
 tablets = data.currency("KT")            # by JSONKey
 boss = data.raid_boss("Necromancer")
-data.legend_skill(0, 1, 1)               # tree, group, level
+data.legendary_skill(0, 1, 1)               # tree, group, level
 data.effect_type("fameDefenseBonus")
 data.unit("MeadRanger", 6)               # type and level
 ```

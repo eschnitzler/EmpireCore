@@ -24,7 +24,7 @@ from .bonuses import Bonus, EffectResolver, commander_bonuses, effect_value_bonu
 from .effects import DefenderFlankEffects
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import LegendSkill
+    from empire_core.gamedata import LegendarySkill
 
 
 logger = logging.getLogger(__name__)
@@ -411,7 +411,7 @@ def castellan_fortification(
     return wall, gate, moat
 
 
-# CastleLegendSkillEffectsEnum names of the defender legend skills the fight
+# CastleLegendSkillEffectsEnum names of the defender Legendary skills the fight
 # screen reads (bundle line 7873).
 LEGEND_DEFENSE_MELEE_BONUS = "defenseMeleeBonus"
 LEGEND_DEFENSE_RANGE_BONUS = "defenseRangeBonus"
@@ -429,7 +429,7 @@ def spied_castle_defense(
     melee_bonus: float = 1.0,
     range_bonus: float = 1.0,
     castellan: LeaderBase | None = None,
-    defender_legend_skill_ids: Sequence[EnumOrInt["LegendSkill"]] | None = None,
+    defender_legendary_skill_ids: Sequence[EnumOrInt["LegendarySkill"]] | None = None,
     area_type: int | None = None,
     game_data: GameData | None = None,
 ) -> dict[Flank, DefenderFlankEffects]:
@@ -443,7 +443,7 @@ def spied_castle_defense(
     flank it sits on and no other.
 
     Each value is summed in the client's order: the base, then the flank's
-    items, then the castellan, then the defender's legend skills one at a time.
+    items, then the castellan, then the defender's Legendary skills one at a time.
     ``defenseMeleeBonus`` and ``defenseRangeBonus`` skills add a hundredth of
     their ``totalEffectValue`` to the melee and ranged multipliers, and
     ``wallBonus``, ``gateBonus`` and ``moatBonus`` skills to the fortification.
@@ -462,7 +462,7 @@ def spied_castle_defense(
         castellan: The defending castellan the attack pre-calculation names.
             Its effects raise both the fortification and the defenders, and
             differently per flank; the client builds it without its equipment
-        defender_legend_skill_ids: The defender's legend skill ids, which the
+        defender_legendary_skill_ids: The defender's Legendary skill ids, which the
             client takes from ``aci``'s ``LS`` into
             ``CastleSpyArmyInfoVO.defenderSkills`` (bundle line 30699)
         area_type: The target's area type, which scopes the castellan's effects
@@ -471,7 +471,7 @@ def spied_castle_defense(
         Effects per flank
 
     Raises:
-        ValueError: A legend skill id is not in the items payload. The client
+        ValueError: A Legendary skill id is not in the items payload. The client
             looks each one up (``CastleLegendSkillData.getSkillByID``) and has
             no fallback for a missing one
     """
@@ -485,10 +485,10 @@ def spied_castle_defense(
         )
 
     skills = []
-    for skill_id in defender_legend_skill_ids or ():
-        skill = game_data.legend_skills.get(skill_id)
+    for skill_id in defender_legendary_skill_ids or ():
+        skill = game_data.legendary_skills.get(skill_id)
         if skill is None:
-            raise ValueError(f"Defender legend skill {skill_id} is not in the items payload")
+            raise ValueError(f"Defender Legendary skill {skill_id} is not in the items payload")
         skills.append(skill)
 
     # Support troops hold every flank, the courtyard included, as the client

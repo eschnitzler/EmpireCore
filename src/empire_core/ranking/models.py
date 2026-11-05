@@ -66,7 +66,7 @@ def _owner_or_none(value: Any) -> MapObject | None:
 
 class HighscoreAlliance(BasePayload):
     """
-    An alliance on a highscore list: ``[alliance_id, name, member_count, fame]``.
+    An alliance on a highscore list: ``[alliance_id, name, member_count, glory points]``.
 
     Client: ``AllianceHighscoreInfoVO.fillFromParamObject`` (bundle line 27680), which reads
     nothing from a value that is not an array
@@ -75,14 +75,14 @@ class HighscoreAlliance(BasePayload):
     alliance_id: ClientInt = Field(default=0, description="Alliance id")
     name: str = Field(default="", description="Alliance name")
     member_count: ClientInt = Field(default=0, description="Number of members")
-    fame: ClientInt = Field(default=0, description="The alliance's current fame points")
+    glory_points: ClientInt = Field(default=0, description="The alliance's current glory points")
 
     @model_validator(mode="before")
     @classmethod
     def _from_row(cls, data: Any) -> Any:
         if not isinstance(data, list):
             return data
-        return dict(zip(("alliance_id", "name", "member_count", "fame"), data, strict=False))
+        return dict(zip(("alliance_id", "name", "member_count", "glory_points"), data, strict=False))
 
     @field_validator("name", mode="before")
     @classmethod
@@ -160,15 +160,15 @@ class HighscoreAllianceRow(BasePayload):
         return value if isinstance(value, (list, HighscoreAlliance)) else {}
 
 
-class HighscoreIslandRow(HighscoreAllianceRow):
+class HighscoreStormIslandsRow(HighscoreAllianceRow):
     """
-    A Storm Islands alliance row: ``[is_stormlord, rank, score, alliance]``.
+    A Storm Islands alliance row: ``[is_storm_lord, rank, score, alliance]``.
 
     Client: ``CastleEilandAllianceRankingItem.update`` (bundle lines 98076-98079), shown for
-    ``HighscoreConst.ALLIANCE_AQUA_POINTS`` (bundle line 98052)
+    ``HighscoreConst.ALLIANCE_CARGO_POINTS`` (bundle line 98052)
     """
 
-    is_stormlord: bool = Field(default=False, description="The alliance holds the Storm Islands")
+    is_storm_lord: bool = Field(default=False, description="The alliance holds the Storm Islands")
 
     @model_validator(mode="before")
     @classmethod
@@ -176,7 +176,7 @@ class HighscoreIslandRow(HighscoreAllianceRow):
         if not isinstance(data, list):
             return data
         return {
-            "is_stormlord": js_truthy(data[0]) if data else False,
+            "is_storm_lord": js_truthy(data[0]) if data else False,
             **dict(zip(("rank", "score", "alliance"), data[1:], strict=False)),
         }
 
@@ -207,17 +207,20 @@ class HighscoreTournamentRow(BasePayload):
         return "" if value is None else js_string(value)
 
 
-HighscoreRow = HighscorePlayerRow | HighscoreAllianceRow | HighscoreIslandRow | HighscoreTournamentRow
+HighscoreRow = HighscorePlayerRow | HighscoreAllianceRow | HighscoreStormIslandsRow | HighscoreTournamentRow
 """One row of a ``hgh`` reply; :data:`HIGHSCORE_ROW_LAYOUTS` and the row's shape pick which."""
 
 
 _RowModel = (
-    type[HighscorePlayerRow] | type[HighscoreAllianceRow] | type[HighscoreIslandRow] | type[HighscoreTournamentRow]
+    type[HighscorePlayerRow]
+    | type[HighscoreAllianceRow]
+    | type[HighscoreStormIslandsRow]
+    | type[HighscoreTournamentRow]
 )
 
 
 HIGHSCORE_ROW_LAYOUTS: dict[int, _RowModel] = {
-    RankingType.ALLIANCE_AQUA_POINTS: HighscoreIslandRow,
+    RankingType.ALLIANCE_CARGO_POINTS: HighscoreStormIslandsRow,
     RankingType.TOURNAMENT_FAME: HighscoreTournamentRow,
 }
 """

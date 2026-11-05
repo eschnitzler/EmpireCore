@@ -1,4 +1,4 @@
-"""The spy count: gms plus research, legend skill and title boosts, and the spies at home."""
+"""The spy count: gms plus research, Legendary skill and title boosts, and the spies at home."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from empire_core.gamedata import GameData
 from empire_core.movements.models import MovementSpy
 from empire_core.movements.tracked import Movement
 from empire_core.spy.pool import (
-    legend_spy_bonus,
+    legendary_spy_bonus,
     research_spy_bonus,
     storm_islands_title_chain,
     title_spy_percent,
@@ -88,10 +88,10 @@ class TestTotalSpies:
         ],
     )
     def test_the_client_formula(self, max_spies, research, legend, title, expected):
-        assert total_spies(max_spies, research_bonus=research, legend_bonus=legend, title_percent=title) == expected
+        assert total_spies(max_spies, research_bonus=research, legendary_bonus=legend, title_percent=title) == expected
 
     def test_research_and_legend_are_truncated_before_the_title(self):
-        assert total_spies(10, research_bonus=1.9, legend_bonus=0.9, title_percent=50) == 16
+        assert total_spies(10, research_bonus=1.9, legendary_bonus=0.9, title_percent=50) == 16
 
 
 class TestBoosts:
@@ -101,8 +101,8 @@ class TestBoosts:
         assert research_spy_bonus(game_data, []) == 0
 
     def test_legend_skills_count_their_total_value(self, game_data):
-        assert legend_spy_bonus(game_data, [53]) == 3
-        assert legend_spy_bonus(game_data, []) == 0
+        assert legendary_spy_bonus(game_data, [53]) == 3
+        assert legendary_spy_bonus(game_data, []) == 0
 
     def test_an_island_title_holds_every_title_below_it(self, game_data):
         assert storm_islands_title_chain(50, game_data=game_data) == [54, 53, 52, 51, 50]
@@ -138,23 +138,23 @@ class TestSpyService:
 
     def test_boosts_from_game_data(self, game_data):
         client = self.client(gms={"MS": 10, "BS": 0}, movements=[spy_movement(1, 4)], game_data=game_data)
-        kwargs = {"research_ids": ALL_SPY_RESEARCH, "legend_skill_ids": [53], "storm_islands_title_id": 50}
+        kwargs = {"research_ids": ALL_SPY_RESEARCH, "legendary_skill_ids": [53], "storm_islands_title_id": 50}
 
-        assert client.spy.total_spies(**kwargs, legend_target=True) == 40
-        assert client.spy.available_spies(**kwargs, legend_target=True) == 36
+        assert client.spy.total_spies(**kwargs, legendary_target=True) == 40
+        assert client.spy.available_spies(**kwargs, legendary_target=True) == 36
         assert client.spy.total_spies(**kwargs) == 34
 
     def test_legend_skills_alone_need_a_legend_target(self, game_data):
         client = self.client(gms={"MS": 10}, game_data=game_data)
-        assert client.spy.total_spies(legend_skill_ids=[53]) == 10
+        assert client.spy.total_spies(legendary_skill_ids=[53]) == 10
 
     def test_boosts_load_the_game_data_on_first_use(self, game_data, stub_game_data_load):
         client = self.client(gms={"MS": 10}, movements=[spy_movement(1, 4)])
         loads = stub_game_data_load(game_data)
-        kwargs = {"research_ids": ALL_SPY_RESEARCH, "legend_skill_ids": [53], "storm_islands_title_id": 50}
+        kwargs = {"research_ids": ALL_SPY_RESEARCH, "legendary_skill_ids": [53], "storm_islands_title_id": 50}
 
-        assert client.spy.total_spies(**kwargs, legend_target=True) == 40
-        assert client.spy.available_spies(**kwargs, legend_target=True) == 36
+        assert client.spy.total_spies(**kwargs, legendary_target=True) == 40
+        assert client.spy.available_spies(**kwargs, legendary_target=True) == 36
         assert len(loads) == 1
 
     def test_boosts_fail_when_the_game_data_cannot_be_loaded(self):
@@ -172,8 +172,8 @@ class TestSpyService:
                 "uar": {"FTM": {"CTXT": -1}, "BTM": {"CTXT": -1}, "ITM": {"TID": 50}, "PFX": "", "SFX": ""},
             },
         )
-        assert client.spy.total_spies(legend_target=True) == 40
-        assert client.spy.available_spies(legend_target=True) == 36
+        assert client.spy.total_spies(legendary_target=True) == 40
+        assert client.spy.available_spies(legendary_target=True) == 36
         assert client.spy.total_spies() == 34
         # A passed value wins over state; () counts none
         assert client.spy.total_spies(research_ids=(), storm_islands_title_id=-1) == 10

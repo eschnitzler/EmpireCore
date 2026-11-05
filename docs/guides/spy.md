@@ -74,7 +74,7 @@ To ask whether all your spies, out ones included, could reach the ceiling:
 from empire_core.spy import plan_mission
 
 owner = result.screen.target_owner(700, 710)
-pool = client.spy.total_spies(legend_target=owner is not None and owner.is_legend)
+pool = client.spy.total_spies(legendary_target=owner is not None and owner.is_legendary)
 plan = plan_mission(result.screen.guard_count, pool, max_risk=20)
 ```
 
@@ -157,20 +157,20 @@ print(owned.max_spies)
 
 `client.spy.total_spies()` counts all your spies as the game does, and
 `available_spies()` takes off the spies on your own spy movements. Both are
-for the whole account, not one castle. The boosts are research, legend skills
+for the whole account, not one castle. The boosts are research, Legendary skills
 and titles:
 
 ```
-total = int((owned + int(research) + int(legend skills)) * (1 + title percent / 100))
+total = int((owned + int(research) + int(Legendary skills)) * (1 + title percent / 100))
 ```
 
-State carries your research (`rei`), legend skills (`skl`) and the points and
+State carries your research (`rei`), Legendary skills (`skl`) and the points and
 ranks that give your titles (`ufa`, `ufp`, `uar`), so after login no argument is
 needed; the game data the boosts read is loaded on first use:
 
 ```python
 free = client.spy.available_spies()                    # boosts from state
-legend = client.spy.total_spies(legend_target=True)    # the target's owner is a legend
+legend = client.spy.total_spies(legendary_target=True)    # the target's owner is a legend
 ```
 
 Pass a boost to count it instead of the state's, or `()` for none:
@@ -178,15 +178,15 @@ Pass a boost to count it instead of the state's, or `()` for none:
 ```python
 total = client.spy.total_spies(
     research_ids=[171, 172, 173],             # finished research, the rei section's BR
-    legend_skill_ids=(),                      # no legend skills
+    legendary_skill_ids=(),                      # no Legendary skills
     storm_islands_title_id=54,                       # your Storm Islands title, -1 for none
-    legend_target=True,
+    legendary_target=True,
 )
 ```
 
-The game adds legend skills for a target whose owner is a legend or that is a
+The game adds Legendary skills for a target whose owner is a legend or that is a
 landmark, for your own legend status, and always in the attack screen's spy
-alert; `legend_target` says when to add them. Titles passed as `title_ids` are
+alert; `legendary_target` says when to add them. Titles passed as `title_ids` are
 every glory and Berimond title you hold, the ones below your current title
 included, as `empire_core.player.player_title_ids` works them out. Any
 Storm Islands title also holds every title below it, and the lowest one doubles

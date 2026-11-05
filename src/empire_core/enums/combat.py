@@ -14,7 +14,7 @@ class AttackType(IntEnum):
     OUTPOST_CONQUER = 1
     VILLAGE_CONQUER = 2
     CAPITAL_CONQUER = 3
-    METROPOL_CONQUER = 5
+    METROPOLIS_CONQUER = 5
     KINGTOWER_CONQUER = 6
     CONQUER = 7
     MONUMENT_CONQUER = 8
@@ -168,10 +168,10 @@ class TargetRead(str, Enum):
     A read ``fill_attack`` makes of its target, naming what it filled without in ``FilledAttack.unread``.
 
     ``TILE`` is the map scan (``gaa``), ``PRECALCULATION`` the attack pre-calculation,
-    ``GENERAL_SKILLS`` the general's skills (``gie``) and ``LEGEND_SKILLS`` the player's (``skl``).
+    ``GENERAL_SKILLS`` the general's skills (``gie``) and ``LEGENDARY_SKILLS`` the player's (``skl``).
     """
 
     TILE = "tile"
     PRECALCULATION = "precalculation"
     GENERAL_SKILLS = "general_skills"
-    LEGEND_SKILLS = "legend_skills"
+    LEGENDARY_SKILLS = "legendary_skills"

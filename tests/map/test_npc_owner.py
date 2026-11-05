@@ -27,8 +27,8 @@ CLIENT_VALUES = {
     "ICE_CAPITAL": -433,
     "DESERT_CAPITAL": -434,
     "VOLCANO_CAPITAL": -435,
-    "METROPOL": -440,
-    "KINGS_TOWER": -450,
+    "TRADING_METROPOLIS": -440,
+    "ROYAL_TOWER": -450,
     "MONUMENT": -460,
     "CLASSIC_LABORATORY": -470,
     "ICE_LABORATORY": -471,
@@ -72,7 +72,7 @@ CLIENT_VALUES = {
     "COLLECTOR_CHRISTMAS4": -1113,
     "COLLECTOR_SPRING2": -1114,
     "HORIZON_RESOURCE_TOWER": -1200,
-    "WOLF_KING": -1201,
+    "WOLFGARD": -1201,
     "ARE_PORTAL": -1202,
     "UNKNOWN_EVENT_OWNER": -1234,
 }
@@ -118,7 +118,7 @@ def test_dungeon_owner_ids_are_the_factory_dungeon_owners() -> None:
     }
     assert DUNGEON_OWNER_IDS == expected
     # Owners the factory builds without isDungeonOwner.
-    for owner in (NPCOwner.OUTPOST, NPCOwner.CLASSIC_CAPITAL, NPCOwner.METROPOL, NPCOwner.PLAGUE_DOCTOR):
+    for owner in (NPCOwner.OUTPOST, NPCOwner.CLASSIC_CAPITAL, NPCOwner.TRADING_METROPOLIS, NPCOwner.PLAGUE_DOCTOR):
         assert owner not in DUNGEON_OWNER_IDS
 
 

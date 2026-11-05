@@ -257,10 +257,10 @@ class BuildingDef(EffectSpecRow):
         default=0,
         description="Player level needed to build it",
     )
-    required_legend_level: int = Field(
+    required_legendary_level: int = Field(
         validation_alias="requiredLegendLevel",
         default=0,
-        description="Legend level needed to build it",
+        description="Legendary level needed to build it",
     )
     early_unlock_required_level: int = Field(
         validation_alias="earlyUnlockRequiredLevel",
@@ -299,12 +299,12 @@ class BuildingDef(EffectSpecRow):
     horizon_only: bool = Field(
         validation_alias="isBattleGround",
         default=False,
-        description="Built on a battle ground only",
+        description="Built in Beyond the Horizon only",
     )
     never_on_horizon: bool = Field(
         validation_alias="isNotBattleGround",
         default=False,
-        description="Never built on a battle ground",
+        description="Never built in Beyond the Horizon",
     )
     slum_level_needed: int = Field(
         validation_alias="slumLevelNeeded",
@@ -415,7 +415,7 @@ class BuildingDef(EffectSpecRow):
         return row_id(value)
 
     @field_validator(
-        "level", "required_level", "required_legend_level", "early_unlock_required_level", "upgrade_building_id",
+        "level", "required_level", "required_legendary_level", "early_unlock_required_level", "upgrade_building_id",
         "downgrade_building_id", "xp", "might_value", "maximum_count", "slum_level_needed", "sell_coins",
         "cost_rubies", "wall_bonus", "moat_bonus", "build_duration", "district_type_id", mode="before",
     )  # fmt: skip
@@ -562,10 +562,10 @@ class ResearchDef(EffectSpecRow):
         default=0,
         description="Player level it needs",
     )
-    required_legend_level: int = Field(
+    required_legendary_level: int = Field(
         validation_alias="requiredLegendLevel",
         default=0,
-        description="Legend level it needs",
+        description="Legendary level it needs",
     )
     research_duration: int = Field(
         validation_alias="researchDuration",
@@ -606,7 +606,7 @@ class ResearchDef(EffectSpecRow):
         return row_id(value)
 
     @field_validator(
-        "group_id", "level", "min_research_tower_level", "required_level", "required_legend_level",
+        "group_id", "level", "min_research_tower_level", "required_level", "required_legendary_level",
         "research_duration", "outer_realms_research_duration", "cost_rubies", mode="before",
     )  # fmt: skip
     @classmethod
@@ -1077,10 +1077,10 @@ class QuestDef(_Row):
         default=0,
         description="Player level it needs",
     )
-    required_legend_level: int = Field(
+    required_legendary_level: int = Field(
         validation_alias="requiredLegendLevel",
         default=0,
-        description="Legend level it needs",
+        description="Legendary level it needs",
     )
     required_quest_id: GameDataId["QuestId"] = Field(
         validation_alias="requiredQuestID",
@@ -1124,7 +1124,7 @@ class QuestDef(_Row):
 
     @field_validator(
         "series_id", "series_number", "quests_in_series", "trigger_kingdom", "map_id", "required_level",
-        "required_legend_level", "required_quest_id", "quest_giver_id", "event_id", "duration", "objective_type",
+        "required_legendary_level", "required_quest_id", "quest_giver_id", "event_id", "duration", "objective_type",
         "cost_rubies", "questbook_tab_id", mode="before",
     )  # fmt: skip
     @classmethod

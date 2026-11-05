@@ -208,7 +208,7 @@ class GGECommand:
     ABI = "abi"  # Attack pre-calculation for a boss dungeon
     ALI = "ali"  # Attack pre-calculation for a landmark
     AVI = "avi"  # Attack pre-calculation for a village
-    AII = "aii"  # Attack pre-calculation for an isle resource
+    AII = "aii"  # Attack pre-calculation for a resource island
     COI = "coi"  # Conquest pre-calculation for an outpost
     CCI = "cci"  # Conquest pre-calculation for a capital
     CTI = "cti"  # Conquest pre-calculation for a metropolis

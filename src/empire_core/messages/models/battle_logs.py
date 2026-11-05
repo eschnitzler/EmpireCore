@@ -72,7 +72,7 @@ from empire_core.protocol.js import (
 from .mailbox import SpyReportArea
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import Gem, GeneralAbility, LegendSkill
+    from empire_core.gamedata import Gem, GeneralAbility, LegendarySkill
 
 logger = logging.getLogger(__name__)
 
@@ -578,7 +578,7 @@ _PARTICIPANT_ROW = (
     "start_army_size",
     "lost_units",
     "loot",
-    "fame_points",
+    "glory_points",
     "xp",
     "kingstower_bonus",
     "gallantry_points",
@@ -618,9 +618,9 @@ class BattleParticipant(BasePayload):
         description="What the player looted (BattleLogVO.loadFromParamArrayPBI reads it with "
         "CollectableParserS2CParamList.createList, bundle line 138318)",
     )
-    fame_points: ClientInt = Field(default=0, description="Glory points won or lost")
+    glory_points: ClientInt = Field(default=0, description="Glory points won or lost")
     xp: ClientInt = Field(default=0, description="Experience won")
-    kingstower_bonus: ClientInt = Field(default=0, description="Bonus from the king's towers")
+    kingstower_bonus: ClientInt = Field(default=0, description="Bonus from the royal towers")
     gallantry_points: ClientInt = Field(default=0, description="Gallantry points")
     highest_fame_title_bonus: ClientInt = Field(default=0, description="Bonus from the highest glory title")
     wounded_units: ClientInt = Field(default=0, description="Soldiers wounded instead of lost")
@@ -1284,11 +1284,11 @@ class BattleLogMiddleResponse(BaseResponse):
     defender_triggered_gems: tuple[EnumOrInt["Gem"], ...] = Field(
         validation_alias="DGT", default=(), description="The defender's gems that triggered"
     )
-    attacker_legend_skill_ids: tuple[EnumOrInt["LegendSkill"], ...] = Field(
-        validation_alias="ALS", default=(), description="The attacker's legend skills"
+    attacker_legendary_skill_ids: tuple[EnumOrInt["LegendarySkill"], ...] = Field(
+        validation_alias="ALS", default=(), description="The attacker's Legendary skills"
     )
-    defender_legend_skill_ids: tuple[EnumOrInt["LegendSkill"], ...] = Field(
-        validation_alias="DLS", default=(), description="The defender's legend skills"
+    defender_legendary_skill_ids: tuple[EnumOrInt["LegendarySkill"], ...] = Field(
+        validation_alias="DLS", default=(), description="The defender's Legendary skills"
     )
     defender_used_support_tools: bool = Field(
         validation_alias="DUST",
@@ -1346,9 +1346,12 @@ class BattleLogMiddleResponse(BaseResponse):
         return js_number_or_none(value) if js_truthy(value) else None
 
     @field_validator(
-        "attacker_triggered_gems", "defender_triggered_gems", "attacker_legend_skill_ids", "defender_legend_skill_ids",
+        "attacker_triggered_gems",
+        "defender_triggered_gems",
+        "attacker_legendary_skill_ids",
+        "defender_legendary_skill_ids",
         mode="before",
-    )  # fmt: skip
+    )
     @classmethod
     def _ids(cls, value: Any, info: ValidationInfo) -> Any:
         # Client: e.DGT && (this._defenderTriggeredGems = e.DGT), the same for AGT, DLS and ALS (bundle line

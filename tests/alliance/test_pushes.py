@@ -17,8 +17,8 @@ def test_fame_push_is_copy_on_write_and_survives_kept_context():
     previous = state.own_alliance
     state.update_from_packet("afa", {"CF": 10, "HF": 20})
     current = state.get_own_alliance()
-    assert current is not None and current.fame_points == 10 and current.highest_fame_points == 20
-    assert previous is not None and previous.fame_points == 1
+    assert current is not None and current.glory_points == 10 and current.highest_glory_points == 20
+    assert previous is not None and previous.glory_points == 1
     assert state._own_alliance_raw is not None and state._own_alliance_raw["CF"] == 10
 
 
@@ -79,12 +79,12 @@ def test_the_push_models_read_as_the_client_does():
     from empire_core.alliance.models.info import (
         AllianceBuffsResponse,
         AllianceCrestChangedResponse,
-        AllianceFameResponse,
+        AllianceGloryResponse,
     )
     from empire_core.protocol.models import parse_response
 
     fame = parse_response("afa", {"CF": "10", "HF": 20.5})
-    assert isinstance(fame, AllianceFameResponse) and (fame.fame_points, fame.highest_fame_points) == (10, 20)
+    assert isinstance(fame, AllianceGloryResponse) and (fame.glory_points, fame.highest_glory_points) == (10, 20)
 
     # parseABL: parseBuffList(e.ABL ? e.ABL : e)
     for body in ({"ABL": [{"BT": 6, "L": 1, "CD": -1}]}, [{"BT": 6, "L": 1, "CD": -1}]):

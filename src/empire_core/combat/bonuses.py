@@ -33,7 +33,7 @@ from empire_core.gamedata import (
 from empire_core.protocol.base import EmpireModel
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import GeneralSkill, GlobalEffect, LegendSkill, SceatSkill
+    from empire_core.gamedata import GeneralSkill, GlobalEffect, LegendarySkill, SceatSkill
 
     from .effects import AttackerFlankEffects
 
@@ -523,19 +523,19 @@ def general_passive_bonuses(
     return bonuses
 
 
-def legend_skill_value(
-    skill_ids: Iterable[EnumOrInt["LegendSkill"]], effect_type: str, *, game_data: GameData | None = None
+def legendary_skill_value(
+    skill_ids: Iterable[EnumOrInt["LegendarySkill"]], effect_type: str, *, game_data: GameData | None = None
 ) -> float:
     """
-    Total value of one legend skill effect type.
+    Total value of one Legendary skill effect type.
 
-    Legend skills sit outside the effect and cap pipeline: they name an effect
+    Legendary skills sit outside the effect and cap pipeline: they name an effect
     type directly and the client sums their values as plain numbers, so they are
     returned as a number rather than as bonuses.
 
     Args:
         game_data: Optional tables override; uses the process game data by default.
-        skill_ids: The player's unlocked legend skill ids
+        skill_ids: The player's unlocked Legendary skill ids
         effect_type: The effect type name, e.g. ``gateReduction``
 
     Returns:
@@ -545,7 +545,7 @@ def legend_skill_value(
     return sum(
         skill.total_effect_value
         for skill_id in skill_ids
-        if (skill := game_data.legend_skills.get(skill_id)) is not None and skill.effect_type == effect_type
+        if (skill := game_data.legendary_skills.get(skill_id)) is not None and skill.effect_type == effect_type
     )
 
 
@@ -679,7 +679,7 @@ def commander_bonuses(
     bundle line 4130). The movement tooltip leaves the general's passive
     effects out and the attack dialog adds them (see
     :func:`attack_dialog_bonuses`); a movement's commander carries its general's
-    ``general_skill_ids`` for that. Legend and sceat skills belong to the
+    ``general_skill_ids`` for that. Legendary and sceat skills belong to the
     attacking player, not the commander, and a movement does not carry them.
 
     A movement's commander comes with the area effects (``AE``) of the castle
@@ -880,7 +880,7 @@ def attacker_flank_effects(
     *,
     area_type: int | None = None,
     player_target: bool | None = None,
-    legend_skill_ids: Iterable[EnumOrInt["LegendSkill"]] = (),
+    legendary_skill_ids: Iterable[EnumOrInt["LegendarySkill"]] = (),
     legendary: bool = False,
     support_tools: Sequence[ToolStats] = (),
 ) -> "AttackerFlankEffects":
@@ -888,7 +888,7 @@ def attacker_flank_effects(
     Build a flank's attacker multipliers from resolved bonuses.
 
     Client: ``FightScreenHelper.getAttackerFlankEffectVO`` (bundle line 19179),
-    in its order: the commander's reductions and multipliers, then the legend
+    in its order: the commander's reductions and multipliers, then the Legendary
     skills in a legendary fight, then each tool. The auto-fill starts from an
     empty wave, so the tools here are only the support tools, one of each
     ``AST`` entry. Tools the solver places later are added by
@@ -902,9 +902,9 @@ def attacker_flank_effects(
         player_target: True when attacking a player. The client passes no
             filter strategy here, which keeps PvP and PvE effects alike; that
             is what None does
-        legend_skill_ids: The player's unlocked legend skills
+        legendary_skill_ids: The player's unlocked Legendary skills
         legendary: ``AttackDialogHelper.isLegendaryFight``, i.e.
-            ``LegendaryFight.unit_amount``. The legend skills count only then
+            ``LegendaryFight.unit_amount``. The Legendary skills count only then
         support_tools: The support tools picked for the attack
 
     Returns:
@@ -919,12 +919,12 @@ def attacker_flank_effects(
     ranged = resolver.attack_multiplier(bonuses, melee=False, area_type=area_type, player_target=player_target)
     defender_range = 0.0
     if legendary:
-        skills = list(legend_skill_ids)
-        wall += legend_skill_value(skills, "wallReduction", game_data=game_data) / 100
-        gate += legend_skill_value(skills, "gateReduction", game_data=game_data) / 100
-        moat += legend_skill_value(skills, "moatReduction", game_data=game_data) / 100
-        melee += legend_skill_value(skills, "attackMeleeBonus", game_data=game_data) / 100
-        ranged += legend_skill_value(skills, "attackRangeBonus", game_data=game_data) / 100
+        skills = list(legendary_skill_ids)
+        wall += legendary_skill_value(skills, "wallReduction", game_data=game_data) / 100
+        gate += legendary_skill_value(skills, "gateReduction", game_data=game_data) / 100
+        moat += legendary_skill_value(skills, "moatReduction", game_data=game_data) / 100
+        melee += legendary_skill_value(skills, "attackMeleeBonus", game_data=game_data) / 100
+        ranged += legendary_skill_value(skills, "attackRangeBonus", game_data=game_data) / 100
     for tool in support_tools:
         wall += tool.wall_bonus
         gate += tool.gate_bonus
@@ -978,7 +978,7 @@ __all__ = [
     "general_skill_bonuses",
     "global_effect_bonuses",
     "global_unit_attack_bonuses",
-    "legend_skill_value",
+    "legendary_skill_value",
     "parse_bonus_entries",
     "effect_value_bonuses",
     "sceat_skill_bonuses",

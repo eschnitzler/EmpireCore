@@ -152,10 +152,10 @@ _MEMBER_INFO_FIELDS = (
     "login_activity",
     "capital_count",
     "metropolis_count",
-    "kings_tower_count",
+    "royal_tower_count",
     "monument_count",
     "laboratory_count",
-    "daily_fame",
+    "daily_glory",
 )
 
 
@@ -177,10 +177,10 @@ class AllianceMemberInfo(BasePayload):
     )
     capital_count: ClientInt = Field(default=0, description="Capitals the member holds")
     metropolis_count: ClientInt = Field(default=0, description="Metropolises the member holds")
-    kings_tower_count: ClientInt = Field(default=0, description="Kings towers the member holds")
+    royal_tower_count: ClientInt = Field(default=0, description="Royal towers the member holds")
     monument_count: ClientInt = Field(default=0, description="Monuments the member holds")
     laboratory_count: ClientInt = Field(default=0, description="Laboratories the member holds")
-    daily_fame: ClientInt = Field(default=0, description="Fame gained today")
+    daily_glory: ClientInt = Field(default=0, description="Glory gained today")
 
     @property
     def login_activity_enum(self) -> OnlineState | None:
@@ -375,8 +375,8 @@ class AllianceInfo(BasePayload):
         )
         return sorted(members, key=_rank_order)
 
-    fame_points: ClientInt = Field(validation_alias="CF", default=0, description="Alliance fame points")
-    highest_fame_points: ParseInt = Field(validation_alias="HF", default=0, description="Highest fame points reached")
+    glory_points: ClientInt = Field(validation_alias="CF", default=0, description="Alliance glory points")
+    highest_glory_points: ParseInt = Field(validation_alias="HF", default=0, description="Highest glory points reached")
     might: ParseInt = Field(validation_alias="MP", default=0, description="Alliance might points")
     highest_alliance_might: ParseInt = Field(
         validation_alias="HAMP", default=0, description="Highest might points reached"
@@ -408,7 +408,7 @@ class AllianceInfo(BasePayload):
     )
     application_count: ParseInt = Field(validation_alias="AA", default=12, description="Pending applications")
     auto_war: bool = Field(validation_alias="AW", default=False, description="Auto war is on")
-    aqua_points: int | float = Field(validation_alias="AP", default=0, description="Aqua points")
+    cargo_points: int | float = Field(validation_alias="AP", default=0, description="Cargo points")
     free_renames: ClientInt = Field(validation_alias="FR", default=0, description="Free alliance renames left")
     can_be_invited_to_hard_pact: bool = Field(
         validation_alias="HP", default=False, description="Open to hard pact invitations"
@@ -524,10 +524,10 @@ class AllianceInfo(BasePayload):
         default_factory=list,
         description="Map rows of the alliance's metropolises",
     )
-    kings_towers: list[MapAreaItem] = Field(
+    royal_towers: list[MapAreaItem] = Field(
         validation_alias="AKT",
         default_factory=list,
-        description="Map rows of the alliance's kings towers",
+        description="Map rows of the alliance's royal towers",
     )
     monuments: list[MapAreaItem] = Field(
         validation_alias="AMO",
@@ -581,7 +581,7 @@ class AllianceInfo(BasePayload):
             return []
         return [entry for entry in value if isinstance(entry, dict)]
 
-    @field_validator("capitals", "metropolises", "kings_towers", "monuments", "laboratories", mode="before")
+    @field_validator("capitals", "metropolises", "royal_towers", "monuments", "laboratories", mode="before")
     @classmethod
     def _landmark_rows(cls, value: Any) -> Any:
         """Client: ``AllianceLandmarksList.parseCompleteLandmarksList`` (bundle line 42738)."""
@@ -718,9 +718,9 @@ __all__ = [
 ]
 
 
-class AllianceFameResponse(BaseResponse):
+class AllianceGloryResponse(BaseResponse):
     """
-    Your alliance's fame points, pushed as they change.
+    Your alliance's glory points, pushed as they change.
 
     Command: afa, a push.
 
@@ -730,8 +730,10 @@ class AllianceFameResponse(BaseResponse):
 
     command = "afa"
 
-    fame_points: ClientInt = Field(validation_alias="CF", default=0, description="Alliance fame points")
-    highest_fame_points: ClientInt = Field(validation_alias="HF", default=0, description="Highest fame points reached")
+    glory_points: ClientInt = Field(validation_alias="CF", default=0, description="Alliance glory points")
+    highest_glory_points: ClientInt = Field(
+        validation_alias="HF", default=0, description="Highest glory points reached"
+    )
 
 
 class AllianceBuffsResponse(BaseResponse):

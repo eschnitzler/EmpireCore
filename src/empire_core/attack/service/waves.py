@@ -22,7 +22,7 @@ from empire_core.combat import (
     global_unit_attack_bonuses,
     is_npc_player,
     is_npc_pvp_player,
-    legend_skill_value,
+    legendary_skill_value,
     minimum_owner_level,
     robber_baron_camp_defense,
     support_tool_waves,
@@ -38,7 +38,7 @@ from empire_core.gamedata.ids.events import Event
 from empire_core.services.base import ServiceMixin
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import GameData, GeneralSkill, GlobalEffect, LegendSkill, RaidBoss, Tool
+    from empire_core.gamedata import GameData, GeneralSkill, GlobalEffect, LegendarySkill, RaidBoss, Tool
 
 
 class WavesMixin(ServiceMixin):
@@ -61,13 +61,13 @@ class WavesMixin(ServiceMixin):
         conquer: bool = False,
         wave_bonus: int = 0,
         general_skill_ids: Sequence[EnumOrInt["GeneralSkill"]] | None = None,
-        legend_skill_ids: Sequence[EnumOrInt["LegendSkill"]] | None = None,
+        legendary_skill_ids: Sequence[EnumOrInt["LegendarySkill"]] | None = None,
         global_effects: Iterable[GlobalEffectTimer] | None = None,
         support_tools: Sequence[Tool | int | None] | None = None,
         target_is_player: bool = False,
         owner_id: int | None = None,
-        owner_legend_level: int = 0,
-        attacker_legend_level: int | None = None,
+        owner_legendary_level: int = 0,
+        attacker_legendary_level: int | None = None,
         under_conquer_control: bool = False,
         active_raid_boss_id: EnumOrInt["RaidBoss"] | None = None,
         flank_bonus_percent: float = 0.0,
@@ -116,29 +116,29 @@ class WavesMixin(ServiceMixin):
                 follows ``owner_id`` (``getFilterStrategyAttackOrDefence``)
             defense: Explicit per-flank defense, overriding ``robber_baron_camp_victories``
             attacker: Attacker multipliers; built from ``commander``, the
-                legend skills and ``support_tools`` when omitted
+                Legendary skills and ``support_tools`` when omitted
             commander: The commander leading the attack, whose equipment and
                 effects supply the attack multipliers used to score units
             conquer: A conquest attack carries extra waves
-            wave_bonus: Extra waves on top of the legend skill, effect type 156
+            wave_bonus: Extra waves on top of the Legendary skill, effect type 156
                 and the support tools
             support_tools: The support tools the attack will carry, as sent in
                 ``AST``: one wod id per slot, -1 for an empty one. They buff
                 every flank and can add waves
             general_skill_ids: Unlocked skill ids of the general leading the
                 attack, from ``gie``; its unit-limit skills size the wave
-            legend_skill_ids: The player's unlocked legend skills, from
-                ``skl`` or ``GameData.require().legend_skill(tree, group, level)``.
+            legendary_skill_ids: The player's unlocked Legendary skills, from
+                ``skl`` or ``GameData.require().legendary_skill(tree, group, level)``.
                 Which of them count follows the three rules of
                 :class:`~empire_core.combat.capacity.LegendaryFight`
             target_is_player: True when the target belongs to a player
             owner_id: The target owner's player id, see
                 :func:`~empire_core.combat.owner_id_from_row`. An alien
                 invasion camp's is known from its area type. Without one, no
-                legend skill counts
-            owner_legend_level: The target owner's legend level, the ``LL`` of
+                Legendary skill counts
+            owner_legendary_level: The target owner's Legendary level, the ``LL`` of
                 its owner record in a map scan
-            attacker_legend_level: The attacker's legend level; the local
+            attacker_legendary_level: The attacker's Legendary level; the local
                 player's when not given
             under_conquer_control: True when the target is held under conquer
                 control; the legend rules then rate its owner by ``level``
@@ -170,8 +170,8 @@ class WavesMixin(ServiceMixin):
 
         player = self.client.state.get_local_player()
         attacker_level = player.level
-        if attacker_legend_level is None:
-            attacker_legend_level = player.legendary_level
+        if attacker_legendary_level is None:
+            attacker_legendary_level = player.legendary_level
         if level is None:
             raise ValueError("A wave is sized by the level of whoever owns the target; pass level=")
         # Client: CastleFightScreenVO.targetOwnerLevel, the owner's own level under
@@ -202,11 +202,11 @@ class WavesMixin(ServiceMixin):
 
         legendary = LegendaryFight.evaluate(
             attacker_level=attacker_level,
-            attacker_legend_level=attacker_legend_level,
+            attacker_legendary_level=attacker_legendary_level,
             target_owner_level=target_owner_level,
             wave_level=level,
             owner_id=owner_id,
-            owner_legend_level=owner_legend_level,
+            owner_legendary_level=owner_legendary_level,
             area_type=area_type,
             has_other_player_info=area_type in OTHER_PLAYER_INFO_AREA_TYPES,
         )
@@ -218,27 +218,27 @@ class WavesMixin(ServiceMixin):
                 resolver,
                 merged,
                 area_type=area_type,
-                legend_skill_ids=legend_skill_ids or (),
+                legendary_skill_ids=legendary_skill_ids or (),
                 legendary=legendary.unit_amount,
                 support_tools=tools,
             )
         # getUnitsOnTheFlankBonusForAreaType: one int() over the merged list,
-        # then the int() of the legend skill on top.
+        # then the int() of the Legendary skill on top.
         flank_bonus_percent += int(resolver.flank_unit_bonus(merged, area_type=area_type, player_target=player_target))
         front_bonus_percent += int(resolver.front_unit_bonus(merged, area_type=area_type, player_target=player_target))
-        if legend_skill_ids:
+        if legendary_skill_ids:
             if legendary.unit_amount:
                 flank_bonus_percent += int(
-                    legend_skill_value(legend_skill_ids, "additionalUnitAmountOnFlank", game_data=game_data)
+                    legendary_skill_value(legendary_skill_ids, "additionalUnitAmountOnFlank", game_data=game_data)
                 )
                 front_bonus_percent += int(
-                    legend_skill_value(legend_skill_ids, "additionalUnitAmountOnFront", game_data=game_data)
+                    legendary_skill_value(legendary_skill_ids, "additionalUnitAmountOnFront", game_data=game_data)
                 )
             if legendary.extra_wave:
-                wave_bonus += int(legend_skill_value(legend_skill_ids, "additionalWave", game_data=game_data))
+                wave_bonus += int(legendary_skill_value(legendary_skill_ids, "additionalWave", game_data=game_data))
             if legendary.flank_tools:
-                tool_bonus += legend_skill_value(
-                    legend_skill_ids, "additionalAttackToolAmountFlank", game_data=game_data
+                tool_bonus += legendary_skill_value(
+                    legendary_skill_ids, "additionalAttackToolAmountFlank", game_data=game_data
                 )
         # initWaves: int() of effect 156 over the merged list plus the support
         # tools' ADDITIONAL_WAVE. Its add-while-below, then remove-while-above

@@ -891,7 +891,7 @@ melee: int(buffedMeleeAttack) * min(freeItems, inventoryAmount)
 range: int(buffedRangeAttack) * min(freeItems, inventoryAmount)
 ```
 
-No commander equipment, no general, no legend skill and no effect 33/53/54
+No commander equipment, no general, no Legendary skill and no effect 33/53/54
 touches yard **composition**. See §3 for `buffed*Attack`.
 
 ### 2.5 The defender side of the yard
@@ -979,7 +979,7 @@ can never exceed it, but a manual fill followed by a lord change can.
 
 ### 2.8 Display-only paths
 
-Effect type 33 (`attackBoostYard`) and legend skill 15 (`ATTACK_YARD_BONUS`)
+Effect type 33 (`attackBoostYard`) and Legendary skill 15 (`ATTACK_YARD_BONUS`)
 change only the strength number the final-wave panel prints and the
 `<sum> / <maxItems>` label beside it. They do not enter
 `getMaxUnitsInReinforcementWave` and they do not enter `pickSoldierStack`. A

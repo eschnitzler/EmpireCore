@@ -104,10 +104,10 @@ class TestFillAttack(FillClient):
         conn(by_item).script["aci"] = reply
 
         expected = by_coordinates.attack.fill_attack(
-            12345, target_x=700, target_y=710, target_row=row, legend_skill_ids=[], general_skill_ids=[]
+            12345, target_x=700, target_y=710, target_row=row, legendary_skill_ids=[], general_skill_ids=[]
         )
         result = by_item.attack.fill_attack(
-            12345, target=MapAreaItem.from_list(row), legend_skill_ids=[], general_skill_ids=[]
+            12345, target=MapAreaItem.from_list(row), legendary_skill_ids=[], general_skill_ids=[]
         )
 
         assert result == expected
@@ -260,9 +260,9 @@ class TestFillAttack(FillClient):
     def test_the_legend_flank_skill_is_truncated_on_its_own(self):
         # int(10.5) on top of int(0): getUnitsOnTheFlankBonusForAreaType gives
         # 10 and getAmountSoldiersFlank(70, 10) 71 (client, node).
-        legend = dict(attacker_legend_level=1, owner_legend_level=1, area_type=1, owner_id=4242)
+        legend = dict(attacker_legendary_level=1, owner_legendary_level=1, area_type=1, owner_id=4242)
 
-        assert self.sizes(legend_skill_ids=[901], **legend)[0] == 71
+        assert self.sizes(legendary_skill_ids=[901], **legend)[0] == 71
 
     def test_the_legend_skills_take_one_skl_read(self):
         from empire_core.protocol.models import Commander
@@ -299,7 +299,7 @@ class TestFillAttack(FillClient):
             target_level=13,
             commander=commander,
             general_skill_ids=[],
-            legend_skill_ids=[],
+            legendary_skill_ids=[],
         )
 
         sent = [command for command, _ in conn(client).request_payloads]
@@ -319,7 +319,7 @@ class TestFillAttack(FillClient):
         assert result.waves
         assert {read: e.error for read, e in result.unread.items()} == {
             TargetRead.GENERAL_SKILLS: GGEError.GENERAL_ERROR,
-            TargetRead.LEGEND_SKILLS: GGEError.INVALID_PARAMETER_VALUE,
+            TargetRead.LEGENDARY_SKILLS: GGEError.INVALID_PARAMETER_VALUE,
         }
         assert "sizing without them" in caplog.text
 
@@ -331,11 +331,11 @@ class TestFillAttack(FillClient):
         commander = Commander.model_validate({"ID": 1, "GID": 7})
 
         with pytest.raises(EmpireTimeoutError):
-            client.attack.fill_attack(12345, target_level=13, commander=commander, legend_skill_ids=[])
+            client.attack.fill_attack(12345, target_level=13, commander=commander, legendary_skill_ids=[])
 
     def test_a_fill_that_read_everything_names_nothing_unread(self):
         client = self.build([[601, 100_000]])
-        result = client.attack.fill_attack(12345, target_level=13, general_skill_ids=[], legend_skill_ids=[])
+        result = client.attack.fill_attack(12345, target_level=13, general_skill_ids=[], legendary_skill_ids=[])
         assert result.unread == {}
 
     def test_coordinates_are_enough(self):
@@ -391,16 +391,16 @@ class TestFillAttack(FillClient):
         )
         row = [1, 700, 710, 900, 4242, 1, 1, 1, 0, 0, "castle"]
         widths = []
-        for legend_level in (0, 5):
+        for legendary_level in (0, 5):
             client = self.build([[601, 100_000]])
             client.game_data = GameData.parse("test", payload)
             cast(Any, client.state.local_player).legendary_level = 1
             conn(client).script["aci"] = xt_packet("aci", {"gaa": {"AI": row}, "S": [], "AE": [], "B": {}})
             conn(client).script["gaa"] = xt_packet(
-                "gaa", {"KID": 0, "AI": [row], "OI": [{"OID": 4242, "N": "owner", "L": 70, "LL": legend_level}]}
+                "gaa", {"KID": 0, "AI": [row], "OI": [{"OID": 4242, "N": "owner", "L": 70, "LL": legendary_level}]}
             )
             result = client.attack.fill_attack(
-                12345, target_x=700, target_y=710, legend_skill_ids=[901], general_skill_ids=[]
+                12345, target_x=700, target_y=710, legendary_skill_ids=[901], general_skill_ids=[]
             )
             widths.append(result.waves[0].model_dump(by_alias=True)["L"]["U"][0][1])
 
@@ -432,7 +432,7 @@ class TestFillAttack(FillClient):
         )
 
         result = client.attack.fill_attack(
-            12345, target_x=700, target_y=710, target_row=row, legend_skill_ids=[901], general_skill_ids=[]
+            12345, target_x=700, target_y=710, target_row=row, legendary_skill_ids=[901], general_skill_ids=[]
         )
 
         assert result.waves[0].model_dump(by_alias=True)["L"]["U"][0][1] == 84
@@ -460,10 +460,10 @@ class TestFillAttack(FillClient):
                 target_level=60,
                 target_is_player=True,
                 target_row=capital,
-                target_owner_legend_level=5,
+                target_owner_legendary_level=5,
                 landmark_min_level=70,
                 under_conquer_control=controlled,
-                legend_skill_ids=[902],
+                legendary_skill_ids=[902],
                 general_skill_ids=[],
             )
             return len(result.waves)
@@ -520,9 +520,9 @@ class TestFillAttack(FillClient):
 
         target = dict(level=70, target_is_player=True, area_type=1, owner_id=4242, defense=defense)
         plain = client.attack.fill_waves(12345, **target)
-        skilled = client.attack.fill_waves(12345, legend_skill_ids=[900], **target)
+        skilled = client.attack.fill_waves(12345, legendary_skill_ids=[900], **target)
         camp = client.attack.fill_waves(
-            12345, level=70, area_type=2, owner_id=-202, defense=defense, legend_skill_ids=[900]
+            12345, level=70, area_type=2, owner_id=-202, defense=defense, legendary_skill_ids=[900]
         )
 
         placed = lambda waves: sum(c for _, c in waves[0].model_dump(by_alias=True)["L"]["T"])  # noqa: E731
@@ -531,8 +531,8 @@ class TestFillAttack(FillClient):
         assert (placed(plain), placed(skilled), placed(camp)) == (40, 70, 40)
 
     def test_legend_flank_skills_need_a_legend_owner(self):
-        # A level 70 player without legend levels is not a legendary fight for
-        # the unit amount; one with legend levels is (AttackDialogHelper.isLegendaryFight).
+        # A level 70 player without Legendary levels is not a legendary fight for
+        # the unit amount; one with Legendary levels is (AttackDialogHelper.isLegendaryFight).
         from empire_core.gamedata import GameData
 
         payload = dict(
@@ -550,11 +550,11 @@ class TestFillAttack(FillClient):
         )
         client = self.build([[601, 100_000]])
         client.game_data = GameData.parse("test", payload)
-        target = dict(level=70, target_is_player=True, area_type=1, owner_id=4242, legend_skill_ids=[901, 902])
+        target = dict(level=70, target_is_player=True, area_type=1, owner_id=4242, legendary_skill_ids=[901, 902])
 
-        capped = client.attack.fill_waves(12345, attacker_legend_level=1, owner_legend_level=0, **target)
-        legend = client.attack.fill_waves(12345, attacker_legend_level=1, owner_legend_level=4, **target)
-        not_legend = client.attack.fill_waves(12345, attacker_legend_level=0, owner_legend_level=4, **target)
+        capped = client.attack.fill_waves(12345, attacker_legendary_level=1, owner_legendary_level=0, **target)
+        legend = client.attack.fill_waves(12345, attacker_legendary_level=1, owner_legendary_level=4, **target)
+        not_legend = client.attack.fill_waves(12345, attacker_legendary_level=0, owner_legendary_level=4, **target)
 
         left = lambda waves: waves[0].model_dump(by_alias=True)["L"]["U"][0][1]  # noqa: E731
         # getAmountSoldiersFlank(70, 0) and (70, 30), from the client in node.
@@ -663,7 +663,7 @@ class TestFillAttack(FillClient):
                     "fightType": "1",
                 },
             ],
-            # Items payload v786.03 row: the top wall bonus legend skill.
+            # Items payload v786.03 row: the top wall bonus Legendary skill.
             legendskills=[{"skillID": "434", "effectType": "wallBonus", "totalEffectValue": "30"}],
         )
         client = self.build([[601, 100_000], [611, 500], [612, 500]])
@@ -678,7 +678,7 @@ class TestFillAttack(FillClient):
             target_is_player=True,
             target_row=row,
             spy_army=army,
-            defender_legend_skill_ids=[434],
+            defender_legendary_skill_ids=[434],
         )
 
         placed = lambda a: sum(c for _, c in a.waves[0].model_dump(by_alias=True)["M"]["T"])  # noqa: E731
@@ -936,13 +936,13 @@ class TestFillAttack(FillClient):
             target_x=700,
             target_y=710,
             target_level=13,
-            target_owner_legend_level=0,
+            target_owner_legendary_level=0,
             target_row=row,
             spy_army=SpyArmy.model_validate([[], [], [], [], [], [], []]),
             defending_castellan=Commander.model_validate({"ID": 1}),
             area_bonuses=[],
             general_skill_ids=[],
-            legend_skill_ids=[],
+            legendary_skill_ids=[],
         )
 
         sent = [command for command, _ in conn(client).request_payloads]
@@ -963,9 +963,9 @@ class TestFillAttack(FillClient):
 
         client = self.build([[601, 1_000_000]])
 
-        owner = client.attack.fill_attack(12345, target_level=12, area_type=MapItemType.KINGS_TOWER)
+        owner = client.attack.fill_attack(12345, target_level=12, area_type=MapItemType.ROYAL_TOWER)
         conquered = client.attack.fill_attack(
-            12345, target_level=12, area_type=MapItemType.KINGS_TOWER, under_conquer_control=True
+            12345, target_level=12, area_type=MapItemType.ROYAL_TOWER, under_conquer_control=True
         )
 
         placed = lambda a: sum(p[1] for p in a.yard if p[0] != -1)  # noqa: E731

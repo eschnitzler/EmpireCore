@@ -18,7 +18,7 @@ Anything a balance patch can change is not baked in: for the full row, load a
 member, e.g. ``game_data.units[Unit.MEAD_RANGER_L6]``.
 
 Enums whose rows the game names by a text (units, tools, currencies,
-researches, generals, legend and sceat skills, events, gems, achievements,
+researches, generals, Legendary and sceat skills, events, gems, achievements,
 titles, crest layouts, main quests, prebuilt castles, private villages,
 fusion forges, judgements, treasure maps, league types) have ``display_name(lang="en")``, the
 name the game shows: ``Unit.MEAD_RANGER_L6.display_name("de")``. It reads the
@@ -73,7 +73,7 @@ if TYPE_CHECKING:
     from .horses import Horse
     from .judgements import Judgement
     from .league_types import LeagueType
-    from .legend_skills import LegendSkill
+    from .legendary_skills import LegendarySkill
     from .loot_box_types import LootBoxType
     from .loot_boxes import LootBox
     from .main_quests import MainQuest
@@ -123,7 +123,7 @@ _MODULES = {
     "Horse": "horses",
     "Judgement": "judgements",
     "LeagueType": "league_types",
-    "LegendSkill": "legend_skills",
+    "LegendarySkill": "legendary_skills",
     "LootBox": "loot_boxes",
     "LootBoxType": "loot_box_types",
     "MainQuest": "main_quests",
@@ -195,7 +195,7 @@ __all__ = [
     "ITEMS_VERSION",
     "Judgement",
     "LeagueType",
-    "LegendSkill",
+    "LegendarySkill",
     "LootBox",
     "LootBoxType",
     "MainQuest",

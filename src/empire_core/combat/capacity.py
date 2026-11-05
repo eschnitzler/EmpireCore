@@ -61,9 +61,9 @@ lists. The other five collectors are not in its switch.
 
 LANDMARK_AREA_TYPES = frozenset(
     {
-        int(MapItemType.METROPOL),
+        int(MapItemType.TRADING_METROPOLIS),
         int(MapItemType.CAPITAL),
-        int(MapItemType.KINGS_TOWER),
+        int(MapItemType.ROYAL_TOWER),
         int(MapItemType.MONUMENT),
         int(MapItemType.LABORATORY),
     }
@@ -87,10 +87,10 @@ OTHER_PLAYER_INFO_AREA_TYPES = frozenset(
         int(MapItemType.CASTLE),
         int(MapItemType.OUTPOST),
         int(MapItemType.CAPITAL),
-        int(MapItemType.METROPOL),
+        int(MapItemType.TRADING_METROPOLIS),
         int(MapItemType.VILLAGE),
-        int(MapItemType.ISLE_RESOURCE),
-        int(MapItemType.KINGS_TOWER),
+        int(MapItemType.RESOURCE_ISLAND),
+        int(MapItemType.ROYAL_TOWER),
         int(MapItemType.MONUMENT),
         int(MapItemType.LABORATORY),
         int(MapItemType.BERIMOND_CAMP),
@@ -101,7 +101,7 @@ OTHER_PLAYER_INFO_AREA_TYPES = frozenset(
 Area types whose map object answers ``hasOtherPlayerInfo`` with true when
 another player owns it: ``CastleMapobjectVO`` (bundle line 18933),
 ``OutpostMapobjectVO`` (18838) and its capital and metropolis subclasses
-(18760, 21637), ``VillageMapobjectVO`` (22675) and the resource isle
+(18760, 21637), ``VillageMapobjectVO`` (22675) and the resource island
 (34659), ``KingstowerMapobjectVO`` (19077), ``UpgradableLandmarkMapobjectVO``
 (42650) for monuments and laboratories (21675, 25920),
 ``FactionCampMapobjectVO`` (21547) and ``ABGAllianceTowerMapobjectVO``
@@ -115,10 +115,10 @@ ROW_OWNER_AREA_TYPES = frozenset(
         int(MapItemType.CASTLE),
         int(MapItemType.OUTPOST),
         int(MapItemType.CAPITAL),
-        int(MapItemType.METROPOL),
+        int(MapItemType.TRADING_METROPOLIS),
         int(MapItemType.VILLAGE),
-        int(MapItemType.ISLE_RESOURCE),
-        int(MapItemType.KINGS_TOWER),
+        int(MapItemType.RESOURCE_ISLAND),
+        int(MapItemType.ROYAL_TOWER),
         int(MapItemType.MONUMENT),
         int(MapItemType.LABORATORY),
         int(MapItemType.BERIMOND_CAMP),
@@ -130,8 +130,8 @@ Area types whose map row carries the owner's player id at index 4:
 (18910), outposts (through ``ContainerBuilderMapobjectVO``, 6855) and faction
 camps (``FactionCampMapobjectVO.parseAreaInfo`` calls it through
 ``FactionInteractiveMapobjectVO`` and ``ContainerBuilderMapobjectVO``) use, and
-the capital (18729), metropolis (21609), village (22623), resource isle
-(34603), king's tower (19055), monument (21652) and laboratory (25900)
+the capital (18729), metropolis (21609), village (22623), resource island
+(34603), royal tower (19055), monument (21652) and laboratory (25900)
 overrides.
 """
 
@@ -176,9 +176,9 @@ def is_npc_pvp_player(player_id: int) -> bool:
 
 class LegendaryFight(EmpireModel):
     """
-    Which legend skills an attack gets. The client checks three different rules.
+    Which Legendary skills an attack gets. The client checks three different rules.
 
-    "Legend" means a legend level above zero (``CastleUserData.isLegend``,
+    "Legend" means a Legendary level above zero (``CastleUserData.isLegend``,
     bundle line 10085; ``WorldMapOwnerInfoVO.isLegend``, bundle line 10892),
     not a level of 70.
     """
@@ -203,11 +203,11 @@ class LegendaryFight(EmpireModel):
         cls,
         *,
         attacker_level: int,
-        attacker_legend_level: int,
+        attacker_legendary_level: int,
         target_owner_level: int,
         wave_level: int,
         owner_id: int | None,
-        owner_legend_level: int,
+        owner_legendary_level: int,
         area_type: int | None,
         has_other_player_info: bool,
     ) -> "LegendaryFight":
@@ -216,7 +216,7 @@ class LegendaryFight(EmpireModel):
 
         Args:
             attacker_level: The attacker's level (``userData.userLevel``)
-            attacker_legend_level: The attacker's legend level
+            attacker_legendary_level: The attacker's Legendary level
             target_owner_level: ``CastleAttackInfoVO.targetOwnerLevel``, which is
                 the target's ``minimumOwnerLevel`` unless it is under conquer
                 control (bundle line 30631)
@@ -226,7 +226,7 @@ class LegendaryFight(EmpireModel):
                 :func:`owner_id_from_row`. None, for a target without owner
                 info, grants nothing: the wave and tool rules both require
                 ``ownerInfo`` (or an alien invasion object, which always has one)
-            owner_legend_level: The target owner's legend level
+            owner_legendary_level: The target owner's Legendary level
                 (``playerLegendLevel``, the ``LL`` of its owner record)
             area_type: The target's area type
             has_other_player_info: The target's ``hasOtherPlayerInfo``, see
@@ -236,15 +236,15 @@ class LegendaryFight(EmpireModel):
             return cls(unit_amount=False, extra_wave=False, flank_tools=False)
         npc = is_npc_player(owner_id)
         npc_pvp = is_npc_pvp_player(owner_id)
-        attacker_legend = attacker_legend_level > 0
+        attacker_legendary = attacker_legendary_level > 0
         alien = area_type in ALIEN_INVASION_AREA_TYPES
 
         unit_amount = False
         if not npc or npc_pvp:
-            owner_side = target_owner_level >= LEVEL_CAP if alien else owner_legend_level > 0
-            unit_amount = (attacker_legend and owner_side) or area_type in LANDMARK_AREA_TYPES
+            owner_side = target_owner_level >= LEVEL_CAP if alien else owner_legendary_level > 0
+            unit_amount = (attacker_legendary and owner_side) or area_type in LANDMARK_AREA_TYPES
 
-        extra_wave = attacker_legend and target_owner_level >= LEVEL_CAP and (not npc or alien)
+        extra_wave = attacker_legendary and target_owner_level >= LEVEL_CAP and (not npc or alien)
 
         flank_tools = (
             ((has_other_player_info and not npc) or npc_pvp) and wave_level >= LEVEL_CAP and attacker_level >= LEVEL_CAP
@@ -374,17 +374,17 @@ def boost_to_modifier(boost: float) -> float:
 
 # A wave is sized by the higher of the target owner's level and a floor the
 # area type sets: ``CastleAttackWaveVO`` opens with ``e = int(max(e, t))`` and
-# ``addAdditionalWave`` picks ``t`` from the area type. A king's tower, monument
+# ``addAdditionalWave`` picks ``t`` from the area type. A royal tower, monument
 # and laboratory take OutpostConst's 70; a capital and a metropolis read their
 # landmark's own minDefenseLevel, which is not in the items payload, so those
 # two have to be supplied.
 AREA_TYPE_LEVEL_FLOORS: dict[int, int] = {
-    int(MapItemType.KINGS_TOWER): 70,
+    int(MapItemType.ROYAL_TOWER): 70,
     int(MapItemType.MONUMENT): 70,
     int(MapItemType.LABORATORY): 70,
 }
 
-LANDMARK_FLOOR_AREA_TYPES = frozenset({int(MapItemType.CAPITAL), int(MapItemType.METROPOL)})
+LANDMARK_FLOOR_AREA_TYPES = frozenset({int(MapItemType.CAPITAL), int(MapItemType.TRADING_METROPOLIS)})
 
 
 def minimum_owner_level(
@@ -397,7 +397,7 @@ def minimum_owner_level(
     The level a target defends at, whoever owns it.
 
     ``AInteractiveMapobjectVO.minimumOwnerLevel`` returns the owner's own level,
-    and the landmark subclasses override it with a fixed one: a king's tower,
+    and the landmark subclasses override it with a fixed one: a royal tower,
     monument and laboratory answer 70, a capital and a metropolis their
     landmark's ``minDefenseLevel``.
 
@@ -488,7 +488,7 @@ def max_wave_count(level: int, *, conquer: bool = False, bonus: int = 0) -> int:
     Args:
         level: Effective level
         conquer: A conquest attack gets extra waves
-        bonus: Extra waves from the ADDITIONAL_WAVE legend skill
+        bonus: Extra waves from the ADDITIONAL_WAVE Legendary skill
     """
     count = 1
     for index in range(len(WAVE_UNLOCK_LEVELS) - 1, -1, -1):
@@ -551,7 +551,7 @@ class WaveCapacity(EmpireModel):
                 skills when the fight is legendary
             front_bonus_percent: The same for the middle
             tool_bonus: Extra flank tool capacity, e.g. from the
-                ADDITIONAL_ATTACK_TOOL_AMOUNT_FLANK legend skill
+                ADDITIONAL_ATTACK_TOOL_AMOUNT_FLANK Legendary skill
         """
         return cls(
             level=level,

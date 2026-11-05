@@ -49,7 +49,7 @@ class OwnVillage(OwnArea):
     One of your villages: a resource village or, on the Storm Islands, a resource island.
 
     Client: ``CastleKingdomVillageInfoVO.parseParamObject`` (bundle line 73469), which reads a row of
-    type ``ISLE_RESOURCE`` as a ``ResourceIsleMapobjectVO`` and any other as a ``VillageMapobjectVO``
+    type ``RESOURCE_ISLAND`` as a ``ResourceIsleMapobjectVO`` and any other as a ``VillageMapobjectVO``
     """
 
 

@@ -1,5 +1,5 @@
 """
-How many spies you have: the ``gms`` count plus research, legend skill and title boosts.
+How many spies you have: the ``gms`` count plus research, Legendary skill and title boosts.
 
 Client: ``CastleSpyData.getNumAllSpies`` and ``getNumAvailableSpies`` (bundle lines 139970-139978)
 """
@@ -9,13 +9,13 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import TYPE_CHECKING
 
-from empire_core.combat.bonuses import EffectResolver, effect_value_bonuses, legend_skill_value
+from empire_core.combat.bonuses import EffectResolver, effect_value_bonuses, legendary_skill_value
 from empire_core.gamedata import EnumOrInt, GameData
 from empire_core.player.titles import storm_islands_title_chain
 from empire_core.protocol.js import js_int
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import LegendSkill, Research
+    from empire_core.gamedata import LegendarySkill, Research
 
 # EffectTypeEnum (bundle line 1322): EFFECT_TYPE_SPY_COUNT_BOOST, EFFECT_TYPE_AMOUNT_SPIES_BOOST
 _SPY_COUNT_BOOST = 73
@@ -24,23 +24,25 @@ _AMOUNT_SPIES_BOOST = 98
 _SPY_AMOUNT_BONUS = "spyAmountBonus"
 
 
-def total_spies(max_spies: int, *, research_bonus: float = 0, legend_bonus: float = 0, title_percent: float = 0) -> int:
+def total_spies(
+    max_spies: int, *, research_bonus: float = 0, legendary_bonus: float = 0, title_percent: float = 0
+) -> int:
     """
     The client's count of all your spies, home or out.
 
-    ``int((max_spies + int(research_bonus) + int(legend_bonus)) * (1 + title_percent / 100))``,
-    each ``int`` truncating. The client adds ``legend_bonus`` only for a target
+    ``int((max_spies + int(research_bonus) + int(legendary_bonus)) * (1 + title_percent / 100))``,
+    each ``int`` truncating. The client adds ``legendary_bonus`` only for a target
     whose owner is a legend; pass 0 otherwise.
 
     Args:
         max_spies: ``MaxSpiesResponse.max_spies``, from ``client.state.get_max_spies()``
         research_bonus: :func:`research_spy_bonus`
-        legend_bonus: :func:`legend_spy_bonus`
+        legendary_bonus: :func:`legendary_spy_bonus`
         title_percent: :func:`title_spy_percent`
 
     Client: ``CastleSpyData.getNumAllSpies`` (bundle line 139976)
     """
-    base = js_int(max_spies) + js_int(research_bonus) + js_int(legend_bonus)
+    base = js_int(max_spies) + js_int(research_bonus) + js_int(legendary_bonus)
     return js_int(base * (1 + title_percent / 100))
 
 
@@ -66,17 +68,17 @@ def research_spy_bonus(game_data: GameData, research_ids: Iterable[EnumOrInt["Re
     return resolver.accumulate(bonuses, _AMOUNT_SPIES_BOOST, include_economy=True, ignore_cap=True)
 
 
-def legend_spy_bonus(game_data: GameData, legend_skill_ids: Iterable[EnumOrInt["LegendSkill"]]) -> float:
+def legendary_spy_bonus(game_data: GameData, legendary_skill_ids: Iterable[EnumOrInt["LegendarySkill"]]) -> float:
     """
-    Extra spies from your legend skills.
+    Extra spies from your Legendary skills.
 
     Args:
         game_data: Loaded tables
-        legend_skill_ids: ``SkillList.legend_skill_ids``, from ``client.player.get_skills()``
+        legendary_skill_ids: ``SkillList.legendary_skill_ids``, from ``client.player.get_skills()``
 
     Client: ``CastleLegendSkillData.getTotalValueOfLegendSkillEffect`` (bundle line 112086)
     """
-    return legend_skill_value(legend_skill_ids, _SPY_AMOUNT_BONUS, game_data=game_data)
+    return legendary_skill_value(legendary_skill_ids, _SPY_AMOUNT_BONUS, game_data=game_data)
 
 
 def title_spy_percent(game_data: GameData, title_ids: Iterable[int]) -> float:
@@ -108,7 +110,7 @@ def title_spy_percent(game_data: GameData, title_ids: Iterable[int]) -> float:
 
 __all__ = [
     "storm_islands_title_chain",
-    "legend_spy_bonus",
+    "legendary_spy_bonus",
     "research_spy_bonus",
     "title_spy_percent",
     "total_spies",

@@ -36,18 +36,18 @@ class TestTargetReading(FillClient):
                 defending_castellan=lambda: None,
                 attacker_bonuses=lambda: [],
                 owner_records=lambda: [],
-                defender_legend_skill_ids=[434],
+                defender_legendary_skill_ids=[434],
             )
 
         spied = _Target(x=5, y=6)
         client.attack.get_attack_info = lambda **_: info(army)
         _read_precalculation(client.attack, spied, timeout=1.0)
-        assert spied.defender_legend_skill_ids == [434]
+        assert spied.defender_legendary_skill_ids == [434]
 
         unspied = _Target(x=5, y=6)
         client.attack.get_attack_info = lambda **_: info(None)
         _read_precalculation(client.attack, unspied, timeout=1.0)
-        assert unspied.defender_legend_skill_ids is None
+        assert unspied.defender_legendary_skill_ids is None
 
     def test_a_refused_tile_scan_still_tries_the_pre_calculation_once(self, caplog):
         from empire_core.attack.targeting import _Target
@@ -180,7 +180,7 @@ class TestCampDefense(FillClient):
             defending_castellan=lambda: None,
             attacker_bonuses=lambda: [],
             owner_records=lambda: [],
-            defender_legend_skill_ids=None,
+            defender_legendary_skill_ids=None,
         )
         camp = _Target(x=5, y=6, area_type=MapItemType.DUNGEON, robber_baron_camp_victories=-6)
         castle = _Target(x=5, y=6, area_type=MapItemType.CASTLE)

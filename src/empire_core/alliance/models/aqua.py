@@ -1,7 +1,7 @@
-"""Your alliance members' aqua points on the Storm Islands.
+"""Your alliance members' cargo points on the Storm Islands.
 
 Commands:
-- ama: Each member's aqua points
+- ama: Each member's cargo points
 """
 
 from __future__ import annotations
@@ -20,9 +20,9 @@ from empire_core.protocol.js import ClientInt
 logger = logging.getLogger(__name__)
 
 
-class AllianceMemberAquaPoints(BasePayload):
+class AllianceMemberCargoPoints(BasePayload):
     """
-    One member's row: ``[player_id, name, level, unlocked, aqua_points, rank, crest]``.
+    One member's row: ``[player_id, name, level, unlocked, cargo_points, rank, crest]``.
 
     Client: ``CastleEilandPlayerRankingItemVO`` (bundle line 55535), which reads the numbers
     through ``int()``, the unlocked flag as ``== 1`` and the crest with ``CrestVO.loadFromParamObject``
@@ -33,7 +33,7 @@ class AllianceMemberAquaPoints(BasePayload):
     name: str = Field(default="", description="Player name")
     level: ClientInt = Field(default=0, description="Player level")
     has_unlocked_storm_islands: bool = Field(default=False, description="Whether the member reached the Storm Islands")
-    aqua_points: ClientInt = Field(default=0, description="The member's aqua points")
+    cargo_points: ClientInt = Field(default=0, description="The member's cargo points")
     rank: EnumOrInt[AllianceRank] = Field(default=0, description="The member's alliance rank")
     crest: OwnerCrest | None = Field(default=None, description="The member's crest; None when not sent")
 
@@ -42,7 +42,7 @@ class AllianceMemberAquaPoints(BasePayload):
     def _from_row(cls, data: Any) -> Any:
         if not isinstance(data, list):
             return data
-        keys = ("player_id", "name", "level", "has_unlocked_storm_islands", "aqua_points", "rank", "crest")
+        keys = ("player_id", "name", "level", "has_unlocked_storm_islands", "cargo_points", "rank", "crest")
         fields: dict[str, Any] = dict(zip(keys, data, strict=False))
         fields["has_unlocked_storm_islands"] = fields.get("has_unlocked_storm_islands") == 1
         if "name" in fields:
@@ -52,9 +52,9 @@ class AllianceMemberAquaPoints(BasePayload):
         return fields
 
 
-class AllianceMemberAquaPointsRequest(BaseRequest):
+class AllianceMemberCargoPointsRequest(BaseRequest):
     """
-    Ask for each member's aqua points.
+    Ask for each member's cargo points.
 
     Command: ama
     Payload: {"AID": alliance_id}
@@ -69,9 +69,9 @@ class AllianceMemberAquaPointsRequest(BaseRequest):
     alliance_id: int = Field(validation_alias="AID", description="Your alliance's id")
 
 
-class AllianceMemberAquaPointsResponse(BaseResponse):
+class AllianceMemberCargoPointsResponse(BaseResponse):
     """
-    Each member's aqua points, as the server lists them.
+    Each member's cargo points, as the server lists them.
 
     Command: ama
     Payload: {"APH": [row, ...]}
@@ -83,7 +83,7 @@ class AllianceMemberAquaPointsResponse(BaseResponse):
 
     command = "ama"
 
-    members: list[AllianceMemberAquaPoints] = Field(
+    members: list[AllianceMemberCargoPoints] = Field(
         validation_alias="APH", default_factory=list, description="One row per member"
     )
 
@@ -91,12 +91,12 @@ class AllianceMemberAquaPointsResponse(BaseResponse):
     @classmethod
     def _rows(cls, value: Any) -> Any:
         return readable_list(
-            AllianceMemberAquaPoints,
+            AllianceMemberCargoPoints,
             value,
             accept=lambda row: isinstance(row, list),
             warn=logger,
-            what="member aqua points",
+            what="member cargo points",
         )
 
 
-__all__ = ["AllianceMemberAquaPoints", "AllianceMemberAquaPointsRequest", "AllianceMemberAquaPointsResponse"]
+__all__ = ["AllianceMemberCargoPoints", "AllianceMemberCargoPointsRequest", "AllianceMemberCargoPointsResponse"]

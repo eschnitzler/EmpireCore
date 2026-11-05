@@ -16,7 +16,7 @@ SII = {"IR": 3, "AP": 1200, "AR": 1, "KA": 1, "AE": "1"}
 
 def test_the_standing_reads_ranks_points_and_flags():
     info = StormIslandsInfo.model_validate(SII)
-    assert (info.rank, info.aqua_points, info.alliance_rank) == (3, 1200, 1)
+    assert (info.rank, info.cargo_points, info.alliance_rank) == (3, 1200, 1)
     assert info.alliance_is_island_king and info.alliance_entered_islands
     assert not StormIslandsInfo.model_validate({"KA": 0, "AE": 2}).alliance_is_island_king
 
@@ -27,7 +27,7 @@ def test_get_storm_islands_info_sends_sii_and_keeps_the_standing_and_aqua_points
     info = client.player.get_storm_islands_info()
     assert conn(client).request_payloads == [("sii", {})]
     assert client.player.storm_islands == info
-    assert client.player.aqua_points == 1200
+    assert client.player.cargo_points == 1200
 
 
 def test_a_refused_standing_raises_and_keeps_nothing():
@@ -55,9 +55,9 @@ def test_the_reset_locks_the_islands_zeroes_aqua_points_and_drops_movements_ther
     kingdoms = state.get_kingdoms()
     assert kingdoms is not None
     assert {k.kingdom_id: k.is_unlocked for k in kingdoms.kingdoms} == {Kingdom.STORM: False, Kingdom.ICE: True}
-    assert state.get_aqua_points() == 0
+    assert state.get_cargo_points() == 0
     alliance = state.get_own_alliance()
-    assert alliance is not None and alliance.aqua_points == 0
+    assert alliance is not None and alliance.cargo_points == 0
     assert [m.movement_id for m in state.get_all_movements()] == [2]
     assert wait_for(lambda: removed == [1])
     assert StormIslandsReset.model_validate({}).command == "ikr"

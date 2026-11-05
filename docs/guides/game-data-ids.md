@@ -16,7 +16,7 @@ GeneralSkill.TORIL_ASPECTOFTHE_DRAGON_L1
 ```
 
 Units, tools, effects, effect types, currencies (`Currency` by key,
-`CurrencyId` by id), generals, general abilities and skills, legend skills,
+`CurrencyId` by id), generals, general abilities and skills, Legendary skills,
 raid bosses, global effects, buildings, researches, construction items,
 events, loot boxes and their types, equipment groups, event difficulty types,
 quests (`QuestId`), daily quests (`DailyQuestId`), main quests (`MainQuest`),

@@ -263,7 +263,7 @@ class TestAllianceInfoFlags:
                 "A": None,
             }
         )
-        assert (info.fame_points, info.highest_fame_points, info.application_count, info.aqua_points) == (
+        assert (info.glory_points, info.highest_glory_points, info.application_count, info.cargo_points) == (
             1200,
             3000,
             3,
@@ -338,8 +338,8 @@ class TestAllianceMemberInfoGuard:
             250000,
             1,
         )
-        assert (row.capital_count, row.metropolis_count, row.kings_tower_count) == (1, 2, 0)
-        assert (row.monument_count, row.laboratory_count, row.daily_fame) == (1, 3, 180)
+        assert (row.capital_count, row.metropolis_count, row.royal_tower_count) == (1, 2, 0)
+        assert (row.monument_count, row.laboratory_count, row.daily_glory) == (1, 3, 180)
 
     def test_a_non_list_ami_reads_as_empty(self):
         assert AllianceInfo.model_validate({"AID": 1, "AMI": "nope"}).member_info == []
@@ -362,7 +362,7 @@ class TestAllianceLandmarksAndDiplomacy:
         )
         assert [(i.item_type, i.location_id, i.owner_id) for i in info.capitals] == [(3, 900001, 4242)]
         assert [i.location_id for i in info.metropolises] == [900002]
-        assert [i.location_id for i in info.kings_towers] == [900003]
+        assert [i.location_id for i in info.royal_towers] == [900003]
         assert [i.location_id for i in info.monuments] == [900004]
         assert [i.location_id for i in info.laboratories] == [900005]
 
@@ -433,7 +433,7 @@ class TestAllianceInfoMembers:
         )
         assert [m.player_id for m in info.members] == [1, 3, 2]
         leader, officer, member = info.members
-        assert leader.member_info is not None and (leader.member_info.given_coins, leader.member_info.daily_fame) == (
+        assert leader.member_info is not None and (leader.member_info.given_coins, leader.member_info.daily_glory) == (
             100,
             50,
         )

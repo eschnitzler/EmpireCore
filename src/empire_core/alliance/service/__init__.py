@@ -10,7 +10,7 @@ It covers:
 - Alliance help (the help list and its pushes, helping, asking for help)
 - Your alliance's chronicle and subscriber count
 - Map bookmarks, your own and your alliance's (list, add, change, delete)
-- Joining automatically, members' aqua points and the alliance forge
+- Joining automatically, members' cargo points and the alliance forge
 - Beyond the Horizon: entry, performance, influence, centers of power and alliance towers
 """
 

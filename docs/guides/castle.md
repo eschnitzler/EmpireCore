@@ -69,9 +69,9 @@ level; its direction stays None. `relocate` moves your main castle in the green
 kingdom; a relocation that costs rubies, or one whose price is not known yet
 (no `gri` arrived), needs `spend_rubies`.
 
-### Kings towers, monuments and villages
+### Royal towers, monuments and villages
 
-`client.castle.kings_towers`, `monuments`, `laboratories` and `villages` are the
+`client.castle.royal_towers`, `monuments`, `laboratories` and `villages` are the
 lists the login brought, replaced by each push (`gkl`, `gml`, `gll`) or reply
 (`kgv`, from `client.castle.get_villages()`). Each entry is the map row with the
 units stationed there. `client.castle.monument_reset` and `laboratory_reset`

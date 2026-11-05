@@ -44,7 +44,7 @@ wire limit. Permission refusals raise `CommandError`.
 client's game data. A temporary layout must still be held. It returns the selected
 crest after acknowledgment; the separate crest push updates the cached crest.
 
-Alliance fame, buffs and crest pushes update `own_alliance`. Settings and membership
+Alliance glory, buffs and crest pushes update `own_alliance`. Settings and membership
 responses are scoped to the membership that sent them; later pushes keep their newer
 values. The push protocol carries no alliance id, so an untagged push arriving after
 new alliance details cannot independently identify its originating membership.
@@ -354,18 +354,18 @@ is your new one when it did, applied to state; otherwise `alliances` lists
 alliances to join (`language="de"` limits the list to one language). A pushed
 `aja` (you were put in an alliance) and `sal` (alliances to join) are read too.
 
-## Donation resources, aqua points and the forge
+## Donation resources, cargo points and the forge
 
 `client.alliance.get_donation_resources(castle_id)` returns what one of your
 castles has to donate and your special currencies.
-`client.alliance.get_member_aqua_points()` lists each member's Storm Islands
-aqua points; `client.player.get_aqua_points()` asks for yours and your
-alliance's, and `client.player.aqua_points` keeps the last value.
+`client.alliance.get_member_cargo_points()` lists each member's Storm Islands
+cargo points; `client.player.get_cargo_points()` asks for yours and your
+alliance's, and `client.player.cargo_points` keeps the last value.
 `client.player.get_storm_islands_info()` adds your rank and your alliance's
 standing on the islands, kept as `client.player.storm_islands`.
 
-`client.alliance.forge()` crafts in the alliance forge. Below legend level 1 it
-needs the alliance's `is_able_to_forge`; from legend level 1 the relic forge
+`client.alliance.forge()` crafts in the alliance forge. Below Legendary level 1 it
+needs the alliance's `is_able_to_forge`; from Legendary level 1 the relic forge
 crafts, paid in coins, or in rubies with `pay_with_rubies=True` (which needs
 `spend_rubies=True`). A crafted gem joins `client.commanders.gems`.
 

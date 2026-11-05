@@ -204,7 +204,7 @@ TABLE_OF: dict[str, str] = {
     "GeneralRarity": "general_rarities",
     "GeneralSkill": "general_skills",
     "GeneralsHubCharacter": "generals_hub_characters",
-    "LegendSkill": "legend_skills",
+    "LegendarySkill": "legendary_skills",
     "RaidBoss": "raid_bosses",
     "GlobalEffect": "global_effects",
     "Gem": "gems",
@@ -341,7 +341,7 @@ class TestMemberData:
             (ids.Tool.PREMIUMSTAKES, "tool_type"),
             (ids.General.TORIL, "row_name"),
             (ids.Building.KEEP_L1, "building_type"),
-            (ids.LegendSkill.GATE_REDUCTION_T0_G1_L1, "effect_type"),
+            (ids.LegendarySkill.GATE_REDUCTION_T0_G1_L1, "effect_type"),
         ]:
             assert not hasattr(member, dropped), (member, dropped)
 
@@ -560,7 +560,7 @@ class TestGenerator:
             "G102_ASPECTOFTHE_DRAGON_L1": 10210201,
         }
         assert self.members(items, "GeneralAbility") == {"POWER_SURGE_L1": 10011, "POWER_SURGE_L2": 10012}
-        assert self.members(items, "LegendSkill") == {"GATE_REDUCTION_T0_G1_L1": 1, "GATE_REDUCTION_T0_G1_L2": 2}
+        assert self.members(items, "LegendarySkill") == {"GATE_REDUCTION_T0_G1_L1": 1, "GATE_REDUCTION_T0_G1_L2": 2}
 
     def test_new_tables_are_named_from_their_name_columns(self, items):
         assert self.members(items, "Building") == {

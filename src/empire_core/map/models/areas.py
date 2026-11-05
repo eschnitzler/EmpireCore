@@ -192,7 +192,7 @@ class MapObject(BasePayload):
     via_refer_a_friend: bool = Field(validation_alias="IRF", default=False, description="Joined through refer-a-friend")
 
     @property
-    def is_legend(self) -> bool:
+    def is_legendary(self) -> bool:
         """Whether the player is a legend: a legendary level above zero.
 
         Client: ``WorldMapOwnerInfoVO.isLegend`` (bundle line 10892)

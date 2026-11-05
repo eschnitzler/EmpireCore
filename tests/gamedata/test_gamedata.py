@@ -1186,7 +1186,7 @@ class TestNamedLookups:
         assert data.general_ability("PowerSurge", 2).ability_id == 10012
         assert data.general_skill(101, "AspectoftheDragon", 2).skill_id == 10110202
         assert data.general_skill(102, "AspectoftheDragon", 1).skill_id == 10210201
-        assert data.legend_skill(0, 1, 2).skill_id == 2
+        assert data.legendary_skill(0, 1, 2).skill_id == 2
         assert data.currency("KT").currency_id == 1
         assert data.effect_type("fameDefenseBonus").effect_type_id == 0
         assert data.raid_boss("Necromancer").raid_boss_id == 1
@@ -1199,7 +1199,7 @@ class TestNamedLookups:
         assert data.general("toril") is None
         assert data.general_ability("PowerSurge", 3) is None
         assert data.general_skill(103, "AspectoftheDragon", 1) is None
-        assert data.legend_skill(1, 1, 1) is None
+        assert data.legendary_skill(1, 1, 1) is None
         assert data.currency("C1") is None
         assert data.effect_type("nope") is None
         assert data.raid_boss("nope") is None

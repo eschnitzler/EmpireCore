@@ -1,7 +1,7 @@
 """
-Generals and legend skills: the two attacker-side inputs that size a wave.
+Generals and Legendary skills: the two attacker-side inputs that size a wave.
 
-A general's unlocked skills widen the flanks; the player's legend skills widen
+A general's unlocked skills widen the flanks; the player's Legendary skills widen
 them further and add waves, but only in a legendary fight. Both are read with
 their own command and neither arrives with the commander list.
 """
@@ -20,7 +20,7 @@ from empire_core.protocol.js import ClientInt, js_loose_equals
 from .roster import CommanderRoster, SelectedAbility
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import CurrencyId, General, GeneralSkill, LegendSkill, SceatSkill
+    from empire_core.gamedata import CurrencyId, General, GeneralSkill, LegendarySkill, SceatSkill
     from empire_core.gamedata.models import GeneralDef
 
 logger = logging.getLogger(__name__)
@@ -349,18 +349,18 @@ class ActivatingSceatSkill(BasePayload):
 
 class SkillList(BasePayload):
     """
-    The player's legend and sceat skills, the ``skl`` block.
+    The player's Legendary and sceat skills, the ``skl`` block.
 
-    ``SID`` are the legend skills, which apply only in a legendary fight, and
+    ``SID`` are the Legendary skills, which apply only in a legendary fight, and
     ``SIDS`` the Hall of Legends sceat skills, which always apply.
 
     Client: ``CastleLegendSkillData.parse_SKL`` (bundle line 112051)
     """
 
-    legend_skill_ids: tuple[EnumOrInt["LegendSkill"], ...] = Field(
+    legendary_skill_ids: tuple[EnumOrInt["LegendarySkill"], ...] = Field(
         validation_alias="SID",
         default=(),
-        description="Legend skills, which apply only in a legendary fight",
+        description="Legendary skills, which apply only in a legendary fight",
     )
     sceat_skill_ids: tuple[EnumOrInt["SceatSkill"], ...] = Field(
         validation_alias="SIDS",
@@ -390,7 +390,7 @@ class SkillList(BasePayload):
     def _seconds(cls, value: Any) -> Any:
         return value if isinstance(value, (int, float)) and not isinstance(value, bool) else 0
 
-    @field_validator("legend_skill_ids", "sceat_skill_ids", mode="before")
+    @field_validator("legendary_skill_ids", "sceat_skill_ids", mode="before")
     @classmethod
     def _skill_ids(cls, value: Any) -> Any:
         # parse_SKL walks SID and SIDS only when they are set
@@ -405,13 +405,13 @@ class SkillList(BasePayload):
 
     def spent_points(self, *, game_data: GameData | None = None) -> int:
         """
-        The skill points the held legend skills cost, each level counted with those below it.
+        The skill points the held Legendary skills cost, each level counted with those below it.
 
         Client: ``CastleLegendSkillData.getSpentPoints`` (bundle line 112097)
         """
         game_data = game_data if game_data is not None else GameData.require()
-        skills = game_data.legend_skills
-        return sum(row.total_cost_skill_points for row in map(skills.get, self.legend_skill_ids) if row is not None)
+        skills = game_data.legendary_skills
+        return sum(row.total_cost_skill_points for row in map(skills.get, self.legendary_skill_ids) if row is not None)
 
     def available_points(self, *, game_data: GameData | None = None) -> int:
         """
@@ -425,10 +425,10 @@ class SkillList(BasePayload):
 
 class GetSkillsResponse(BaseResponse, SkillList):
     """
-    Response listing the player's legend and sceat skills.
+    Response listing the player's Legendary and sceat skills.
 
     Command: skl
-    Payload: {"SID": [legend skill ids], "SIDS": [sceat skill ids], "SP": total_points,
+    Payload: {"SID": [Legendary skill ids], "SIDS": [sceat skill ids], "SP": total_points,
               "RS": seconds_until_reset, "RC": reset_count, "SSA": [{"ID": .., "RS": ..}, ..]}
 
     Client: ``SKLCommand.executeCommand`` (bundle line 129742)
@@ -439,7 +439,7 @@ class GetSkillsResponse(BaseResponse, SkillList):
 
 class AddSkillPointRequest(BaseRequest):
     """
-    Buy a legend skill level with skill points.
+    Buy a Legendary skill level with skill points.
 
     Command: skp
     Payload: {"ID": skill_id}
@@ -454,12 +454,12 @@ class AddSkillPointRequest(BaseRequest):
 
     command = "skp"
 
-    skill: EnumOrInt["LegendSkill"] = Field(validation_alias="ID", description="The legend skill level to buy")
+    skill: EnumOrInt["LegendarySkill"] = Field(validation_alias="ID", description="The Legendary skill level to buy")
 
 
 class AddSkillPointResponse(BaseResponse):
     """
-    The legend skill levels bought.
+    The Legendary skill levels bought.
 
     Command: skp
     Payload: {"IDS": [skill_id, ..]}
@@ -470,7 +470,7 @@ class AddSkillPointResponse(BaseResponse):
 
     command = "skp"
 
-    skill_ids: tuple[EnumOrInt["LegendSkill"], ...] = Field(
+    skill_ids: tuple[EnumOrInt["LegendarySkill"], ...] = Field(
         validation_alias="IDS", default=(), description="The levels bought"
     )
 
@@ -482,7 +482,7 @@ class AddSkillPointResponse(BaseResponse):
 
 class ResetSkillsRequest(BaseRequest):
     """
-    Take back every legend skill point.
+    Take back every Legendary skill point.
 
     Command: skr
     Payload: {}

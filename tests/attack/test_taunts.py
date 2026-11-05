@@ -29,16 +29,16 @@ class TestKhanTaunt:
             client.attack.taunt_nomad_khan()
 
 
-class TestWolfKingTaunt:
+class TestWolfgardTaunt:
     def test_sends_nothing_else(self):
         client = make_client()
-        client.attack.taunt_wolf_king()
+        client.attack.taunt_wolfgard()
         assert conn(client).request_payloads == [("lwta", {})]
 
     def test_a_refusal_raises(self):
         client = make_client({"lwta": xt_packet("lwta", error_code=1)})
         with pytest.raises(CommandError):
-            client.attack.taunt_wolf_king()
+            client.attack.taunt_wolfgard()
 
 
 class TestRagePoints:

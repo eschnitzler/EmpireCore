@@ -192,7 +192,7 @@ class TestRiskTargetFlags:
             ([13, 1, 2], (True, True)),
             ([25, 1, 2, 4, -1, 1, 0, 0, 0], (True, True)),  # isle dungeon
             ([37, 1, 2], (True, True)),  # daimyo castle
-            ([42, 1, 2], (True, True)),  # wolf king
+            ([42, 1, 2], (True, True)),  # Wolfgard
             ([35, 1, 2, -1, 1, 0, 0, 0, 0, 0, 0, 0, 0], (True, True)),  # nomad khan camp: -801
             ([30, 1, 2, -1, 3, 0, 0, -401], (True, True)),  # Berimond invasion camp: its owner field
         ],

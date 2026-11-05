@@ -56,11 +56,11 @@ class TestPositionalArrayParsers:
             MapItemType.OUTPOST,
             MapItemType.VILLAGE,
             MapItemType.KINGDOM_CASTLE,
-            MapItemType.METROPOL,
-            MapItemType.KINGS_TOWER,
+            MapItemType.TRADING_METROPOLIS,
+            MapItemType.ROYAL_TOWER,
             MapItemType.MONUMENT,
             MapItemType.LABORATORY,
-            MapItemType.ISLE_RESOURCE,
+            MapItemType.RESOURCE_ISLAND,
         ],
     )
     def test_map_area_item_owner_is_field_four_for_every_owned_type(self, item_type):
@@ -249,7 +249,7 @@ class TestPositionalArrayParsers:
             (MapItemType.CASTLE, 77),
             (MapItemType.KINGDOM_CASTLE, 77),
             (MapItemType.CAPITAL, 66),
-            (MapItemType.METROPOL, 66),
+            (MapItemType.TRADING_METROPOLIS, 66),
         ],
     )
     def test_player_castle_capturer_depends_on_the_area_type(self, area_type, capturer):
@@ -293,7 +293,7 @@ class TestPositionalArrayParsers:
     def test_alliance_search_result_reads_numbers_like_the_client(self):
         result = AllianceSearchResult.model_validate(["3", 2.0, ["x", 7, "12", None]])
         assert (result.rank, result.score, result.alliance_id, result.name, result.member_count) == (3, 2, 0, "7", 12)
-        assert result.fame_points == 0
+        assert result.glory_points == 0
 
 
 class TestMalformedNestedResponsePayloads:

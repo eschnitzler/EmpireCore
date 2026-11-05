@@ -94,7 +94,7 @@ lock, so two premium sends at once cannot both take the last free one.
 
 One known gap: for a conquer attack (`attack_type=AttackType.CONQUER`) the
 game client sends `BPC` 0 without asking for rubies, whichever commander
-leads, unless the target is a capital, village, kings tower, resource isle,
+leads, unless the target is a capital, village, royal tower, resource island,
 monument or laboratory. `send_attack` does not know the target's area type, so
 it checks such an attack like any other; pass `use_premium_commander=False`
 and `spend_rubies=True` to send what the client sends there.

@@ -51,7 +51,7 @@ from empire_core.protocol.js import ClientInt, js_int, js_loose_equals, js_numbe
 from empire_core.protocol.text import decode_json_text, encode_json_text
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import BerimondSpecialCamp, LegendSkill
+    from empire_core.gamedata import BerimondSpecialCamp, LegendarySkill
 
 logger = logging.getLogger(__name__)
 
@@ -580,7 +580,7 @@ class SpyReportArea(BasePayload):
     The spied area, a spy report's ``AI`` block.
 
     Which of the optional keys the client reads depends on the area's type:
-    ``RT`` for an outpost, village, monument or resource isle, ``DL`` for a
+    ``RT`` for an outpost, village, monument or resource island, ``DL`` for a
     dungeon or an NPC owner, ``SPC`` for a faction area, ``DAR`` and ``DDCID``
     for a daimyo castle or township, ``ACVC`` and ``AID`` for a Beyond the Horizon tower.
 
@@ -632,7 +632,7 @@ class SpyReportArea(BasePayload):
     area_subtype: int | None = Field(
         validation_alias="RT",
         default=None,
-        description="Outpost type, village type or monument type, or a resource isle's isle id",
+        description="Outpost type, village type or monument type, or a resource island's isle id",
     )
     special_camp_id: EnumOrInt["BerimondSpecialCamp"] | None = Field(
         validation_alias="SPC", default=None, description="A Battle for Berimond area's special camp"
@@ -674,7 +674,7 @@ class SpyReportResponse(BaseResponse):
         {"MID": message_id, "CID": area_object_id, "SID": spy_owner_id, "PID": owner_id,
          "SC": spies, "GC": guards, "SA": accuracy_or_damage, "SR": risk,
          "S": [left, middle, right, keep, stronghold, support, reserve], "AS": seconds_since_spy,
-         "B": {castellan}, "LS": [legend_skill_id, ...], "R": [collectables], "RS": cooldown_seconds,
+         "B": {castellan}, "LS": [legendary_skill_id, ...], "R": [collectables], "RS": cooldown_seconds,
          "OI": {owner record}, "SO": {owner record}, "AI": {area}, "DAR": daimyo_rank}
 
     An ``AI`` block whose ``AT``, ``X`` or ``Y`` is missing or not one the
@@ -731,8 +731,8 @@ class SpyReportResponse(BaseResponse):
         default=None,
         description="The castellan defending the spied area, without its equipment; None when there is none",
     )
-    legend_skill_ids: tuple[EnumOrInt["LegendSkill"], ...] = Field(
-        validation_alias="LS", default=(), description="The defender's legend skills"
+    legendary_skill_ids: tuple[EnumOrInt["LegendarySkill"], ...] = Field(
+        validation_alias="LS", default=(), description="The defender's Legendary skills"
     )
     resources: CollectableRows = Field(
         validation_alias="R",
@@ -757,11 +757,11 @@ class SpyReportResponse(BaseResponse):
             data = {**data, "AI": {**data["AI"], "DAR": data["DAR"]}}
         return data
 
-    @field_validator("legend_skill_ids", mode="before")
+    @field_validator("legendary_skill_ids", mode="before")
     @classmethod
     def _skill_ids(cls, value: Any) -> Any:
         # Client: e.LS&&(this._legendSkills=e.LS) (bundle line 60579), each looked up as sent by getSkillByID
-        return int_entries(value, warn=logger, what="legend skills of a spy report")
+        return int_entries(value, warn=logger, what="Legendary skills of a spy report")
 
     @field_validator("defending_castellan", mode="wrap")
     @classmethod

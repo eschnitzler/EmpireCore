@@ -1,6 +1,6 @@
 # Player
 
-Player profiles, search and legend skills behind `client.player`.
+Player profiles, search and Legendary skills behind `client.player`.
 
 ## `player.service`
 

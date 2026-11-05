@@ -1,5 +1,5 @@
 ---
-description: Generals, their abilities and skills, and the player's legend and sceat skills.
+description: Generals, their abilities and skills, and the player's Legendary and sceat skills.
 ---
 
 # Skills and generals
@@ -69,10 +69,10 @@ spin = client.commanders.spin_generals_hub(GeneralsHubCharacter.FAT_KING, Curren
 
 ```python
 skills = client.player.get_skills()
-print(skills.legend_skill_ids, skills.total_points, skills.reset_count)
+print(skills.legendary_skill_ids, skills.total_points, skills.reset_count)
 ```
 
-`legend_skill_ids` are `LegendSkill` members and `sceat_skill_ids` `SceatSkill`
+`legendary_skill_ids` are `LegendarySkill` members and `sceat_skill_ids` `SceatSkill`
 members, as is the `skill_id` of each sceat skill still being activated
 (`activating`); a general's `skill_ids` are `GeneralSkill` members.
 
@@ -89,19 +89,19 @@ client.player.on_skill_list(lambda s: print("skills now", s.sceat_skill_ids))
 
 Remove it with `client.player.on_skill_list.remove(callback)`.
 
-### Spending and resetting legend skill points
+### Spending and resetting Legendary skill points
 
 ```python
-from empire_core.gamedata import LegendSkill
+from empire_core.gamedata import LegendarySkill
 
-client.player.add_legend_skill_point(LegendSkill.GATE_REDUCTION_T0_G1_L1)
+client.player.add_legendary_skill_point(LegendarySkill.GATE_REDUCTION_T0_G1_L1)
 print(client.player.available_skill_points)
 print(client.player.spent_skill_points)
 
 client.player.reset_skills()
 ```
 
-`add_legend_skill_point` buys one level, the next of a skill you hold or the first
+`add_legendary_skill_point` buys one level, the next of a skill you hold or the first
 of one you don't, and swaps it into `client.player.skills`. A refusal (tier
 locked, a missing skill, too few points) raises `CommandError`.
 

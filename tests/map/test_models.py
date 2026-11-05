@@ -14,8 +14,8 @@ from empire_core.map.models.areas import (
 )
 from empire_core.map.models.items import (
     ROW_PARSERS,
-    AbgCastleConnection,
-    AbgTowerConnection,
+    HorizonCastleConnection,
+    HorizonTowerConnection,
     MapAreaItem,
     parse_area_rows,
 )
@@ -24,7 +24,7 @@ from empire_core.protocol.models import parse_response
 
 # A castle row in the layout InteractiveMapobjectVO.parseAreaInfo (bundle line 3631) reads:
 # [type, x, y, object id, owner, keep, wall, gate, tower, moat, name, attack cooldown,
-#  sabotage cooldown, spied, outpost type, occupier, kingdom, skin, ABG connection, sabotage protection]
+#  sabotage cooldown, spied, outpost type, occupier, kingdom, skin, Beyond the Horizon connection, sabotage protection]
 CASTLE_ROW: list[Any] = [1, 640, 655, 900, 4242, 6, 5, 4, 3, 2, "Castle", 30, 40, 50, 0, -1, 2, 77, [], 1]
 
 
@@ -187,18 +187,18 @@ class TestOwnerRecordConversions:
         assert (owner.owner_id, owner.is_dummy, owner.owner_name, owner.level) == (5, True, "", 0)
         assert (owner.is_ruin, owner.castle_positions) == (False, [])
 
-    @pytest.mark.parametrize(("legend_level", "is_legend"), [(1, True), ("12", True), (0, False), ("x", False)])
-    def test_a_legend_has_a_legendary_level(self, legend_level, is_legend):
+    @pytest.mark.parametrize(("legendary_level", "is_legendary"), [(1, True), ("12", True), (0, False), ("x", False)])
+    def test_a_legend_has_a_legendary_level(self, legendary_level, is_legendary):
         # WorldMapOwnerInfoVO.isLegend (bundle line 10892): playerLegendLevel > 0
-        owner = GetMapAreaResponse.model_validate({"OI": [{"OID": 5, "LL": legend_level}]}).owners[0]
-        assert owner.is_legend is is_legend
+        owner = GetMapAreaResponse.model_validate({"OI": [{"OID": 5, "LL": legendary_level}]}).owners[0]
+        assert owner.is_legendary is is_legendary
 
     def test_an_owner_without_a_legendary_level_is_no_legend(self):
-        assert GetMapAreaResponse.model_validate({"OI": [{"OID": 5}]}).owners[0].is_legend is False
+        assert GetMapAreaResponse.model_validate({"OI": [{"OID": 5}]}).owners[0].is_legendary is False
 
     def test_a_dummy_is_no_legend(self):
         owner = GetMapAreaResponse.model_validate({"OI": [{"OID": 5, "DUM": 1, "LL": 12}]}).owners[0]
-        assert owner.is_legend is False
+        assert owner.is_legendary is False
 
     def test_an_empty_alliance_name_reads_as_empty(self):
         owner = GetMapAreaResponse.model_validate({"OI": [{"OID": 5, "AN": None}]}).owners[0]
@@ -320,13 +320,15 @@ class TestCastleStyleRows:
             50,
         )
         assert (item.outpost_type, item.occupier_id, item.kingdom, item.skin_id) == (0, -1, Kingdom.ICE, 77)
-        assert (item.abg_tower_connection, item.has_sabotage_protection, item.is_occupied) == (None, True, False)
+        assert (item.horizon_tower_connection, item.has_sabotage_protection, item.is_occupied) == (None, True, False)
 
     def test_an_horizon_castle_reads_its_tower_connection(self):
         row = list(CASTLE_ROW)
         row[18] = [10, "11", 1, "250"]
         item = MapAreaItem.from_list(row)
-        assert item.abg_tower_connection == AbgCastleConnection(x=10, y=11, is_attackable=True, tower_points=250)
+        assert item.horizon_tower_connection == HorizonCastleConnection(
+            x=10, y=11, is_attackable=True, tower_points=250
+        )
 
     def test_castle_rows_floor_keep_wall_and_gate(self):
         item = MapAreaItem.from_list([1, 1, 2, 3, 4, 0, 0, 0, 2, 1, "c"])
@@ -364,9 +366,9 @@ class TestCastleStyleRows:
 
     def test_a_metropolis_reads_its_mine_only_past_field_seventeen(self):
         base = [22, 1, 2, 3, 4, 1, 1, 1, 1, 1, "metro", 0, 0, 0, -1, 0, 0]
-        assert MapAreaItem.from_list(base).abg_mine_out_seconds is None
+        assert MapAreaItem.from_list(base).horizon_mine_out_seconds is None
         item = MapAreaItem.from_list([*base, "600", 9000])
-        assert (item.abg_mine_out_seconds, item.abg_max_influence_points) == (600, 9000)
+        assert (item.horizon_mine_out_seconds, item.horizon_max_influence_points) == (600, 9000)
 
     def test_an_outpost_reads_its_occupier_at_fifteen(self):
         row = [4, 1, 2, 3, 4, 1, 1, 1, 0, 0, "op", 0, 0, 0, 2, 4343, 0]
@@ -428,7 +430,7 @@ class TestLandmarkRows:
         assert (item.seconds_since_espionage, item.name, item.wall_level) == (60, "village", None)
 
     def test_a_kings_tower(self):
-        item = _row(MapItemType.KINGS_TOWER, 900, 4242, 2, 60, "tower")
+        item = _row(MapItemType.ROYAL_TOWER, 900, 4242, 2, 60, "tower")
         assert (item.location_id, item.owner_id, item.kingdom, item.seconds_since_espionage, item.name) == (
             900,
             4242,
@@ -452,7 +454,7 @@ class TestLandmarkRows:
         )
 
     def test_a_resource_isle(self):
-        item = _row(MapItemType.ISLE_RESOURCE, 900, 4242, 4, "isle", 60, "12", 300)
+        item = _row(MapItemType.RESOURCE_ISLAND, 900, 4242, 4, "isle", 60, "12", 300)
         assert (item.kingdom, item.name, item.isle_id, item.remaining_occupier_seconds) == (
             Kingdom.STORM,
             "isle",
@@ -462,7 +464,7 @@ class TestLandmarkRows:
 
     def test_landmarks_carry_no_structure_levels(self):
         for item in (
-            _row(MapItemType.KINGS_TOWER, 3, 4, 0, 60, "tower"),
+            _row(MapItemType.ROYAL_TOWER, 3, 4, 0, 60, "tower"),
             _row(MapItemType.MONUMENT, 3, 4, 2, 7, 0, 60, "monument"),
             _row(MapItemType.LABORATORY, 3, 4, 9, 0, 60, "lab"),
             _row(MapItemType.VILLAGE, 3, 4, 1, 0, 60, "village"),
@@ -530,7 +532,7 @@ class TestCampRows:
 
     def test_an_event_dungeon_and_the_wolf_king(self):
         event = _row(MapItemType.EVENT_DUNGEON, 60, 12, 1)
-        wolf = _row(MapItemType.WOLF_KING, 60, 12, 0, 40, 50, 60)
+        wolf = _row(MapItemType.WOLF_FORTRESS, 60, 12, 0, 40, 50, 60)
         assert (event.dungeon_level, event.is_defeated, event.base_wall_bonus) == (12, True, None)
         assert (wolf.is_defeated, wolf.base_wall_bonus, wolf.base_gate_bonus, wolf.base_moat_bonus) == (
             False,
@@ -564,7 +566,7 @@ class TestCampRows:
         assert (full.already_rerolled, full.scaling_camp_id) == (True, 9)
 
     def test_an_isle_dungeon(self):
-        item = _row(MapItemType.ISLE_DUNGEON, 4, 60, "12", "100", 3, 0)
+        item = _row(MapItemType.STORM_FORT, 4, 60, "12", "100", 3, 0)
         assert (item.kingdom, item.isle_id, item.attack_cooldown_seconds, item.victory_count) == (
             Kingdom.STORM,
             12,
@@ -619,10 +621,10 @@ class TestCampRows:
     def test_an_horizon_tower(self):
         item = _row(MapItemType.HORIZON_TOWER, 900, "tower", 1, "4", "3000", "Alliance", [2, [1, 2]], [[5, 6]])
         assert (item.location_id, item.name, item.is_attackable, item.victory_count) == (900, "tower", True, 4)
-        assert (item.alliance_id, item.alliance_name, item.abg_connections) == (
+        assert (item.alliance_id, item.alliance_name, item.horizon_connections) == (
             3000,
             "Alliance",
-            (AbgTowerConnection(x=5, y=6),),
+            (HorizonTowerConnection(x=5, y=6),),
         )
         assert item.alliance_crest is not None
         assert (item.alliance_crest.layout_id, item.alliance_crest.color_ids) == (2, [1, 2])
@@ -631,9 +633,9 @@ class TestCampRows:
     def test_an_horizon_tower_reads_its_connections(self):
         connections = [[5, 6, "Someone", 1], [7, 8, "Other", "0"], "bad"]
         item = _row(MapItemType.HORIZON_TOWER, 900, "t", 1, 4, 3000, "A", [2, [1]], connections)
-        assert item.abg_connections == (
-            AbgTowerConnection(x=5, y=6, player_name="Someone", is_defeated=True),
-            AbgTowerConnection(x=7, y=8, player_name="Other", is_defeated=False),
+        assert item.horizon_connections == (
+            HorizonTowerConnection(x=5, y=6, player_name="Someone", is_defeated=True),
+            HorizonTowerConnection(x=7, y=8, player_name="Other", is_defeated=False),
         )
 
     @pytest.mark.parametrize("area_type", [MapItemType.EMPTY, MapItemType.DYNAMIC, MapItemType.ARE_PORTAL])

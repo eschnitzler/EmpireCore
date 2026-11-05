@@ -37,9 +37,9 @@ class MovementType(IntEnum):
     HORIZON_COLLECTOR_ATTACK = 29
     OUTER_REALMS_PVE_CHARGE = 30
     OUTER_REALMS_PVP_CHARGE = 31
-    ABG_ALLIANCE_TOWER_SUPPORT = 32
-    ABG_ALLIANCE_TOWER_ATTACK = 33
-    WOLFKING_TAUNT_ATTACK = 34
+    HORIZON_ALLIANCE_TOWER_SUPPORT = 32
+    HORIZON_ALLIANCE_TOWER_ATTACK = 33
+    WOLFGARD_TAUNT_ATTACK = 34
 
     @property
     def is_attack(self) -> bool:
@@ -52,7 +52,7 @@ class MovementType(IntEnum):
         return self in (
             MovementType.DEFENCE,
             MovementType.DAIMYO_TOWNSHIP_DEFENSE,
-            MovementType.ABG_ALLIANCE_TOWER_SUPPORT,
+            MovementType.HORIZON_ALLIANCE_TOWER_SUPPORT,
         )
 
     @property
@@ -83,8 +83,8 @@ _ATTACK_MOVEMENT_TYPES = frozenset(
         MovementType.HORIZON_COLLECTOR_ATTACK,
         MovementType.OUTER_REALMS_PVE_CHARGE,
         MovementType.OUTER_REALMS_PVP_CHARGE,
-        MovementType.ABG_ALLIANCE_TOWER_ATTACK,
-        MovementType.WOLFKING_TAUNT_ATTACK,
+        MovementType.HORIZON_ALLIANCE_TOWER_ATTACK,
+        MovementType.WOLFGARD_TAUNT_ATTACK,
     }
 )
 

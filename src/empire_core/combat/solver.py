@@ -520,7 +520,7 @@ def fill_waves(
         attacker_level: The attacker's own level, which decides how many waves
             an attack carries; defaults to the target's level
         conquer: A conquest attack carries extra waves
-        wave_bonus: Extra waves from the ADDITIONAL_WAVE legend skill
+        wave_bonus: Extra waves from the ADDITIONAL_WAVE Legendary skill
         flank_bonus_percent: Percentage bonus to units on each side flank
         front_bonus_percent: Percentage bonus to units in the middle
         tool_bonus: Extra flank tool capacity

@@ -18,7 +18,7 @@ from empire_core.attack.models.dungeon_skips import (
     _row_coordinates,
     _row_kingdom,
 )
-from empire_core.attack.models.taunts import LaunchTauntAttackRequest, LaunchWolfKingTauntRequest
+from empire_core.attack.models.taunts import LaunchTauntAttackRequest, LaunchWolfgardTauntRequest
 from empire_core.enums import CollectableKind, Kingdom, MapItemType
 from empire_core.events.models import AlienInvasionEvent
 from empire_core.exceptions import PacketError
@@ -159,16 +159,16 @@ class CampsMixin(ServiceMixin):
         request = LaunchTauntAttackRequest(share_with_alliance=int(share_with_alliance))
         self.execute(request, timeout=timeout)
 
-    def taunt_wolf_king(self, *, timeout: float = 5.0) -> None:
+    def taunt_wolfgard(self, *, timeout: float = 5.0) -> None:
         """
-        Taunt the wolf king into attacking you.
+        Taunt Wolfgard into attacking you.
 
         Raises:
             CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
 
         Client: ``ButtonTauntComponent.onClick`` (bundle line 110098); ``LWTACommand`` (bundle line 124329)
         """
-        self.execute(LaunchWolfKingTauntRequest(), timeout=timeout)
+        self.execute(LaunchWolfgardTauntRequest(), timeout=timeout)
 
     # =========================================================================
     # Alien camps

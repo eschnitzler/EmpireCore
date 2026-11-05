@@ -17,7 +17,7 @@ from empire_core.alliance.models.horizon import HorizonMemberPerformance, Horizo
 from empire_core.alliance.models.info import (
     AllianceBuffsResponse,
     AllianceCrestChangedResponse,
-    AllianceFameResponse,
+    AllianceGloryResponse,
     AllianceInfo,
     alliance_of_ain,
 )
@@ -25,7 +25,7 @@ from empire_core.alliance.models.landmarks import AllianceLaboratoriesResponse
 from empire_core.alliance.models.membership import AllianceMembership, AutoJoinedAllianceResponse
 from empire_core.enums import OnlineState
 from empire_core.exceptions import ReplyMismatchError
-from empire_core.player.models.aqua import AquaPointsResponse, StormIslandsInfo
+from empire_core.player.models.aqua import CargoPointsResponse, StormIslandsInfo
 from empire_core.protocol.base import read_or_none
 from empire_core.protocol.js import js_int, js_truthy
 from empire_core.state.base import StateBase, read_section
@@ -103,11 +103,11 @@ class AllianceState(StateBase):
         self._store_own_alliance({**raw, **fields}, changed_keys=set(fields))
 
     def _handle_afa(self, data: Any) -> None:
-        """Client: ``AllianceInfoVO.parseAFA`` (bundle line 26001); see :class:`AllianceFameResponse`."""
+        """Client: ``AllianceInfoVO.parseAFA`` (bundle line 26001); see :class:`AllianceGloryResponse`."""
         if not isinstance(data, dict) or "raw" in data:
             return
-        if (fame := read_section(AllianceFameResponse, data, "the alliance's fame")) is not None:
-            self._patch_own_alliance({"CF": fame.fame_points, "HF": fame.highest_fame_points})
+        if (glory := read_section(AllianceGloryResponse, data, "the alliance's glory")) is not None:
+            self._patch_own_alliance({"CF": glory.glory_points, "HF": glory.highest_glory_points})
 
     def _handle_abl(self, data: Any) -> None:
         """Client: ``AllianceInfoVO.parseABL`` (bundle line 26003); see :class:`AllianceBuffsResponse`."""
@@ -135,28 +135,28 @@ class AllianceState(StateBase):
             self._patch_own_alliance({"ALA": data.get("ALA")})
 
     def _handle_gap(self, data: Any) -> None:
-        """Keep your aqua points and your alliance's.
+        """Keep your cargo points and your alliance's.
 
         Client: ``CastleUserData.parse_GAP`` (bundle line 9881) sets ``P`` on the player and ``A`` on
         your alliance, when it knows one
         """
-        points = read_section(AquaPointsResponse, data, "the aqua points")
+        points = read_section(CargoPointsResponse, data, "the cargo points")
         if points is None:
             return
-        self.aqua_points = points.player_points
+        self.cargo_points = points.player_points
         if "A" in data:
             self._patch_own_alliance({"AP": points.alliance_points})
 
     def _handle_sii(self, data: Any) -> None:
-        """Keep your and your alliance's Storm Islands standing, and your aqua points.
+        """Keep your and your alliance's Storm Islands standing, and your cargo points.
 
-        Client: ``SIICommand.executeCommand`` (bundle line 127742) sets ``AP`` as your aqua points
+        Client: ``SIICommand.executeCommand`` (bundle line 127742) sets ``AP`` as your cargo points
         """
         info = read_section(StormIslandsInfo, data, "the Storm Islands standing")
         if info is None:
             return
         self.storm_islands = info
-        self.aqua_points = info.aqua_points
+        self.cargo_points = info.cargo_points
 
     def get_storm_islands(self) -> StormIslandsInfo | None:
         """Your and your alliance's Storm Islands standing, from the last ``sii``; None until one arrived."""
@@ -439,10 +439,10 @@ class AllianceState(StateBase):
             # The row the members share, set in place: rebuilding the members would restart their protection times
             info.login_activity = int(OnlineState.ONLINE)
 
-    def get_aqua_points(self) -> int | float | None:
-        """Your aqua points, from the last ``gap``; None until one arrived."""
+    def get_cargo_points(self) -> int | float | None:
+        """Your cargo points, from the last ``gap``; None until one arrived."""
         with self._lock:
-            return self.aqua_points
+            return self.cargo_points
 
     def get_horizon_performance(self) -> list[HorizonMemberPerformance] | None:
         """Your alliance members' Beyond the Horizon performance, from the last ``gae``; None until one arrived."""

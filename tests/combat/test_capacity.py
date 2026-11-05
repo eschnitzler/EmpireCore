@@ -70,7 +70,7 @@ class TestMinimumAttack:
         pytest.param((16, 22, 75), 32, id="metropolis above 69"),
         pytest.param((60, 22, 50), 26, id="metropolis at its owner"),
         pytest.param((70, 22, 0), 32, id="metropolis at 70"),
-        pytest.param((3, 23, 0), 32, id="kings tower is 70"),
+        pytest.param((3, 23, 0), 32, id="royal tower is 70"),
         pytest.param((16, 26, 0), 32, id="monument is 70"),
         pytest.param((0, 28, 0), 32, id="laboratory is 70"),
     ]
@@ -172,12 +172,12 @@ class TestWaveCapacity:
 
     # Expected flags from AttackDialogHelper.isLegendaryFight, CastleAttackArmyVO.init
     # and the CastleAttackWaveVO constructor, run in node against these inputs:
-    # (attacker level, attacker legend level, target owner level, wave level,
-    # owner id, owner legend level, area type) -> (unit amount, extra wave, flank tools).
+    # (attacker level, attacker Legendary level, target owner level, wave level,
+    # owner id, owner Legendary level, area type) -> (unit amount, extra wave, flank tools).
     LEGENDARY_CASES: ClassVar[list] = [
         pytest.param((70, 1, 70, 70, 4242, 1, 1), (True, True, True), id="legend player"),
-        pytest.param((70, 1, 70, 70, 4242, 0, 1), (False, True, True), id="level 70 player, no legend level"),
-        pytest.param((70, 0, 70, 70, 4242, 3, 1), (False, False, True), id="attacker without legend level"),
+        pytest.param((70, 1, 70, 70, 4242, 0, 1), (False, True, True), id="level 70 player, no Legendary level"),
+        pytest.param((70, 0, 70, 70, 4242, 3, 1), (False, False, True), id="attacker without Legendary level"),
         pytest.param((50, 0, 70, 70, 4242, 0, 26), (True, False, False), id="low player's monument"),
         pytest.param((70, 1, 75, 75, -1000, 0, 21), (True, True, True), id="alien camp at 75"),
         pytest.param((70, 1, 60, 60, -1002, 0, 34), (False, False, False), id="red alien camp at 60"),
@@ -189,15 +189,15 @@ class TestWaveCapacity:
 
     @pytest.mark.parametrize(("case", "flags"), LEGENDARY_CASES)
     def test_the_three_legendary_rules_match_the_client(self, case, flags):
-        attacker_level, attacker_legend, owner_level, level, owner_id, owner_legend, area_type = case
+        attacker_level, attacker_legendary, owner_level, level, owner_id, owner_legend, area_type = case
 
         fight = LegendaryFight.evaluate(
             attacker_level=attacker_level,
-            attacker_legend_level=attacker_legend,
+            attacker_legendary_level=attacker_legendary,
             target_owner_level=owner_level,
             wave_level=level,
             owner_id=owner_id,
-            owner_legend_level=owner_legend,
+            owner_legendary_level=owner_legend,
             area_type=area_type,
             has_other_player_info=area_type in OTHER_PLAYER_INFO_AREA_TYPES,
         )
@@ -207,11 +207,11 @@ class TestWaveCapacity:
     def test_a_target_without_owner_info_gets_no_legend_skills(self):
         fight = LegendaryFight.evaluate(
             attacker_level=70,
-            attacker_legend_level=5,
+            attacker_legendary_level=5,
             target_owner_level=70,
             wave_level=70,
             owner_id=None,
-            owner_legend_level=5,
+            owner_legendary_level=5,
             area_type=1,
             has_other_player_info=True,
         )
@@ -551,7 +551,7 @@ class TestAreaTypeLevelFloor:
     def test_a_landmark_defends_at_its_own_level(self):
         # A level 12 owner's monument is still built for level 70.
         assert wave_level(12, MapItemType.MONUMENT) == 70
-        assert wave_level(12, MapItemType.KINGS_TOWER) == 70
+        assert wave_level(12, MapItemType.ROYAL_TOWER) == 70
         assert wave_level(12, MapItemType.LABORATORY) == 70
 
     def test_an_ordinary_target_keeps_its_owners_level(self):
@@ -894,7 +894,7 @@ class TestBerimondInvasionCampLevel:
 
 class TestSpiedCastleDefence:
     """
-    A spied castle's defenders, tools, castellan and legend skills per flank.
+    A spied castle's defenders, tools, castellan and Legendary skills per flank.
 
     Expected values from running the client's own
     ``FightScreenHelper.getDefendingUnitStrength`` and ``getDefenceBonuses``,
@@ -1004,7 +1004,7 @@ class TestSpiedCastleDefence:
 
     def test_defender_legend_skills_raise_the_defenders_and_the_fortification(self):
         self.assert_matches(
-            self.defense(defender_legend_skill_ids=[331, 371, 430, 301, 512, 551, 331]),
+            self.defense(defender_legendary_skill_ids=[331, 371, 430, 301, 512, 551, 331]),
             self.WITH_SKILLS,
         )
 
@@ -1012,11 +1012,11 @@ class TestSpiedCastleDefence:
         self.assert_matches(
             self.defense(
                 castellan=Commander.model_validate(TestCastellanDefence.CASTELLAN),
-                defender_legend_skill_ids=[331, 371, 430, 301, 512, 551],
+                defender_legendary_skill_ids=[331, 371, 430, 301, 512, 551],
             ),
             self.WITH_CASTELLAN_AND_SKILLS,
         )
 
     def test_an_unknown_legend_skill_is_an_error(self):
-        with pytest.raises(ValueError, match="Defender legend skill 9999"):
-            self.defense(defender_legend_skill_ids=[9999])
+        with pytest.raises(ValueError, match="Defender Legendary skill 9999"):
+            self.defense(defender_legendary_skill_ids=[9999])

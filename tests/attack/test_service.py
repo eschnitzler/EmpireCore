@@ -26,7 +26,7 @@ from tests.service_helpers import (
 
 OWN = [(12345, Kingdom.GREEN, 500, 510)]
 
-# Live capture of an ali reply for a kings tower, owner record trimmed and scrubbed.
+# Live capture of an ali reply for a royal tower, owner record trimmed and scrubbed.
 LIVE_ALI: dict[str, Any] = dict(
     LIVE_ADI,
     gaa={
@@ -639,8 +639,8 @@ class TestAttackInfo:
         info = GetAttackInfoResponse.model_validate(self.SPIED)
 
         assert info.spy_age_seconds == 1800
-        assert info.defender_legend_skill_ids == (101, 102)
-        assert (info.morality, info.kings_tower_bonus) == (25, 10)
+        assert info.defender_legendary_skill_ids == (101, 102)
+        assert (info.morality, info.royal_tower_bonus) == (25, 10)
 
     def test_abe_is_the_castellan_before_b(self):
         from empire_core.protocol.models import GetAttackInfoResponse
@@ -662,7 +662,7 @@ class TestAttackInfo:
         assert info.spy_age_seconds == -1
         assert info.spy_army is None
         assert info.defending_castellan() is None
-        assert info.defender_legend_skill_ids == ()
+        assert info.defender_legendary_skill_ids == ()
 
     def test_stronghold_inventory_and_owner_records(self):
         # Repeated ids add up and a zero is dropped, as UnitInventoryDictionary does.
@@ -672,7 +672,7 @@ class TestAttackInfo:
 
         assert info.stronghold_inventory() == {620: 5}
         assert [(r.owner_id, r.level) for r in info.owner_records()] == [(4242, 46), (None, 0)]
-        assert GetAttackInfoResponse.model_validate({}).kings_tower_bonus == 0
+        assert GetAttackInfoResponse.model_validate({}).royal_tower_bonus == 0
 
     def test_service_sends_the_documented_payload(self):
         client = make_client(castles=OWN)
@@ -805,7 +805,7 @@ class TestTargetPrecalculation:
         assert info.spy_army is not None
         # parse_TAI reads B only, never abe
         assert info.spied_castellan is not None and info.spied_castellan.commander_id == 3
-        assert info.defender_legend_skill_ids == (434,)
+        assert info.defender_legendary_skill_ids == (434,)
         assert (dict(info.unit_inventory.units), dict(info.unit_inventory.stronghold)) == ({601: 7}, {620: 1})
         assert not hasattr(info, "attacker_effects")
 
@@ -817,7 +817,7 @@ class TestTargetPrecalculation:
         )
 
         assert (info.spy_army, info.spy_age_seconds, info.spied_castellan) == (None, -1, None)
-        assert info.defender_legend_skill_ids == ()
+        assert info.defender_legendary_skill_ids == ()
 
     def test_a_treasure_node_castellan_comes_without_its_equipment(self):
         from empire_core.protocol.models import GetTreasureNodeAttackInfoResponse

@@ -16,11 +16,11 @@ from empire_core.castle.models.castles import GetCastlesResponse
 from empire_core.castle.models.details import GetDetailedCastleResponse
 from empire_core.castle.models.kingdoms import KingdomInfoResponse
 from empire_core.castle.models.landmarks import (
-    KingsTowerListResponse,
     LaboratoryListResponse,
     LaboratoryResetResponse,
     MonumentListResponse,
     MonumentResetResponse,
+    RoyalTowerListResponse,
 )
 from empire_core.castle.models.mercenaries import MercenaryMissionsResponse
 from empire_core.castle.models.permanent import PermanentCastleDataResponse
@@ -129,8 +129,8 @@ class LoginDataResponse(BaseResponse):
     laboratory_reset: LaboratoryResetResponse | None = Field(
         validation_alias="lrr", default=None, description="The laboratories' reset; None when not sent or unreadable"
     )
-    kings_towers: KingsTowerListResponse | None = Field(
-        validation_alias="gkl", default=None, description="Your kings' towers; None when not sent or unreadable"
+    royal_towers: RoyalTowerListResponse | None = Field(
+        validation_alias="gkl", default=None, description="Your royal towers; None when not sent or unreadable"
     )
     monuments: MonumentListResponse | None = Field(
         validation_alias="gml", default=None, description="Your monuments; None when not sent or unreadable"
@@ -277,7 +277,7 @@ class LoginDataResponse(BaseResponse):
         validation_alias="pgl", default=None, description="Your gifts; None when not sent or unreadable"
     )
     skills: GetSkillsResponse | None = Field(
-        validation_alias="skl", default=None, description="Your legend skills; None when not sent or unreadable"
+        validation_alias="skl", default=None, description="Your Legendary skills; None when not sent or unreadable"
     )
     construction_item_expiry: ConstructionItemExpiryResponse | None = Field(
         validation_alias="nec",
@@ -302,7 +302,7 @@ class LoginDataResponse(BaseResponse):
         "castles",
         "monument_reset",
         "laboratory_reset",
-        "kings_towers",
+        "royal_towers",
         "monuments",
         "laboratories",
         "villages",

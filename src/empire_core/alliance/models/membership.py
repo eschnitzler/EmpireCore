@@ -42,7 +42,9 @@ class AllianceMembership(BasePayload):
     )
     # The client reads AN; live servers send N
     name: str = Field(default="", validation_alias=AliasChoices("AN", "N"), description="The alliance's name")
-    current_fame: ClientInt = Field(default=0, validation_alias="ACF", description="The alliance's current fame")
+    current_glory: ClientInt = Field(
+        default=0, validation_alias="ACF", description="The alliance's current glory points"
+    )
     looking_for_alliance: bool = Field(
         default=False, validation_alias="SA", description="You are looking for an alliance"
     )

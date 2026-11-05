@@ -52,7 +52,12 @@ def test_alliance_highscore_details(list_type):
     (row,) = response.rows
     assert isinstance(row, HighscoreAllianceRow)
     alliance = row.alliance
-    assert (alliance.alliance_id, alliance.name, alliance.member_count, alliance.fame) == (8, "Alliance", 65, 1234)
+    assert (alliance.alliance_id, alliance.name, alliance.member_count, alliance.glory_points) == (
+        8,
+        "Alliance",
+        65,
+        1234,
+    )
 
 
 def test_global_list_paging_and_server_metadata():
