@@ -160,7 +160,10 @@ the container.
   beyond the client, which frees the commander at the arrival, state holds the
   commander of your own arrived movement as away (`get_away_commanders()`)
   until a returning movement it leads is stored, or for `LANDED_COMMANDER_HOLD`
-  seconds; `reset()` drops the hold.
+  seconds after the movement ends. A return home starts the same grace period,
+  because its estimated arrival can precede server availability. This reduces
+  premature reuse; it does not confirm that the server has released the
+  commander. `reset()` drops the hold.
 
 ## Reactive Callbacks
 

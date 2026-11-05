@@ -1877,7 +1877,7 @@ class TestLandedCommanders:
 
         assert self.away(state) == [4]
         arrive(state, 2)
-        assert self.away(state) == []
+        assert self.away(state) == [4]
 
     def test_released_once_the_hold_runs_out(self, state):
         login(state, self.ME)
@@ -1889,7 +1889,7 @@ class TestLandedCommanders:
         with later(arrival - time.time() + LANDED_COMMANDER_HOLD + 0.5):
             assert self.away(state) == []
 
-    def test_a_way_home_stored_before_the_landing_frees_the_commander_when_it_gets_home(self, state):
+    def test_a_way_home_stored_before_the_landing_holds_after_it_gets_home(self, state):
         login(state, self.ME)
         landing = self.led(state, 1, commander_id=4)
         home = self.led(state, 2, commander_id=4, direction=1, tt=602)
@@ -1897,14 +1897,36 @@ class TestLandedCommanders:
         with later(landing - time.time() + 0.5):
             assert self.away(state) == [4]
         with later(home - time.time() + 0.5):
+            assert self.away(state) == [4]
+        with later(home - time.time() + LANDED_COMMANDER_HOLD):
             assert self.away(state) == []
 
-    def test_a_way_home_landing_holds_nothing(self, state):
+    def test_a_way_home_landing_holds_until_the_grace_period_ends(self, state):
         login(state, self.ME)
-        self.led(state, 1, commander_id=4, direction=1)
+        home = self.led(state, 1, commander_id=4, direction=1)
         arrive(state, 1)
 
-        assert self.away(state) == []
+        assert state.movements == {}
+        with later(home - time.time() + LANDED_COMMANDER_HOLD - 0.5):
+            assert self.away(state) == [4]
+        with later(home - time.time() + LANDED_COMMANDER_HOLD):
+            assert self.away(state) == []
+
+    def test_return_arrival_callback_sees_commander_still_away(self, state):
+        login(state, self.ME)
+        observed: list[list[int]] = []
+        state.on_movement_arrived(lambda mid: observed.append(self.away(state)))
+        self.led(state, 1, commander_id=4, direction=1)
+        arrive(state, 1)
+        assert wait_for(lambda: observed == [[4]])
+
+    def test_return_hold_does_not_release_a_new_movement(self, state):
+        login(state, self.ME)
+        home = self.led(state, 1, commander_id=4, direction=1)
+        arrive(state, 1)
+        self.led(state, 2, commander_id=4, tt=1200)
+        with later(home - time.time() + LANDED_COMMANDER_HOLD):
+            assert self.away(state) == [4]
 
     def test_other_players_movements_hold_nothing(self, state):
         login(state, self.ME)
