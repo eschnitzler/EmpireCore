@@ -20,7 +20,7 @@ from pydantic import ConfigDict
 
 from empire_core.commanders.models.equipment import Equipment
 from empire_core.commanders.models.roster import Commander, CommanderEffect, LeaderBase
-from empire_core.enums import CombatEffectType
+from empire_core.enums import CombatEffectType, Flank
 from empire_core.gamedata import (
     EffectDef,
     EffectValue,
@@ -879,6 +879,7 @@ def attacker_flank_effects(
     bonuses: Iterable[Bonus],
     *,
     area_type: int | None = None,
+    flank: Flank | None = None,
     player_target: bool | None = None,
     legendary_skill_ids: Iterable[EnumOrInt["LegendarySkill"]] = (),
     legendary: bool = False,
@@ -894,7 +895,12 @@ def attacker_flank_effects(
     ``AST`` entry. Tools the solver places later are added by
     ``AttackerFlankEffects.apply_tool``.
 
+    Unlike that auto-fill helper, this includes the general Legendary attack bonus,
+    the courtyard skill and flank-specific commander boosts from
+    ``CastleFightItemContainer.getAttackMeleeValue/getAttackRangeValue``.
+
     Args:
+        flank: Where troops fight; None omits flank-specific boosts
         resolver: Resolver over the loaded game data
         bonuses: The commander's bonuses, see :func:`attack_dialog_bonuses`
         area_type: The target's area type, for scoping, such as a movement's
@@ -917,9 +923,28 @@ def attacker_flank_effects(
     wall, gate, moat = resolver.fortification_reductions(bonuses, area_type=area_type, player_target=player_target)
     melee = resolver.attack_multiplier(bonuses, melee=True, area_type=area_type, player_target=player_target)
     ranged = resolver.attack_multiplier(bonuses, melee=False, area_type=area_type, player_target=player_target)
+    boost_type = (
+        {
+            Flank.LEFT: CombatEffectType.ATTACK_BOOST_FLANK,
+            Flank.RIGHT: CombatEffectType.ATTACK_BOOST_FLANK,
+            Flank.MIDDLE: CombatEffectType.ATTACK_BOOST_FRONT,
+            Flank.YARD: CombatEffectType.ATTACK_BOOST_YARD,
+        }.get(flank)
+        if flank is not None
+        else None
+    )
+    if boost_type is not None:
+        boost = resolver.accumulate(bonuses, boost_type, area_type=area_type, player_target=player_target) / 100
+        melee += boost
+        ranged += boost
     defender_range = 0.0
     if legendary:
         skills = list(legendary_skill_ids)
+        attack = legendary_skill_value(skills, "attackBonus", game_data=game_data) / 100
+        if flank is Flank.YARD:
+            attack += legendary_skill_value(skills, "attackYardBonus", game_data=game_data) / 100
+        melee += attack
+        ranged += attack
         wall += legendary_skill_value(skills, "wallReduction", game_data=game_data) / 100
         gate += legendary_skill_value(skills, "gateReduction", game_data=game_data) / 100
         moat += legendary_skill_value(skills, "moatReduction", game_data=game_data) / 100

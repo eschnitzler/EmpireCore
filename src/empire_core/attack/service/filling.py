@@ -7,22 +7,27 @@ from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING, Any
 
 from empire_core.army.spy_army import SpyArmy
-from empire_core.attack.filling import _pool, _target_defense
+from empire_core.attack.filling import _pool, _support_tools, _target_defense
 from empire_core.attack.service.sending import SendingMixin
 from empire_core.attack.service.waves import WavesMixin
 from empire_core.attack.targeting import _read_target, _row_item, _Target
 from empire_core.combat import (
     Bonus,
+    EffectResolver,
     FilledAttack,
     FillOptions,
     TargetRead,
+    attack_dialog_bonuses,
+    attacker_flank_effects,
     fill_yard_wave,
     min_attack_soldiers,
     minimum_owner_level,
     owner_id_from_row,
     robber_baron_camp_level,
+    wave_level,
     yard_capacity,
 )
+from empire_core.combat.capacity import ALIEN_INVASION_AREA_TYPES, OTHER_PLAYER_INFO_AREA_TYPES, LegendaryFight
 from empire_core.commanders.models.roster import Commander, LeaderBase
 from empire_core.enums import Flank, Kingdom, MapItemType
 from empire_core.events.models import GlobalEffectTimer
@@ -300,7 +305,8 @@ class FillAttackMixin(WavesMixin, SendingMixin):
             timeout=timeout,
         )
 
-        attacker_level = self.client.state.get_local_player().level
+        player = self.client.state.get_local_player()
+        attacker_level = player.level
         # getMaxUnitsInReinforcementWave reads the area's own defense level when
         # the target is under conquer control, and its owner's otherwise.
         yard_level = (
@@ -308,10 +314,36 @@ class FillAttackMixin(WavesMixin, SendingMixin):
             if under_conquer_control
             else read.level
         )
+        if owner_id is None and read.area_type is not None:
+            owner_id = ALIEN_INVASION_AREA_TYPES.get(read.area_type)
+        legendary = LegendaryFight.evaluate(
+            attacker_level=attacker_level,
+            attacker_legendary_level=player.legendary_level,
+            target_owner_level=read.level
+            if under_conquer_control
+            else minimum_owner_level(read.level, read.area_type, landmark_min_level=landmark_min_level),
+            wave_level=wave_level(read.level, read.area_type, landmark_min_level=landmark_min_level),
+            owner_id=owner_id,
+            owner_legendary_level=read.owner_legendary_level or 0,
+            area_type=read.area_type,
+            has_other_player_info=read.area_type in OTHER_PLAYER_INFO_AREA_TYPES,
+        )
+        yard_effects = attacker_flank_effects(
+            EffectResolver(game_data),
+            attack_dialog_bonuses(
+                commander, area_effects=read.area_bonuses, general_skill_ids=general_skill_ids, game_data=game_data
+            ),
+            flank=Flank.YARD,
+            area_type=read.area_type,
+            legendary_skill_ids=legendary_skill_ids or (),
+            legendary=legendary.unit_amount,
+            support_tools=_support_tools(game_data, support_tools),
+        )
         yard = fill_yard_wave(
             pool,
             yard_capacity(attacker_level, yard_level, bonus=yard_bonus, boost=yard_boost) if options.fill_yard else 0,
             defender=(defense or {}).get(Flank.YARD),
+            attacker=yard_effects,
             options=options,
             # The courtyard runs the same pick as a flank, so a buffed unit is
             # worth as much here as it is out front.
