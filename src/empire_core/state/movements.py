@@ -40,8 +40,8 @@ MOVEMENT_PARSE_WARN_INTERVAL = 60.0
 # The movement clock wakes at least this often, as a far-off arrival's wait would overflow Condition.wait
 MOVEMENT_CLOCK_MAX_WAIT = 3600.0
 
-# How long after one of your movements lands its commander stays away while
-# its way home is not in state yet (see get_away_commanders)
+# Grace period after an outbound or returning movement ends, while the server
+# may still consider its commander busy (see get_away_commanders)
 LANDED_COMMANDER_HOLD = 10.0
 
 
@@ -229,7 +229,9 @@ class MovementState(StateBase):
     send it leads with ``LORD_IS_USED``. The library goes beyond the client
     here: :meth:`get_away_commanders` holds the commander of your own arrived
     movement as away until its way home is stored, or for
-    ``LANDED_COMMANDER_HOLD`` seconds.
+    ``LANDED_COMMANDER_HOLD`` seconds after it ends. A returning movement
+    starts the same hold when it gets home, since the server can still be
+    processing the return at its estimated arrival.
 
     Two signatures are supported, picked per callback from its own
     parameter list::
@@ -447,8 +449,8 @@ class MovementState(StateBase):
         stored, so the movements are scanned only once one of them is due;
         the scan then goes through them in the order they were first seen,
         as the client's does. When one of your own movements led by a
-        commander leaves state, one heading out holds the commander as away
-        and one on its way home releases it (see :meth:`get_away_commanders`).
+        commander leaves state, it holds the commander as away for a grace
+        period, including on return home (see :meth:`get_away_commanders`).
 
         Client: ``CastleArmyData.updateMapmovements`` (bundle line 133670).
         """
@@ -469,10 +471,9 @@ class MovementState(StateBase):
                     del self._movement_times[mid]
                     dispatched.discard(mid)
                     if mov.is_mine and mov.commander is not None:
-                        if mov.is_returning:
-                            self._landed_commanders.pop(mov.commander.commander_id, None)
-                        else:
-                            hold_until = times[0] + LANDED_COMMANDER_HOLD
+                        hold_until = times[1] + LANDED_COMMANDER_HOLD
+                        previous = self._landed_commanders.get(mov.commander.commander_id)
+                        if previous is None or hold_until > previous[1]:
                             self._landed_commanders[mov.commander.commander_id] = (mov.commander, hold_until)
                 else:
                     due = times[1] if mid in dispatched else times[0]
@@ -698,14 +699,16 @@ class MovementState(StateBase):
 
         A commander leading one of your movements in state, returning ones
         included, and one whose movement landed, until a returning movement it
-        leads is stored or ``LANDED_COMMANDER_HOLD`` seconds after the landed
-        movement's arrival.
+        leads is stored or ``LANDED_COMMANDER_HOLD`` seconds after the movement
+        ends. Returning home starts the same grace period: the estimated arrival
+        can precede the server making the commander available.
 
         The library goes beyond the client here (see :meth:`on_movement_arrived`):
         ``LordVO.isAvailableForMovement`` (bundle line 26656) checks only the
         movements in ``mapMovements``, which ``updateMapmovements`` (bundle line
         133719) drops at arrival, while the server answers ``LORD_IS_USED`` until
-        the army is on its way home.
+        the server has finished processing the movement. The hold reduces this
+        window; it is not confirmation of server availability.
         """
         with self._lock:
             self._advance_movements()
