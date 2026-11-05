@@ -45,7 +45,7 @@ from .models import (
     CurrencyDef,
     DaimyoCastleDef,
     DaimyoTownshipDef,
-    DefaultLordDef,
+    DefaultCommanderDef,
     DungeonDefence,
     EffectCapDef,
     EffectDef,
@@ -232,7 +232,7 @@ _CACHED_MODELS = (
     LegendarySkillDef,
     AttackSlotDef,
     HorseStats,
-    DefaultLordDef,
+    DefaultCommanderDef,
     GeneralDef,
     GeneralAbilityDef,
     CurrencyDef,
@@ -638,7 +638,7 @@ class GameData(EmpireModel):
     alliance_buffs: dict[int, AllianceBuffDef] = Field(default_factory=dict)
     attack_slots: dict[int, AttackSlotDef] = Field(default_factory=dict)
     tool_categories: dict[int, ToolCategoryDef] = Field(default_factory=dict)
-    default_lords: dict[int, DefaultLordDef] = Field(default_factory=dict)
+    default_commanders: dict[int, DefaultCommanderDef] = Field(default_factory=dict)
     vip_levels: dict[int, VipLevelDef] = Field(default_factory=dict)
     dungeons: list[DungeonDefence] = Field(default_factory=list)
     camps: dict[str, list[NpcCampDefence]] = Field(default_factory=dict)
@@ -1208,9 +1208,9 @@ class GameData(EmpireModel):
         """A travel booster by its ``HBW`` value."""
         return self.horses.get(wod_id)
 
-    def get_default_lord(self, lord_id: int) -> DefaultLordDef | None:
-        """A default lord, i.e. one of the negative ``LID`` sentinels."""
-        return self.default_lords.get(lord_id)
+    def get_default_commander(self, commander_id: int) -> DefaultCommanderDef | None:
+        """A default commander, i.e. one of the negative ``LID`` sentinels."""
+        return self.default_commanders.get(commander_id)
 
     def vip_level(self, points: int) -> VipLevelDef | None:
         """
@@ -1474,7 +1474,7 @@ class GameData(EmpireModel):
         equipment_sets: dict[int, list[EquipmentSetDef]] = {}
         for row in _rows(items_data.get("equipment_sets"), EquipmentSetDef):
             equipment_sets.setdefault(row.set_id, []).append(row)
-        default_lords = {r.lord_id: r for r in _rows(items_data.get("lords"), DefaultLordDef)}
+        default_commanders = {r.commander_id: r for r in _rows(items_data.get("lords"), DefaultCommanderDef)}
         currency_ids = {row.name: row.currency_id for row in _rows(items_data.get("currencies"), CurrencyDef)}
 
         data = cls(
@@ -1501,9 +1501,11 @@ class GameData(EmpireModel):
             },
             attack_slots={r.slot_id: r for r in _rows(items_data.get("attackSetupSlots"), AttackSlotDef)},
             tool_categories={r.tool_category_id: r for r in _rows(items_data.get("toolCategories"), ToolCategoryDef)},
-            default_lords=default_lords,
+            default_commanders=default_commanders,
             vip_levels={r.vip_level_id: r for r in _rows(items_data.get("viplevels"), VipLevelDef)},
-            dungeons=_rows(items_data.get("dungeons"), DungeonDefence, context={"default_lords": default_lords}),
+            dungeons=_rows(
+                items_data.get("dungeons"), DungeonDefence, context={"default_commanders": default_commanders}
+            ),
             camps={
                 table: _rows(items_data.get(table), NpcCampDefence) for table in CAMP_TABLES if items_data.get(table)
             },

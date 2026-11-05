@@ -660,7 +660,7 @@ def commander_bonuses(
     A default commander (``commander_id`` below 0, such as -14, the bought
     premium commander, or -15, a robber baron attack's) has no slots and no
     sets: its bonuses are its ``lords`` row's ``effects`` (see
-    ``GameData.get_default_lord``), which name equipment effect ids, then
+    ``GameData.get_default_commander``), which name equipment effect ids, then
     ``E`` and ``AE``. Without a row the client builds no commander, so only
     ``area_effects`` count. Client: ``LordFactory.createLord`` (bundle lines
     26399-26401) returns ``CastleLordData.getDefaultLordByID`` for an id below
@@ -711,7 +711,7 @@ def commander_bonuses(
     """
     game_data = game_data if game_data is not None else GameData.require()
     if commander.commander_id < 0:
-        default = game_data.get_default_lord(commander.commander_id)
+        default = game_data.get_default_commander(commander.commander_id)
         if default is None:
             return list(area_effects or [])
         return [

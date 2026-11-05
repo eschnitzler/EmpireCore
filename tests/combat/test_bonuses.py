@@ -22,7 +22,7 @@ from empire_core.combat import (
     parse_bonus_entries,
     sceat_skill_bonuses,
 )
-from empire_core.gamedata import DefaultLordDef, EffectDef, GameData, GlobalEffect, GlobalEffectDef
+from empire_core.gamedata import DefaultCommanderDef, EffectDef, GameData, GlobalEffect, GlobalEffectDef
 from empire_core.protocol.models import Commander
 
 # Effect ids invented for the test; effect *types* are the real ones.
@@ -621,7 +621,7 @@ class TestEffectSpec:
         assert spec_bonuses(None) == []
 
     def test_an_equipment_effect_is_marked(self):
-        row = DefaultLordDef.model_validate({"lordID": "-14", "effects": "12&5"})
+        row = DefaultCommanderDef.model_validate({"lordID": "-14", "effects": "12&5"})
 
         assert effect_value_bonuses(row.effects) == [Bonus(effect_id=12, value=5, via_equipment=True)]
 

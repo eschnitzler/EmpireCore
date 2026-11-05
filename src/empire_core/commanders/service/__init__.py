@@ -116,7 +116,7 @@ class CommandersService(GeneralsMixin, BaseService):
 
         Client: ``LordVO.isAvailableForMovement`` (bundle line 26656), false while any map movement
         that ``isMyMovement`` (``BasicMapmovementVO``, bundle line 19436) has the lord as its ``lordVO``,
-        whichever way it travels. The hold goes beyond the client, which frees the lord as soon as
+        whichever way it travels. The hold goes beyond the client, which frees the commander as soon as
         ``CastleArmyData.updateMapmovements`` (bundle line 133719) drops the arrived movement.
         """
         away = {c.commander_id for c in self.client.state.get_away_commanders()}
