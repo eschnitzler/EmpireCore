@@ -10,7 +10,7 @@ from empire_core.castle.models.castles import NameCastleInvitationResponse
 from empire_core.enums import Kingdom
 from empire_core.events.models import FactionJoinedResponse
 from empire_core.movements.models import MovementOwner
-from empire_core.player.models.login import LevelUpResponse
+from empire_core.player.models.progress import LevelUpResponse
 from empire_core.protocol.base import readable_list
 from empire_core.protocol.js import js_truthy
 from empire_core.state.account import ACCOUNT_SECTIONS, AccountState

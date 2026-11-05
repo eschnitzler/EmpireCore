@@ -1,18 +1,11 @@
-"""The player sections of the login data, each also a push: gpi, gxp, gcu, vip, gho, gal, sce and glu."""
+"""The player pushes, each also a login section bar glu: gpi, gxp, gcu, vip, gho, sce and glu."""
 
 import pytest
 
 from empire_core.gamedata import Currency
-from empire_core.player.models.login import (
-    Alliance,
-    CurrencyResponse,
-    ExperienceResponse,
-    HonorResponse,
-    LevelUpResponse,
-    PlayerIdentityResponse,
-    SpecialCurrenciesResponse,
-    VipStatusResponse,
-)
+from empire_core.player.models.account import PlayerIdentityResponse, VipStatusResponse
+from empire_core.player.models.economy import CurrencyResponse, SpecialCurrenciesResponse
+from empire_core.player.models.progress import ExperienceResponse, HonorResponse, LevelUpResponse
 from empire_core.protocol.models import parse_response
 
 
@@ -67,21 +60,6 @@ class TestCurrencyAndVip:
     def test_honor(self):
         honor = HonorResponse.model_validate({"H": "120", "RP": 95})
         assert (honor.honor, honor.ranking_points) == (120, 95)
-
-
-class TestAlliance:
-    def test_a_live_gal(self):
-        alliance = Alliance.model_validate({"AID": 301, "R": 1, "N": "Iron Pact", "ACF": 22, "SA": 0})
-        assert (alliance.alliance_id, alliance.rank, alliance.name, alliance.current_fame) == (301, 1, "Iron Pact", 22)
-        assert alliance.is_member and not alliance.is_searching
-
-    def test_the_client_reads_an(self):
-        alliance = Alliance.model_validate({"AID": 5, "AN": "Clan", "SA": "1"})
-        assert (alliance.name, alliance.is_searching) == ("Clan", True)
-
-    @pytest.mark.parametrize("body", [{}, {"AID": 0}, {"AID": -1}, {"AID": "x"}])
-    def test_no_alliance(self, body):
-        assert not Alliance.model_validate(body).is_member
 
 
 class TestSpecialCurrencies:

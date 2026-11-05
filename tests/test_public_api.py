@@ -89,7 +89,6 @@ _ROOT_NAMES = (
     "Player",
     "Castle",
     "Resources",
-    "Alliance",
     "Movement",
     "MovementResources",
     "MovementType",
@@ -690,11 +689,6 @@ _SNAKE_CASE_ALIASES = {
         ("email", "E"),
         ("honor", "H"),
         ("ranking", "RP"),
-    ],
-    "Alliance": [
-        ("alliance_id", "AID"),
-        ("rank", "R"),
-        ("current_fame", "ACF"),
     ],
     "Movement": [
         ("movement_id", "MID"),

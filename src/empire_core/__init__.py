@@ -90,7 +90,7 @@ from empire_core.pool import AccountPool, PoolExhaustedError
 from empire_core.protocol.packet import Packet
 from empire_core.protocol.text import decode_json_text, encode_json_text
 from empire_core.spy.service import SpyHandle, SpyResult, SpyService
-from empire_core.state.models import Alliance, Castle, Player, Resources
+from empire_core.state.models import Castle, Player, Resources
 
 try:
     __version__ = version(__package__ or "empire-core")
@@ -149,7 +149,6 @@ __all__ = [
     "Player",
     "Castle",
     "Resources",
-    "Alliance",
     "Movement",
     "MovementResources",
     # Protocol models (parsed server responses)

@@ -1,7 +1,9 @@
 """
-Loot boxes, as the login data and their pushes send them, and opening them.
+Your currencies and loot boxes, as the login data and their pushes send them, and opening loot boxes.
 
 Commands:
+- gcu: coins and rubies
+- sce: special currencies
 - gls: your loot boxes and key progress, a push before and a section of ``gbd``, and on request
 - ole: open a loot box
 """
@@ -13,17 +15,19 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from pydantic import ConfigDict, Field, field_serializer, field_validator, model_validator
 
 from empire_core.enums import MysteryBoxKey
-from empire_core.gamedata import Collectable, EnumOrInt, RewardId
+from empire_core.gamedata import Collectable, EnumOrInt, EnumOrStr, RewardId
+from empire_core.gamedata.lenient import known
 from empire_core.protocol.base import (
     BasePayload,
     BaseRequest,
     BaseResponse,
+    CurrencyTotals,
     readable_list,
 )
-from empire_core.protocol.js import ClientNumber, js_truthy
+from empire_core.protocol.js import ClientNumber, js_int, js_truthy
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import LootBox, LootBoxType
+    from empire_core.gamedata import Currency, LootBox, LootBoxType
 
 
 def _is_object(entry: Any) -> bool:
@@ -219,3 +223,48 @@ __all__ = [
     "OpenLootBoxRequest",
     "OpenLootBoxResponse",
 ]
+
+
+class CurrencyResponse(BaseResponse, CurrencyTotals):
+    """
+    Your coins and rubies: the ``gcu`` login section, pushed as they change.
+
+    Command: gcu, as a login section of ``gbd``, a push, and inside many replies (see ``CurrencyBlock``).
+
+    Client: ``GCUCommand.exec`` (bundle line 129491), ``CurrencyData.parseGCU`` (bundle line 141240)
+    """
+
+    command = "gcu"
+
+
+class SpecialCurrenciesResponse(BaseResponse):
+    """
+    Your special currencies: the ``sce`` login section, pushed as they change.
+
+    The payload is a list of ``[currency_key, amount]`` pairs. A key the generated ``Currency``
+    enum lacks stays a str (the client ignores keys its item data lacks).
+
+    Command: sce, as a login section of ``gbd`` and a push.
+
+    Client: ``SCECommand.exec`` (bundle line 129774), ``CurrencyData.parseSCE`` (bundle line
+    141231), which sets ``int(amount)`` on the currency with that key
+    """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    command = "sce"
+
+    amounts: dict[EnumOrStr["Currency"], int] = Field(default_factory=dict, description="Amount per currency")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _pairs(cls, data: Any) -> Any:
+        if not isinstance(data, list):
+            return data
+        from empire_core.gamedata import Currency
+
+        amounts: dict[Any, int] = {}
+        for entry in data:
+            if isinstance(entry, list) and entry:
+                amounts[known(Currency, str(entry[0]))] = js_int(entry[1] if len(entry) > 1 else None)
+        return {"amounts": amounts}
