@@ -66,8 +66,9 @@ class AreaState(StateBase):
                 owner_id = parsed.owner_id
             if kingdom is not None:
                 kingdom = parsed.kingdom
-        except (ValueError, TypeError):
-            pass
+        except (ValueError, TypeError) as error:
+            if row is not None:
+                logger.warning("Could not read the joined area map row: %s", error)
         if isinstance(area, dict) and "O" in area:
             owner = read_or_none(MapObject.model_validate, area["O"], warn=logger, what="a joined area's owner")
             owner_id = owner.owner_id if owner is not None else None
@@ -275,9 +276,12 @@ class AreaState(StateBase):
         with self._lock:
             return self.joined_area
 
-    def _area_left(self) -> None:
-        """A successfully sent laa opens the kingdom overview."""
+    def _area_left(self, expected_revision: int) -> None:
+        """Apply a sent laa only if no newer area transition or reset superseded it."""
         with self._lock:
+            if self.area_revision != expected_revision:
+                return
+            self.area_revision += 1
             self.session_location = SessionLocation.KINGDOM_MAP
 
     def get_session_location(self) -> SessionLocation | None:
@@ -299,7 +303,11 @@ class AreaState(StateBase):
                 and area is not None
                 and self.local_player is not None
                 and area.owner_id == self.local_player.id
-                and not (area.occupier_id is not None and area.occupier_id > 0)
+                and area.area_type is not None
+                and (
+                    area.area_type is not MapItemType.OUTPOST
+                    or (area.occupier_id is not None and area.occupier_id <= 0)
+                )
             )
 
     def is_in_spectated_castle(self) -> bool:
@@ -312,6 +320,8 @@ class AreaState(StateBase):
                 and self.local_player is not None
                 and area.owner_id is not None
                 and area.owner_id != self.local_player.id
+                and area.area_type is not None
+                and (area.area_type is not MapItemType.OUTPOST or area.occupier_id is not None)
                 and area.occupier_id != self.local_player.id
             )
 

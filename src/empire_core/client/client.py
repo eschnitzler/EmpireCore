@@ -815,9 +815,10 @@ class EmpireClient:
         packet = self.frame(request)
 
         if not wait:
-            self.connection.send(packet)
             if request.get_command() == "laa":
-                self.state._area_left()
+                self._send_leave_area(packet)
+            else:
+                self.connection.send(packet)
             return None
 
         command = request.get_command()
@@ -839,6 +840,20 @@ class EmpireClient:
                 raise PacketError(f"Could not parse '{response_command}' response: {e}") from e
 
         return None
+
+    def _send_leave_area(self, packet: str) -> None:
+        """A send listener or another thread can close, reconnect, or join before send returns."""
+        connection = self.connection
+        generation = connection.generation
+        with self.state._lock:
+            revision = self.state.area_revision
+        connection.send(packet)
+
+        def left() -> None:
+            if connection.connected:
+                self.state._area_left(revision)
+
+        connection.run_if_current(generation, left)
 
     def request(self, request: BaseRequest, response_type: type[T], timeout: float = 5.0) -> T:
         """

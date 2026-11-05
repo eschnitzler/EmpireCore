@@ -386,3 +386,23 @@ class TestAResetPeer:
         assert (
             records[0].getMessage() == f"Client user disconnected unexpectedly ({str(error) or type(error).__name__})"
         )
+
+
+def test_leave_frame_listener_can_close_without_restoring_location(client):
+    from tests.state.test_session_location import joined
+
+    new_session(client)
+    login(client.state, 1001)
+    client.is_logged_in = True
+    client.state.update_from_packet("jaa", joined())
+
+    def close_on_leave(frame):
+        if frame.command == "laa":
+            client.close()
+
+    client.connection.add_frame_listener(close_on_leave)
+    client.castle.leave_area()
+    assert not client.connection.connected
+    assert not client.is_logged_in
+    assert client.state.get_joined_area() is None
+    assert client.state.get_session_location() is None
