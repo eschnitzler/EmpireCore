@@ -322,9 +322,9 @@ class TestReferencedIds:
         assert equipment.item_group_ids == (ids.EquipmentGroup.ATTACK_PVP, 4711)
         assert data.relic_effects[4].effect_id is ids.Effect(1)
         assert data.general_skills[10110201].general_id is ids.General.TORIL
-        assert data.default_lords[-14].wearer_id is WearerType.CASTELLAN
+        assert data.default_commanders[-14].wearer_id is WearerType.CASTELLAN
         assert data.dungeons[0].kingdom_id is Kingdom.ICE
-        assert data.dungeons[0].commander == data.default_lords[-14]
+        assert data.dungeons[0].commander == data.default_commanders[-14]
         assert data.league_brackets[0].event_id is ids.Event.NOMAD_INVASION_5
         assert type(data.fortifications[501].wod_id) is ids.Building
         assert data.tools[1].slot_types == (1, 9)
@@ -338,7 +338,7 @@ class TestReferencedIds:
         assert again is not None and again == data
         assert again.equipment_effects[9].item_group_ids == (ids.EquipmentGroup.ATTACK_PVP, 4711)
         assert again.dungeons[0].kingdom_id is Kingdom.ICE
-        assert again.dungeons[0].commander == data.default_lords[-14]
+        assert again.dungeons[0].commander == data.default_commanders[-14]
 
 
 class TestEventTables:

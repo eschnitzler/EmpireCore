@@ -778,9 +778,9 @@ class TestCombatTables:
         assert (horse.cost_factor_c1, horse.cost_factor_c2, horse.is_instant_spy_horse) == (0, 0, False)
 
     def test_default_lords_explain_the_lid_sentinels(self):
-        lord = GameData.parse("783.01", FULL_PAYLOAD).get_default_lord(-12)
-        assert lord is not None
-        assert lord.lord_type == "Treasuremap"
+        commander = GameData.parse("783.01", FULL_PAYLOAD).get_default_commander(-12)
+        assert commander is not None
+        assert commander.commander_type == "Treasuremap"
 
     def test_vip_levels_give_their_free_premium_commanders(self):
         rows = [
@@ -898,7 +898,7 @@ class TestDungeonDefence:
         row = self.data().dungeon_defense(-3)
 
         assert row is not None and row.commander is not None
-        assert row.commander.lord_id == -21
+        assert row.commander.commander_id == -21
         treasure = self.data().dungeon_defense(-20, -1)
         assert treasure is not None and treasure.commander is None
 

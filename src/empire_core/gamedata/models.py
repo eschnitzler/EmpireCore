@@ -1380,7 +1380,7 @@ class HorseStats(_Row):
         return value if isinstance(value, bool) else _parse_int_or_default(value, 0) != 0
 
 
-class DefaultLordDef(EquipmentEffectSpecRow):
+class DefaultCommanderDef(EquipmentEffectSpecRow):
     """
     A default commander, one of the negative commander ids.
 
@@ -1392,8 +1392,8 @@ class DefaultLordDef(EquipmentEffectSpecRow):
     effect with ``EquipmentBonusVO.parseEquipmentFromValueString``.
     """
 
-    lord_id: int = Field(validation_alias="lordID")
-    lord_type: str = Field(validation_alias="type", default="")
+    commander_id: int = Field(validation_alias="lordID")
+    commander_type: str = Field(validation_alias="type", default="")
     wearer_id: GameDataId[WearerType] = Field(validation_alias="wearerID", default=0, description="Who wears it")
 
 
@@ -1623,7 +1623,7 @@ class DungeonDefence(_Row):
         default=0,
         description="The kingdom; a treasure map's camp has its map's kID",
     )
-    commander: DefaultLordDef | None = Field(
+    commander: DefaultCommanderDef | None = Field(
         validation_alias="lordID",
         default=None,
         description="The default commander holding the camp, from the lords table",
@@ -1640,10 +1640,10 @@ class DungeonDefence(_Row):
     @field_validator("commander", mode="before")
     @classmethod
     def _commander(cls, value: object, info: ValidationInfo) -> object:
-        if value is None or isinstance(value, DefaultLordDef | Mapping):
+        if value is None or isinstance(value, DefaultCommanderDef | Mapping):
             return value
-        lords = (info.context or {}).get("default_lords", {})
-        return lords.get(js_parse_int(value))
+        commanders = (info.context or {}).get("default_commanders", {})
+        return commanders.get(js_parse_int(value))
 
 
 class NpcCampDefence(_Row):
@@ -1661,7 +1661,7 @@ class NpcCampDefence(_Row):
     raw_defense_tools: str = Field(validation_alias="defenceTools", default="")
     wall_bonus: float = Field(validation_alias="wallBonus", default=0)
     gate_bonus: float = Field(validation_alias="gateBonus", default=0)
-    lord_id: int = Field(validation_alias="lordID", default=0)
+    commander_id: int = Field(validation_alias="lordID", default=0)
     guards: int = 0
     unit_wall_count: int = Field(validation_alias="unitWallCount", default=0)
     cool_down: int = Field(validation_alias="coolDown", default=0)
@@ -1792,7 +1792,7 @@ __all__ = [
     "LeagueBracketDef",
     "FIGHT_TYPE_OFFENSIVE",
     "AttackSlotDef",
-    "DefaultLordDef",
+    "DefaultCommanderDef",
     "DungeonDefence",
     "EffectCapDef",
     "EffectDef",
