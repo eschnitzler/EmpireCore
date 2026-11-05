@@ -49,8 +49,10 @@ class TestMovementFilter:
     def test_filters_are_read_by_membership(self):
         filters = parse_response("mvf", {"AFS": [0, 2, "1", True]})
         assert isinstance(filters, MovementFilterResponse)
-        assert filters.active_filters == (MovementFilter.PVP_ATTACKS, MovementFilter.MARKET_BARROWS)
-        assert filters.shows(MovementFilter.PVP_ATTACKS) and not filters.shows(MovementFilter.ALLIANCE_PVP_ATTACKS)
+        assert filters.active_filters == (MovementFilter.PLAYER_ATTACKS, MovementFilter.MARKET_BARROWS)
+        assert filters.shows(MovementFilter.PLAYER_ATTACKS) and not filters.shows(
+            MovementFilter.ALLIANCE_MEMBER_PLAYER_ATTACKS
+        )
 
     def test_no_list_is_no_filter(self):
         assert MovementFilterResponse.model_validate({}).active_filters == ()
@@ -99,7 +101,7 @@ class TestMovementFilterState:
         client = make_client(state=logged_in_state())
         client.state.update_from_packet("mvf", {"AFS": [0, 1]})
         filters = client.movements.map_filter
-        assert filters is not None and filters.shows(MovementFilter.ALLIANCE_PVP_ATTACKS)
+        assert filters is not None and filters.shows(MovementFilter.ALLIANCE_MEMBER_PLAYER_ATTACKS)
 
 
 def test_an_unreadable_owner_never_costs_the_movement(state, caplog):

@@ -1,6 +1,6 @@
 """The login data (gbd) as one typed payload, and the faction join reply (fjf)."""
 
-from empire_core.events.models import FactionJoinedResponse
+from empire_core.events.models import BerimondFactionJoinedResponse
 from empire_core.protocol.models import parse_response
 from empire_core.state.login_data import LoginDataResponse
 from tests.state.test_player import LIVE_LOGIN
@@ -35,12 +35,12 @@ class TestFactionJoined:
             "fjf",
             {"kpi": {"UL": []}, "sei": {"E": [{"EID": 83, "RS": 60}]}, "mir": {"gcl": {"PID": 7, "C": []}}, "FID": 2},
         )
-        assert isinstance(joined, FactionJoinedResponse)
+        assert isinstance(joined, BerimondFactionJoinedResponse)
         assert joined.kingdoms is not None and joined.kingdoms.kingdoms == ()
         assert joined.events is not None and joined.events.entries[0].event_id == 83
         assert joined.castle_lists is not None and joined.castle_lists.castles is not None
         assert int(joined.faction) == 2
 
     def test_falsy_blocks_are_none(self):
-        joined = FactionJoinedResponse.model_validate({"kpi": None, "sei": [], "mir": 0})
+        joined = BerimondFactionJoinedResponse.model_validate({"kpi": None, "sei": [], "mir": 0})
         assert (joined.kingdoms, joined.events, joined.castle_lists) == (None, None, None)

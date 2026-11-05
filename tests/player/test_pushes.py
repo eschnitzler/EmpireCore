@@ -80,9 +80,9 @@ class TestLevelUp:
         )
         assert level_up.currencies is not None and level_up.currencies.coins == 160000
         assert level_up.experience is not None and (level_up.experience.level, level_up.experience.xp) == (14, 5880)
-        assert (level_up.level, level_up.is_legend_level_up) == (14, False)
+        assert (level_up.level, level_up.is_legendary_level_up) == (14, False)
 
     def test_sections_that_are_no_objects_are_none(self):
         level_up = LevelUpResponse.model_validate({"gcu": None, "gxp": [], "L": "71", "LL": 1})
         assert (level_up.currencies, level_up.experience) == (None, None)
-        assert (level_up.level, level_up.is_legend_level_up) == (71, True)
+        assert (level_up.level, level_up.is_legendary_level_up) == (71, True)

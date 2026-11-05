@@ -2135,7 +2135,7 @@ class TriggerEventEndedResponse(BaseResponse):
         return event_id if event_id >= 0 else None
 
 
-class FactionJoinedResponse(BaseResponse):
+class BerimondFactionJoinedResponse(BaseResponse):
     """
     The reply to joining a Berimond faction: your kingdoms, the events and the castle lists, then which faction.
 
