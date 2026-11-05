@@ -213,7 +213,7 @@ _SUCCESS_ONLY = frozenset(
     # SSICommand.executeCommand (bundle line 128591)
     | {"ssi"}
     # SIICommand, IKRCommand, GTWARACommand (bundle lines 127742, 127728, 127296)
-    | {"sii", "ikr", "gtwara"}
+    | {"sii", "ikr", "gtwara", "rst"}
     # SINCommand.exec, GCACommand.executeCommand (bundle lines 124638, 122991)
     | {"sin", "gca"}
     # CRINCommand, the crafting action replies and FFICommand (bundle lines 123443, 123428-123504, 124120)
@@ -477,6 +477,7 @@ class GameState(
         "gaa": "_handle_gaa",
         "ssi": "_handle_ssi",
         "gtwara": "_handle_gaa",
+        "rst": "_handle_gaa",
         "sii": "_handle_sii",
         "ikr": "_handle_ikr",
         "gec": "_handle_gec",

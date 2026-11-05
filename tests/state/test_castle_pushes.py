@@ -9,7 +9,7 @@ import pytest
 from pydantic import ValidationError
 
 from empire_core.castle.models.updates import BuildingEfficiencyChanged, BuildingFinished, BuildingXP, DamagedBuildings
-from empire_core.enums import Kingdom, ResourceCartType
+from empire_core.enums import Kingdom, MapItemType, ResourceCartType
 from empire_core.state.manager import GameState
 from empire_core.state.models import JoinedArea
 from tests.service_helpers import make_client, xt_packet
@@ -119,7 +119,14 @@ class TestJoinedArea:
         state.update_from_packet("jaa", jaa_payload(csl={"SL": 2}, gab={"B": 5}))
 
         assert state.get_joined_area() == JoinedArea(
-            kingdom_id=Kingdom.GREEN, castle_id=1, x=10, y=20, slum_level=2, builder_discount=5
+            kingdom_id=Kingdom.GREEN,
+            castle_id=1,
+            x=10,
+            y=20,
+            owner_id=7,
+            area_type=MapItemType.CASTLE,
+            slum_level=2,
+            builder_discount=5,
         )
         assert state.get_last_packet_time("csl") is not None
         assert state.get_last_packet_time("gab") is not None

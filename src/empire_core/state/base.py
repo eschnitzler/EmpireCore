@@ -46,7 +46,7 @@ from empire_core.castle.models.wishing_well import WishingWellResponse
 from empire_core.commanders.models.inventory import GemInventoryResponse, InventorySpace, NewRelicsResponse
 from empire_core.commanders.models.roster import Commander, CommanderRoster
 from empire_core.commanders.models.skills import SkillList
-from empire_core.enums import Kingdom
+from empire_core.enums import Kingdom, SessionLocation
 from empire_core.events.models import ShuttingDownEvents, SpecialEvent
 from empire_core.events.special_server_models import CurrentServer, SpecialServerCastles
 from empire_core.events.status_models import RiftRaidStatus
@@ -193,6 +193,7 @@ class StateBase:
         self._placed_construction_item_sequence = 0
         self._construction_item_reply_order: dict[str, tuple[object, int]] = {}
         self.joined_area: JoinedArea | None = None
+        self.session_location: SessionLocation | None = None
         self.mines: dict[int, MineStatus] = {}
         self.resource_carts: list[ResourceCart] = []
 
