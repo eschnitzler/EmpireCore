@@ -447,7 +447,10 @@ def spied_castle_defense(
     ``defenseMeleeBonus`` and ``defenseRangeBonus`` skills add a hundredth of
     their ``totalEffectValue`` to the melee and ranged multipliers, and
     ``wallBonus``, ``gateBonus`` and ``moatBonus`` skills to the fortification.
-    The gate is then dropped everywhere but the middle.
+    The gate is then dropped everywhere but the middle. Unlike the auto-fill
+    helper, this also includes ``defenseBonus`` on both multipliers, as
+    ``CastleFightDialog.calculateToolsInfo`` and ``AttackDialogHelper.calculateToolsInfo`` do.
+    ``defenseYardBonus`` remains excluded: the client does not read it.
 
     The keep's stacks become the courtyard flank.
 
@@ -524,7 +527,10 @@ def spied_castle_defense(
             gate += castellan_gate
             moat += castellan_moat
         for skill in skills:
-            if skill.effect_type == LEGEND_DEFENSE_MELEE_BONUS:
+            if skill.effect_type == "defenseBonus":
+                melee += skill.total_effect_value / 100
+                ranged += skill.total_effect_value / 100
+            elif skill.effect_type == LEGEND_DEFENSE_MELEE_BONUS:
                 melee += skill.total_effect_value / 100
             elif skill.effect_type == LEGEND_DEFENSE_RANGE_BONUS:
                 ranged += skill.total_effect_value / 100

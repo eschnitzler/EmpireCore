@@ -986,7 +986,7 @@ class TestSpiedCastleDefence:
             army, wall_bonus=0.5, gate_bonus=0.4, moat_bonus=0.3, area_type=1, **kwargs, game_data=game
         )
 
-    def assert_matches(self, defense: dict[Flank, DefenderFlankEffects], expected) -> None:
+    def assert_matches(self, defense: dict[Flank, DefenderFlankEffects], expected, *, defense_bonus=0.0) -> None:
         for flank, (strength, fortification) in expected.items():
             effects = defense[flank]
             assert [
@@ -996,7 +996,7 @@ class TestSpiedCastleDefence:
                 effects.range_units_melee_strength,
                 effects.range_units_range_strength,
                 effects.range_bonus,
-            ] == strength, flank
+            ] == pytest.approx([v + defense_bonus if i in (2, 5) else v for i, v in enumerate(strength)]), flank
             assert [effects.wall_bonus, effects.gate_bonus, effects.moat_bonus] == fortification, flank
 
     def test_tools_raise_the_multipliers_and_roleless_units_defend_as_ranged(self):
@@ -1006,6 +1006,7 @@ class TestSpiedCastleDefence:
         self.assert_matches(
             self.defense(defender_legendary_skill_ids=[331, 371, 430, 301, 512, 551, 331]),
             self.WITH_SKILLS,
+            defense_bonus=0.12,
         )
 
     def test_the_castellan_is_added_after_the_items_and_before_the_skills(self):
@@ -1015,6 +1016,7 @@ class TestSpiedCastleDefence:
                 defender_legendary_skill_ids=[331, 371, 430, 301, 512, 551],
             ),
             self.WITH_CASTELLAN_AND_SKILLS,
+            defense_bonus=0.12,
         )
 
     def test_an_unknown_legend_skill_is_an_error(self):
