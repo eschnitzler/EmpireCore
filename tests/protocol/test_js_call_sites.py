@@ -2,10 +2,10 @@
 
 import pytest
 
+from empire_core.alliance.models.membership import AllianceMembership
 from empire_core.army.spy_army import SpyArmy
 from empire_core.gamedata.models import EquipmentEffectDef
 from empire_core.movements.models import MovementOwner
-from empire_core.player.models.login import Alliance
 from empire_core.protocol.models import AllianceInfo, MessageInfo, OwnedGeneral
 
 
@@ -58,7 +58,7 @@ class TestParseIntOneFlags:
     @pytest.mark.parametrize(("value", "expected"), [("1abc", True), (True, False), (1, True)])
     def test_alliance_searching_flag(self, value, expected):
         # CastleUserData.parse_GAL (bundle line 9869): 1 == parseInt(e.SA)
-        assert Alliance.model_validate({"AID": 1, "SA": value}).is_searching is expected
+        assert AllianceMembership.model_validate({"AID": 1, "SA": value}).looking_for_alliance is expected
 
 
 class TestTruthyFlags:

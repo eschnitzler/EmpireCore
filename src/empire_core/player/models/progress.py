@@ -2,6 +2,9 @@
 The player's progress, as the login data and its pushes send it.
 
 Commands:
+- gxp: level and XP
+- glu: a level-up
+- gho: honor and ranking points
 - rei: research
 - boi: boosters, the premium account and production slots (bfs: the festival)
 - gmu: might points
@@ -773,3 +776,91 @@ __all__ = [
     "TitleRanksResponse",
     "TopTitleRanking",
 ]
+
+
+class ExperienceResponse(BaseResponse):
+    """
+    Your level and XP: the ``gxp`` login section, pushed as they change.
+
+    The client ignores the ``LL``, ``XPFCL`` and ``XPTNL`` the server sends alongside and computes
+    the legend level and the level's XP range from these two; so does ``client.state``.
+
+    Command: gxp, as a login section of ``gbd``, a push, and inside a ``glu``.
+
+    Client: ``GXPCommand.executeCommand`` (bundle line 129719), ``CastleUserData.parse_GXP`` (bundle
+    line 9878), which reads ``int(e.XP)`` and ``LVL`` as sent
+    """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    command = "gxp"
+
+    xp: ClientInt = Field(validation_alias="XP", default=0, description="Your total XP")
+    level: int | None = Field(
+        validation_alias="LVL",
+        default=None,
+        description=(
+            "Your level; 70 is the cap before legend levels. None when the server sent nothing parseInt"
+            " reads as a number, which the client stores as it came"
+        ),
+    )
+
+    @field_validator("level", mode="before")
+    @classmethod
+    def _level(cls, value: Any) -> Any:
+        return js_parse_int(value)
+
+
+class HonorResponse(BaseResponse):
+    """
+    Your honor and ranking points: the ``gho`` login section, pushed as they change.
+
+    Command: gho, as a login section of ``gbd`` and a push.
+
+    Client: ``GHOCommand.executeCommand`` (bundle line 129559), ``CastleUserData.parse_GHO`` (bundle
+    line 9875), which reads both through ``int()``
+    """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    command = "gho"
+
+    honor: ClientInt = Field(validation_alias="H", default=0, description="Your honor")
+    ranking_points: ClientInt = Field(validation_alias="RP", default=0, description="Your ranking points")
+
+
+class LevelUpResponse(BaseResponse):
+    """
+    A level-up: your new currencies and XP, and the level the client's dialog shows.
+
+    Command: glu, a push.
+
+    Client: ``GLUCommand.executeCommand`` (bundle line 129619), which hands ``gcu`` to
+    ``CurrencyData.parseGCU`` and then ``gxp`` to ``CastleUserData.parse_GXP``; ``int(L)`` and
+    ``1 == LL`` only drive the level-up dialog and tracking
+    """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    command = "glu"
+
+    currencies: CurrencyBlock = Field(
+        validation_alias="gcu", default=None, description="Coins and rubies after the level-up"
+    )
+    experience: ExperienceResponse | None = Field(
+        validation_alias="gxp", default=None, description="Level and XP after the level-up"
+    )
+    level: ClientInt = Field(validation_alias="L", default=0, description="The level reached, as the dialog shows it")
+    is_legend_level_up: bool = Field(
+        validation_alias="LL", default=False, description="The level-up is a legend level (1 == LL)"
+    )
+
+    @field_validator("experience", mode="before")
+    @classmethod
+    def _experience(cls, value: Any) -> Any:
+        return object_or_none(value)
+
+    @field_validator("is_legend_level_up", mode="before")
+    @classmethod
+    def _legend_flag(cls, value: Any) -> bool:
+        return js_loose_equals(value, 1)

@@ -2,7 +2,10 @@
 
 import pytest
 
+from empire_core.alliance.models.membership import AllianceMembership, AllianceMembershipResponse
+from empire_core.enums import AllianceRank
 from empire_core.exceptions import CommandError, EmpireTimeoutError, PacketError
+from empire_core.protocol.models import parse_response
 from empire_core.state.manager import GameState
 from empire_core.state.models import Player
 from tests.service_helpers import conn, xt_packet
@@ -374,7 +377,7 @@ def test_scoped_membership_keeps_raw_boolean_and_text_semantics(command, method,
     )
     result = getattr(client.alliance, method)(301, timeout=0.1)
     membership = state.get_local_player().alliance
-    assert membership is not None and membership.is_searching
+    assert membership is not None and membership.looking_for_alliance
     own = client.alliance.own_alliance
     assert own is not None and own.description == result.description == decode_json_text(text)
 
@@ -396,3 +399,22 @@ def test_accepted_leave_without_gal_invalidates_pending_join(monkeypatch):
         client.alliance.join_open(301, timeout=0.1)
     assert state.get_own_alliance() is None and state.get_alliance_chat() == []
     assert state.get_local_player().alliance_id == 201
+
+
+class TestGal:
+    def test_a_live_gal(self):
+        alliance = AllianceMembership.model_validate({"AID": 301, "R": 1, "N": "Iron Pact", "ACF": 22, "SA": 0})
+        assert (alliance.alliance_id, alliance.rank, alliance.name, alliance.current_fame) == (301, 1, "Iron Pact", 22)
+        assert alliance.is_member and not alliance.looking_for_alliance
+
+    def test_the_registry_knows_gal(self):
+        membership = parse_response("gal", {"AID": 301, "R": 1})
+        assert isinstance(membership, AllianceMembershipResponse) and membership.rank == AllianceRank.COLEADER
+
+    def test_the_client_reads_an(self):
+        alliance = AllianceMembership.model_validate({"AID": 5, "AN": "Clan", "SA": "1"})
+        assert (alliance.name, alliance.looking_for_alliance) == ("Clan", True)
+
+    @pytest.mark.parametrize("body", [{}, {"AID": 0}, {"AID": -1}, {"AID": "x"}])
+    def test_no_alliance(self, body):
+        assert not AllianceMembership.model_validate(body).is_member

@@ -347,7 +347,7 @@ class TestOnPacketPayloadTypes:
         assert state.updates == []
 
     def test_handler_dispatch_parses_a_list_payload(self):
-        from empire_core.player.models.login import SpecialCurrenciesResponse
+        from empire_core.player.models.economy import SpecialCurrenciesResponse
 
         state = StubState()
         client = make_client(state=state)

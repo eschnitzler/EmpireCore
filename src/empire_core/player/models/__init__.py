@@ -8,8 +8,10 @@ from .account import (
     OfficerTraining,
     PlayerGift,
     PlayerGiftsResponse,
+    PlayerIdentityResponse,
     SendGiftPackagesRequest,
     SendGiftPackagesResponse,
+    VipStatusResponse,
 )
 from .aqua import (
     AquaPointsResponse,
@@ -49,12 +51,14 @@ from .credentials import (
     SocialLoginMigrationStatus,
 )
 from .economy import (
+    CurrencyResponse,
     GetLootBoxesRequest,
     LootBoxAmount,
     LootBoxesResponse,
     LootBoxKeys,
     OpenLootBoxRequest,
     OpenLootBoxResponse,
+    SpecialCurrenciesResponse,
 )
 from .hero import (
     HeroDecisionRequest,
@@ -67,16 +71,6 @@ from .info import (
     PlayerOwnerInfo,
     SearchPlayerRequest,
     SearchPlayerResponse,
-)
-from .login import (
-    Alliance,
-    CurrencyResponse,
-    ExperienceResponse,
-    HonorResponse,
-    LevelUpResponse,
-    PlayerIdentityResponse,
-    SpecialCurrenciesResponse,
-    VipStatusResponse,
 )
 from .officers_school import (
     ActivateTrainingProgramRequest,
@@ -100,13 +94,16 @@ from .progress import (
     AssignTitleResponse,
     Booster,
     BoosterInfoResponse,
+    ExperienceResponse,
     FactionPointsResponse,
     Festival,
     GetAchievementsRequest,
     GetTitleRanksRequest,
     GloryPointsResponse,
     GloryTitleResetResponse,
+    HonorResponse,
     IslandTitle,
+    LevelUpResponse,
     MightPointsResponse,
     RelocationInfoResponse,
     SelectTitleRequest,
@@ -175,7 +172,6 @@ __all__ = [
     "FACTION_PROTECTION_RUBIES",
     "GetProtectionRequest",
     "ProtectionResponse",
-    "Alliance",
     "CurrencyResponse",
     "ExperienceResponse",
     "HonorResponse",

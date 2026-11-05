@@ -22,11 +22,10 @@ from empire_core.alliance.models.info import (
     alliance_of_ain,
 )
 from empire_core.alliance.models.landmarks import AllianceLaboratoriesResponse
-from empire_core.alliance.models.membership import AutoJoinedAllianceResponse
+from empire_core.alliance.models.membership import AllianceMembership, AutoJoinedAllianceResponse
 from empire_core.enums import OnlineState
 from empire_core.exceptions import ReplyMismatchError
 from empire_core.player.models.aqua import AquaPointsResponse, StormIslandsInfo
-from empire_core.player.models.login import Alliance
 from empire_core.protocol.base import read_or_none
 from empire_core.protocol.js import js_int, js_truthy
 from empire_core.state.base import StateBase, read_section
@@ -192,7 +191,9 @@ class AllianceState(StateBase):
         self.alliance_help = ()
         self.alliance_gifts = ()
 
-    def _apply_gal_reset(self, membership: Alliance | None, *, present: bool, previous_alliance_id: int | None) -> None:
+    def _apply_gal_reset(
+        self, membership: AllianceMembership | None, *, present: bool, previous_alliance_id: int | None
+    ) -> None:
         """Forget details, chat and help when a ``gal`` changes your alliance identity.
 
         Args:

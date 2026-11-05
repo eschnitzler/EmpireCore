@@ -4,11 +4,11 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 from pydantic import ConfigDict, Field
 
+from empire_core.alliance.models.membership import AllianceMembership
 from empire_core.castle.models.details import DetailedCastleInfo, ResourceProduction, SafeAmount, StorageCapacity
 from empire_core.enums import Kingdom
 from empire_core.gamedata import EnumOrStr, WodAmounts
 from empire_core.map.models.areas import KingdomProtection
-from empire_core.player.models.login import Alliance
 from empire_core.protocol.base import EmpireModel
 
 if TYPE_CHECKING:
@@ -178,7 +178,7 @@ class Player(EmpireModel):
     snake_case names.
 
     Each section is read through its model (``PlayerIdentityResponse``, ``ExperienceResponse``,
-    ``CurrencyResponse``, ``VipStatusResponse``, ``HonorResponse``, ``Alliance``,
+    ``CurrencyResponse``, ``VipStatusResponse``, ``HonorResponse``, ``AllianceMembershipResponse``,
     ``SpecialCurrenciesResponse`` and ``ProtectionResponse``); a section that omits a field keeps
     the value held, where the client would read 0.
 
@@ -241,7 +241,7 @@ class Player(EmpireModel):
         description="Premium commanders used today from the VIP level's free ones",
     )
 
-    alliance: Alliance | None = Field(default=None, description="Your alliance, None while in none")
+    alliance: AllianceMembership | None = Field(default=None, description="Your alliance, None while in none")
 
     honor: int = Field(default=0, validation_alias="H", description="Honor")
     ranking: int = Field(default=0, validation_alias="RP", description="Ranking points")

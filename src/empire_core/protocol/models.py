@@ -168,6 +168,7 @@ from empire_core.alliance.models.membership import (
     AcceptAllianceInvitationRequest,
     AcceptAllianceInvitationResponse,
     AllianceMembership,
+    AllianceMembershipResponse,
     AllianceRecruit,
     ApplyToAllianceRequest,
     ApplyToAllianceResponse,
@@ -980,8 +981,10 @@ from empire_core.player.models.account import (
     DailyResetResponse,
     FoodProductionStatus,
     PlayerGiftsResponse,
+    PlayerIdentityResponse,
     SendGiftPackagesRequest,
     SendGiftPackagesResponse,
+    VipStatusResponse,
 )
 from empire_core.player.models.aqua import AquaPointsResponse, GetAquaPointsRequest
 from empire_core.player.models.coat_of_arms import (
@@ -1015,10 +1018,12 @@ from empire_core.player.models.credentials import (
     SocialLoginMigrationStatus,
 )
 from empire_core.player.models.economy import (
+    CurrencyResponse,
     GetLootBoxesRequest,
     LootBoxesResponse,
     OpenLootBoxRequest,
     OpenLootBoxResponse,
+    SpecialCurrenciesResponse,
 )
 from empire_core.player.models.hero import (
     HeroDecisionRequest,
@@ -1031,16 +1036,6 @@ from empire_core.player.models.info import (
     PlayerOwnerInfo,
     SearchPlayerRequest,
     SearchPlayerResponse,
-)
-from empire_core.player.models.login import (
-    Alliance,
-    CurrencyResponse,
-    ExperienceResponse,
-    HonorResponse,
-    LevelUpResponse,
-    PlayerIdentityResponse,
-    SpecialCurrenciesResponse,
-    VipStatusResponse,
 )
 from empire_core.player.models.officers_school import (
     ActivateTrainingProgramRequest,
@@ -1059,11 +1054,14 @@ from empire_core.player.models.progress import (
     AssignTitleRequest,
     AssignTitleResponse,
     BoosterInfoResponse,
+    ExperienceResponse,
     FactionPointsResponse,
     GetAchievementsRequest,
     GetTitleRanksRequest,
     GloryPointsResponse,
     GloryTitleResetResponse,
+    HonorResponse,
+    LevelUpResponse,
     MightPointsResponse,
     RelocationInfoResponse,
     SelectTitleRequest,
@@ -1383,7 +1381,6 @@ __all__ = [
     "CANCEL_PEACE_MODE",
     "GetProtectionRequest",
     "ProtectionResponse",
-    "Alliance",
     "CurrencyResponse",
     "ExperienceResponse",
     "HonorResponse",
@@ -1417,6 +1414,7 @@ __all__ = [
     "SetLookingForAllianceRequest",
     "SetLookingForAllianceResponse",
     "AllianceMembership",
+    "AllianceMembershipResponse",
     "ApplyToAllianceRequest",
     "ApplyToAllianceResponse",
     "JoinOpenAllianceRequest",

@@ -10,6 +10,7 @@ from pydantic import ConfigDict, Field, ValidationInfo, ValidatorFunctionWrapHan
 from empire_core.alliance.models.chat import AllianceChatLogResponse
 from empire_core.alliance.models.help import AllianceHelpListResponse
 from empire_core.alliance.models.info import GetAllianceInfoResponse
+from empire_core.alliance.models.membership import AllianceMembershipResponse
 from empire_core.attack.models.counter import AttackCounterResponse
 from empire_core.castle.models.castles import GetCastlesResponse
 from empire_core.castle.models.details import GetDetailedCastleResponse
@@ -40,24 +41,19 @@ from empire_core.player.models.account import (
     DailyResetResponse,
     FoodProductionStatus,
     PlayerGiftsResponse,
+    PlayerIdentityResponse,
+    VipStatusResponse,
 )
 from empire_core.player.models.coat_of_arms import CoatOfArmsResponse
 from empire_core.player.models.credentials import CredentialsStatus
-from empire_core.player.models.economy import LootBoxesResponse
-from empire_core.player.models.login import (
-    Alliance,
-    CurrencyResponse,
-    ExperienceResponse,
-    HonorResponse,
-    PlayerIdentityResponse,
-    SpecialCurrenciesResponse,
-    VipStatusResponse,
-)
+from empire_core.player.models.economy import CurrencyResponse, LootBoxesResponse, SpecialCurrenciesResponse
 from empire_core.player.models.progress import (
     AchievementsResponse,
     BoosterInfoResponse,
+    ExperienceResponse,
     GloryPointsResponse,
     GloryTitleResetResponse,
+    HonorResponse,
     MightPointsResponse,
     RelocationInfoResponse,
     TitleRanksResponse,
@@ -155,7 +151,7 @@ class LoginDataResponse(BaseResponse):
         default=None,
         description="A second protection block, read as a uap; None when not sent or unreadable",
     )
-    alliance: Alliance | None = Field(
+    alliance: AllianceMembershipResponse | None = Field(
         validation_alias="gal", default=None, description="Your alliance membership; None when not sent or unreadable"
     )
     food_production: FoodProductionStatus | None = Field(

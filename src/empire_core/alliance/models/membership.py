@@ -1,31 +1,56 @@
-"""Applying to and joining alliances."""
+"""
+Your alliance membership, and applying to and joining alliances.
+
+Commands:
+- gal: your alliance membership, a login section of ``gbd`` and a push
+"""
 
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, ClassVar
 
-from pydantic import Field, field_serializer, field_validator, model_validator
+from pydantic import AliasChoices, ConfigDict, Field, field_serializer, field_validator, model_validator
 
 from empire_core.alliance.models.info import AllianceInfo
 from empire_core.enums import AllianceRank
 from empire_core.gamedata.lenient import EnumOrInt
 from empire_core.player.models.profile import PlayerProfileBase
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, readable_list
-from empire_core.protocol.js import ClientInt, js_parse_int, js_same_number, js_truthy
+from empire_core.protocol.js import ClientInt, js_int, js_parse_int, js_same_number, js_truthy
 from empire_core.protocol.text import encode_json_text
 
 logger = logging.getLogger(__name__)
 
 
 class AllianceMembership(BasePayload):
-    """Membership status. Client: ``CastleUserData.parse_GAL`` (bundle line 9869)."""
+    """
+    Your alliance membership: the ``gal`` block of a login, a push or a membership reply.
 
-    alliance_id: ClientInt = Field(validation_alias="AID", description="Alliance id")
-    rank: EnumOrInt[AllianceRank] = Field(default=AllianceRank.LEADER, validation_alias="R", description="Member rank")
-    name: str = Field(default="", validation_alias="AN", description="Alliance name")
-    current_fame: ClientInt = Field(default=0, validation_alias="ACF", description="Alliance fame")
-    looking_for_alliance: bool = Field(default=False, validation_alias="SA", description="Looking for an alliance")
+    An ``alliance_id`` of 0 or less means no alliance; the client then forgets its alliance
+    and chat, and so does ``client.state``.
+
+    Client: ``CastleUserData.parse_GAL`` (bundle line 9876), which reads ``AID``, ``R`` and ``ACF``
+    through ``int()``, ``AN`` as sent and ``1 == parseInt(e.SA)``
+    """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    alliance_id: ClientInt = Field(validation_alias="AID", default=0, description="The alliance; 0 or less for none")
+    rank: EnumOrInt[AllianceRank] = Field(
+        default=AllianceRank.LEADER, validation_alias="R", description="Your rank in the alliance"
+    )
+    # The client reads AN; live servers send N
+    name: str = Field(default="", validation_alias=AliasChoices("AN", "N"), description="The alliance's name")
+    current_fame: ClientInt = Field(default=0, validation_alias="ACF", description="The alliance's current fame")
+    looking_for_alliance: bool = Field(
+        default=False, validation_alias="SA", description="You are looking for an alliance"
+    )
+
+    @field_validator("rank", mode="before")
+    @classmethod
+    def _rank(cls, value: Any) -> int:
+        return js_int(value)
 
     @field_validator("looking_for_alliance", mode="before")
     @classmethod
@@ -35,7 +60,24 @@ class AllianceMembership(BasePayload):
     @field_validator("name", mode="before")
     @classmethod
     def _name(cls, value: Any) -> Any:
-        return value or ""
+        return value if isinstance(value, str) else ""
+
+    @property
+    def is_member(self) -> bool:
+        """Whether you are in an alliance: ``alliance_id`` above 0."""
+        return self.alliance_id > 0
+
+
+class AllianceMembershipResponse(BaseResponse, AllianceMembership):
+    """
+    Your alliance membership, pushed when you join or leave and sent as a login section of ``gbd``.
+
+    Command: gal.
+
+    Client: ``GALCommand.executeCommand`` (bundle line 129393)
+    """
+
+    command = "gal"
 
 
 class ApplyToAllianceRequest(BaseRequest):

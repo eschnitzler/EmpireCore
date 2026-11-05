@@ -6,19 +6,14 @@ import math
 import time
 from typing import Any
 
+from empire_core.alliance.models.membership import AllianceMembershipResponse
 from empire_core.enums import Hero
 from empire_core.gamedata import Currency
 from empire_core.map.models.areas import KingdomProtection
+from empire_core.player.models.account import PlayerIdentityResponse, VipStatusResponse
+from empire_core.player.models.economy import CurrencyResponse, SpecialCurrenciesResponse
 from empire_core.player.models.hero import HeroDecisionResponse
-from empire_core.player.models.login import (
-    Alliance,
-    CurrencyResponse,
-    ExperienceResponse,
-    HonorResponse,
-    PlayerIdentityResponse,
-    SpecialCurrenciesResponse,
-    VipStatusResponse,
-)
+from empire_core.player.models.progress import ExperienceResponse, HonorResponse
 from empire_core.protocol.base import BasePayload, read_or_none
 from empire_core.protocol.js import js_truthy
 from empire_core.spy.models import MaxSpiesResponse
@@ -211,7 +206,7 @@ class PlayerState(StateBase):
         player.special_currencies = {**player.special_currencies, **currencies.amounts}
         return len(player.special_currencies)
 
-    def _parse_alliance_info(self, data: dict[str, Any]) -> Alliance | None:
+    def _parse_alliance_info(self, data: dict[str, Any]) -> AllianceMembershipResponse | None:
         """Apply the gal section: your alliance membership; the section as read, None when it is no object.
 
         Two cases are deliberately distinguished:
@@ -229,7 +224,7 @@ class PlayerState(StateBase):
         """
         if "gal" not in data:
             return None
-        membership = read_section(Alliance, data.get("gal"), "the gal section")
+        membership = read_section(AllianceMembershipResponse, data.get("gal"), "the gal section")
         player = self.local_player
         if player is None:
             return membership
