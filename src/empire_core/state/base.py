@@ -175,8 +175,8 @@ class StateBase:
         self._movement_times: dict[int, tuple[float, float]] = {}
         self._arrival_dispatched: set[int] = set()
         self._next_movement_due = math.inf
-        # Commanders of your landed movements held as away, and until when, by commander id
-        self._landed_commanders: dict[int, tuple[Commander, float]] = {}
+        # Commander id -> commander and estimated return/attack end plus a reuse margin.
+        self._returning_commanders: dict[int, tuple[Commander, float]] = {}
 
         # Spies owned before boosts, from gms
         self.max_spies: MaxSpiesResponse | None = None

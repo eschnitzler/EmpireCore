@@ -197,6 +197,23 @@ class TestAttackService:
         with pytest.raises(CommandError):
             client.attack.send_attack(500, 510, 700, 710, [wave(units=[[487, 1]])], commander_id=91)
 
+    def test_busy_commander_error_is_surfaced_without_retry(self, state):
+        from empire_core.enums import GGEError
+
+        # CRACommand -> CastleHandleServerErrorCommand displays the error;
+        # neither retries nor changes commander availability.
+        client = make_client({"cra": xt_packet("cra", None, error_code=256)}, state=state)
+        client.state.update_from_packet("gli", {"C": [{"ID": 91}]})
+
+        with pytest.raises(CommandError) as raised:
+            client.attack.send_attack(
+                500, 510, 700, 710, [wave(units=[[487, 1]])], commander_id=91, kingdom_id=Kingdom.GREEN
+            )
+
+        assert raised.value.error is GGEError.LORD_IS_USED
+        assert len(conn(client).request_payloads) == 1
+        assert [c.commander_id for c in client.commanders.idle_commanders] == [91]
+
     def test_send_attack_builds_the_client_payload(self):
         client = make_client(castles=OWN)
 

@@ -35,14 +35,19 @@ print(len(roster.commanders), len(roster.castellans))
 `idle_commanders` and `travelling_commanders` split the roster by the
 movements in state, again without a request. A commander leading one of your
 movements is travelling until that movement leaves state, its way home
-included, as in the game client; the rest are idle.
+included. A returning commander stays travelling for one additional second
+before appearing in `idle_commanders`.
 
-One step goes beyond the game client. An attack leaves state when it lands,
-and its army's way home is a new movement the server can send a moment later.
-The client offers the commander again in that gap, but the server refuses a
-send it leads with `GGEError.LORD_IS_USED`. The library keeps the commander
-travelling until its way home is in state, or for `LANDED_COMMANDER_HOLD` (10)
-seconds after the landing.
+The one-second return hold mitigates a measured timing race: the server can
+still consider the commander busy after the local movement timer expires.
+It is library policy beyond the game client, not confirmation of server
+readiness. Movement expiry and arrival callbacks still happen on time.
+Outbound attacks get the same one-second margin to bridge the return packet.
+A return movement keeps the commander busy for its full trip and return margin.
+If no return arrives, the outbound margin expires rather than reserving the
+commander indefinitely. Other outbound movements add no hold. No background
+confirmation polling is performed. Server rejections such as `GGEError.LORD_IS_USED` still raise
+`CommandError`, without an automatic retry.
 
 ```python
 idle = client.commanders.idle_commanders

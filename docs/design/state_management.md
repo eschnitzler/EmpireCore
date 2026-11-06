@@ -155,12 +155,15 @@ the container.
   login, or an attack reported late) is not an arrival and does not alert.
 * An army's way home is a separate movement: a new `MID`, typed TRAVEL, with
   `D == 1` and source and target swapped.
-* The way home can come a moment after the arrival, and the server refuses a
-  send led by that army's commander (`LORD_IS_USED`) until it does. Going
-  beyond the client, which frees the commander at the arrival, state holds the
-  commander of your own arrived movement as away (`get_away_commanders()`)
-  until a returning movement it leads is stored, or for `LANDED_COMMANDER_HOLD`
-  seconds; `reset()` drops the hold.
+* Commander availability follows the client's tracked movements. An expired
+  movement releases its commander unless another own movement references it.
+  A server-provided wait (`TWD` / `PWD`) keeps the movement tracked until its
+  end. As a library mitigation beyond the client, a returning commander stays
+  unavailable until two seconds after its estimated end. Movement expiry and
+  callbacks are not delayed. Outbound expiry adds no hold; a later return
+  packet makes the commander unavailable again. Reset clears the hold, and
+  another active movement still reserves the commander after it expires.
+  Server rejections such as `LORD_IS_USED` continue to surface to the caller.
 
 ## Reactive Callbacks
 
