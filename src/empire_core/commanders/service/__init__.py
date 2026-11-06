@@ -105,19 +105,17 @@ class CommandersService(GeneralsMixin, BaseService):
         """
         The commanders leading one of your movements in state, returning ones included; nothing is sent.
 
-        An attack that lands leaves state at its arrival, as in the client, but its army's way home
-        is a new movement the server can send a little later. Until it is stored, or for
-        ``LANDED_COMMANDER_HOLD`` seconds after the arrival, the commander is still listed here:
-        in that window the server refuses a send it leads with ``GGEError.LORD_IS_USED``. Only as
-        fresh as the movements in state.
+        Availability follows the locally tracked movements, including any server-provided
+        waiting duration. Expiry releases the commander; a later return movement makes it
+        travelling again. Only as fresh as the movements in state.
 
         Raises:
             StateNotLoadedError: No login has brought the roster
 
         Client: ``LordVO.isAvailableForMovement`` (bundle line 26656), false while any map movement
         that ``isMyMovement`` (``BasicMapmovementVO``, bundle line 19436) has the lord as its ``lordVO``,
-        whichever way it travels. The hold goes beyond the client, which frees the commander as soon as
-        ``CastleArmyData.updateMapmovements`` (bundle line 133719) drops the arrived movement.
+        whichever way it travels. ``CastleArmyData.updateMapmovements`` removes an expired
+        movement without an additional commander hold.
         """
         away = {c.commander_id for c in self.client.state.get_away_commanders()}
         return [c for c in self.roster.commanders if c.commander_id in away]
@@ -127,9 +125,8 @@ class CommandersService(GeneralsMixin, BaseService):
         """
         The commanders free to lead an army: those not in :attr:`travelling_commanders`; nothing is sent.
 
-        A commander whose attack just landed is not listed until its army's way home is in state or
-        the hold described there runs out, though the client already offers it: the server answers
-        ``GGEError.LORD_IS_USED`` to a send it leads in that window.
+        As in the client, this is a local estimate. The server may still reject a send
+        with ``GGEError.LORD_IS_USED``; the send surfaces that error to the caller.
 
         Raises:
             StateNotLoadedError: No login has brought the roster

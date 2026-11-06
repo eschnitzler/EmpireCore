@@ -75,9 +75,10 @@ class TestTravellingCommanders:
         assert ids(client.commanders.travelling_commanders) == []
         assert ids(client.commanders.idle_commanders) == [0, 1]
 
-    def test_a_landed_attack_keeps_its_commander_away_until_the_way_home_comes(self, state):
+    @pytest.mark.parametrize("direction", [0, 1])
+    def test_expired_movement_releases_its_commander(self, state, direction):
         login(state, ME)
-        attack = gam_payload(1, oid=ME)
+        attack = gam_payload(1, oid=ME, extra={"D": direction})
         attack["M"][0]["UM"] = {"L": {"ID": 1}}
         state.update_from_packet("gam", attack)
         state.commanders = roster(0, 1)
@@ -85,8 +86,8 @@ class TestTravellingCommanders:
         arrive(state, 1)
 
         assert state.movements == {}
-        assert ids(client.commanders.travelling_commanders) == [1]
-        assert ids(client.commanders.idle_commanders) == [0]
+        assert ids(client.commanders.travelling_commanders) == []
+        assert ids(client.commanders.idle_commanders) == [0, 1]
 
     def test_nothing_is_sent(self, state):
         holding(state, led_by(1))
