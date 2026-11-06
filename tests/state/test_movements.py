@@ -1842,7 +1842,7 @@ class TestSentMovements:
 
 
 class TestCommanderMovementAvailability:
-    """Match LordVO.isAvailableForMovement: only tracked own movements reserve a commander."""
+    """Tracked movements reserve commanders; returning ones add a short reuse margin."""
 
     ME = 1001
 
@@ -1857,10 +1857,9 @@ class TestCommanderMovementAvailability:
     def away(state: GameState) -> list[int]:
         return [c.commander_id for c in state.get_away_commanders()]
 
-    @pytest.mark.parametrize("direction", [0, 1])
-    def test_available_immediately_after_movement_expires(self, state, direction):
+    def test_outbound_expiry_releases_commander_immediately(self, state):
         login(state, self.ME)
-        self.led(state, 1, direction=direction)
+        self.led(state, 1)
         assert self.away(state) == [4]
         arrive(state, 1)
         assert state.movements == {}
@@ -1874,7 +1873,7 @@ class TestCommanderMovementAvailability:
         self.led(state, 2, direction=1)
         assert self.away(state) == [4]
         arrive(state, 2)
-        assert self.away(state) == []
+        assert self.away(state) == [4]
 
     def test_overlapping_movement_keeps_commander_unavailable(self, state):
         login(state, self.ME)
@@ -1883,6 +1882,8 @@ class TestCommanderMovementAvailability:
         with later(landing - time.time() + 0.5):
             assert self.away(state) == [4]
         with later(home - time.time() + 0.5):
+            assert self.away(state) == [4]
+        with later(home - time.time() + 2):
             assert self.away(state) == []
 
     def test_server_wait_duration_keeps_commander_unavailable(self, state):
@@ -1894,13 +1895,65 @@ class TestCommanderMovementAvailability:
             assert self.away(state) == []
 
     @pytest.mark.parametrize("direction", [0, 1])
-    def test_arrival_callback_sees_commander_available(self, state, direction):
+    def test_arrival_callback_sees_return_hold(self, state, direction):
         login(state, self.ME)
         observed: list[list[int]] = []
         state.on_movement_arrived(lambda mid: observed.append(self.away(state)))
         self.led(state, 1, direction=direction)
         arrive(state, 1)
-        assert wait_for(lambda: observed == [[]])
+        assert wait_for(lambda: observed == ([[4]] if direction else [[]]))
+
+    def test_return_hold_expires_two_seconds_after_estimated_end(self, state):
+        login(state, self.ME)
+        home = self.led(state, 1, direction=1)
+        with later(home - time.time() + 0.001):
+            assert state.get_all_movements() == []
+            assert self.away(state) == [4]
+        with later(home - time.time() + 1.999):
+            assert self.away(state) == [4]
+        with later(home - time.time() + 2):
+            assert self.away(state) == []
+
+    def test_late_query_does_not_restart_return_hold(self, state):
+        login(state, self.ME)
+        home = self.led(state, 1, direction=1)
+        with later(home - time.time() + 3):
+            assert self.away(state) == []
+
+    def test_new_movement_stays_away_after_return_hold_expires(self, state):
+        login(state, self.ME)
+        home = self.led(state, 1, direction=1)
+        arrive(state, 1)
+        self.led(state, 2, tt=1200)
+        with later(home - time.time() + 2):
+            assert self.away(state) == [4]
+
+    def test_older_return_does_not_shorten_a_newer_hold(self, state):
+        login(state, self.ME)
+        later_home = self.led(state, 2, direction=1, tt=601)
+        self.led(state, 1, direction=1, tt=600)
+        with later(later_home - time.time() + 0.1):
+            assert self.away(state) == [4]
+        with later(later_home - time.time() + 1.5):
+            assert self.away(state) == [4]
+        with later(later_home - time.time() + 2):
+            assert self.away(state) == []
+
+    def test_reset_clears_return_hold(self, state):
+        login(state, self.ME)
+        self.led(state, 1, direction=1)
+        arrive(state, 1)
+        assert self.away(state) == [4]
+        state.reset()
+        assert self.away(state) == []
+
+    def test_other_players_return_does_not_reserve_our_commander(self, state):
+        login(state, self.ME)
+        payload = gam_payload(1, oid=2002, extra={"D": 1})
+        payload["M"][0]["UM"] = {"L": {"ID": 4}}
+        state.update_from_packet("gam", payload)
+        arrive(state, 1)
+        assert self.away(state) == []
 
 
 class TestCallbackOrdering:

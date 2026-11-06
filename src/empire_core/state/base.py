@@ -44,7 +44,7 @@ from empire_core.castle.models.upkeep import ConstructionItemExpiryResponse, Res
 from empire_core.castle.models.villages import VillageListResponse
 from empire_core.castle.models.wishing_well import WishingWellResponse
 from empire_core.commanders.models.inventory import GemInventoryResponse, InventorySpace, NewRelicsResponse
-from empire_core.commanders.models.roster import CommanderRoster
+from empire_core.commanders.models.roster import Commander, CommanderRoster
 from empire_core.commanders.models.skills import SkillList
 from empire_core.enums import Kingdom
 from empire_core.events.models import ShuttingDownEvents, SpecialEvent
@@ -175,6 +175,8 @@ class StateBase:
         self._movement_times: dict[int, tuple[float, float]] = {}
         self._arrival_dispatched: set[int] = set()
         self._next_movement_due = math.inf
+        # Commander id -> commander and estimated return end plus a short reuse margin.
+        self._returning_commanders: dict[int, tuple[Commander, float]] = {}
 
         # Spies owned before boosts, from gms
         self.max_spies: MaxSpiesResponse | None = None

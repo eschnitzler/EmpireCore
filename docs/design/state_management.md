@@ -158,9 +158,12 @@ the container.
 * Commander availability follows the client's tracked movements. An expired
   movement releases its commander unless another own movement references it.
   A server-provided wait (`TWD` / `PWD`) keeps the movement tracked until its
-  end; there is no additional commander cooldown. A later return packet makes
-  the commander unavailable again. Local availability does not guarantee the
-  server will accept a send; `LORD_IS_USED` is surfaced to the caller.
+  end. As a library mitigation beyond the client, a returning commander stays
+  unavailable until two seconds after its estimated end. Movement expiry and
+  callbacks are not delayed. Outbound expiry adds no hold; a later return
+  packet makes the commander unavailable again. Reset clears the hold, and
+  another active movement still reserves the commander after it expires.
+  Server rejections such as `LORD_IS_USED` continue to surface to the caller.
 
 ## Reactive Callbacks
 
