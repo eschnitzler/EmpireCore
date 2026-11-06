@@ -14,6 +14,7 @@ import xml.etree.ElementTree as ET
 from collections.abc import Callable, Iterator
 from typing import TYPE_CHECKING, NoReturn
 
+from empire_core.castle.models.actions import SelectCastleRequest, SelectCastleResponse
 from empire_core.config import LOGIN_DEFAULTS, build_number, fetch_client_version
 from empire_core.enums import GGEError
 from empire_core.exceptions import (
@@ -353,6 +354,8 @@ class Session:
             except EmpireTimeoutError as e:
                 raise EmpireTimeoutError("The login data (gbd) did not arrive") from e
 
+            # GBDCommand.joinMyCastle joins MY_CASTLE in WorldClassic after login data.
+            client.request(SelectCastleRequest(castle_id=-1), SelectCastleResponse, timeout=config.request_timeout)
             logger.debug(f"Logged in as {client.username}")
             self._login_cooldown = None
             client.is_logged_in = True

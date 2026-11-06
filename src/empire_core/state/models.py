@@ -6,7 +6,7 @@ from pydantic import ConfigDict, Field
 
 from empire_core.alliance.models.membership import AllianceMembership
 from empire_core.castle.models.details import DetailedCastleInfo, ResourceProduction, SafeAmount, StorageCapacity
-from empire_core.enums import Kingdom
+from empire_core.enums import Kingdom, MapItemType
 from empire_core.gamedata import EnumOrStr, WodAmounts
 from empire_core.map.models.areas import KingdomProtection
 from empire_core.protocol.base import EmpireModel
@@ -315,3 +315,6 @@ class JoinedArea(EmpireModel):
     y: int | None = Field(default=None, description="The area's map y; None when its map row could not be read")
     slum_level: int = Field(default=-1, description="The slum level, -1 for none")
     builder_discount: int | float = Field(default=0, description="The builder discount")
+    owner_id: int | None = Field(default=None, description="Owner from gca.O, or a non-outpost map row")
+    occupier_id: int | None = Field(default=None, description="Outpost occupier; a positive id means conquest")
+    area_type: MapItemType | None = Field(default=None, description="The joined area's map type")

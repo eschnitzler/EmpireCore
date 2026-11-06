@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING
 
-from empire_core.enums import DecorationStorageId, Hero, Kingdom, ResourceCartType
+from empire_core.enums import DecorationStorageId, Hero, Kingdom, MapItemType, ResourceCartType, SessionLocation
 from empire_core.state.manager import EventCallback, EventsCallback, GameState, MovementEventCallback
 from empire_core.state.models import Castle, JoinedArea, Player, Resources
 from empire_core.utils.lazy import lazy_exports
@@ -31,6 +31,8 @@ __all__ = [
     "Resources",
     "Hero",
     "Kingdom",
+    "MapItemType",
+    "SessionLocation",
     "ResourceCartType",
     "Currency",
     "Event",

@@ -17,8 +17,9 @@ from empire_core.castle.models.updates import (
     JoinedAreaMoved,
     SlumLevel,
 )
-from empire_core.enums import Kingdom, ResourceCartType
+from empire_core.enums import Kingdom, MapItemType, ResourceCartType, SessionLocation
 from empire_core.gamedata import Judgement
+from empire_core.map.models.areas import MapObject
 from empire_core.map.models.world import MapSize, ServerInfoResponse
 from empire_core.protocol.base import enum_or_none, read_or_none
 from empire_core.protocol.js import js_truthy
@@ -51,19 +52,35 @@ class AreaState(StateBase):
         self.placed_construction_items = reply.buildings.construction_items if reply.buildings is not None else None
         self.resource_pool = None
         kingdom = enum_or_none(Kingdom, reply.kingdom_id)
-        castle_id = x = y = None
+        castle_id = x = y = owner_id = occupier_id = None
+        area_type = reply.area_type
         area = data.get("gca")
         row = area.get("A") if isinstance(area, dict) else None
         try:
             parsed = PlayerCastle.from_list(row, Kingdom.GREEN if kingdom is None else kingdom)
             castle_id, x, y = parsed.location_id, parsed.x, parsed.y
+            area_type = area_type or parsed.castle_type
+            if area_type is MapItemType.OUTPOST:
+                occupier_id = parsed.occupier_id
+            else:
+                owner_id = parsed.owner_id
             if kingdom is not None:
                 kingdom = parsed.kingdom
-        except (ValueError, TypeError):
-            pass
+        except (ValueError, TypeError) as error:
+            if row is not None:
+                logger.warning("Could not read the joined area map row: %s", error)
+        if isinstance(area, dict) and "O" in area:
+            owner = read_or_none(MapObject.model_validate, area["O"], warn=logger, what="a joined area's owner")
+            owner_id = owner.owner_id if owner is not None else None
+            if owner is not None and owner_id is None:
+                logger.warning("Could not read the joined area owner id")
         now = time.time()
+        self.session_location = SessionLocation.ISO
         self.joined_area = JoinedArea(
             kingdom_id=kingdom,
+            owner_id=owner_id,
+            occupier_id=occupier_id,
+            area_type=area_type,
             castle_id=castle_id,
             x=x,
             y=y,
@@ -169,6 +186,7 @@ class AreaState(StateBase):
         bundle line 100945). It keeps its active area, which ``csl`` and ``gab`` still update, and
         the resource carts, so state keeps ``joined_area`` and the carts too.
         """
+        self.session_location = SessionLocation.WORLDMAP
         self.mines = {}
         self.area_revision += 1
         self._placed_construction_item_sequence = self._packet_sequence
@@ -251,12 +269,74 @@ class AreaState(StateBase):
     def get_joined_area(self) -> JoinedArea | None:
         """The area joined, with its slum level and builder discount; ``None`` before any join.
 
-        ``client.castle.join`` joins one. Login joins none. A map read (``gaa``) moves the session
+        ``client.castle.join`` joins one. Login joins the main castle. A map read (``gaa``) moves the session
         off the castle but keeps this, as the client keeps its active area; join again before
         anything castle-scoped.
         """
         with self._lock:
             return self.joined_area
+
+    def _area_left(self, expected_revision: int) -> None:
+        """Apply a sent laa only if no newer area transition or reset superseded it."""
+        with self._lock:
+            if self.area_revision != expected_revision:
+                return
+            self.area_revision += 1
+            self.session_location = SessionLocation.KINGDOM_MAP
+
+    def get_session_location(self) -> SessionLocation | None:
+        """The last server-visible layout state; None before a join or map transition."""
+        with self._lock:
+            return self.session_location
+
+    def is_on_map(self) -> bool:
+        """Whether the session is on the world map or kingdom overview."""
+        with self._lock:
+            return self.session_location in (SessionLocation.WORLDMAP, SessionLocation.KINGDOM_MAP)
+
+    def is_in_own_castle(self) -> bool:
+        """CastleLayoutManager.isInMyCastle: own area, inside, and not under conquest."""
+        with self._lock:
+            area = self.joined_area
+            return bool(
+                self.session_location is SessionLocation.ISO
+                and area is not None
+                and self.local_player is not None
+                and area.owner_id == self.local_player.id
+                and area.area_type is not None
+                and (
+                    area.area_type is not MapItemType.OUTPOST
+                    or (area.occupier_id is not None and area.occupier_id <= 0)
+                )
+            )
+
+    def is_in_spectated_castle(self) -> bool:
+        """Inside another player's area, except one being conquered by this player."""
+        with self._lock:
+            area = self.joined_area
+            return bool(
+                self.session_location is SessionLocation.ISO
+                and area is not None
+                and self.local_player is not None
+                and area.owner_id is not None
+                and area.owner_id != self.local_player.id
+                and area.area_type is not None
+                and (area.area_type is not MapItemType.OUTPOST or area.occupier_id is not None)
+                and area.occupier_id != self.local_player.id
+            )
+
+    def is_in_occupied_castle(self) -> bool:
+        """Inside an outpost being conquered by this player."""
+        with self._lock:
+            area = self.joined_area
+            return bool(
+                self.session_location is SessionLocation.ISO
+                and area is not None
+                and self.local_player is not None
+                and area.occupier_id is not None
+                and area.occupier_id > 0
+                and area.occupier_id == self.local_player.id
+            )
 
     def get_mines(self) -> dict[int, MineStatus]:
         """The joined castle's mines by object id, as the last ``gsm`` sent them.
