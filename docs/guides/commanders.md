@@ -32,19 +32,19 @@ print(len(roster.commanders), len(roster.castellans))
 
 ## Who is free to lead
 
-`idle_commanders` and `travelling_commanders` split the roster by the
-movements in state, again without a request. A commander leading one of your
-movements is travelling until that movement leaves state, its way home
-included. A returning commander stays travelling for two additional seconds
-before appearing in `idle_commanders`.
+`idle_commanders` and `travelling_commanders` split the roster without sending
+requests themselves. Own movements reserve their commanders across the outbound
+and return legs. Return packets carry the commander ID even when the movement ID
+changes after battle.
 
-The two-second return hold mitigates a measured timing race: the server can
-still consider the commander busy after the local movement timer expires.
-It is library policy beyond the game client, not confirmation of server
-readiness. Movement expiry and arrival callbacks still happen on time.
-Outbound expiry adds no hold; a later return movement makes the commander
-travelling again. Server rejections such as `GGEError.LORD_IS_USED` still raise
-`CommandError`, without an automatic retry.
+At estimated completion, the library queries movements in the background. The
+commander stays busy until a successful query no longer lists its movement.
+While it remains listed, or a query fails, confirmation is retried once per second
+(after the preceding request finishes). Local arrival callbacks still describe
+estimated arrival, not confirmed availability. `mrm` alone does not release a
+commander. A disconnected session cannot confirm availability; login rebuilds
+movement state. Server send errors still raise `CommandError` without retrying
+the attack.
 
 ```python
 idle = client.commanders.idle_commanders

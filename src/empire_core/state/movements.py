@@ -39,11 +39,14 @@ MOVEMENT_PARSE_WARN_INTERVAL = 60.0
 
 # The movement clock wakes at least this often, as a far-off arrival's wait would overflow Condition.wait
 MOVEMENT_CLOCK_MAX_WAIT = 3600.0
-# Library mitigation: local return expiry may precede server commander release.
-RETURN_COMMANDER_HOLD = 2.0
+# Retry a server confirmation while the commander remains reserved.
+COMMANDER_CONFIRMATION_INTERVAL = 1.0
 
 
 class MovementState(StateBase):
+    on_commander_confirmation_due = Event[()]()
+    """Internal scheduling event: the client queries expired commander reservations."""
+
     on_incoming_attack = Event[Movement]()
     """Register a callback for new hostile attack movements.
 
@@ -262,6 +265,7 @@ class MovementState(StateBase):
         The clock waits on the monotonic clock, set from the wall clock here,
         so it keeps time even if the wall clock is moved meanwhile.
         """
+        self._next_movement_due = min(self._next_movement_due, self._commander_confirmation_at)
         self._movement_clock_at = time.monotonic() + self._next_movement_due - time.time()
         if self._movement_clock_thread is not None:
             self._movement_clock.notify()
@@ -415,6 +419,18 @@ class MovementState(StateBase):
             arrived=mid in self._arrival_dispatched,
             alliance_id=alliance.alliance_id if alliance else None,
         )
+        if mov.is_mine and mov.commander is not None:
+            if mov.is_returning:
+                # A normal battle creates a new MID; a recall may reuse the old one.
+                self._commander_movements = {
+                    key: old
+                    for key, old in self._commander_movements.items()
+                    if old.is_returning
+                    or old.commander is None
+                    or old.commander.commander_id != mov.commander.commander_id
+                }
+            self._commander_movements[mid] = mov
+            self._commander_confirmation_at = min(self._commander_confirmation_at, mov.estimated_end)
         self.movements[mid] = mov
         self._schedule_movement(mid, mov)
 
@@ -437,7 +453,7 @@ class MovementState(StateBase):
         stored, so the movements are scanned only once one of them is due;
         the scan then goes through them in the order they were first seen,
         as the client's does. Commander availability is derived from the
-        remaining movements and a two-second margin after returns end
+        remaining movements and reservations awaiting server confirmation
         (see :meth:`get_away_commanders`).
 
         Client: ``CastleArmyData.updateMapmovements`` (bundle line 133670).
@@ -458,17 +474,18 @@ class MovementState(StateBase):
                     del self.movements[mid]
                     del self._movement_times[mid]
                     dispatched.discard(mid)
-                    if mov.is_mine and mov.is_returning and mov.commander is not None:
-                        cid = mov.commander.commander_id
-                        hold_until = times[1] + RETURN_COMMANDER_HOLD
-                        previous = self._returning_commanders.get(cid)
-                        if previous is None or hold_until > previous[1]:
-                            self._returning_commanders[cid] = (mov.commander, hold_until)
+                    if mid in self._commander_movements:
+                        self._commander_confirmation_at = min(self._commander_confirmation_at, now)
                 else:
                     due = times[1] if mid in dispatched else times[0]
                     if due < next_due:
                         next_due = due
             self._next_movement_due = next_due
+            if now >= self._commander_confirmation_at:
+                self._commander_confirmation_at = math.inf
+                if not self._commander_confirmation_running:
+                    self._commander_confirmation_running = True
+                    self._fire(self.on_commander_confirmation_due)
             self._wake_movement_clock()
         # After the scan, so an occupation that ends now is still known as announced at its arrival
         self._announcer.prune(now)
@@ -683,33 +700,62 @@ class MovementState(StateBase):
             self._advance_movements()
             return list(self.movements.values())
 
+    def commander_confirmation_candidates(self) -> dict[int, Movement]:
+        """Reservations due before a confirmation request starts, under the state lock."""
+        with self._lock:
+            now = time.time()
+            return {mid: mov for mid, mov in self._commander_movements.items() if mov.estimated_end <= now}
+
+    def confirm_commander_movements(self, candidates: dict[int, Movement], payload: Any) -> None:
+        """Reconcile only a successful query begun after these reservations fell due.
+
+        Object identity protects a newer push or a reset/relogin from an old query.
+        Invalid or incomplete rows cannot establish absence. Ordinary gam merging
+        and mrm removal do not release reservations on their own.
+        """
+        if not isinstance(payload, dict) or not isinstance(payload.get("M"), list):
+            return
+        present: set[int] = set()
+        for wrapper in payload["M"]:
+            if not isinstance(wrapper, dict) or not isinstance(wrapper.get("M"), dict):
+                return
+            row = wrapper["M"]
+            if type(row.get("MID")) is not int or type(row.get("OID")) is not int:
+                return
+            if read_or_none(MovementWrapper.model_validate, wrapper) is None:
+                return
+            unit_info = wrapper.get("UM")
+            if isinstance(unit_info, dict) and unit_info.get("L") is not None:
+                if read_or_none(Commander.model_validate, unit_info["L"]) is None:
+                    return
+            present.add(row["MID"])
+        with self._lock:
+            for mid, mov in candidates.items():
+                if mid not in present and self._commander_movements.get(mid) is mov:
+                    del self._commander_movements[mid]
+
+    def retry_commander_confirmation(self) -> None:
+        """Schedule another query only while an expired reservation remains."""
+        with self._lock:
+            self._commander_confirmation_running = False
+            if self.commander_confirmation_candidates():
+                self._commander_confirmation_at = time.time() + COMMANDER_CONFIRMATION_INTERVAL
+                self._wake_movement_clock()
+
     def get_away_commanders(self) -> list[Commander]:
-        """The commanders your movements keep away, as those movements carry them.
+        """Own commanders remain reserved until a fresh server query confirms absence.
 
-        Returning movements and armies waiting at their target count until
-        their estimated end. A returning commander stays unavailable for
-        ``RETURN_COMMANDER_HOLD`` seconds after that end. This mitigates the
-        server rejecting immediate reuse; outbound expiry adds no hold.
-
-        Client: ``LordVO.isAvailableForMovement`` and
-        ``CastleArmyData.updateMapmovements``, Game.bundle.e2ca3c4ee155ea53c7c7.js.
-        The former scans own map movements for a matching lord; the latter
-        removes movements when ``BasicMapmovementVO.currentProgress >= 1``,
-        including any server-provided waiting duration. The extra two-second
-        return hold is library policy, beyond the client: live recalled-attack
-        probes still received ``LORD_IS_USED`` 100 ms after local return expiry.
-        It reduces premature reuse without guaranteeing server availability.
+        The movement clock still expires map entries and fires estimated arrivals.
+        Reservations survive that clock and mrm, including the outbound/return gap.
+        A returning cat carries its commander and replaces the outbound reservation.
         """
         with self._lock:
             self._advance_movements()
-            now = time.time()
-            self._returning_commanders = {
-                cid: held for cid, held in self._returning_commanders.items() if now < held[1]
+            away = {
+                mov.commander.commander_id: mov.commander
+                for mov in self._commander_movements.values()
+                if mov.commander is not None
             }
-            away = {cid: commander for cid, (commander, _) in self._returning_commanders.items()}
-            for mov in self.movements.values():
-                if mov.is_mine and mov.commander is not None:
-                    away[mov.commander.commander_id] = mov.commander
             return list(away.values())
 
     def get_incoming_movements(self) -> list[Movement]:

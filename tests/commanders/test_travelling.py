@@ -31,6 +31,7 @@ def led_by(commander_id: int, *, owner_id: int = ME, returning: bool = False) ->
 
 def holding(state: GameState, *movements: Movement) -> GameState:
     state.movements = dict(enumerate(movements))
+    state._commander_movements = {i: m for i, m in enumerate(movements) if m.is_mine and m.commander is not None}
     return state
 
 
@@ -78,7 +79,7 @@ class TestTravellingCommanders:
         assert ids(client.commanders.idle_commanders) == [0, 1]
 
     @pytest.mark.parametrize("direction", [0, 1])
-    def test_expiry_updates_idle_roster_with_return_margin(self, state, direction):
+    def test_expiry_waits_for_server_confirmation(self, state, direction):
         login(state, ME)
         attack = gam_payload(1, oid=ME, extra={"D": direction})
         attack["M"][0]["UM"] = {"L": {"ID": 1}}
@@ -89,9 +90,11 @@ class TestTravellingCommanders:
         arrive(state, 1)
 
         assert state.movements == {}
-        assert ids(client.commanders.travelling_commanders) == ([1] if direction else [])
-        assert ids(client.commanders.idle_commanders) == ([0] if direction else [0, 1])
+        assert ids(client.commanders.travelling_commanders) == [1]
+        assert ids(client.commanders.idle_commanders) == [0]
         with later(arrival - time.time() + 2):
+            assert ids(client.commanders.travelling_commanders) == [1]
+            state.confirm_commander_movements(state.commander_confirmation_candidates(), {"M": []})
             assert ids(client.commanders.travelling_commanders) == []
             assert ids(client.commanders.idle_commanders) == [0, 1]
 

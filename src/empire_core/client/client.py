@@ -186,6 +186,7 @@ class EmpireClient:
         self.connection.after_disconnect = self._session.after_drop
 
         self._attach_services()
+        self.state.on_commander_confirmation_due(self.movements._confirm_expired_commanders)
 
     @staticmethod
     def _new_registry() -> Registry:
