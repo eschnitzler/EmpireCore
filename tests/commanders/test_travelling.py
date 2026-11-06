@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+
 import pytest
 
 from empire_core.commanders.models.roster import Commander, CommanderRoster
@@ -9,7 +11,7 @@ from empire_core.exceptions import StateNotLoadedError
 from empire_core.movements.tracked import Movement
 from empire_core.state.manager import GameState
 from tests.service_helpers import conn, make_client
-from tests.state.state_helpers import arrive, gam_payload, login
+from tests.state.state_helpers import arrive, gam_payload, later, login
 
 ME = 1001
 
@@ -76,18 +78,22 @@ class TestTravellingCommanders:
         assert ids(client.commanders.idle_commanders) == [0, 1]
 
     @pytest.mark.parametrize("direction", [0, 1])
-    def test_expired_movement_releases_its_commander(self, state, direction):
+    def test_expiry_updates_idle_roster_with_return_margin(self, state, direction):
         login(state, ME)
         attack = gam_payload(1, oid=ME, extra={"D": direction})
         attack["M"][0]["UM"] = {"L": {"ID": 1}}
         state.update_from_packet("gam", attack)
         state.commanders = roster(0, 1)
         client = make_client(state=state)
+        arrival = state.movements[1].estimated_arrival
         arrive(state, 1)
 
         assert state.movements == {}
-        assert ids(client.commanders.travelling_commanders) == []
-        assert ids(client.commanders.idle_commanders) == [0, 1]
+        assert ids(client.commanders.travelling_commanders) == ([1] if direction else [])
+        assert ids(client.commanders.idle_commanders) == ([0] if direction else [0, 1])
+        with later(arrival - time.time() + 2):
+            assert ids(client.commanders.travelling_commanders) == []
+            assert ids(client.commanders.idle_commanders) == [0, 1]
 
     def test_nothing_is_sent(self, state):
         holding(state, led_by(1))

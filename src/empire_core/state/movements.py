@@ -39,6 +39,8 @@ MOVEMENT_PARSE_WARN_INTERVAL = 60.0
 
 # The movement clock wakes at least this often, as a far-off arrival's wait would overflow Condition.wait
 MOVEMENT_CLOCK_MAX_WAIT = 3600.0
+# Library mitigation: local return expiry may precede server commander release.
+RETURN_COMMANDER_HOLD = 2.0
 
 
 class MovementState(StateBase):
@@ -217,9 +219,10 @@ class MovementState(StateBase):
     ``movement.is_returning`` to tell the two apart.
 
     Commander availability follows the tracked movements, as in the client.
-    Once this movement expires, its commander is available unless another
-    own movement references it. A later return packet makes it unavailable
-    again. This local estimate is not server confirmation of availability.
+    An expired outbound movement releases its commander unless another own
+    movement references it. Returning commanders remain unavailable for two
+    seconds after estimated end to mitigate early reuse. Movement expiry and
+    arrival callbacks are not delayed. This estimate is not server confirmation.
 
     Two signatures are supported, picked per callback from its own
     parameter list::
@@ -434,7 +437,8 @@ class MovementState(StateBase):
         stored, so the movements are scanned only once one of them is due;
         the scan then goes through them in the order they were first seen,
         as the client's does. Commander availability is derived from the
-        remaining movements (see :meth:`get_away_commanders`).
+        remaining movements and a two-second margin after returns end
+        (see :meth:`get_away_commanders`).
 
         Client: ``CastleArmyData.updateMapmovements`` (bundle line 133670).
         """
@@ -454,6 +458,12 @@ class MovementState(StateBase):
                     del self.movements[mid]
                     del self._movement_times[mid]
                     dispatched.discard(mid)
+                    if mov.is_mine and mov.is_returning and mov.commander is not None:
+                        cid = mov.commander.commander_id
+                        hold_until = times[1] + RETURN_COMMANDER_HOLD
+                        previous = self._returning_commanders.get(cid)
+                        if previous is None or hold_until > previous[1]:
+                            self._returning_commanders[cid] = (mov.commander, hold_until)
                 else:
                     due = times[1] if mid in dispatched else times[0]
                     if due < next_due:
@@ -677,17 +687,26 @@ class MovementState(StateBase):
         """The commanders your movements keep away, as those movements carry them.
 
         Returning movements and armies waiting at their target count until
-        their estimated end. Expired movements do not reserve a commander.
+        their estimated end. A returning commander stays unavailable for
+        ``RETURN_COMMANDER_HOLD`` seconds after that end. This mitigates the
+        server rejecting immediate reuse; outbound expiry adds no hold.
 
         Client: ``LordVO.isAvailableForMovement`` and
         ``CastleArmyData.updateMapmovements``, Game.bundle.e2ca3c4ee155ea53c7c7.js.
         The former scans own map movements for a matching lord; the latter
         removes movements when ``BasicMapmovementVO.currentProgress >= 1``,
-        including any server-provided waiting duration. There is no extra hold.
+        including any server-provided waiting duration. The extra two-second
+        return hold is library policy, beyond the client: live recalled-attack
+        probes still received ``LORD_IS_USED`` 100 ms after local return expiry.
+        It reduces premature reuse without guaranteeing server availability.
         """
         with self._lock:
             self._advance_movements()
-            away: dict[int, Commander] = {}
+            now = time.time()
+            self._returning_commanders = {
+                cid: held for cid, held in self._returning_commanders.items() if now < held[1]
+            }
+            away = {cid: commander for cid, (commander, _) in self._returning_commanders.items()}
             for mov in self.movements.values():
                 if mov.is_mine and mov.commander is not None:
                     away[mov.commander.commander_id] = mov.commander

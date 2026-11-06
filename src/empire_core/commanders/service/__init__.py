@@ -106,8 +106,9 @@ class CommandersService(GeneralsMixin, BaseService):
         The commanders leading one of your movements in state, returning ones included; nothing is sent.
 
         Availability follows the locally tracked movements, including any server-provided
-        waiting duration. Expiry releases the commander; a later return movement makes it
-        travelling again. Only as fresh as the movements in state.
+        waiting duration. After a return expires, the commander remains listed for two
+        seconds to mitigate the server still considering it busy. Outbound expiry has no
+        extra hold; a later return movement makes it travelling again.
 
         Raises:
             StateNotLoadedError: No login has brought the roster
@@ -115,7 +116,8 @@ class CommandersService(GeneralsMixin, BaseService):
         Client: ``LordVO.isAvailableForMovement`` (bundle line 26656), false while any map movement
         that ``isMyMovement`` (``BasicMapmovementVO``, bundle line 19436) has the lord as its ``lordVO``,
         whichever way it travels. ``CastleArmyData.updateMapmovements`` removes an expired
-        movement without an additional commander hold.
+        movement without an additional commander hold. The two-second return margin is
+        library policy beyond the client.
         """
         away = {c.commander_id for c in self.client.state.get_away_commanders()}
         return [c for c in self.roster.commanders if c.commander_id in away]
@@ -125,7 +127,8 @@ class CommandersService(GeneralsMixin, BaseService):
         """
         The commanders free to lead an army: those not in :attr:`travelling_commanders`; nothing is sent.
 
-        As in the client, this is a local estimate. The server may still reject a send
+        Returning commanders become idle two seconds after their estimated return end.
+        This remains a local estimate. The server may still reject a send
         with ``GGEError.LORD_IS_USED``; the send surfaces that error to the caller.
 
         Raises:
