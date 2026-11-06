@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 import time
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from typing import TYPE_CHECKING
 
 from empire_core.army.models.units import AttackWave
@@ -56,7 +56,7 @@ class WavesMixin(ServiceMixin):
         inventory: Inventory | None = None,
         player_target: bool | None = None,
         defense: dict[Flank, DefenderFlankEffects] | None = None,
-        attacker: AttackerFlankEffects | None = None,
+        attacker: AttackerFlankEffects | Mapping[Flank, AttackerFlankEffects] | None = None,
         commander: Commander | None = None,
         conquer: bool = False,
         wave_bonus: int = 0,
@@ -115,7 +115,7 @@ class WavesMixin(ServiceMixin):
                 Decides which PvP- or PvE-only effects count; when not given it
                 follows ``owner_id`` (``getFilterStrategyAttackOrDefence``)
             defense: Explicit per-flank defense, overriding ``robber_baron_camp_victories``
-            attacker: Attacker multipliers; built from ``commander``, the
+            attacker: Shared multipliers or a mapping by flank; built from ``commander``, the
                 Legendary skills and ``support_tools`` when omitted
             commander: The commander leading the attack, whose equipment and
                 effects supply the attack multipliers used to score units
@@ -214,14 +214,18 @@ class WavesMixin(ServiceMixin):
             commander, area_effects=area_bonuses, general_skill_ids=general_skill_ids, game_data=game_data
         )
         if attacker is None:
-            attacker = attacker_flank_effects(
-                resolver,
-                merged,
-                area_type=area_type,
-                legendary_skill_ids=legendary_skill_ids or (),
-                legendary=legendary.unit_amount,
-                support_tools=tools,
-            )
+            attacker = {
+                flank: attacker_flank_effects(
+                    resolver,
+                    merged,
+                    area_type=area_type,
+                    flank=flank,
+                    legendary_skill_ids=legendary_skill_ids or (),
+                    legendary=legendary.unit_amount,
+                    support_tools=tools,
+                )
+                for flank in (Flank.LEFT, Flank.MIDDLE, Flank.RIGHT)
+            }
         # getUnitsOnTheFlankBonusForAreaType: one int() over the merged list,
         # then the int() of the Legendary skill on top.
         flank_bonus_percent += int(resolver.flank_unit_bonus(merged, area_type=area_type, player_target=player_target))
