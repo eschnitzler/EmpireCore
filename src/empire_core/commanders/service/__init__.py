@@ -105,19 +105,12 @@ class CommandersService(GeneralsMixin, BaseService):
         """
         The commanders leading one of your movements in state, returning ones included; nothing is sent.
 
-        Availability follows the locally tracked movements, including any server-provided
-        waiting duration. After a return expires, the commander remains listed for two
-        seconds to mitigate the server still considering it busy. Outbound expiry has no
-        extra hold; a later return movement makes it travelling again.
+        Own movements reserve their commanders across outbound/return transitions.
+        After estimated expiry, a background movement query confirms availability;
+        failed queries leave the commander travelling. Reading this property sends nothing.
 
         Raises:
             StateNotLoadedError: No login has brought the roster
-
-        Client: ``LordVO.isAvailableForMovement`` (bundle line 26656), false while any map movement
-        that ``isMyMovement`` (``BasicMapmovementVO``, bundle line 19436) has the lord as its ``lordVO``,
-        whichever way it travels. ``CastleArmyData.updateMapmovements`` removes an expired
-        movement without an additional commander hold. The two-second return margin is
-        library policy beyond the client.
         """
         away = {c.commander_id for c in self.client.state.get_away_commanders()}
         return [c for c in self.roster.commanders if c.commander_id in away]
@@ -127,8 +120,8 @@ class CommandersService(GeneralsMixin, BaseService):
         """
         The commanders free to lead an army: those not in :attr:`travelling_commanders`; nothing is sent.
 
-        Returning commanders become idle two seconds after their estimated return end.
-        This remains a local estimate. The server may still reject a send
+        Commanders become idle after a fresh server movement query confirms completion.
+        The server may still reject a send
         with ``GGEError.LORD_IS_USED``; the send surfaces that error to the caller.
 
         Raises:

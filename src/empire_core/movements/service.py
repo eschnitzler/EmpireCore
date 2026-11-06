@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 from empire_core.enums import Kingdom, KingdomTransferType, Resource
 from empire_core.events.models import SeasonEvent
 from empire_core.events.season_models import MinuteSkipSeasonTransferRequest
-from empire_core.exceptions import CommandError, UnsendableGoodsError
+from empire_core.exceptions import CommandError, EmpireError, UnsendableGoodsError
 from empire_core.gamedata import Currency, TreasureMapId, WodAmount, WodAmountMapping
 from empire_core.movements.models import (
     NO_HORSE,
@@ -63,6 +63,18 @@ class MovementsService(BaseService):
     Reached as client.movements.
     """
 
+    def _confirm_expired_commanders(self) -> None:
+        """Called off the receive/clock threads; failures keep reservations busy."""
+        if not self.client.connection.connected:
+            return
+        try:
+            if self.client.is_logged_in and self.client.state.commander_confirmation_candidates():
+                self.get_movements()
+        except EmpireError:
+            pass
+        finally:
+            self.client.state.retry_commander_confirmation()
+
     @property
     def map_filter(self) -> MovementFilterResponse | None:
         """The map's movement filters, from the login data or the last ``mvf`` push; None until one arrived."""
@@ -108,11 +120,13 @@ class MovementsService(BaseService):
                 or ``wait=False`` and a gam request in flight for all of ``timeout``
         """
         if wait:
+            candidates = self.client.state.commander_confirmation_candidates()
             response = self.client.request_packet(GetMovementsRequest(), "gam", timeout=timeout)
             # Without this, a rejected request returns the previous (possibly
             # empty) movement list, indistinguishable from "no movements".
             if response.error_code != 0:
                 raise CommandError("gam", response.error_code)
+            self.client.state.confirm_commander_movements(candidates, response.payload)
         else:
             self.client.connection.send_and_drop_reply(self.client.frame(GetMovementsRequest()), "gam", window=timeout)
 

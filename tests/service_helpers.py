@@ -326,6 +326,12 @@ class StubState:
     def get_last_packet_time(self, cmd_id: str) -> None:
         return None
 
+    def commander_confirmation_candidates(self) -> dict:
+        return {}
+
+    def confirm_commander_movements(self, candidates: dict, payload: object) -> None:
+        self.events.append("confirm_commander_movements")
+
     def get_all_movements(self) -> list:
         self.events.append("get_all_movements")
         return list(self.movements)
