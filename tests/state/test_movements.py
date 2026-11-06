@@ -1842,127 +1842,137 @@ class TestSentMovements:
 
 
 class TestCommanderMovementAvailability:
-    """Server-confirmed reservations survive the local movement clock."""
+    """Tracked movements reserve commanders; returning ones add a short reuse margin."""
 
     ME = 1001
 
     @classmethod
-    def led(cls, state, mid, *, direction=0, tt=600, wait=0, general=17):
+    def led(cls, state: GameState, mid: int, *, direction: int = 0, tt: int = 600, wait: int = 0) -> float:
         payload = gam_payload(mid, oid=cls.ME, extra={"D": direction, "TT": tt})
-        payload["M"][0]["UM"] = {"L": {"ID": 4, "GID": general}, "TWD": wait, "PWD": 0}
+        payload["M"][0]["UM"] = {"L": {"ID": 4}, "TWD": wait, "PWD": 0}
         state.update_from_packet("gam", payload)
-        return state.movements[mid].estimated_end
+        return state.movements[mid].estimated_arrival
 
     @staticmethod
-    def away(state):
+    def away(state: GameState) -> list[int]:
         return [c.commander_id for c in state.get_away_commanders()]
 
-    @pytest.mark.parametrize("direction", [0, 1])
-    def test_expiry_keeps_commander_until_fresh_confirmation(self, state, direction):
+    @staticmethod
+    def expire(state, mid):
+        end = state.movements[mid].estimated_end
+        with later(end - time.time() + 0.01):
+            state.get_all_movements()
+
+    def test_outbound_attack_has_bounded_transition_margin(self, state):
         login(state, self.ME)
-        end = self.led(state, 1, direction=direction)
-        with later(end - time.time() + 10):
-            assert state.get_all_movements() == []
-            assert self.away(state) == [4]
-            candidates = state.commander_confirmation_candidates()
-            state.confirm_commander_movements(candidates, {"M": []})
+        landing = self.led(state, 1)
+        assert self.away(state) == [4]
+        self.expire(state, 1)
+        assert state.movements == {}
+        assert self.away(state) == [4]
+        with later(landing - time.time() + 1):
             assert self.away(state) == []
 
-    def test_new_return_id_preserves_commander_and_general(self, state):
+    def test_new_return_id_keeps_commander_unavailable(self, state):
         login(state, self.ME)
         self.led(state, 1)
-        arrive(state, 1)
+        self.expire(state, 1)
         assert self.away(state) == [4]
         payload = gam_payload(2, oid=self.ME, extra={"D": 1})
         payload["M"][0]["UM"] = {"L": {"ID": 4, "GID": 17}}
         state.update_from_packet("cat", {"A": payload["M"][0], "O": []})
-        assert list(state._commander_movements) == [2]
+        assert int(state.movements[2].commander.general_id) == 17
         assert self.away(state) == [4]
-        assert int(state.get_away_commanders()[0].general_id) == 17
-
-    def test_same_id_recall_replaces_reservation(self, state):
-        login(state, self.ME)
-        self.led(state, 1)
-        self.led(state, 1, direction=1)
-        assert list(state._commander_movements) == [1]
-        assert state._commander_movements[1].is_returning
-
-    def test_zero_remaining_server_row_does_not_release(self, state):
-        login(state, self.ME)
-        end = self.led(state, 1, direction=1)
-        with later(end - time.time() + 1):
-            candidates = state.commander_confirmation_candidates()
-            payload = gam_payload(1, oid=self.ME, extra={"D": 1, "PT": 600})
-            payload["M"][0]["UM"] = {"L": {"ID": 4, "GID": 17}}
-            state.update_from_packet("gam", payload)
-            state.confirm_commander_movements(candidates, payload)
-            assert self.away(state) == [4]
-
-    @pytest.mark.parametrize("payload", [{}, {"M": None}, {"M": [None]}, {"M": [{"M": {"MID": 2}}]}])
-    def test_malformed_snapshot_cannot_release(self, state, payload):
-        login(state, self.ME)
-        end = self.led(state, 1, direction=1)
-        with later(end - time.time() + 1):
-            state.confirm_commander_movements(state.commander_confirmation_candidates(), payload)
-            assert self.away(state) == [4]
-
-    def test_query_started_before_expiry_cannot_release(self, state):
-        login(state, self.ME)
-        self.led(state, 1, direction=1)
-        candidates = state.commander_confirmation_candidates()
-        arrive(state, 1)
-        state.confirm_commander_movements(candidates, {"M": []})
+        self.expire(state, 2)
         assert self.away(state) == [4]
 
-    def test_new_push_during_query_is_not_released(self, state):
+    def test_overlapping_movement_keeps_commander_unavailable(self, state):
         login(state, self.ME)
-        end = self.led(state, 1, direction=1)
-        with later(end - time.time() + 1):
-            candidates = state.commander_confirmation_candidates()
-            self.led(state, 1, direction=1, tt=100)
-            state.confirm_commander_movements(candidates, {"M": []})
+        landing = self.led(state, 1)
+        home = self.led(state, 2, direction=1, tt=602)
+        with later(landing - time.time() + 0.5):
             assert self.away(state) == [4]
-
-    def test_mrm_does_not_mean_home(self, state):
-        login(state, self.ME)
-        self.led(state, 1)
-        state.update_from_packet("mrm", {"MID": 1})
-        assert self.away(state) == [4]
-
-    def test_reset_invalidates_inflight_confirmation(self, state):
-        login(state, self.ME)
-        end = self.led(state, 1, direction=1)
-        with later(end - time.time() + 1):
-            candidates = state.commander_confirmation_candidates()
-            state.reset()
+        with later(home - time.time() + 0.5):
+            assert self.away(state) == [4]
+        with later(home - time.time() + 1):
             assert self.away(state) == []
-            login(state, self.ME)
-            self.led(state, 1, direction=1)
-            state.confirm_commander_movements(candidates, {"M": []})
+
+    def test_server_wait_duration_keeps_commander_unavailable(self, state):
+        login(state, self.ME)
+        landing = self.led(state, 1, wait=30)
+        with later(landing - time.time() + 1):
             assert self.away(state) == [4]
+        with later(landing - time.time() + 31):
+            assert self.away(state) == []
+
+    @pytest.mark.parametrize("direction", [0, 1])
+    def test_arrival_callback_sees_return_hold(self, state, direction):
+        login(state, self.ME)
+        observed: list[list[int]] = []
+        state.on_movement_arrived(lambda mid: observed.append(self.away(state)))
+        self.led(state, 1, direction=direction)
+        self.expire(state, 1)
+        assert wait_for(lambda: observed == [[4]])
+
+    def test_return_hold_expires_one_second_after_estimated_end(self, state):
+        login(state, self.ME)
+        home = self.led(state, 1, direction=1)
+        with later(home - time.time() + 0.001):
+            assert state.get_all_movements() == []
+            assert self.away(state) == [4]
+        with later(home - time.time() + 0.999):
+            assert self.away(state) == [4]
+        with later(home - time.time() + 1):
+            assert self.away(state) == []
+
+    def test_late_query_does_not_restart_return_hold(self, state):
+        login(state, self.ME)
+        home = self.led(state, 1, direction=1)
+        with later(home - time.time() + 3):
+            assert self.away(state) == []
+
+    def test_new_movement_stays_away_after_return_hold_expires(self, state):
+        login(state, self.ME)
+        home = self.led(state, 1, direction=1)
+        self.expire(state, 1)
+        self.led(state, 2, tt=1200)
+        with later(home - time.time() + 1):
+            assert self.away(state) == [4]
+
+    def test_older_return_does_not_shorten_a_newer_hold(self, state):
+        login(state, self.ME)
+        later_home = self.led(state, 2, direction=1, tt=601)
+        self.led(state, 1, direction=1, tt=600)
+        with later(later_home - time.time() + 0.1):
+            assert self.away(state) == [4]
+        with later(later_home - time.time() + 0.5):
+            assert self.away(state) == [4]
+        with later(later_home - time.time() + 1):
+            assert self.away(state) == []
+
+    def test_reset_clears_return_hold(self, state):
+        login(state, self.ME)
+        self.led(state, 1, direction=1)
+        self.expire(state, 1)
+        assert self.away(state) == [4]
+        state.reset()
+        assert self.away(state) == []
 
     def test_other_players_return_does_not_reserve_our_commander(self, state):
         login(state, self.ME)
         payload = gam_payload(1, oid=2002, extra={"D": 1})
         payload["M"][0]["UM"] = {"L": {"ID": 4}}
         state.update_from_packet("gam", payload)
-        arrive(state, 1)
+        self.expire(state, 1)
         assert self.away(state) == []
 
-    def test_estimated_arrival_callback_sees_busy_commander(self, state):
+    def test_non_attack_outbound_has_no_extra_hold(self, state):
         login(state, self.ME)
-        observed = []
-        state.on_movement_arrived(lambda mid: observed.append(self.away(state)))
-        self.led(state, 1, direction=1)
-        arrive(state, 1)
-        assert wait_for(lambda: observed == [[4]])
-
-    def test_wait_duration_is_included_before_query(self, state):
-        login(state, self.ME)
-        end = self.led(state, 1, wait=30)
-        with later(end - time.time() - 1):
-            assert state.commander_confirmation_candidates() == {}
-            assert self.away(state) == [4]
+        payload = gam_payload(3, oid=self.ME, movement_type=MovementType.DEFENCE)
+        payload["M"][0]["UM"] = {"L": {"ID": 4}}
+        state.update_from_packet("gam", payload)
+        self.expire(state, 3)
+        assert self.away(state) == []
 
 
 class TestCallbackOrdering:

@@ -11,7 +11,7 @@ from empire_core.exceptions import StateNotLoadedError
 from empire_core.movements.tracked import Movement
 from empire_core.state.manager import GameState
 from tests.service_helpers import conn, make_client
-from tests.state.state_helpers import arrive, gam_payload, later, login
+from tests.state.state_helpers import gam_payload, later, login
 
 ME = 1001
 
@@ -31,7 +31,6 @@ def led_by(commander_id: int, *, owner_id: int = ME, returning: bool = False) ->
 
 def holding(state: GameState, *movements: Movement) -> GameState:
     state.movements = dict(enumerate(movements))
-    state._commander_movements = {i: m for i, m in enumerate(movements) if m.is_mine and m.commander is not None}
     return state
 
 
@@ -79,7 +78,7 @@ class TestTravellingCommanders:
         assert ids(client.commanders.idle_commanders) == [0, 1]
 
     @pytest.mark.parametrize("direction", [0, 1])
-    def test_expiry_waits_for_server_confirmation(self, state, direction):
+    def test_expiry_updates_idle_roster_with_return_margin(self, state, direction):
         login(state, ME)
         attack = gam_payload(1, oid=ME, extra={"D": direction})
         attack["M"][0]["UM"] = {"L": {"ID": 1}}
@@ -87,14 +86,13 @@ class TestTravellingCommanders:
         state.commanders = roster(0, 1)
         client = make_client(state=state)
         arrival = state.movements[1].estimated_arrival
-        arrive(state, 1)
+        with later(arrival - time.time() + 0.01):
+            state.get_all_movements()
 
         assert state.movements == {}
         assert ids(client.commanders.travelling_commanders) == [1]
         assert ids(client.commanders.idle_commanders) == [0]
-        with later(arrival - time.time() + 2):
-            assert ids(client.commanders.travelling_commanders) == [1]
-            state.confirm_commander_movements(state.commander_confirmation_candidates(), {"M": []})
+        with later(arrival - time.time() + 1):
             assert ids(client.commanders.travelling_commanders) == []
             assert ids(client.commanders.idle_commanders) == [0, 1]
 

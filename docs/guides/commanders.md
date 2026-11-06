@@ -32,19 +32,22 @@ print(len(roster.commanders), len(roster.castellans))
 
 ## Who is free to lead
 
-`idle_commanders` and `travelling_commanders` split the roster without sending
-requests themselves. Own movements reserve their commanders across the outbound
-and return legs. Return packets carry the commander ID even when the movement ID
-changes after battle.
+`idle_commanders` and `travelling_commanders` split the roster by the
+movements in state, again without a request. A commander leading one of your
+movements is travelling until that movement leaves state, its way home
+included. A returning commander stays travelling for one additional second
+before appearing in `idle_commanders`.
 
-At estimated completion, the library queries movements in the background. The
-commander stays busy until a successful query no longer lists its movement.
-While it remains listed, or a query fails, confirmation is retried once per second
-(after the preceding request finishes). Local arrival callbacks still describe
-estimated arrival, not confirmed availability. `mrm` alone does not release a
-commander. A disconnected session cannot confirm availability; login rebuilds
-movement state. Server send errors still raise `CommandError` without retrying
-the attack.
+The one-second return hold mitigates a measured timing race: the server can
+still consider the commander busy after the local movement timer expires.
+It is library policy beyond the game client, not confirmation of server
+readiness. Movement expiry and arrival callbacks still happen on time.
+Outbound attacks get the same one-second margin to bridge the return packet.
+A return movement keeps the commander busy for its full trip and return margin.
+If no return arrives, the outbound margin expires rather than reserving the
+commander indefinitely. Other outbound movements add no hold. No background
+confirmation polling is performed. Server rejections such as `GGEError.LORD_IS_USED` still raise
+`CommandError`, without an automatic retry.
 
 ```python
 idle = client.commanders.idle_commanders
