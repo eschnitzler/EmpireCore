@@ -29,6 +29,8 @@ from .models import (
     AchievementFinishedResponse,
     AchievementProgress,
     AchievementsResponse,
+    ActivateGlobalEffectBoostRequest,
+    ActivateGlobalEffectBoostResponse,
     ActivateTrainingProgramRequest,
     ActivateTrainingProgramResponse,
     AllianceCityTitle,
@@ -143,6 +145,8 @@ if TYPE_CHECKING:
     )
 
 __all__ = [
+    "ActivateGlobalEffectBoostRequest",
+    "ActivateGlobalEffectBoostResponse",
     "CoatOfArmsBackground",
     "SymbolLayout",
     "VerificationLink",

@@ -1,6 +1,8 @@
 """Players: player info, search and the shared player profile: protocol models."""
 
 from .account import (
+    ActivateGlobalEffectBoostRequest,
+    ActivateGlobalEffectBoostResponse,
     BoostedGlobalEffectsResponse,
     DailyResetResponse,
     FoodProductionStatus,
@@ -124,6 +126,8 @@ from .protection import (
 )
 
 __all__ = [
+    "ActivateGlobalEffectBoostRequest",
+    "ActivateGlobalEffectBoostResponse",
     "UnlockSymbolRequest",
     "UnlockSymbolResponse",
     "ChangeCoatOfArmsRequest",

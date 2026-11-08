@@ -977,6 +977,8 @@ from empire_core.movements.models import (
     SiegeMovementResponse,
 )
 from empire_core.player.models.account import (
+    ActivateGlobalEffectBoostRequest,
+    ActivateGlobalEffectBoostResponse,
     BoostedGlobalEffectsResponse,
     DailyResetResponse,
     FoodProductionStatus,
@@ -1200,6 +1202,8 @@ from empire_core.spy.models import (
 from empire_core.state.login_data import LoginDataResponse
 
 __all__ = [
+    "ActivateGlobalEffectBoostRequest",
+    "ActivateGlobalEffectBoostResponse",
     "UnlockSymbolRequest",
     "UnlockSymbolResponse",
     "ChangeCoatOfArmsRequest",
