@@ -86,6 +86,7 @@ from empire_core.map.models.world import MapSize
 from empire_core.map.scanner import ScanResult
 from empire_core.messages.models import SpyReportArea, SpyReportResponse
 from empire_core.movements.tracked import Movement, MovementResources
+from empire_core.player import ActivateGlobalEffectBoostRequest, ActivateGlobalEffectBoostResponse
 from empire_core.pool import AccountPool, PoolExhaustedError
 from empire_core.protocol.packet import Packet
 from empire_core.protocol.text import decode_json_text, encode_json_text
@@ -100,6 +101,8 @@ except PackageNotFoundError:  # pragma: no cover - exercised in tests via monkey
     __version__ = "0.0.0.dev0"
 
 __all__ = [
+    "ActivateGlobalEffectBoostRequest",
+    "ActivateGlobalEffectBoostResponse",
     "EmpireClient",
     "ClientEvent",
     "EventStream",

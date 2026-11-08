@@ -303,6 +303,7 @@ class GGECommand:
 
     # Gifts
     CLB = "clb"  # Collect daily login bonus
+    AGB = "agb"  # Purchase a global effect boost
     GPG = "gpg"  # Send gift to player
     RGG = "rgg"  # Goodgames gift
     RVE = "rve"  # Redeem a voucher code

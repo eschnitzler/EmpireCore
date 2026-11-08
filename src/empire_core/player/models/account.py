@@ -111,6 +111,30 @@ class OfficerTraining(TimedPayload):
         return max(0.0, self.seconds - self._elapsed(now))
 
 
+class ActivateGlobalEffectBoostRequest(BaseRequest):
+    """
+    Purchase the running event's ruby boost for a global effect (agb).
+
+    Payload: {"GEID": effect_id}
+
+    Client: ``C2SActivateGlobalEffectBuffVO`` (Game.bundle.e2ca3c4ee155ea53c7c7.js)
+    """
+
+    command = "agb"
+
+    effect_id: EnumOrInt["GlobalEffect"] = Field(validation_alias="GEID", description="The global effect to boost")
+
+
+class ActivateGlobalEffectBoostResponse(BaseResponse):
+    """
+    The status-only acknowledgement of agb; boosted effects arrive separately in bie.
+
+    Client: ``AGBCommand.executeCommand`` (Game.bundle.e2ca3c4ee155ea53c7c7.js)
+    """
+
+    command = "agb"
+
+
 class BoostedGlobalEffectsResponse(BaseResponse):
     """
     The global effects the running global effect booster event makes stronger.
@@ -243,6 +267,8 @@ class FoodProductionStatus(BaseResponse):
 
 __all__ = [
     "BoostedGlobalEffectsResponse",
+    "ActivateGlobalEffectBoostRequest",
+    "ActivateGlobalEffectBoostResponse",
     "DailyResetResponse",
     "FoodProductionStatus",
     "OfficerBonus",

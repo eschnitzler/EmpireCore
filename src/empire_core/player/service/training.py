@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from empire_core.enums import Hero
-from empire_core.player.models.account import SendGiftPackagesRequest
+from empire_core.player.models.account import ActivateGlobalEffectBoostRequest, SendGiftPackagesRequest
 from empire_core.player.models.economy import GetLootBoxesRequest, LootBoxesResponse
 from empire_core.player.models.hero import HeroDecisionRequest, HeroDecisionResponse
 from empire_core.player.models.officers_school import (
@@ -22,7 +22,7 @@ from empire_core.player.models.officers_school import (
 from empire_core.services.base import ServiceMixin
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import PackageId
+    from empire_core.gamedata import GlobalEffect, PackageId
     from empire_core.player.models.account import (
         BoostedGlobalEffectsResponse,
         DailyResetResponse,
@@ -135,6 +135,29 @@ class TrainingMixin(ServiceMixin):
         (bundle line 124371)
         """
         return self.request(HeroDecisionRequest(hero=hero), HeroDecisionResponse, timeout=timeout)
+
+    def activate_global_effect_boost(
+        self, effect_id: GlobalEffect | int, *, spend_rubies: bool = False, timeout: float = 5.0
+    ) -> None:
+        """
+        Purchase the running booster event's ruby boost for a global effect.
+
+        Read ``Event.GLOBAL_EFFECT_BUFF`` in state for the offered effects, ruby
+        costs and added strengths. The price is event data, not a fixed amount.
+        This waits for the server's acknowledgement only; the separate ``bie``
+        push updates :attr:`boosted_global_effects`. A timeout is ambiguous:
+        inspect fresh state before considering another purchase.
+
+        Raises:
+            ValueError: Without ``spend_rubies``
+            CommandError: The server refused the purchase
+            EmpireTimeoutError / ConnectionClosedError / NetworkError: transport failures
+
+        Client: ``GlobalEffectEventDialogListItem.onBuy`` and
+        ``C2SActivateGlobalEffectBuffVO`` (Game.bundle.e2ca3c4ee155ea53c7c7.js)
+        """
+        self._require_spend_rubies(spend_rubies, "a global effect boost costs rubies")
+        self.execute(ActivateGlobalEffectBoostRequest(effect_id=effect_id), timeout=timeout)
 
     @property
     def boosted_global_effects(self) -> BoostedGlobalEffectsResponse | None:
