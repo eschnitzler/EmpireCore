@@ -81,6 +81,7 @@ class CastleModificationMixin(CastlesMixin):
                 is_rename=0 if is_initial_name else 1,
             ),
             timeout=timeout,
+            spend_rubies=spend_rubies,
         )
 
     def abandon_castle(self, castle_id: int, *, timeout: float = 5.0) -> AbandonCastleResponse:
@@ -190,7 +191,7 @@ class CastleModificationMixin(CastlesMixin):
         else:
             cost = None
         self._require_spend_rubies(spend_rubies, cost)
-        self.execute(RelocateCastleRequest(x=x, y=y), timeout=timeout)
+        self.execute(RelocateCastleRequest(x=x, y=y), timeout=timeout, spend_rubies=spend_rubies)
 
     def leave_area(self) -> None:
         """

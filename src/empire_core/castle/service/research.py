@@ -59,7 +59,7 @@ class ResearchMixin(ServiceMixin):
         rubies = max((cost.amount for cost in costs if cost.kind is CollectableKind.RUBIES), default=0)
         if rubies > 0 and not spend_rubies:
             raise ValueError(f"research {research!r} costs {rubies} rubies; pass spend_rubies=True")
-        self.execute(StartResearchRequest(research_id=research), timeout=timeout)
+        self.execute(StartResearchRequest(research_id=research), timeout=timeout, spend_rubies=spend_rubies)
 
     def skip_research(self, minute_skip: Currency | str, *, timeout: float = 5.0) -> None:
         """

@@ -111,7 +111,7 @@ class SkillsMixin(PlayerBaseMixin):
                 self._require_spend_rubies(
                     spend_rubies, f"resetting the skills inside the cooldown costs {rubies} rubies"
                 )
-        self.execute(ResetSkillsRequest(), timeout=timeout)
+        self.execute(ResetSkillsRequest(), timeout=timeout, spend_rubies=spend_rubies)
         return self.get_skills(timeout=timeout)
 
     def open_loot_box(

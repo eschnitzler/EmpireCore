@@ -86,7 +86,9 @@ class AllianceSettingsMixin(OwnAllianceMixin):
                 self.client.state.alliance_info_read(alliance_id),
             ):
                 preflight, preflight_payload = self._request_membership(
-                    GetAllianceInfoRequest(alliance_id=alliance_id), GetAllianceInfoResponse, timeout=timeout
+                    GetAllianceInfoRequest(alliance_id=alliance_id),
+                    GetAllianceInfoResponse,
+                    timeout=timeout,
                 )
             details = _echoed(preflight.alliance, "ain")
             preflight_sequence = self.client.state.require_alliance_upgrade_preflight(
@@ -136,6 +138,7 @@ class AllianceSettingsMixin(OwnAllianceMixin):
                     AllianceUpgradeRequest(building_type=building_type, level=level),
                     AllianceUpgradeResponse,
                     timeout=timeout,
+                    spend_rubies=spend_rubies,
                 )
             self.client.state.apply_alliance_settings(
                 {
@@ -196,6 +199,7 @@ class AllianceSettingsMixin(OwnAllianceMixin):
                 ChangeAllianceNameResponse,
                 membership=(alliance_id, revision),
                 timeout=timeout,
+                spend_rubies=spend_rubies,
             )
 
     def set_language(self, language: str, *, timeout: float = 5.0) -> AllianceInfo:
@@ -247,6 +251,7 @@ class AllianceSettingsMixin(OwnAllianceMixin):
         *,
         membership: tuple[int, int] | None = None,
         timeout: float,
+        spend_rubies: bool = False,
     ) -> AllianceInfo:
         with self.client.connection.command_lock(request.command, timeout=timeout):
             alliance_id, revision = membership or (
@@ -255,7 +260,9 @@ class AllianceSettingsMixin(OwnAllianceMixin):
             )
             with self._own_alliance():
                 self.client.state.apply_alliance_settings({}, membership_revision=revision, alliance_id=alliance_id)
-                response, payload = self._request_membership(request, response_type, timeout=timeout)
+                response, payload = self._request_membership(
+                    request, response_type, timeout=timeout, spend_rubies=spend_rubies
+                )
             alliance = _echoed(response.alliance, request.command)
             if alliance.alliance_id != alliance_id:
                 raise PacketError(f"'{request.command}' reply names a different alliance")

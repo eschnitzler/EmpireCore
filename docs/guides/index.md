@@ -142,6 +142,27 @@ Pricing reads the game data, loaded on first use; the call raises
 `GameDataNotLoadedError` when it cannot be loaded. Minute skips are items, not rubies, and need
 no flag.
 
+### Ruby purchase confirmation
+
+The game's confirmation setting applies above the player's chosen threshold.
+Passing `spend_rubies=True` also authorizes one confirmation if the server
+requests it. The SDK preserves the player's setting.
+
+Low-level `client.send(..., wait=True)`, `client.request(...)` and
+`client.request_packet(...)` accept the same keyword. Without consent,
+confirmation-required errors use normal error handling. Supplying ruby consent to a fire-and-forget send raises `ValueError`.
+
+The SDK validates the challenge's command and echoed action fields, and requires
+a positive integer ruby amount. It does not impose a price limit. It then copies the server's payload into the confirmation. Both requests share a
+command lock and timeout budget. A repeated challenge, refusal, timeout or
+disconnect is not retried. After a timeout, inspect fresh state before trying
+again: the purchase may already have succeeded.
+
+The echo check requires every original action field to return unchanged. A
+missing or reformatted field raises `PacketError` without confirming. This
+requirement is covered offline; compatibility across live purchase types has
+not yet been verified.
+
 ## Game state and data
 
 <div class="grid cards" markdown>

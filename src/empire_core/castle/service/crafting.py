@@ -188,7 +188,7 @@ class CraftingMixin(ServiceMixin):
             slot_type=slot.slot_type,
             price=price,
         )
-        return self._laid_out(self.request(request, SkipCraftingResponse, timeout=timeout))
+        return self._laid_out(self.request(request, SkipCraftingResponse, timeout=timeout, spend_rubies=spend_rubies))
 
     def unlock_crafting_slot(self, queue: CraftingQueue, slot: CraftingSlot, *, timeout: float = 5.0) -> CraftingQueue:
         """
@@ -304,4 +304,4 @@ class CraftingMixin(ServiceMixin):
         request = SkipConstructionCraftingRequest(
             kingdom=castle.kingdom_id, castle_id=castle_id, finish_for_rubies=True, minute_skip=FULL_SKIP
         )
-        self.request(request, SkipConstructionCraftingResponse, timeout=timeout)
+        self.request(request, SkipConstructionCraftingResponse, timeout=timeout, spend_rubies=spend_rubies)

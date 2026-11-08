@@ -181,7 +181,10 @@ class HorizonMixin(OwnAllianceMixin):
         """
         self._require_spend_rubies(spend_rubies, "activating an alliance tower's buffs costs rubies")
         return self.request(
-            ActivateAllianceTowerBuffsRequest(x=x, y=y), ActivateAllianceTowerBuffsResponse, timeout=timeout
+            ActivateAllianceTowerBuffsRequest(x=x, y=y),
+            ActivateAllianceTowerBuffsResponse,
+            timeout=timeout,
+            spend_rubies=spend_rubies,
         ).tower_buffs
 
     def increase_tower_buffs(
@@ -217,4 +220,5 @@ class HorizonMixin(OwnAllianceMixin):
             IncreaseAllianceTowerBuffsRequest(x=x, y=y, increases=increases),
             IncreaseAllianceTowerBuffsResponse,
             timeout=timeout,
+            spend_rubies=spend_rubies,
         ).tower_buffs

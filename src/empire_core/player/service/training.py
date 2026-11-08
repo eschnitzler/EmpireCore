@@ -6,6 +6,9 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from empire_core.enums import Hero
+from empire_core.events.models import GlobalEffectBuffEvent
+from empire_core.exceptions import EventNotRunningError
+from empire_core.gamedata.ids.events import Event
 from empire_core.player.models.account import ActivateGlobalEffectBoostRequest, SendGiftPackagesRequest
 from empire_core.player.models.economy import GetLootBoxesRequest, LootBoxesResponse
 from empire_core.player.models.hero import HeroDecisionRequest, HeroDecisionResponse
@@ -77,7 +80,12 @@ class TrainingMixin(ServiceMixin):
         self._require_spend_rubies(
             spend_rubies, "the slot 3 training program costs rubies" if slot_id == _RUBY_TRAINING_SLOT else None
         )
-        self.request(ActivateTrainingProgramRequest(slot_id=slot_id), ActivateTrainingProgramResponse, timeout=timeout)
+        self.request(
+            ActivateTrainingProgramRequest(slot_id=slot_id),
+            ActivateTrainingProgramResponse,
+            timeout=timeout,
+            spend_rubies=spend_rubies,
+        )
 
     def prolong_training_program(self, *, spend_rubies: bool = False, timeout: float = 5.0) -> None:
         """
@@ -92,7 +100,9 @@ class TrainingMixin(ServiceMixin):
         (bundle line 126198)
         """
         self._require_spend_rubies(spend_rubies, "prolonging a training program costs rubies")
-        self.request(ProlongTrainingProgramRequest(), ProlongTrainingProgramResponse, timeout=timeout)
+        self.request(
+            ProlongTrainingProgramRequest(), ProlongTrainingProgramResponse, timeout=timeout, spend_rubies=spend_rubies
+        )
 
     def reroll_training_programs(
         self,
@@ -117,7 +127,7 @@ class TrainingMixin(ServiceMixin):
         """
         self._require_spend_rubies(spend_rubies, "a premium reroll costs rubies" if premium else None)
         request = RerollTrainingProgramsRequest(premium=premium, kept_slot_ids=list(kept_slot_ids))
-        self.request(request, RerollTrainingProgramsResponse, timeout=timeout)
+        self.request(request, RerollTrainingProgramsResponse, timeout=timeout, spend_rubies=spend_rubies)
 
     @property
     def hero(self) -> Hero | int | None:
@@ -149,15 +159,22 @@ class TrainingMixin(ServiceMixin):
         inspect fresh state before considering another purchase.
 
         Raises:
-            ValueError: Without ``spend_rubies``
+            ValueError: Without ``spend_rubies``, or the effect is not offered
+            EventNotRunningError: No global effect booster event is running
             CommandError: The server refused the purchase
             EmpireTimeoutError / ConnectionClosedError / NetworkError: transport failures
 
         Client: ``GlobalEffectEventDialogListItem.onBuy`` and
         ``C2SActivateGlobalEffectBuffVO`` (Game.bundle.e2ca3c4ee155ea53c7c7.js)
         """
-        self._require_spend_rubies(spend_rubies, "a global effect boost costs rubies")
-        self.execute(ActivateGlobalEffectBoostRequest(effect_id=effect_id), timeout=timeout)
+        event = self.client.state.get_event(Event.GLOBAL_EFFECT_BUFF)
+        if not isinstance(event, GlobalEffectBuffEvent):
+            raise EventNotRunningError(int(Event.GLOBAL_EFFECT_BUFF))
+        offer = next((boost for boost in event.boosts if boost.effect_id == effect_id), None)
+        if offer is None:
+            raise ValueError(f"global effect {int(effect_id)} is not offered by the running booster event")
+        self._require_spend_rubies(spend_rubies, f"a global effect boost costs {offer.cost} rubies")
+        self.execute(ActivateGlobalEffectBoostRequest(effect_id=effect_id), timeout=timeout, spend_rubies=spend_rubies)
 
     @property
     def boosted_global_effects(self) -> BoostedGlobalEffectsResponse | None:

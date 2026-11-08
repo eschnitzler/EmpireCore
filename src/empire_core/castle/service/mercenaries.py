@@ -123,7 +123,7 @@ class MercenaryCampMixin(ServiceMixin):
             raise ValueError(f"mercenary mission {mission_id} is not open")
         if missions.current_mission_state() >= MercenaryMissionState.COLLECTABLE:
             raise ValueError("a mercenary mission waits to be collected")
-        self.execute(RefreshMercenaryMissionRequest(mission_id=mission_id), timeout=timeout)
+        self.execute(RefreshMercenaryMissionRequest(mission_id=mission_id), timeout=timeout, spend_rubies=spend_rubies)
 
     @staticmethod
     def _mission(missions: MercenaryMissionsResponse, mission_id: int) -> MercenaryMission:

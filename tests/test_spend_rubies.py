@@ -205,7 +205,8 @@ def test_spend_rubies_is_only_on_calls_that_can_spend_rubies() -> None:
         senders = _ruby_senders(service)
         for method, member in inspect.getmembers(service, inspect.isfunction):
             qualified = f"{service_name}.{method}"
-            if method.startswith("_"):
+            if method.startswith("_") or getattr(BaseService, method, None) is member:
+                # Generic transport methods accept consent for any typed request.
                 continue
             if "spend_rubies" in inspect.signature(member).parameters and method not in senders:
                 if qualified not in CONSENT_WITHOUT_REQUEST:
@@ -217,7 +218,8 @@ def test_no_other_name_asks_for_rubies() -> None:
     wrong = []
     for service_name, service in _services().items():
         for method, member in inspect.getmembers(service, inspect.isfunction):
-            if method.startswith("_"):
+            if method.startswith("_") or getattr(BaseService, method, None) is member:
+                # Generic transport methods accept consent for any typed request.
                 continue
             for param in inspect.signature(member).parameters.values():
                 if not CONSENT_LIKE.search(param.name) or param.name in NOT_CONSENT:

@@ -126,7 +126,9 @@ class MemberManagementMixin(OwnAllianceMixin):
                     if not 0 <= timeout < premium_seconds
                     else None,
                 )
-            response, payload = self._request_membership(request, FoundAllianceResponse, timeout=timeout)
+            response, payload = self._request_membership(
+                request, FoundAllianceResponse, timeout=timeout, spend_rubies=spend_rubies
+            )
             self.client.state.apply_membership_response(payload, membership_revision=revision)
             return response.alliance
 

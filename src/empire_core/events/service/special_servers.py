@@ -167,6 +167,7 @@ class SpecialServersMixin(EventsBaseMixin):
             ),
             SelectSpecialServerCastleResponse,
             timeout=timeout,
+            spend_rubies=spend_rubies,
         )
 
     def get_outer_realms_collector_points(self, player_id: int, *, timeout: float = 5.0) -> int:
@@ -204,7 +205,12 @@ class SpecialServersMixin(EventsBaseMixin):
         reroll's ``c2Cost`` (bundle line 140279); ``CCRCommand.executeCommand`` (bundle line 128488)
         """
         self._require_spend_rubies(spend_rubies, "a charge camp reroll costs rubies")
-        self.request(RerollChargeCampEffectRequest(x=x, y=y), RerollChargeCampEffectResponse, timeout=timeout)
+        self.request(
+            RerollChargeCampEffectRequest(x=x, y=y),
+            RerollChargeCampEffectResponse,
+            timeout=timeout,
+            spend_rubies=spend_rubies,
+        )
 
     def apply_charge_camp_effect(self, x: int, y: int, *, timeout: float = 5.0) -> None:
         """
@@ -271,7 +277,7 @@ class SpecialServersMixin(EventsBaseMixin):
         request = SelectBerimondCampRequest(
             camp_id=row.prebuilt_castle_id, pay_with_rubies=spend_rubies and not rubies, ruby_camp=rubies > 0
         )
-        self.execute(request, timeout=timeout)
+        self.execute(request, timeout=timeout, spend_rubies=spend_rubies)
 
     @property
     def berimond_kingdom_status(self) -> BerimondKingdomStatus | None:

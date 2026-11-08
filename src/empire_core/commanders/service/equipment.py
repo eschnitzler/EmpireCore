@@ -297,7 +297,7 @@ class EquipmentService(BaseService):
         """
         self._require_spend_rubies(spend_rubies, "taking the items' gems back costs rubies" if extract_gems else None)
         request = CraftEquipmentRequest(extract_gems=extract_gems, equipment_ids=tuple(equipment_ids))
-        return self.request(request, CraftEquipmentResponse, timeout=timeout).equipment
+        return self.request(request, CraftEquipmentResponse, timeout=timeout, spend_rubies=spend_rubies).equipment
 
     def enchant_equipment(
         self, equipment_id: int, *, pay_with_rubies: bool = False, spend_rubies: bool = False, timeout: float = 5.0
@@ -316,7 +316,7 @@ class EquipmentService(BaseService):
         """
         self._require_spend_rubies(spend_rubies, "the ruby enchantment costs rubies" if pay_with_rubies else None)
         request = EnchantEquipmentRequest(pay_with_rubies=pay_with_rubies, equipment_id=equipment_id)
-        return self.request(request, EnchantEquipmentResponse, timeout=timeout).equipment
+        return self.request(request, EnchantEquipmentResponse, timeout=timeout, spend_rubies=spend_rubies).equipment
 
     def enchant_relic(
         self,
@@ -356,7 +356,7 @@ class EquipmentService(BaseService):
             relic_id=relic.equipment_id if isinstance(relic, Equipment) else relic.gem_id,
             is_equipment=is_equipment,
         )
-        response = self.request(request, EnchantRelicResponse, timeout=timeout)
+        response = self.request(request, EnchantRelicResponse, timeout=timeout, spend_rubies=spend_rubies)
         upgraded = response.equipment if is_equipment else response.relic_gem
         if upgraded is None:
             raise PacketError("The ere reply carries no relic")
@@ -397,7 +397,7 @@ class EquipmentService(BaseService):
             pay_with_rubies=pay_with_rubies,
             used_gem_ids=tuple(self._gem(used)[0] for used in used_gems),
         )
-        return self.request(request, CraftGemResponse, timeout=timeout)
+        return self.request(request, CraftGemResponse, timeout=timeout, spend_rubies=spend_rubies)
 
     def extract_gem(
         self,
@@ -432,7 +432,7 @@ class EquipmentService(BaseService):
         request = ExtractGemRequest(
             equipment_id=equipment.equipment_id, commander_id=-1 if commander_id is None else commander_id
         )
-        self.request(request, ExtractGemResponse, timeout=timeout)
+        self.request(request, ExtractGemResponse, timeout=timeout, spend_rubies=spend_rubies)
 
     @staticmethod
     def _gem(gem: Gem | GemStack | RelicGem) -> tuple[int, bool]:

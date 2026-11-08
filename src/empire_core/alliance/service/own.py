@@ -212,9 +212,14 @@ class OwnAllianceMixin(ServiceMixin):
         return alliance_id
 
     def _request_membership(
-        self, request: BaseRequest, response_type: type[_MembershipResponse], *, timeout: float
+        self,
+        request: BaseRequest,
+        response_type: type[_MembershipResponse],
+        *,
+        timeout: float,
+        spend_rubies: bool = False,
     ) -> tuple[_MembershipResponse, dict[str, Any]]:
-        packet = self.client.request_packet(request, request.command, timeout=timeout)
+        packet = self.client.request_packet(request, request.command, timeout=timeout, spend_rubies=spend_rubies)
         if packet.error_code != 0:
             raise CommandError(request.command, packet.error_code, packet.payload)
         if not isinstance(packet.payload, dict):

@@ -240,7 +240,7 @@ class MovementsService(BaseService):
             slowdown=slowdown,
             goods=amounts,
         )
-        self.execute(request, timeout=timeout)
+        self.execute(request, timeout=timeout, spend_rubies=spend_rubies)
 
     def _sendable_goods(self, goods: dict[Resource, int]) -> dict[Resource, int]:
         if not goods:
@@ -367,7 +367,7 @@ class MovementsService(BaseService):
         return self.client.commanders.premium_send(
             commander_id,
             use_premium_commander,
-            lambda: self.request(request, response_type, timeout=timeout),
+            lambda: self.request(request, response_type, timeout=timeout, spend_rubies=spend_rubies),
             spend_rubies=spend_rubies,
         )
 
@@ -497,7 +497,7 @@ class MovementsService(BaseService):
         self.client.commanders.premium_send(
             commander_id,
             use_premium_commander,
-            lambda: self.execute(request, timeout=timeout),
+            lambda: self.execute(request, timeout=timeout, spend_rubies=spend_rubies),
             spend_rubies=spend_rubies,
         )
 
@@ -775,7 +775,7 @@ class MovementsService(BaseService):
         self._require_spend_rubies(spend_rubies, "skipping a treasure map transfer costs rubies")
         season = self._running_season(map_id)
         request = TreasureMapTransferSkipRequest(event_id=season.event_id, map_id=map_id, transfer_type=transfer_type)
-        self.execute(request, timeout=timeout)
+        self.execute(request, timeout=timeout, spend_rubies=spend_rubies)
 
     def skip_treasure_map_transfer_time(
         self,
@@ -853,4 +853,4 @@ class MovementsService(BaseService):
                 what = KingdomTransferType(transfer_type).name.lower()
                 raise ValueError(f"no {what} transfer is on its way to {Kingdom(kingdom_id).name}")
         request = KingdomSkipTransferRequest(kingdom_id=kingdom_id, transfer_type=transfer_type)
-        self.execute(request, timeout=timeout)
+        self.execute(request, timeout=timeout, spend_rubies=spend_rubies)
