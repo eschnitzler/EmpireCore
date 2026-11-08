@@ -136,7 +136,19 @@ class ScriptedConnection:
     def send_and_drop_reply(self, data: str, cmd_id: str, window: float = 5.0) -> None:
         self.sent.append(data)
 
-    def request(self, data: str, cmd_id: str, timeout: float = 5.0, accepts: Any = None) -> Packet:
+    def request(
+        self,
+        data: str,
+        cmd_id: str,
+        timeout: float = 5.0,
+        accepts: Any = None,
+        *,
+        expected_generation: int | None = None,
+    ) -> Packet:
+        if expected_generation is not None and expected_generation != self.generation:
+            from empire_core.exceptions import ConnectionClosedError
+
+            raise ConnectionClosedError("Session changed")
         self.requested.append(cmd_id)
         self.request_frames.append(data)
         self.accepts.append(accepts)
@@ -261,6 +273,22 @@ LOGIN_SECTIONS: dict[str, Any] = {
     "dql": {"PQL": 1},
 }
 """The sections every login gbd brings, with nothing in them."""
+
+
+def global_effect_state() -> GameState:
+    """A login with the active global speed effect and its ruby boost offer."""
+    state = logged_in_state()
+    state.update_from_packet(
+        "tei",
+        {
+            "TE": [
+                {"TRID": 610, "GE": [[2, 3600, 10]], "SGE": []},
+                {"TRID": 612, "GEB": [{"GEID": 2, "BV": 50, "C2": 2500}]},
+            ]
+        },
+    )
+    return state
+
 
 SERVER_INFO: dict[str, Any] = {"XML_EP": "787.03", "minNameSize": 3, "sectorCountX": 99, "sectorCountY": 99}
 """The server info a connection opens with: a map of 99 by 99 sectors."""

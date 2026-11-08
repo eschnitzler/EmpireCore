@@ -238,7 +238,7 @@ class SendingMixin(ServiceMixin):
         def send() -> CreateAttackResponse:
             self.pacer.wait()
             try:
-                return self.request(request, response_type, timeout=timeout)
+                return self.request(request, response_type, timeout=timeout, spend_rubies=spend_rubies)
             except CommandError as e:
                 if e.error is GGEError.ATTACK_IN_PROGRESS:
                     raise AttackInProgressError(e.command, e.code, e.payload) from e
@@ -308,7 +308,7 @@ class SendingMixin(ServiceMixin):
 
         def send() -> TreasureHuntAttackResponse:
             self.pacer.wait()
-            return self.request(request, TreasureHuntAttackResponse, timeout=timeout)
+            return self.request(request, TreasureHuntAttackResponse, timeout=timeout, spend_rubies=spend_rubies)
 
         return self.client.commanders.premium_send(commander_id, use_premium_commander, send, spend_rubies=spend_rubies)
 

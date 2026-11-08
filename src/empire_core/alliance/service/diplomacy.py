@@ -142,7 +142,7 @@ class DiplomacyMixin(OwnAllianceMixin):
             spend_rubies, f"donating {donation.rubies} rubies spends them" if donation.rubies > 0 else None
         )
         with self._own_alliance():
-            return self.request(request, DonateResponse, timeout=timeout)
+            return self.request(request, DonateResponse, timeout=timeout, spend_rubies=spend_rubies)
 
     def get_donation_resources(self, castle_id: int, *, timeout: float = 5.0) -> DonationResourcesResponse:
         """
@@ -218,4 +218,9 @@ class DiplomacyMixin(OwnAllianceMixin):
             else None,
         )
         with self._own_alliance():
-            return self.request(ForgeCraftRequest(pay_with_rubies=pay_with_rubies), ForgeCraftResponse, timeout=timeout)
+            return self.request(
+                ForgeCraftRequest(pay_with_rubies=pay_with_rubies),
+                ForgeCraftResponse,
+                timeout=timeout,
+                spend_rubies=spend_rubies,
+            )

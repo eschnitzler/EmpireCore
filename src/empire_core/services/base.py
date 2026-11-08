@@ -231,35 +231,42 @@ class BaseService:
             return f"horse {horse_booster_id} costs rubies unless paid with feathers"
         return None
 
-    def send(self, request: BaseRequest, wait: bool = False, *, timeout: float = 5.0) -> BaseResponse | None:
+    def send(
+        self, request: BaseRequest, wait: bool = False, *, timeout: float = 5.0, spend_rubies: bool = False
+    ) -> BaseResponse | None:
         """
         Send a request to the server.
 
+        ``spend_rubies=True`` permits one server-requested confirmation when waiting.
         With ``wait=True``, raises the same typed exceptions as
         ``EmpireClient.send`` (CommandError, EmpireTimeoutError, ...).
         """
-        return self.client.send(request, wait=wait, timeout=timeout)
+        return self.client.send(request, wait=wait, timeout=timeout, spend_rubies=spend_rubies)
 
-    def request(self, request: BaseRequest, response_type: type[R], *, timeout: float = 5.0) -> R:
+    def request(
+        self, request: BaseRequest, response_type: type[R], *, timeout: float = 5.0, spend_rubies: bool = False
+    ) -> R:
         """
         Send a request and return its typed response.
 
+        ``spend_rubies=True`` permits one server-requested ruby confirmation.
         Raises:
             CommandError: The server answered with a non-zero error code
             EmpireTimeoutError / ConnectionClosedError / NetworkError: transport failures
             PacketError: The response could not be parsed as ``response_type``
         """
-        return self.client.request(request, response_type, timeout=timeout)
+        return self.client.request(request, response_type, timeout=timeout, spend_rubies=spend_rubies)
 
-    def execute(self, request: BaseRequest, *, timeout: float = 5.0) -> None:
+    def execute(self, request: BaseRequest, *, timeout: float = 5.0, spend_rubies: bool = False) -> None:
         """
         Send an action request and wait until the server accepts it.
 
+        ``spend_rubies=True`` permits one server-requested ruby confirmation.
         Raises:
             CommandError: The server refused the action, with the game's message
             EmpireTimeoutError / ConnectionClosedError / NetworkError: transport failures
         """
-        self.client.send(request, wait=True, timeout=timeout)
+        self.client.send(request, wait=True, timeout=timeout, spend_rubies=spend_rubies)
 
     def on_response(self, command: str, handler: Callable[[BaseResponse], None]) -> None:
         """

@@ -418,6 +418,21 @@ class BasePayload(EmpireModel):
         return self.model_dump(by_alias=True, exclude_none=True)
 
 
+class RubyPurchaseConfirmation(BasePayload):
+    """
+    The server's ruby purchase challenge, echoed when the player confirms.
+
+    CC2T is the purchase's ruby amount. Other fields are the server's action payload.
+
+    Client: ``CastleHandleServerErrorCommand.handleGameSpecificServerError``,
+    ``ConfirmC2Dialog.onConfirm`` and ``C2SConfirmC2VO``
+    (Game.bundle.e2ca3c4ee155ea53c7c7.js)
+    """
+
+    ruby_cost: int = Field(validation_alias="CC2T", strict=True, gt=0)
+    command_id: str | None = Field(validation_alias="cmdID", default=None, strict=True)
+
+
 class BaseRequest(BasePayload):
     """Base class for request payloads sent to the server."""
 

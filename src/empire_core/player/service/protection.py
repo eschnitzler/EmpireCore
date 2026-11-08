@@ -70,7 +70,7 @@ class ProtectionMixin(PlayerBaseMixin):
         (bundle line 35188); ``C2SPeaceModeStartVO`` (bundle line 47478), ``MPSCommand`` (bundle line 125133)
         """
         self._require_spend_rubies(spend_rubies, f"peace mode for {duration.name} costs {duration.rubies} rubies")
-        self.execute(StartPeaceModeRequest(duration=duration), timeout=timeout)
+        self.execute(StartPeaceModeRequest(duration=duration), timeout=timeout, spend_rubies=spend_rubies)
 
     def cancel_peace_mode(self, *, timeout: float = 5.0) -> None:
         """
@@ -101,4 +101,9 @@ class ProtectionMixin(PlayerBaseMixin):
         ``FactionConst.getPeaceC2Cost`` (dll line 19316); ``FFPCommand`` (bundle line 127785)
         """
         self._require_spend_rubies(spend_rubies, f"Berimond protection costs {BERIMOND_PROTECTION_RUBIES} rubies")
-        return self.request(StartBerimondProtectionRequest(), StartBerimondProtectionResponse, timeout=timeout)
+        return self.request(
+            StartBerimondProtectionRequest(),
+            StartBerimondProtectionResponse,
+            timeout=timeout,
+            spend_rubies=spend_rubies,
+        )

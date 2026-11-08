@@ -187,7 +187,7 @@ class BuildingsMixin(CastlesMixin):
             private_offer_id=private_offer_id,
             district_object_id=district_object_id,
         )
-        self.execute(request, timeout=timeout)
+        self.execute(request, timeout=timeout, spend_rubies=spend_rubies)
 
     def upgrade_building(
         self,
@@ -228,7 +228,7 @@ class BuildingsMixin(CastlesMixin):
         request = UpgradeBuildingRequest(
             object_id=object_id, pay_with_rubies=spend_rubies, private_offer_id=private_offer_id
         )
-        self.execute(request, timeout=timeout)
+        self.execute(request, timeout=timeout, spend_rubies=spend_rubies)
 
     def move_building(self, object_id: int, x: int, y: int, rotation: int = 0, *, timeout: float = 5.0) -> None:
         """Move a building in the joined castle."""
@@ -307,7 +307,9 @@ class BuildingsMixin(CastlesMixin):
         free = seconds_left is not None and seconds_left - (time.monotonic() - received) <= _FREE_SKIP_SECONDS
         cost = None if free else f"finishing with over {_FREE_SKIP_SECONDS} seconds left, or unknown, costs rubies"
         self._require_spend_rubies(spend_rubies, cost)
-        self.execute(FastCompleteRequest(object_id=object_id, free_skip=free), timeout=timeout)
+        self.execute(
+            FastCompleteRequest(object_id=object_id, free_skip=free), timeout=timeout, spend_rubies=spend_rubies
+        )
 
     def skip_construction_time(self, object_id: int, minute_skip: Currency | str, *, timeout: float = 5.0) -> None:
         """
@@ -366,7 +368,7 @@ class BuildingsMixin(CastlesMixin):
         request = UpgradeWallRequest(
             object_id=object_id, private_offer_id=private_offer_id, pay_with_rubies=spend_rubies
         )
-        self.execute(request, timeout=timeout)
+        self.execute(request, timeout=timeout, spend_rubies=spend_rubies)
 
     def repair_building(
         self, object_id: int, *, spend_rubies: bool = False, private_offer_id: int = -1, timeout: float = 5.0
@@ -386,7 +388,7 @@ class BuildingsMixin(CastlesMixin):
         request = RepairBuildingRequest(
             object_id=object_id, private_offer_id=private_offer_id, pay_with_rubies=spend_rubies
         )
-        self.execute(request, timeout=timeout)
+        self.execute(request, timeout=timeout, spend_rubies=spend_rubies)
 
     def repair_all(self, *, spend_rubies: bool = False, timeout: float = 5.0) -> None:
         """
@@ -408,7 +410,7 @@ class BuildingsMixin(CastlesMixin):
         (dll lines 18966-18969)
         """
         self._require_spend_rubies(spend_rubies, "repairing every building at once costs rubies")
-        self.execute(RepairAllRequest(), timeout=timeout)
+        self.execute(RepairAllRequest(), timeout=timeout, spend_rubies=spend_rubies)
 
     def buy_expansion(
         self,
@@ -439,7 +441,11 @@ class BuildingsMixin(CastlesMixin):
         """
         premium = expansion_type == ExpansionType.PREMIUM
         self._require_spend_rubies(spend_rubies, "a premium expansion costs rubies" if premium else None)
-        self.execute(BuyExtensionRequest(x=x, y=y, rotation=rotation, expansion_type=expansion_type), timeout=timeout)
+        self.execute(
+            BuyExtensionRequest(x=x, y=y, rotation=rotation, expansion_type=expansion_type),
+            timeout=timeout,
+            spend_rubies=spend_rubies,
+        )
 
     def open_treasure_chest(self, object_id: int, *, timeout: float = 5.0) -> None:
         """Open a treasure chest found on an expansion of the joined castle."""

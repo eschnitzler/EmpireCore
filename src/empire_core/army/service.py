@@ -285,7 +285,7 @@ class ArmyService(BaseService):
             kingdom_id=kingdom_id,
             castle_id=castle_id,
         )
-        self.execute(request, timeout=timeout)
+        self.execute(request, timeout=timeout, spend_rubies=spend_rubies)
 
     def get_production_list(self, castle_id: int, list_id: ProductionListId, *, timeout: float = 5.0) -> ProductionList:
         """
@@ -351,7 +351,7 @@ class ArmyService(BaseService):
         request = DoubleProductionSlotRequest(
             list_id=list_id, position=position, castle_id=castle_id, kingdom_id=kingdom_id, slot_type=slot_type
         )
-        self.execute(request, timeout=timeout)
+        self.execute(request, timeout=timeout, spend_rubies=spend_rubies)
 
     def skip_production_slot(
         self,
@@ -391,7 +391,9 @@ class ArmyService(BaseService):
         self._require_spend_rubies(spend_rubies, "finishing a production slot costs rubies")
         self._join_castle(castle_id, timeout)
         request = SkipProductionSlotRequest(list_id=list_id, position=position)
-        return self.request(request, SkipProductionSlotResponse, timeout=timeout).production_list
+        return self.request(
+            request, SkipProductionSlotResponse, timeout=timeout, spend_rubies=spend_rubies
+        ).production_list
 
     def move_production_slot(
         self,
@@ -497,10 +499,14 @@ class ArmyService(BaseService):
             raise ValueError("a recruitment loop repeats the queue at least once")
         self._require_spend_rubies(spend_rubies, "a recruitment loop costs rubies")
         self._join_castle(castle_id, timeout)
-        production = self.request(GetProductionListRequest(list_id=list_id), GetProductionListResponse, timeout=timeout)
+        production = self.request(
+            GetProductionListRequest(list_id=list_id),
+            GetProductionListResponse,
+            timeout=timeout,
+        )
         slots = [RecruitmentLoopSlot.from_slot(slot) for slot in production.queue if slot.wod_id >= 0]
         request = UpdateRecruitmentLoopRequest(list_id=list_id, loops=loops, slots=slots)
-        self._execute_needing_slots(request, timeout)
+        self._execute_needing_slots(request, timeout, spend_rubies=spend_rubies)
 
     def get_recruitment_copy_targets(
         self, castle_id: int, list_id: ProductionListId, *, timeout: float = 5.0
@@ -572,13 +578,17 @@ class ArmyService(BaseService):
                 RecruitmentCopyDestination(kingdom=target.kingdom, castle_id=target.castle_id) for target in targets
             ],
         )
-        self._execute_needing_slots(request, timeout)
+        self._execute_needing_slots(request, timeout, spend_rubies=spend_rubies)
 
     def _execute_needing_slots(
-        self, request: UpdateRecruitmentLoopRequest | DuplicateRecruitmentLoopRequest, timeout: float
+        self,
+        request: UpdateRecruitmentLoopRequest | DuplicateRecruitmentLoopRequest,
+        timeout: float,
+        *,
+        spend_rubies: bool = False,
     ) -> None:
         try:
-            self.execute(request, timeout=timeout)
+            self.execute(request, timeout=timeout, spend_rubies=spend_rubies)
         except CommandError as e:
             if e.error is GGEError.NO_FREE_CONSTRUCTION_SLOT:
                 raise ProductionSlotsNeededError(e.command, e.code, e.payload) from e
@@ -618,7 +628,7 @@ class ArmyService(BaseService):
             elif unit.healing_cost_rubies > 0:
                 self._require_spend_rubies(spend_rubies, f"healing unit {wod_id} costs rubies")
         self._join_castle(castle_id, timeout)
-        self.execute(HealUnitsRequest(wod_id=wod_id, amount=amount), timeout=timeout)
+        self.execute(HealUnitsRequest(wod_id=wod_id, amount=amount), timeout=timeout, spend_rubies=spend_rubies)
 
     def heal_all(self, castle_id: int, ruby_cost: int, *, spend_rubies: bool = False, timeout: float = 5.0) -> None:
         """
@@ -639,7 +649,7 @@ class ArmyService(BaseService):
         """
         self._require_spend_rubies(spend_rubies, f"healing all costs {ruby_cost} rubies" if ruby_cost > 0 else None)
         self._join_castle(castle_id, timeout)
-        self.execute(HealAllRequest(ruby_cost=ruby_cost), timeout=timeout)
+        self.execute(HealAllRequest(ruby_cost=ruby_cost), timeout=timeout, spend_rubies=spend_rubies)
 
     def cancel_heal(self, castle_id: int, position: int, *, timeout: float = 5.0) -> None:
         """
@@ -672,7 +682,7 @@ class ArmyService(BaseService):
         """
         self._require_spend_rubies(spend_rubies, "finishing a hospital slot costs rubies")
         self._join_castle(castle_id, timeout)
-        self.execute(SkipHealRequest(position=position), timeout=timeout)
+        self.execute(SkipHealRequest(position=position), timeout=timeout, spend_rubies=spend_rubies)
 
     def dismiss_wounded(self, castle_id: int, wod_id: Unit, amount: int, *, timeout: float = 5.0) -> None:
         """

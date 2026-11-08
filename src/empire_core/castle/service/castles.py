@@ -285,7 +285,7 @@ class CastlesMixin(ServiceMixin):
             ruby_castle=ruby_castle,
             kingdom_id=kingdom,
         )
-        self.execute(request, timeout=timeout)
+        self.execute(request, timeout=timeout, spend_rubies=spend_rubies)
 
     @property
     def construction_item_expiry(self) -> ConstructionItemExpiryResponse | None:

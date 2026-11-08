@@ -207,7 +207,9 @@ class EconomyMixin(ServiceMixin):
             raise ValueError(
                 f"tax type {tax_type} costs {TAX_RUBY_COSTS[tax_type]} rubies unless waived; pass spend_rubies=True"
             )
-        return self.request(StartTaxRequest(tax_type=tax_type), StartTaxResponse, timeout=timeout)
+        return self.request(
+            StartTaxRequest(tax_type=tax_type), StartTaxResponse, timeout=timeout, spend_rubies=spend_rubies
+        )
 
     def collect_tax(self, *, timeout: float = 5.0) -> CollectTaxResponse:
         """
@@ -252,4 +254,4 @@ class EconomyMixin(ServiceMixin):
         """
         self._require_spend_rubies(spend_rubies, "bribing the tax collector costs rubies")
         request = BribeTaxCollectorRequest(private_offer_id=private_offer_id)
-        return self.request(request, BribeTaxCollectorResponse, timeout=timeout)
+        return self.request(request, BribeTaxCollectorResponse, timeout=timeout, spend_rubies=spend_rubies)

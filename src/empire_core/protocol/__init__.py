@@ -29,6 +29,7 @@ from empire_core.protocol.base import (
     GGECommand,
     PlayerInfo,
     Position,
+    RubyPurchaseConfirmation,
     TimedPayload,
     TimedResponse,
     get_response_model,
@@ -38,6 +39,7 @@ from empire_core.protocol.packet import Packet
 from empire_core.protocol.text import decode_json_text, encode_json_text
 
 __all__ = [
+    "RubyPurchaseConfirmation",
     "BasePayload",
     "BaseRequest",
     "BaseResponse",
