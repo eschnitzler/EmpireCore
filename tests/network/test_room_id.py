@@ -57,13 +57,15 @@ def test_a_new_connection_has_joined_no_room(monkeypatch):
         conn.disconnect()
 
 
-def test_handled_login_refusals_are_not_logged_as_errors(caplog):
+def test_handled_server_errors_are_not_logged_as_errors(caplog):
     from empire_core.protocol.packet import Packet
 
     conn = Connection("wss://example.invalid/")
     with caplog.at_level("DEBUG", logger="empire_core.network.connection"):
         conn._route_packet(Packet.from_bytes(b'%xt%lli%1%27%{"RS":5}%'))
         conn._route_packet(Packet.from_bytes(b"%xt%vck%1%1%1170001%"))
+        # The ruby challenge is confirmed by the client or raised as CommandError.
+        conn._route_packet(Packet.from_bytes(b'%xt%agb%1%440%{"GEID":2,"CC2T":2500}%'))
         conn._route_packet(Packet.from_bytes(b"%xt%gam%1%5%{}%"))
     errors = [r.getMessage() for r in caplog.records if r.levelname == "ERROR"]
     assert errors == ["Server error: INVALID_OBJECT_ID (5) for command 'gam'"]
