@@ -499,11 +499,7 @@ class ArmyService(BaseService):
             raise ValueError("a recruitment loop repeats the queue at least once")
         self._require_spend_rubies(spend_rubies, "a recruitment loop costs rubies")
         self._join_castle(castle_id, timeout)
-        production = self.request(
-            GetProductionListRequest(list_id=list_id),
-            GetProductionListResponse,
-            timeout=timeout,
-        )
+        production = self.request(GetProductionListRequest(list_id=list_id), GetProductionListResponse, timeout=timeout)
         slots = [RecruitmentLoopSlot.from_slot(slot) for slot in production.queue if slot.wod_id >= 0]
         request = UpdateRecruitmentLoopRequest(list_id=list_id, loops=loops, slots=slots)
         self._execute_needing_slots(request, timeout, spend_rubies=spend_rubies)

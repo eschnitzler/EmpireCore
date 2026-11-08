@@ -150,18 +150,18 @@ requests it. The SDK preserves the player's setting.
 
 Low-level `client.send(..., wait=True)`, `client.request(...)` and
 `client.request_packet(...)` accept the same keyword. Without consent,
-confirmation-required errors use normal error handling. Supplying ruby consent to a fire-and-forget send raises `ValueError`.
+confirmation-required errors use normal error handling. Supplying ruby consent
+to a fire-and-forget send raises `ValueError`.
 
 The SDK validates the challenge's command and echoed action fields, and requires
-a positive integer ruby amount. It does not impose a price limit. It then copies the server's payload into the confirmation. Both requests share a
-command lock and timeout budget. A repeated challenge, refusal, timeout or
-disconnect is not retried. After a timeout, inspect fresh state before trying
-again: the purchase may already have succeeded.
+a positive integer ruby amount. It does not impose a price limit. It then copies
+the server's payload into the confirmation. Both requests share a command lock
+and timeout budget. A repeated challenge, refusal, timeout or disconnect is not
+retried. After a timeout, inspect fresh state before trying again: the purchase
+may already have succeeded.
 
 The echo check requires every original action field to return unchanged. A
-missing or reformatted field raises `PacketError` without confirming. This
-requirement is covered offline; compatibility across live purchase types has
-not yet been verified.
+missing or reformatted field raises `PacketError` without confirming.
 
 ## Game state and data
 
