@@ -86,9 +86,7 @@ class AllianceSettingsMixin(OwnAllianceMixin):
                 self.client.state.alliance_info_read(alliance_id),
             ):
                 preflight, preflight_payload = self._request_membership(
-                    GetAllianceInfoRequest(alliance_id=alliance_id),
-                    GetAllianceInfoResponse,
-                    timeout=timeout,
+                    GetAllianceInfoRequest(alliance_id=alliance_id), GetAllianceInfoResponse, timeout=timeout
                 )
             details = _echoed(preflight.alliance, "ain")
             preflight_sequence = self.client.state.require_alliance_upgrade_preflight(
