@@ -376,7 +376,9 @@ class MapService(BaseService):
         if amount < 1:
             raise ValueError(f"Buy 1 piece at least, not {amount}")
         self._require_spend_rubies(spend_rubies, "treasure map pieces cost rubies")
-        self.execute(BuyTreasureMapPiecesRequest(amount=amount, map_id=map_id), timeout=timeout)
+        self.execute(
+            BuyTreasureMapPiecesRequest(amount=amount, map_id=map_id), timeout=timeout, spend_rubies=spend_rubies
+        )
 
     def finish_treasure_map(self, map_id: TreasureMapId | int, *, timeout: float = 5.0) -> FinishTreasureMapResponse:
         """

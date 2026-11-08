@@ -97,7 +97,12 @@ class MinigamesMixin(ScoresMixin, EventsBaseMixin):
         """
         self._require_running(Event.WHEEL_OF_FORTUNE)
         self._require_spend_rubies(spend_rubies, "the jackpot costs rubies")
-        return self.request(WheelOfFortuneBuyJackpotRequest(), WheelOfFortuneBuyJackpotResponse, timeout=timeout)
+        return self.request(
+            WheelOfFortuneBuyJackpotRequest(),
+            WheelOfFortuneBuyJackpotResponse,
+            timeout=timeout,
+            spend_rubies=spend_rubies,
+        )
 
     def increase_wheel_of_fortune_win_class(
         self, *, spend_rubies: bool = False, timeout: float = 5.0
@@ -115,7 +120,10 @@ class MinigamesMixin(ScoresMixin, EventsBaseMixin):
         self._require_running(Event.WHEEL_OF_FORTUNE)
         self._require_spend_rubies(spend_rubies, "raising the win class costs rubies")
         return self.request(
-            WheelOfFortuneIncreaseWinClassRequest(), WheelOfFortuneIncreaseWinClassResponse, timeout=timeout
+            WheelOfFortuneIncreaseWinClassRequest(),
+            WheelOfFortuneIncreaseWinClassResponse,
+            timeout=timeout,
+            spend_rubies=spend_rubies,
         )
 
     def pull_gacha(
@@ -142,7 +150,7 @@ class MinigamesMixin(ScoresMixin, EventsBaseMixin):
         with self.client.connection.command_lock("dge", timeout=timeout):
             self.client.state._begin_gacha_spin(int(event))
             try:
-                return self.request(request, GachaSpinResponse, timeout=timeout)
+                return self.request(request, GachaSpinResponse, timeout=timeout, spend_rubies=spend_rubies)
             finally:
                 self.client.state._end_gacha_spin()
 
@@ -218,7 +226,9 @@ class MinigamesMixin(ScoresMixin, EventsBaseMixin):
         if not given:
             raise ValueError("a donation needs an amount above 0")
         self._require_spend_rubies(spend_rubies, "a donation item can be rubies")
-        return self.request(DonateItemsRequest(items=given), DonateItemsResponse, timeout=timeout).items
+        return self.request(
+            DonateItemsRequest(items=given), DonateItemsResponse, timeout=timeout, spend_rubies=spend_rubies
+        ).items
 
     def give_marauder_packages(
         self,
@@ -276,7 +286,7 @@ class MinigamesMixin(ScoresMixin, EventsBaseMixin):
         kingdoms = self._require_game_data().events[Event(int(event))].kingdoms
         kingdom = Kingdom(kingdoms[0]) if kingdoms else Kingdom.GREEN
         request = BuyArtifactPieceRequest(pieces=pieces, event_id=int(event), kingdom=kingdom)
-        return self.request(request, BuyArtifactPieceResponse, timeout=timeout)
+        return self.request(request, BuyArtifactPieceResponse, timeout=timeout, spend_rubies=spend_rubies)
 
     def validate_shady_lady_target(self, *, timeout: float = 5.0) -> None:
         """
@@ -303,7 +313,9 @@ class MinigamesMixin(ScoresMixin, EventsBaseMixin):
         """
         self._require_running(Event.SHADY_LADY)
         self._require_spend_rubies(spend_rubies, "skipping the target costs rubies")
-        return self.request(SkipShadyLadyTargetRequest(), SkipShadyLadyTargetResponse, timeout=timeout)
+        return self.request(
+            SkipShadyLadyTargetRequest(), SkipShadyLadyTargetResponse, timeout=timeout, spend_rubies=spend_rubies
+        )
 
     def buy_fortune_teller_reading(
         self, *, spend_rubies: bool = False, timeout: float = 5.0
@@ -325,7 +337,9 @@ class MinigamesMixin(ScoresMixin, EventsBaseMixin):
         self._require_running(Event.FORTUNE_TELLER)
         self._require_spend_rubies(spend_rubies, "a reading costs rubies")
         game_data = self._require_game_data()
-        reading = self.request(FortuneTellerReadingRequest(), FortuneTellerReadingResponse, timeout=timeout)
+        reading = self.request(
+            FortuneTellerReadingRequest(), FortuneTellerReadingResponse, timeout=timeout, spend_rubies=spend_rubies
+        )
         return reading.model_copy(update={"rewards": game_data.reward_list(reading.reward_ids)})
 
     def vote_world_cup(self, vote: WorldCupVote, *, timeout: float = 5.0) -> VoteWorldCupResponse:

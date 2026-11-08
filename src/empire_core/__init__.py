@@ -88,6 +88,7 @@ from empire_core.messages.models import SpyReportArea, SpyReportResponse
 from empire_core.movements.tracked import Movement, MovementResources
 from empire_core.player import ActivateGlobalEffectBoostRequest, ActivateGlobalEffectBoostResponse
 from empire_core.pool import AccountPool, PoolExhaustedError
+from empire_core.protocol.base import RubyPurchaseConfirmation
 from empire_core.protocol.packet import Packet
 from empire_core.protocol.text import decode_json_text, encode_json_text
 from empire_core.spy.service import SpyHandle, SpyResult, SpyService
@@ -101,6 +102,7 @@ except PackageNotFoundError:  # pragma: no cover - exercised in tests via monkey
     __version__ = "0.0.0.dev0"
 
 __all__ = [
+    "RubyPurchaseConfirmation",
     "ActivateGlobalEffectBoostRequest",
     "ActivateGlobalEffectBoostResponse",
     "EmpireClient",

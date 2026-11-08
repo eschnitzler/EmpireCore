@@ -78,7 +78,7 @@ class SeasonsMixin(EventsBaseMixin):
             ruby_camp=rubies > 0,
             space_id=row.space_ids[0],
         )
-        self.execute(request, timeout=timeout)
+        self.execute(request, timeout=timeout, spend_rubies=spend_rubies)
 
     def open_season_map(self, event: Event) -> None:
         """Tell the server you opened a running season event's map, as the client does each time it shows it.
@@ -145,7 +145,7 @@ class SeasonsMixin(EventsBaseMixin):
             part_price_id=part_price_id,
             pay_with_rubies=ruby_payment is not None,
         )
-        self.request(request, UnlockEventResponse, timeout=timeout)
+        self.request(request, UnlockEventResponse, timeout=timeout, spend_rubies=spend_rubies)
 
     def select_difficulty(
         self,
@@ -178,7 +178,7 @@ class SeasonsMixin(EventsBaseMixin):
         request = SelectEventDifficultyRequest(
             event_id=int(event), difficulty_id=difficulty_id, unlock_with_rubies=unlock_with_rubies
         )
-        self.request(request, SelectEventDifficultyResponse, timeout=timeout)
+        self.request(request, SelectEventDifficultyResponse, timeout=timeout, spend_rubies=spend_rubies)
 
     def get_daimyo_areas(self, *, timeout: float = 5.0) -> DaimyoAreasResponse:
         """Request the samurai invasion's daimyo castles and townships; the running event keeps them too.

@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
+import time
 from collections.abc import Callable, Iterable
 from pathlib import Path
 from types import TracebackType
@@ -28,9 +29,9 @@ from empire_core.client.stream import Args, EventStream, callback_sources
 from empire_core.commanders.service import CommandersService, EquipmentService
 from empire_core.config import EmpireConfig, NetworkInstance, default_config, generate_session_id
 from empire_core.defense.service import DefenseService
-from empire_core.enums import ServerType
+from empire_core.enums import GGEError, ServerType
 from empire_core.events.service import EventsService
-from empire_core.exceptions import CommandError, EmpireError, PacketError
+from empire_core.exceptions import CommandError, EmpireError, EmpireTimeoutError, PacketError
 from empire_core.gamedata import GameData
 from empire_core.map.service import MapService
 from empire_core.messages.service import MessagesService
@@ -39,7 +40,7 @@ from empire_core.movements.service import MovementsService
 from empire_core.network.connection import NON_ERROR_COMMANDS, Connection
 from empire_core.player.service import PlayerService
 from empire_core.protocol.auth import LoginTokenResponse
-from empire_core.protocol.base import read_or_none
+from empire_core.protocol.base import RubyPurchaseConfirmation, build_command, json_text, read_or_none
 from empire_core.protocol.models import BaseRequest, BaseResponse, parse_response
 from empire_core.protocol.packet import Packet
 from empire_core.quests.service import QuestsService
@@ -753,17 +754,65 @@ class EmpireClient:
         """
         return request.to_packet(zone=self.config.default_zone, room_id=self.connection.room_id)
 
-    def request_packet(self, request: BaseRequest, response_command: str, timeout: float = 5.0) -> Packet:
+    def request_packet(
+        self, request: BaseRequest, response_command: str, timeout: float = 5.0, *, spend_rubies: bool = False
+    ) -> Packet:
         """
         Send a request and return the raw reply packet for ``response_command``.
 
         For replies whose command id the response registry gives to another
         model (``hgh`` answers both alliance search and highscores), or that a
         caller reads itself. Raises as :meth:`Connection.request` does.
+        With ``spend_rubies=True``, confirms a server ruby challenge once,
+        using the same timeout budget; otherwise returns that error packet unchanged.
         """
-        return self.connection.request(
-            self.frame(request), response_command, timeout=timeout, accepts=self._reply_check(request)
-        )
+        return self._request_with_confirmation(request, response_command, timeout, spend_rubies)
+
+    def _request_with_confirmation(
+        self, request: BaseRequest, response_command: str, timeout: float, spend_rubies: bool
+    ) -> Packet:
+        """Confirm error 440 once, only with explicit consent, under the same command lock and deadline."""
+        if not spend_rubies:
+            return self.connection.request(
+                self.frame(request), response_command, timeout=timeout, accepts=self._reply_check(request)
+            )
+        deadline = time.monotonic() + timeout
+
+        def remaining() -> float:
+            seconds = deadline - time.monotonic()
+            if seconds <= 0:
+                raise EmpireTimeoutError("Timeout waiting for ruby purchase acknowledgement")
+            return seconds
+
+        with self.connection.command_lock(response_command, timeout=timeout):
+            generation = self.connection.generation
+            packet = self.connection.request(
+                self.frame(request), response_command, timeout=remaining(), accepts=self._reply_check(request)
+            )
+            if GGEError.RUBY_CONFIRMATION_REQUIRED != packet.error_code:
+                return packet
+            if not isinstance(packet.payload, dict):
+                raise PacketError("Ruby confirmation payload must be an object")
+            try:
+                confirmation = RubyPurchaseConfirmation.model_validate(packet.payload)
+            except ValidationError as error:
+                raise PacketError("Invalid ruby confirmation payload") from error
+            command = request.get_command()
+            if confirmation.command_id not in (None, command):
+                raise PacketError("Ruby confirmation command does not match the purchase")
+            original = request.to_payload()
+            if any(key not in packet.payload or packet.payload[key] != value for key, value in original.items()):
+                raise PacketError("Ruby confirmation changes the purchase payload")
+            # The client echoes the server object, including null-valued fields.
+            payload = {**packet.payload, "cmdID": command}
+            frame = build_command(self.config.default_zone, command, [json_text(payload)], self.connection.room_id)
+            return self.connection.request(
+                frame,
+                response_command,
+                timeout=remaining(),
+                accepts=self._reply_check(request),
+                expected_generation=generation,
+            )
 
     @staticmethod
     def _reply_check(request: BaseRequest) -> Callable[[Packet], bool] | None:
@@ -776,6 +825,8 @@ class EmpireClient:
         request: BaseRequest,
         wait: bool = False,
         timeout: float = 5.0,
+        *,
+        spend_rubies: bool = False,
     ) -> BaseResponse | None:
         """
         Send a request to the server using protocol models.
@@ -784,6 +835,8 @@ class EmpireClient:
             request: The request model to send
             wait: Whether to wait for a response
             timeout: Timeout in seconds when waiting
+            spend_rubies: Allow one server-requested ruby confirmation when waiting.
+                Defaults to False; does not change the player's confirmation setting.
 
         Returns:
             The parsed response if wait=True, otherwise None
@@ -801,6 +854,7 @@ class EmpireClient:
             ConnectionClosedError: Connection dropped while waiting
             NetworkError: The send itself failed
             ReceiveThreadError: Called with ``wait=True`` on the receive thread
+            ValueError: Ruby consent supplied without ``wait=True``
 
         Example:
             from empire_core.alliance import AllianceChatMessageRequest
@@ -811,6 +865,8 @@ class EmpireClient:
             # Or wait for response:
             response = client.send(GetCastlesRequest(), wait=True)
         """
+        if spend_rubies and not wait:
+            raise ValueError("Ruby confirmation requires wait=True")
         packet = self.frame(request)
 
         if not wait:
@@ -819,9 +875,7 @@ class EmpireClient:
 
         command = request.get_command()
         response_command = request.get_response_command()
-        response_packet = self.connection.request(
-            packet, response_command, timeout=timeout, accepts=self._reply_check(request)
-        )
+        response_packet = self._request_with_confirmation(request, response_command, timeout, spend_rubies)
 
         if response_packet.error_code != 0:
             # Reported under the command sent, which is what the caller asked for.
@@ -837,11 +891,13 @@ class EmpireClient:
 
         return None
 
-    def request(self, request: BaseRequest, response_type: type[T], timeout: float = 5.0) -> T:
+    def request(
+        self, request: BaseRequest, response_type: type[T], timeout: float = 5.0, *, spend_rubies: bool = False
+    ) -> T:
         """
         Send a request and return its typed response.
 
-        Like ``send(request, wait=True)`` but verifies the parsed response
+        Like ``send(request, wait=True, spend_rubies=spend_rubies)`` but verifies the parsed response
         is of the expected type, so callers get a non-optional result.
 
         Raises:
@@ -849,7 +905,7 @@ class EmpireClient:
             CommandError / EmpireTimeoutError / ConnectionClosedError / NetworkError:
                 See :meth:`send`.
         """
-        response = self.send(request, wait=True, timeout=timeout)
+        response = self.send(request, wait=True, timeout=timeout, spend_rubies=spend_rubies)
         if not isinstance(response, response_type):
             raise PacketError(
                 f"Expected {response_type.__name__} for '{request.get_command()}', got {type(response).__name__}"

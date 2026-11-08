@@ -1107,6 +1107,7 @@ from empire_core.protocol.base import (
     GGECommand,
     PlayerInfo,
     Position,
+    RubyPurchaseConfirmation,
     get_response_model,
     parse_response,
 )
@@ -1507,6 +1508,7 @@ __all__ = [
     "AllianceRank",
     "BookmarkType",
     "BasePayload",
+    "RubyPurchaseConfirmation",
     "BaseRequest",
     "BaseResponse",
     "Position",

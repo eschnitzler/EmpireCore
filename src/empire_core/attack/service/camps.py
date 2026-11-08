@@ -117,6 +117,7 @@ class CampsMixin(ServiceMixin):
             SkipDungeonCooldownRequest(x=x, y=y, kingdom_id=kingdom_id, map_id=map_id, node_id=node_id),
             SkipDungeonCooldownResponse,
             timeout=timeout,
+            spend_rubies=spend_rubies,
         )
         return self._dungeon_skip_result(response, kingdom_id)
 
@@ -219,7 +220,7 @@ class CampsMixin(ServiceMixin):
             }
             if key not in offered:
                 raise ValueError(f"No running alien invasion rerolls camps for {key!r}")
-        self.execute(RerollAlienCampRequest(currency_key=key, x=x, y=y), timeout=timeout)
+        self.execute(RerollAlienCampRequest(currency_key=key, x=x, y=y), timeout=timeout, spend_rubies=spend_rubies)
 
     on_alien_camps_hidden = callbacks.Event[HiddenAlienCampsResponse]()
     """Call ``callback`` with each ``hac`` push: the alien camps the server took off your map.

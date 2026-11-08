@@ -185,7 +185,7 @@ class DecorationsMixin(ServiceMixin):
         """
         self._require_spend_rubies(spend_rubies, "refilling the fusion forge's energy costs rubies")
         request = RefillFusionForgeRequest(forge_id=forge_id)
-        return self.request(request, RefillFusionForgeResponse, timeout=timeout).energy
+        return self.request(request, RefillFusionForgeResponse, timeout=timeout, spend_rubies=spend_rubies).energy
 
     def convert_catalysts(
         self,
@@ -259,4 +259,4 @@ class DecorationsMixin(ServiceMixin):
             target_unique_id=target.unique_id,
             target_wod_id=target.wod_id,
         )
-        return self.request(request, FuseDecorationResponse, timeout=timeout)
+        return self.request(request, FuseDecorationResponse, timeout=timeout, spend_rubies=spend_rubies)

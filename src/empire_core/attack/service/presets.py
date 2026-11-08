@@ -125,7 +125,7 @@ class PresetsMixin(ServiceMixin):
                 )
             elif slot.cost_rubies > 0:
                 self._require_spend_rubies(spend_rubies, f"preset slot {index} costs {slot.cost_rubies} rubies")
-        self.execute(UnlockPresetRequest(index=index), timeout=timeout)
+        self.execute(UnlockPresetRequest(index=index), timeout=timeout, spend_rubies=spend_rubies)
 
     # =========================================================================
     # Attack advisor
@@ -212,7 +212,7 @@ class PresetsMixin(ServiceMixin):
             kingdom=castle.kingdom_id,
             package_id=package_id,
         )
-        response = self.request(request, BuyToolsResponse, timeout=timeout)
+        response = self.request(request, BuyToolsResponse, timeout=timeout, spend_rubies=spend_rubies)
         if response.bought is None:
             raise PacketError("The 'ibt' reply names no tools bought")
         return response.bought

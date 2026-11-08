@@ -1156,10 +1156,17 @@ class TestCancellingAMission:
         scripted = conn(client)
         original = scripted.request
 
-        def cancel_during_bsd(data: str, cmd_id: str, timeout: float = 5.0, accepts: Any = None) -> Packet:
+        def cancel_during_bsd(
+            data: str,
+            cmd_id: str,
+            timeout: float = 5.0,
+            accepts: Any = None,
+            *,
+            expected_generation: int | None = None,
+        ) -> Packet:
             if cmd_id == "bsd":
                 handle.cancel_event.set()
-            return original(data, cmd_id, timeout, accepts)
+            return original(data, cmd_id, timeout, accepts, expected_generation=expected_generation)
 
         scripted.request = cancel_during_bsd  # type: ignore[method-assign]
         push_sne(client, sne_packet())

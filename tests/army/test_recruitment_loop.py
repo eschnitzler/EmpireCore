@@ -294,3 +294,26 @@ class TestCampUnitCapacity:
 
         with pytest.raises(CommandError):
             client.army.get_camp_unit_capacity(4242)
+
+
+def test_recruitment_loop_forwards_ruby_consent_through_its_action_helper():
+    from empire_core.enums import GGEError
+
+    purchase = {
+        "LID": 0,
+        "L": 3,
+        "RS": [{"ID": 620, "A": 30, "CBS": 1, "IA": 30}, {"ID": 0, "A": 0, "CBS": 0, "IA": 0}],
+        "CC2T": 100,
+    }
+    client = make_client(
+        {
+            "spl": xt_packet("spl", SOLDIER_LIST),
+            "url": [
+                xt_packet("url", purchase, error_code=GGEError.RUBY_CONFIRMATION_REQUIRED),
+                xt_packet("url"),
+            ],
+        },
+        castles=OWN,
+    )
+    client.army.start_recruitment_loop(12345, ProductionListId.SOLDIERS, 3, spend_rubies=True)
+    assert conn(client).request_payloads[-1] == ("url", {"cmdID": "url", **purchase})

@@ -126,7 +126,7 @@ class AccountMixin(ServiceMixin):
         self._require_spend_rubies(
             spend_rubies, f"symbol {symbol_id} costs {symbol.cost_rubies} rubies" if symbol.cost_rubies else None
         )
-        self.execute(UnlockSymbolRequest(symbol_id=symbol_id), timeout=timeout)
+        self.execute(UnlockSymbolRequest(symbol_id=symbol_id), timeout=timeout, spend_rubies=spend_rubies)
 
     # =========================================================================
     # Player name, email address and password
@@ -178,7 +178,7 @@ class AccountMixin(ServiceMixin):
             raise ValueError(f"your name may change again in {seconds:.0f} seconds")
         rubies = info.cost_rubies(self._require_game_data())
         self._require_spend_rubies(spend_rubies, f"this player name change costs {rubies} rubies" if rubies else None)
-        self.execute(ChangePlayerNameRequest(name=name), timeout=timeout)
+        self.execute(ChangePlayerNameRequest(name=name), timeout=timeout, spend_rubies=spend_rubies)
 
     @property
     def credentials_status(self) -> CredentialsStatus | None:

@@ -92,7 +92,7 @@ class MissionsMixin(SpiesMixin, ReportsMixin, ReportTrackingMixin):
             feathers=1 if feathers else 0,
             slowdown=slowdown,
         )
-        return self.request(request, SendSpyResponse)
+        return self.request(request, SendSpyResponse, spend_rubies=spend_rubies)
 
     def send_plague_doctors(
         self,

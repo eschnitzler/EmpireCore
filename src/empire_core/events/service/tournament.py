@@ -144,6 +144,7 @@ class GrandTournamentMixin(EventsBaseMixin):
             CancelGrandTournamentQuestRequest(event_id=int(Event.GRAND_TOURNAMENT)),
             CancelGrandTournamentQuestResponse,
             timeout=timeout,
+            spend_rubies=spend_rubies,
         )
 
     def reroll_grand_tournament_quest(
@@ -179,16 +180,24 @@ class GrandTournamentMixin(EventsBaseMixin):
             ),
             SkipGrandTournamentCooldownResponse,
             timeout=timeout,
+            spend_rubies=spend_rubies,
         )
 
     def _request_grand_tournament_action(
-        self, request: BaseRequest, response_type: type[QuestActionResponse], *, timeout: float
+        self,
+        request: BaseRequest,
+        response_type: type[QuestActionResponse],
+        *,
+        timeout: float,
+        spend_rubies: bool = False,
     ) -> QuestActionResponse:
         deadline = time.monotonic() + timeout
         with self.client.connection.command_lock("aqs", timeout=timeout):
             context = self.client.state._begin_quest_action()
             try:
-                result = self.request(request, response_type, timeout=max(0.0, deadline - time.monotonic()))
+                result = self.request(
+                    request, response_type, timeout=max(0.0, deadline - time.monotonic()), spend_rubies=spend_rubies
+                )
                 current = self.client.state._quest_action_context()
                 if context != current:
                     expected = context[1] if context is not None else None
