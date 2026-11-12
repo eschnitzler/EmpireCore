@@ -522,9 +522,10 @@ class EmpireClient:
         Leave this server for the Outer Realms or Beyond the Horizon, as the client
         does, and return a new client logged in there.
 
-        First it clears what the client shows before the event dialog: the event's active starter
-        quest (``qsc``; Outer Realms only, after waiting up to ``timeout`` for the quest list) and its
-        first event-start mail, marked read (``mmr``) if unread.
+        First it clears what the client shows before the event dialog, after waiting up to ``timeout``
+        for the quest list: the event's starter quest (``qsc``; see
+        :meth:`~empire_core.quests.service.QuestsService.starter_quest`) and its first event-start mail,
+        marked read (``mmr``) if unread.
 
         It then asks for a login token (``glt``, with its own ``timeout``), and closes this client, as the
         client logs out before it switches servers, and logs a new client in on the server the token
@@ -545,6 +546,7 @@ class EmpireClient:
             ValueError: ``server_type`` is the normal server
             CommandError: The server refused the quest list or the token; this client stays logged in
             EmpireTimeoutError: The quest list did not arrive; nothing was sent
+            GameDataNotLoadedError: The game data cannot be loaded; nothing was sent
             ConnectionClosedError / NetworkError: This session ended, or a write failed, before the transfer
             SpecialServerUnavailableError: The special server is closed
             LoginError / EmpireTimeoutError / NetworkError: The login on the special server failed, as for

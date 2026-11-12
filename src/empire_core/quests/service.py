@@ -18,7 +18,7 @@ from empire_core.quests.models import (
 from empire_core.services.base import BaseService
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import QuestId
+    from empire_core.gamedata import Event, QuestId
     from empire_core.quests.models import DailyQuests, Quest, QuestBook
 
 # DonateForQuestCommand.performAction (bundle lines 101001-101021)
@@ -51,9 +51,37 @@ class QuestsService(BaseService):
         """Your active quests by id, in id order, as the last ``qli`` and the quest pushes since left them; a copy."""
         return self.client.state.get_quests()
 
-    def quest(self, quest_id: QuestId) -> Quest | None:
+    def quest(self, quest_id: QuestId | int) -> Quest | None:
         """An active quest, or None when it is not active."""
         return self.client.state.get_quest(quest_id)
+
+    def starter_quest(self, event: Event) -> Quest | None:
+        """
+        The starter quest an event's icon opens before its dialog, or None when it opens none.
+
+        The first active quest, in id order, whose game data row belongs to the event and has a
+        ``starter`` condition; None as well when that quest needs another quest first.
+
+        Raises:
+            GameDataNotLoadedError: The game data cannot be loaded
+
+        Client: ``StatusIconTemporaryServerEvent.onClick`` (bundle line 106330) and
+        ``StatusIconAllianceBattleGroundEvent.onClick`` (bundle line 105359) over
+        ``CastleQuestData.getActiveStarterQuestByEventID`` (bundle line 20344) and
+        ``CastleQuestVO.isStarterQuest`` (bundle line 52499); the rows are read by
+        ``CastleQuestVO.fillFromParamXML`` (bundle line 52475) and the active quests sorted by id in
+        ``CastleQuestData.updateActiveQuests`` (bundle line 20244)
+        """
+        rows = self._require_game_data().quests
+        for quest in self.active.values():
+            row = rows.get(quest.quest_id)
+            if (
+                row is not None
+                and row.event_id == event
+                and any(condition.condition_type == QuestConditionType.STARTER for condition in row.conditions)
+            ):
+                return quest if row.required_quest_id <= 0 else None
+        return None
 
     @property
     def book(self) -> QuestBook | None:

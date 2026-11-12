@@ -45,15 +45,13 @@ class SpecialServerPreparation:
         client = self.client
         generation = client.connection.generation
         self.require_source(generation)
-        if server_type is ServerType.OUTER_REALMS:
-            self._wait_for_quests(generation, timeout)
+        self._wait_for_quests(generation, timeout)
+        event = _EVENTS[server_type]
+        starter = client.quests.starter_quest(event)
 
         def acknowledge() -> None:
-            from empire_core.gamedata import QuestId
-
             self.require_source(generation)
-            # Event 113 has no starter quest in the game data.
-            quest = client.state.get_quest(QuestId.STARTER_3490) if server_type is ServerType.OUTER_REALMS else None
+            quest = client.quests.quest(starter.quest_id) if starter is not None else None
             if (
                 quest is not None
                 and not (quest.completed or quest.failed or quest.locked)
@@ -64,7 +62,7 @@ class SpecialServerPreparation:
                 self._starter_sent = generation, quest
             for message in client.messages.mailbox:
                 header = message.special_event_start_header()
-                if header is not None and header.event == _EVENTS[server_type]:
+                if header is not None and header.event == event:
                     if not message.is_read:
                         client.messages.mark_read(message.message_id)
                     break

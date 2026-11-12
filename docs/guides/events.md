@@ -236,9 +236,11 @@ client.login()
 Before asking for the transfer token, the main session clears what the game
 client shows before the event dialog, as a player clicking the event icon would:
 
-- the event's active starter quest, finished with `qsc`. Only the Outer Realms
-  has one (3490), so for it the call first waits up to `timeout` for the quest
-  list pushed after login.
+- the event's starter quest, finished with `qsc`: `client.quests.starter_quest(event)`,
+  the first active quest the game data ties to the event with a `starter`
+  condition, as long as it needs no other quest first. Today only the Outer
+  Realms has one. The call first waits up to `timeout` for the quest list
+  pushed after login, and reads the game data, loading it if needed.
 - the event's first event-start mail, marked read with `mmr` if unread.
 
 Neither write has a reply. A refused token leaves the main session open with

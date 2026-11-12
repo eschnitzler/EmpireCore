@@ -15,6 +15,7 @@ from empire_core.client.client import EmpireClient
 from empire_core.config import EmpireConfig
 from empire_core.enums import GGEError, ServerType
 from empire_core.exceptions import CommandError, LoginError, SpecialServerUnavailableError
+from empire_core.gamedata import GameData
 from empire_core.protocol.auth import (
     GetSpecialServerTokenRequest,
     SpecialServerLoginRequest,
@@ -22,6 +23,17 @@ from empire_core.protocol.auth import (
 )
 from empire_core.protocol.base import parse_response
 from tests.client.test_login_sequence import ScriptedConnection, make_client, xt_packet
+
+# The Outer Realms quests of the game data: the starter, then the join objective it unlocks.
+QUEST_ROWS = [
+    {"questID": "3490", "eventID": "106", "conditions": "starter+1+3490"},
+    {"questID": "3491", "eventID": "106", "requiredQuestID": "3490", "conditions": "joinTempServer+1"},
+]
+
+
+def quest_data(rows: list[dict[str, str]] | None = None) -> GameData:
+    return GameData.parse("test", {"quests": QUEST_ROWS if rows is None else rows})
+
 
 TOKEN_REPLY = {
     "TLT": "token-1",
@@ -123,6 +135,7 @@ class TestConnectToSpecialServer:
         main.is_logged_in = True
         monkeypatch.setattr(type(main.connection), "connected", property(lambda self: True))
         main.state.update_from_packet("qli", {"QL": []})
+        main.game_data = quest_data()
 
         def request(data: str, command: str, timeout: float = 5.0, **kwargs: Any) -> Any:
             calls.append(("request", json.loads(data.split("%")[5]), timeout))
