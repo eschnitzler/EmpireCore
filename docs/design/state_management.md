@@ -159,10 +159,11 @@ the container.
   movement releases its commander unless another own movement references it.
   A server-provided wait (`TWD` / `PWD`) keeps the movement tracked until its
   end. As a library mitigation beyond the client, a returning commander stays
-  unavailable until two seconds after its estimated end. Movement expiry and
-  callbacks are not delayed. Outbound expiry adds no hold; a later return
-  packet makes the commander unavailable again. Reset clears the hold, and
-  another active movement still reserves the commander after it expires.
+  unavailable until one second after its estimated end. Movement expiry and
+  callbacks are not delayed. An outbound attack gets the same one-second margin
+  to bridge the return packet; other outbound movements add no hold. Reset
+  clears the hold, and another active movement still reserves the commander
+  after it expires.
   Server rejections such as `LORD_IS_USED` continue to surface to the caller.
 
 ## Reactive Callbacks
