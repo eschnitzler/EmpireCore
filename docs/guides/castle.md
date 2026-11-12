@@ -43,8 +43,31 @@ client.castle.cancel_abandon(castle_id=12345)           # keeps it while cancel 
 
 The castle list's `CastleInfo.abandon_outpost_seconds`, `cancel_abandon_seconds`
 and `no_abandon_seconds` show a running abandon and how long until a castle has
-been held long enough to abandon. Opening the gate and peace mode cost rubies
-and are not in the library.
+been held long enough to abandon. Peace mode is on `client.player`
+(`start_peace_mode`).
+
+### Open Gate
+
+An open gate lets attackers loot a castle without a battle, so its buildings
+take no damage and it loses no units. It costs rubies, and each opening in a
+week raises that castle's next price until the Monday reset.
+
+```python
+from empire_core.castle import OpenGateDuration
+
+quote = client.castle.open_gate_quote(castle_id=12345)  # sends nothing
+print(quote.prices[OpenGateDuration.HOURS_6], quote.rubies, quote.open_seconds, quote.refusal)
+reply = client.castle.open_gate(12345, OpenGateDuration.HOURS_6, spend_rubies=True)
+client.castle.close_gate(12345)                          # nothing is refunded
+```
+
+The quote's prices are before ruby discounts, from the opening count state has
+for the castle; the server decides what it charges. `refusal` is set where the
+game offers no Open Gate (a capital, a trading metropolis, below level 5), and
+`open_gate` raises `ValueError` there without sending. Opening an open gate
+extends it, as the game's extend button does. The server refuses an opening
+while the castle's peace mode is on. A timed-out purchase is not retried: read
+the quote again before trying.
 
 ### Kingdoms, relocation and leaving an area
 

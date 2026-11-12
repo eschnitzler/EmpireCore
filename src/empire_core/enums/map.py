@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from enum import IntEnum
+from enum import Enum, IntEnum
 
 
 class Kingdom(IntEnum):
@@ -253,6 +253,43 @@ class PeaceModeDuration(IntEnum):
     DAYS_14 = 1, 1209600, 7500
     DAYS_21 = 2, 1814400, 10000
     DAYS_60 = 3, 5184000, 20000
+
+
+class OpenGateDuration(IntEnum):
+    """
+    How long an Open Gate lasts: the value is its place in the start dialog's list, which ``mos`` sends.
+
+    Client: ``CastleStartOpenGateDialog.fillPeaceTimeList`` (bundle line 35146) lists
+    ``PlayerConst.OPEN_GATE_DURATION`` (dll)
+    """
+
+    _value_: int
+    seconds: int
+    """How long the gate stays open."""
+
+    def __new__(cls, value: int, seconds: int = 0) -> OpenGateDuration:
+        member = int.__new__(cls, value)
+        member._value_ = value
+        member.seconds = seconds
+        return member
+
+    HOURS_6 = 0, 21600
+    HOURS_12 = 1, 43200
+
+
+class OpenGateRefusal(Enum):
+    """
+    Why the client offers no Open Gate for a castle.
+
+    Client: ``CastleStartOpenGateDialog.getCastleList`` (bundle line 35133) leaves capitals and
+    trading metropolises out; ``CastleOpenGatePremiumShopVO.canBeBought`` (bundle line 76693) and
+    ``CastleManagementDialog.setOpenGateButton`` (bundle line 24635) need
+    ``ClientConstLevelRestrictions.MIN_LEVEL_OPENGATE`` (bundle line 2139)
+    """
+
+    CAPITAL = "capital"
+    TRADING_METROPOLIS = "trading_metropolis"
+    LEVEL = "level"
 
 
 class BerimondProtectionStatus(IntEnum):

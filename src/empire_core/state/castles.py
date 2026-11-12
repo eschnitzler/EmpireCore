@@ -10,6 +10,7 @@ from pydantic import ValidationError
 
 from empire_core.castle.models.castles import PlayerCastle
 from empire_core.castle.models.details import DetailedCastleInfo, ResourceProduction, SafeAmount, StorageCapacity
+from empire_core.castle.models.gates import OpenGateResponse
 from empire_core.castle.models.landmarks import (
     LaboratoryListResponse,
     LaboratoryResetResponse,
@@ -126,9 +127,9 @@ class CastleState(StateBase):
         field wins over the block's ``KID``.
 
         Client: ``CastleListVO.parseCastleList`` (bundle line 13698) keeps a
-        list per ``KID`` and reads the entry's ``OGC`` through ``int()`` when it is
-        truthy; ``InteractiveMapobjectVO.parseAreaInfo`` (bundle line 3637) reads
-        the row's kingdom from field 16
+        list per ``KID`` and reads the entry's ``OGT`` and ``OGC`` through ``int()`` when
+        they are truthy, into a new castle each time (bundle line 13713);
+        ``InteractiveMapobjectVO.parseAreaInfo`` (bundle line 3637) reads the row's kingdom from field 16
         """
         gcl = data.get("gcl")
         if not isinstance(gcl, dict) or self.local_player is None:
@@ -138,6 +139,7 @@ class CastleState(StateBase):
             return
 
         owned: dict[int, Castle] = {}
+        now = time.monotonic()
         entries = 0
         skipped = 0
         for k_data in kingdoms:
@@ -164,22 +166,26 @@ class CastleState(StateBase):
                     # A castle is tracked by its object id; a Berimond capital's row has none
                     continue
                 x, y, area_id, name, kingdom = row.x, row.y, row.location_id, row.name or "", row.kingdom
-                gate_count = area_entry.get("OGC")
-                open_gates = js_int(gate_count) if js_truthy(gate_count) else 0
+                gate_count, gate_time = area_entry.get("OGC"), area_entry.get("OGT")
+                open_seconds = js_int(gate_time) if js_truthy(gate_time) else 0
+                fields: dict[str, Any] = {
+                    "name": name,
+                    "x": x,
+                    "y": y,
+                    "castle_type": row.castle_type,
+                    "open_gate_counter": js_int(gate_count) if js_truthy(gate_count) else 0,
+                    "open_gate_end": now + open_seconds if open_seconds > 0 else None,
+                }
                 existing = self.castles.get(area_id)
                 if existing is not None:
                     # Identity preserved for user-held references, but the
                     # fields land in one swap (see _swap_model_fields):
                     # written one at a time, a castle mid-relocation would
                     # be observably at (new_x, old_y).
-                    merged = dict(existing.__dict__)
-                    merged.update({"name": name, "x": x, "y": y, "open_gate_counter": open_gates})
-                    self._swap_model_fields(existing, merged, {"name", "x", "y", "open_gate_counter"})
+                    self._swap_model_fields(existing, {**existing.__dict__, **fields}, set(fields))
                     owned[area_id] = existing
                 else:
-                    owned[area_id] = Castle(
-                        id=area_id, name=name, kingdom_id=kingdom, x=x, y=y, open_gate_counter=open_gates
-                    )
+                    owned[area_id] = Castle(id=area_id, kingdom_id=kingdom, **fields)
 
         if skipped and skipped == entries:
             logger.warning(
@@ -319,6 +325,25 @@ class CastleState(StateBase):
             if castle.open_gate_counter:
                 merged = {**castle.__dict__, "open_gate_counter": 0}
                 self._swap_model_fields(castle, merged, {"open_gate_counter"})
+
+    def _handle_mos(self, data: Any) -> None:
+        """Set an own castle's Open Gate from an ``mos`` reply, counting an opening (or extension) once.
+
+        Client: ``CastleUserData.parse_MOS`` (bundle line 9897): ``remainingOpenGateTime = RPT``, and
+        ``openGateCounter++`` when it is positive
+        """
+        if not isinstance(data, dict):
+            return
+        reply = read_or_none(OpenGateResponse.model_validate, data, warn=logger, what="an mos reply")
+        castle = self.castles.get(reply.castle_id) if reply is not None else None
+        if reply is None or castle is None or castle.kingdom_id != reply.kingdom:
+            return
+        opened = reply.open_seconds > 0
+        fields = {
+            "open_gate_end": time.monotonic() + reply.open_seconds if opened else None,
+            "open_gate_counter": castle.open_gate_counter + 1 if opened else castle.open_gate_counter,
+        }
+        self._swap_model_fields(castle, {**castle.__dict__, **fields}, set(fields))
 
     def _parse_permanent_castles(self, data: dict[str, Any]) -> None:
         """Apply a gpc section or push: each castle it names is replaced, the others kept.

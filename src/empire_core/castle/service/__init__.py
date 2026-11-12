@@ -7,6 +7,7 @@ It covers:
 - Resources and production
 - Buildings and the construction queue
 - Tax collection
+- Opening and closing a castle's gate (Open Gate)
 - Research and the mercenary camp's missions
 - The refinery and toolsmith crafting queues, construction item crafting and the decoration fusion forge
 - A monument's or laboratory's upgrade progress
@@ -43,6 +44,7 @@ from empire_core.castle.service.construction_items import ConstructionItemsMixin
 from empire_core.castle.service.crafting import CraftingMixin
 from empire_core.castle.service.decorations import DecorationsMixin
 from empire_core.castle.service.economy import EconomyMixin
+from empire_core.castle.service.gates import OpenGateMixin
 from empire_core.castle.service.mercenaries import MercenaryCampMixin
 from empire_core.castle.service.modification import CastleModificationMixin
 from empire_core.castle.service.research import ResearchMixin
@@ -61,6 +63,7 @@ class CastleService(
     CastlesMixin,
     DecorationsMixin,
     EconomyMixin,
+    OpenGateMixin,
     ResearchMixin,
     MercenaryCampMixin,
     CraftingMixin,
