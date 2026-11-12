@@ -28,7 +28,7 @@ from .models import (
 from .service import QuestsService
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import CurrencyId, DailyQuestId, MainQuest, QuestId
+    from empire_core.gamedata import CurrencyId, DailyQuestId, Event, MainQuest, QuestId
 
 __all__ = [
     "DailyQuest",
@@ -53,6 +53,7 @@ __all__ = [
     "QuestsService",
     "CurrencyId",
     "DailyQuestId",
+    "Event",
     "MainQuest",
     "QuestId",
 ]
@@ -60,5 +61,5 @@ __all__ = [
 
 if not TYPE_CHECKING:
     __getattr__ = lazy_exports(
-        __name__, "empire_core.gamedata.ids", ("CurrencyId", "DailyQuestId", "MainQuest", "QuestId")
+        __name__, "empire_core.gamedata.ids", ("CurrencyId", "DailyQuestId", "Event", "MainQuest", "QuestId")
     )

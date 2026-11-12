@@ -17,13 +17,14 @@ from empire_core.exceptions import (
     CommandError,
     ConnectionClosedError,
     EmpireTimeoutError,
+    GameDataNotLoadedError,
     LoginError,
     NetworkError,
     PacketError,
 )
 from empire_core.network.connection import Connection
 from tests.client.test_login_sequence import xt_packet
-from tests.client.test_special_server import TOKEN_REPLY
+from tests.client.test_special_server import TOKEN_REPLY, quest_data
 
 TEASER_ROW = [10, 95, "12#106", "", -1, 0, 0, 0, 0]
 
@@ -35,6 +36,7 @@ def source(monkeypatch):
     client.connection.ws = Mock(connected=True)
     client.connection._running = True
     client.is_logged_in = True
+    client.game_data = quest_data()
     calls: list[tuple[str, Any]] = []
     targets: list[EmpireClient] = []
 
@@ -153,10 +155,9 @@ def test_first_matching_archived_teaser_wins_over_later_unread(source, read):
     assert [payload for command, payload in calls if command == "mmr"] == ([] if read else [{"MID": 1}])
 
 
-def test_horizon_needs_no_qli_and_never_invents_a_starter(source):
+def test_horizon_never_invents_a_starter(source):
     client, calls = source
-    push(client, "qst", {"QIDS": [3490, 3491]})
-    push(client, "sne", {"MSG": [TEASER_ROW, [2, 95, "12#113"]]})
+    seed(client, quests=[{"QID": 3490}, {"QID": 3491}], rows=[TEASER_ROW, [2, 95, "12#113"]])
     transfer(client, ServerType.HORIZON)
     assert calls[:2] == [("mmr", {"MID": 2}), ("glt", {"GST": 3})]
     assert commands(calls) == ["mmr", "glt", "close", "login"]
@@ -585,3 +586,39 @@ def test_earlier_qli_observer_cannot_hide_ready_state_at_timeout(source, monkeyp
     assert len(current) == 1
     assert commands(calls) == ["qsc", "glt", "close", "login"]
     assert not client.connection._waiters
+
+
+STARTER_ROWS = [
+    {"questID": "900", "eventID": "113", "requiredQuestID": "899", "conditions": "starter+1+900"},
+    {"questID": "901", "eventID": "113", "conditions": "starter+1+901"},
+    {"questID": "902", "eventID": "113", "conditions": "joinTempServer+1"},
+    {"questID": "903", "eventID": "106", "conditions": "starter+1+903"},
+]
+
+
+@pytest.mark.parametrize(
+    ("quests", "starter"),
+    [
+        ([{"QID": 902}, {"QID": 903}, {"QID": 901}], 901),
+        ([{"QID": 901}, {"QID": 900}], None),
+        ([{"QID": 902}, {"QID": 903}], None),
+    ],
+    ids=["by-event", "first-needs-another", "none-for-event"],
+)
+def test_the_starter_is_found_by_event_as_the_client_does(source, quests, starter):
+    client, calls = source
+    client.game_data = quest_data(STARTER_ROWS)
+    seed(client, quests=quests, rows=[])
+    transfer(client, ServerType.HORIZON)
+    expected = [("qsc", {"QID": starter})] if starter is not None else []
+    assert calls[: len(expected) + 1] == [*expected, ("glt", {"GST": 3})]
+
+
+def test_game_data_that_cannot_load_sends_nothing(source, monkeypatch):
+    client, calls = source
+    client.game_data = None
+    seed(client)
+    with pytest.raises(GameDataNotLoadedError):
+        transfer(client)
+    assert calls == []
+    assert client.is_logged_in
