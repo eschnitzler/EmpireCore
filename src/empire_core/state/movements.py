@@ -220,9 +220,10 @@ class MovementState(StateBase):
 
     Commander availability follows the tracked movements, as in the client.
     An expired outbound movement releases its commander unless another own
-    movement references it. Returning commanders remain unavailable for two
-    seconds after estimated end to mitigate early reuse. Movement expiry and
-    arrival callbacks are not delayed. This estimate is not server confirmation.
+    movement references it. Returning commanders remain unavailable for one
+    second after estimated end to mitigate early reuse, and outbound attacks
+    get the same margin. Movement expiry and arrival callbacks are not
+    delayed. This estimate is not server confirmation.
 
     Two signatures are supported, picked per callback from its own
     parameter list::
