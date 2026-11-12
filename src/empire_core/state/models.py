@@ -1,5 +1,6 @@
 """The state's models: the local player, castles and resources."""
 
+import time
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from pydantic import ConfigDict, Field
@@ -82,15 +83,17 @@ class Resources(EmpireModel):
 class Castle(EmpireModel):
     """A castle, outpost or metropolis owned by the logged-in player.
 
-    Name, position, kingdom and the open-gate counter come from the castle
+    Name, position, kingdom, area type and the Open Gate come from the castle
     list (``gcl``); everything else from the castle's ``dcl`` entry, kept
     whole as ``details`` and ``None`` until one has been received. ``units``
     also follows each ``rue`` push (units received), which ``details`` does
-    not; a ``kik`` push on a Monday sets every ``open_gate_counter`` to 0.
+    not; a ``kik`` push on a Monday sets every ``open_gate_counter`` to 0, and
+    an ``mos`` reply sets the Open Gate, counting an opening once.
 
     Client: ``CastleListVO.parseCastleList`` (bundle line 13698),
     ``DetailedCastleVO.parseData``, ``CastleUserCastleListDetailed.parse_rue``
-    (bundle line 140918), ``CastleListVO.resetOpenGateCounter`` (bundle line 13728)
+    (bundle line 140918), ``CastleListVO.resetOpenGateCounter`` (bundle line 13728),
+    ``CastleUserData.parse_MOS`` (bundle line 9897)
 
     Not to be confused with :class:`empire_core.castle.models.castles.CastleInfo`,
     which is the parsed *protocol* model for another player's castle.
@@ -110,16 +113,30 @@ class Castle(EmpireModel):
 
     resources: Resources = Field(default_factory=Resources, description="The castle's resources")
     units: WodAmounts = Field(default_factory=dict, description="Units and tools stationed here")
+    castle_type: MapItemType = Field(default=MapItemType.CASTLE, description="The castle's area type")
     open_gate_counter: int = Field(
         default=0,
         validation_alias="OGC",
         description="How often the gate has been opened since the last Monday reset",
+    )
+    open_gate_end: float | None = Field(
+        default=None,
+        description="When the open gate closes, in time.monotonic() seconds; None while it is closed",
     )
     details: DetailedCastleInfo | None = Field(
         default=None, description="The castle's latest details; None until they arrive"
     )
 
     raw_data: dict[str, Any] = Field(default_factory=dict, exclude=True)
+
+    def open_gate_seconds(self, now: float | None = None) -> float:
+        """Seconds until the open gate closes, 0 while it is closed.
+
+        Client: ``InteractiveMapobjectVO.remainingOpenGateTime`` (bundle line 3645) counts down from when it was set
+        """
+        if self.open_gate_end is None:
+            return 0.0
+        return max(0.0, self.open_gate_end - (time.monotonic() if now is None else now))
 
     @property
     def population(self) -> int:

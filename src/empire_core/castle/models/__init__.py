@@ -143,6 +143,7 @@ from .fusion_forge import (
     RefillFusionForgeRequest,
     RefillFusionForgeResponse,
 )
+from .gates import CLOSE_GATE, OpenGateQuote, OpenGateRequest, OpenGateResponse, open_gate_rubies
 from .hunter import (
     HunterInfo,
     SetHunterRequest,
@@ -433,6 +434,11 @@ __all__ = [
     "GetCastlesResponse",
     "NameCastleInvitationResponse",
     "PlayerCastle",
+    "CLOSE_GATE",
+    "OpenGateQuote",
+    "OpenGateRequest",
+    "OpenGateResponse",
+    "open_gate_rubies",
     "CastleInfo",
     "GetDetailedCastleRequest",
     "GetDetailedCastleResponse",

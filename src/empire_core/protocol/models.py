@@ -564,6 +564,7 @@ from empire_core.castle.models.construction_items import (
     RemoveConstructionItemRequest,
     RemoveConstructionItemResponse,
 )
+from empire_core.castle.models.gates import OpenGateRequest, OpenGateResponse
 from empire_core.castle.models.hunter import (
     HunterInfo,
     SetHunterRequest,
@@ -1597,6 +1598,8 @@ __all__ = [
     "KingdomUnitTransferRequest",
     "KingdomUnitTransferResponse",
     "PlayerCastle",
+    "OpenGateRequest",
+    "OpenGateResponse",
     "PermanentCastle",
     "PermanentCastleDataResponse",
     "CastleUnitUnlocks",

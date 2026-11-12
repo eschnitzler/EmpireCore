@@ -125,7 +125,9 @@ _WHOLE_SECTIONS = {
 # The protection (uap) of a map read and a joined area: GAACommand, JAACommand (bundle lines 130164, 130243)
 # JAACommand also brings its crai crafting queues (bundle line 130249)
 # CCDCommand and SAPCommand (bundle lines 127678, 127618) parse their gcu
+# MOSCommand (bundle line 125119) parses its gcu
 _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
+    "mos": ("gcu",),
     **dict.fromkeys(("arl", "gla", "sdi", "sti"), ("gli",)),
     "seq": ("gli", "gcu", "esl"),
     **dict.fromkeys(("aci", "abi", "acc", "adi", "aii", "ali", "avi", "cci", "coi", "cti", "gti", "cfi"), ("gli",)),
@@ -462,6 +464,7 @@ class GameState(
         # Castle pushes and the joined area
         "rue": "_handle_rue",
         "kik": "_handle_kik",
+        "mos": "_handle_mos",
         "jaa": "_handle_jaa",
         "ghw": "_handle_ghw",
         "nfo": "_handle_nfo",
@@ -771,7 +774,8 @@ class GameState(
         daimyo's "gda", "gdc" and "gdw", the coat of arms symbols' "gus", the player name change's "gnci" and the
         account deletion's "psd" (each only a successful one),
         the officers' school's "gtp" (only a successful one), the quest pushes "qli", "qst", "qpg", "qfi", "msp" and the
-        campaign's "cqs", the castle pushes "rue", "kik", the gem push "gec", the Berimond protection reply "ffp", the
+        campaign's "cqs", the castle pushes "rue", "kik", the Open Gate reply "mos" (only a successful one), the gem
+        push "gec", the Berimond protection reply "ffp", the
         rage points push "rpr", the alien reroll counts push "rce", the server kind "tse", the special server castles
         "tcc", the joined area's "jaa", "cmr", "rcc", "ghw", the events shutting down "sde", the map read "gaa" (refused
         too), the spy screen "ssi" (only a successful one) — and the login sections "gpi", "gxp", "gcu", "vip", "gal",

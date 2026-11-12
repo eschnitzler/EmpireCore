@@ -40,6 +40,8 @@ from empire_core.enums import (
     MarketScope,
     MercenaryMissionRarity,
     MercenaryMissionState,
+    OpenGateDuration,
+    OpenGateRefusal,
     Resource,
     ResourceCartType,
     SessionLocation,
@@ -49,6 +51,7 @@ from empire_core.enums import (
 from empire_core.utils.lazy import lazy_exports
 
 from .models import (
+    CLOSE_GATE,
     FREE_SLOT,
     FULL_SKIP,
     LOCKED_SLOT,
@@ -179,6 +182,9 @@ from .models import (
     MoveToDistrictResponse,
     NameCastleInvitationResponse,
     NewDay,
+    OpenGateQuote,
+    OpenGateRequest,
+    OpenGateResponse,
     OwnArea,
     OwnLaboratory,
     OwnMonument,
@@ -270,6 +276,7 @@ from .models import (
     UpgradeWallResponse,
     VillageListResponse,
     WishingWellResponse,
+    open_gate_rubies,
 )
 from .service import CastleService
 
@@ -464,6 +471,13 @@ __all__ = [
     "GetCastlesResponse",
     "NameCastleInvitationResponse",
     "PlayerCastle",
+    "CLOSE_GATE",
+    "OpenGateDuration",
+    "OpenGateRefusal",
+    "OpenGateQuote",
+    "OpenGateRequest",
+    "OpenGateResponse",
+    "open_gate_rubies",
     "PermanentCastle",
     "PermanentCastleDataResponse",
     "CastleUnitUnlocks",
