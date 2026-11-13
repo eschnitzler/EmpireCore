@@ -2,6 +2,67 @@
 
 <!-- version list -->
 
+## v0.65.0 (2026-11-13)
+
+### Bug Fixes
+
+- **client**: Track session location and join the main castle on login
+  ([`613b223`](https://github.com/eschnitzler/EmpireCore/commit/613b223e68dc6b1bc15110ba3c590c9be259010f))
+
+- **combat**: Include legendary and flank-specific strength bonuses
+  ([`ee2d8db`](https://github.com/eschnitzler/EmpireCore/commit/ee2d8dbf4ace9d7eeb75c992595483351510ffbb))
+
+- **network**: Log the ruby purchase challenge at debug level
+  ([`4a3381a`](https://github.com/eschnitzler/EmpireCore/commit/4a3381aef4c6778e643a8023ddcdf4e304430860))
+
+- **quests**: Find an event's starter quest the way the client does
+  ([`5b7acfb`](https://github.com/eschnitzler/EmpireCore/commit/5b7acfbf0978bbfa3b93c67d20e0c3300c31adcb))
+
+- **state**: Confirm commander availability with server movements
+  ([`996aca1`](https://github.com/eschnitzler/EmpireCore/commit/996aca1b6b59db5ad92c441940fa87eb0802b72b))
+
+- **state**: Delay returning commander reuse by two seconds
+  ([`4f7b8fd`](https://github.com/eschnitzler/EmpireCore/commit/4f7b8fd4ecf5ee0e0ce47cd37a884520a93f4b26))
+
+- **state**: Hold returning commanders after estimated arrival
+  ([`a8db5cf`](https://github.com/eschnitzler/EmpireCore/commit/a8db5cfa06db086e1e0f9ae83f400d125dad3e2e))
+
+- **state**: Match client commander availability on movement expiry
+  ([`7d77cd0`](https://github.com/eschnitzler/EmpireCore/commit/7d77cd038881945684f988d7ee4e0ece1c50683e))
+
+- **state**: Preserve newer area state and unknown outpost occupancy
+  ([`4f1140e`](https://github.com/eschnitzler/EmpireCore/commit/4f1140e9212852180649920edc726ada44f54ec7))
+
+- **state**: Use a one-second commander reuse margin
+  ([`a79c2d5`](https://github.com/eschnitzler/EmpireCore/commit/a79c2d52ad9ef2f390afdbcbcbe289b67f9740ed))
+
+### Code Style
+
+- **tests**: Format the Open Gate tests
+  ([`731859b`](https://github.com/eschnitzler/EmpireCore/commit/731859b1d3eb47393abc7b6fcad3ff016b7512aa))
+
+### Documentation
+
+- **state**: Describe the one-second commander reuse margin
+  ([`991c012`](https://github.com/eschnitzler/EmpireCore/commit/991c012a4d0b649a3adfe9b7e128eb29d9c08bb5))
+
+### Features
+
+- **castle**: Open and close a castle's gate, with a price quote
+  ([`657ea3d`](https://github.com/eschnitzler/EmpireCore/commit/657ea3deacd38a75ccec4b9547081399bb1d1bb6))
+
+- **client**: Confirm authorized ruby purchases once
+  ([`12df20b`](https://github.com/eschnitzler/EmpireCore/commit/12df20b03a186b8039290b4a722d1782ee3e8c7c))
+
+- **player**: Support purchasing global effect boosts
+  ([`8dea480`](https://github.com/eschnitzler/EmpireCore/commit/8dea4800af0513fe00a0a1cad16269da113e84f8))
+
+### Refactoring
+
+- Keep the boost models off the top-level namespace
+  ([`83bbaf9`](https://github.com/eschnitzler/EmpireCore/commit/83bbaf96b5e1aeeb838eed548172346c28ff9345))
+
+
 ## v0.64.0 (2026-11-05)
 
 ### Bug Fixes
