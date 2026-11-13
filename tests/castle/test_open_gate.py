@@ -60,7 +60,13 @@ def test_the_request_and_reply_keys():
 def test_the_quote_prices_the_next_opening_from_the_castle_list():
     client = client_with((5, 1, 0, {"OGC": 2, "OGT": 600}))
     quote = client.castle.open_gate_quote(5)
-    assert (quote.castle_id, quote.kingdom, quote.uses, quote.rubies, quote.refusal) == (5, Kingdom.GREEN, 2, 4000, None)
+    assert (quote.castle_id, quote.kingdom, quote.uses, quote.rubies, quote.refusal) == (
+        5,
+        Kingdom.GREEN,
+        2,
+        4000,
+        None,
+    )
     assert quote.prices == {OpenGateDuration.HOURS_6: 2090, OpenGateDuration.HOURS_12: 3260}
     assert 590 < quote.open_seconds <= 600
     assert conn(client).request_payloads == []
