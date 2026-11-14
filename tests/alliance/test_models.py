@@ -455,6 +455,29 @@ class TestAllianceInfoMembers:
 class TestAllianceHelpEntries:
     """As AllianceHelpRequestData.parseHelpRequestEntry (bundle line 133416) reads them."""
 
+    def test_observed_recruitment_list_help_push(self):
+        # Identifiers are synthetic; the field values preserve the observed shape.
+        entry = AllianceHelpRequestChanged.model_validate(
+            {
+                "LID": 101,
+                "P": 0,
+                "PID": 202,
+                "PN": "Example",
+                "TID": 6,
+                "AC": 0,
+                "RT": 4060,
+                "OP": {"AID": 303, "SID": 0, "RLID": 0},
+                "TSL": 37425,
+            }
+        ).request
+        assert entry is not None
+        assert entry.list_id == 101
+        assert entry.player_id == 202
+        assert entry.help_type_enum == HelpType.RECRUITMENT_LIST
+        assert isinstance(entry.params, RecruitHelpParams)
+        assert entry.params.area_id == 303
+        assert entry.params.recruitment_list_id == 0
+
     def test_each_help_type_gets_its_params(self):
         entries = AllianceHelpListResponse.model_validate(
             {
