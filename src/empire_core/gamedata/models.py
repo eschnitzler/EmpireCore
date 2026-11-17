@@ -383,7 +383,7 @@ class ToolStats(_UnitRow):
     round trip.
 
     Client: ``ToolUnitVO.parseXmlNode`` (bundle line 6538), after ``BasicUnitVO.parseXmlNode`` (bundle line 19211);
-    ``ToolUnitVO.parseEffects`` (bundle line 6644)
+    ``ToolUnitVO.parseEffects`` (bundle line 6644); ``EventtoolUnitVO.parseXmlNode`` (bundle line 118914)
     """
 
     wod_id: GameDataId["Tool"] = Field(validation_alias="wodID", description="The tool; required")
@@ -412,6 +412,11 @@ class ToolStats(_UnitRow):
         validation_alias="toolCategory",
         default="",
         description="Tool category, e.g. basic; empty for none",
+    )
+    used_for_events: tuple[GameDataId["Event"], ...] = Field(
+        validation_alias="clientUsageEventID",
+        default=(),
+        description="Events an event tool is used in; empty for none",
     )
     amount_per_wave: int = Field(
         validation_alias="amountPerWave",
@@ -479,6 +484,11 @@ class ToolStats(_UnitRow):
     @classmethod
     def _type(cls, value: object) -> object:
         return cls._type_attribute(value)
+
+    @field_validator("used_for_events", mode="before")
+    @classmethod
+    def _used_for_events(cls, value: object) -> object:
+        return () if value == "-1" else _id_list(value)
 
     @property
     def asset_name(self) -> str:
