@@ -65,9 +65,7 @@ class TestSelectCastle:
         client = with_prebuilt_castles(make_client())
         _running(client, 106)
 
-        client.events.select_special_server_castle(
-            PrebuiltCastle.OUTER_REALMS_CASTLE_TRANSPORTATION, ServerType.OUTER_REALMS
-        )
+        client.events.select_special_server_castle(PrebuiltCastle.CASTLE_TRANSPORTATION, ServerType.OUTER_REALMS)
 
         assert conn(client).request_payloads == [("tsc", {"ID": 40, "OC2": 0, "PWR": 0, "GST": 2})]
 

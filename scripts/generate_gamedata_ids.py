@@ -8,8 +8,9 @@ Generate the ``empire_core.gamedata.ids`` enums from the items data.
     uv run python scripts/generate_gamedata_ids.py --diff-names names.md --breaking-footer footer.txt
 
 Each table becomes one module. Member names come from the row's name columns,
-UPPER_SNAKE; names that still collide after that all get the row id appended,
-so no member keeps a bare name another row also claims. Where a table's names
+UPPER_SNAKE. A row that collides and has a qualifier (an event tool used in
+one event) is prefixed with it; names that still collide after that all get
+the row id appended, so no member keeps a bare name another row also claims. Where a table's names
 would be codes (currency keys, the researches' German notes) or it has none
 (gems, sceat skills, achievements, titles, crest layouts, main quests), a row
 is named from the game's English text instead, by the text id the client
@@ -81,6 +82,8 @@ class Row:
     suffix: str
     """Appended to the name when another row shares it."""
     attrs: tuple[Value, ...] = ()
+    qualifier: str = ""
+    """Prefixed to the name when another row shares it, before any suffix."""
     doc: str = ""
     """The member's docstring; none when empty."""
 
@@ -213,11 +216,21 @@ def identifier(text: str, prefix: str) -> str:
     return name
 
 
+def base_names(table: Table) -> list[str]:
+    """Each row's name before any id suffix: its base, qualified where another row shares that base."""
+    bases = [identifier(row.base, table.prefix) for row in table.rows]
+    counts = Counter(bases)
+    return [
+        identifier(f"{row.qualifier}_{base}", table.prefix) if row.qualifier and counts[base] > 1 else base
+        for row, base in zip(table.rows, bases, strict=True)
+    ]
+
+
 def members(table: Table) -> list[tuple[str, Value]]:
-    """Name every row, suffixing each member of a colliding group with its id."""
+    """Name every row, qualifying shared names, then suffixing each member of a still colliding group with its id."""
     groups: dict[str, list[tuple[Value, str]]] = defaultdict(list)
-    for row in table.rows:
-        groups[identifier(row.base, table.prefix)].append((row.value, row.suffix))
+    for row, name in zip(table.rows, base_names(table), strict=True):
+        groups[name].append((row.value, row.suffix))
     named: dict[str, Value] = {}
     for name, rows in groups.items():
         if len(rows) == 1:
@@ -235,10 +248,12 @@ def members(table: Table) -> list[tuple[str, Value]]:
 
 def collided(table: Table) -> int:
     """How many rows needed the id suffix."""
-    counts: dict[str, int] = defaultdict(int)
-    for row in table.rows:
-        counts[identifier(row.base, table.prefix)] += 1
-    return sum(n for n in counts.values() if n > 1)
+    return sum(n for n in Counter(base_names(table)).values() if n > 1)
+
+
+def event_qualifier(events: Sequence[object]) -> str:
+    """The one event an event tool is used in, which tells it from the tool it copies; none for several or none."""
+    return events[0].name if len(events) == 1 and isinstance(events[0], IntEnum) else ""
 
 
 def level_suffix(level: int) -> str:
@@ -854,6 +869,7 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
                     t.wod_id,
                     id_text(t.wod_id),
                     (t.level, t.category, t.name_text_id),
+                    qualifier=event_qualifier(t.used_for_events),
                 )
                 for t in data.tools.values()
             ],
