@@ -458,6 +458,7 @@ class TestAllianceHelp:
             (lambda a: a.request_build_help(88), {"ID": 88, "T": 4}),
             (lambda a: a.request_repair_help(88), {"ID": 88, "T": 3}),
             (lambda a: a.request_recruit_help(9, HelpType.LOOP_RECRUIT), {"ID": 9, "T": 5}),
+            (lambda a: a.request_recruit_help(0, HelpType.RECRUITMENT_LIST), {"ID": 0, "T": 6}),
             (lambda a: a.request_heal_help(5, 2), {"ID": 5, "T": 2}),
         ],
     )

@@ -242,7 +242,7 @@ class CommunicationMixin(OwnAllianceMixin):
         Ask the alliance to help with a recruitment.
 
         Args:
-            recruit_id: The recruitment's id; the library does not read recruitment ids yet
+            recruit_id: The target id; one observed recruitment-list request used 0
             help_type: ``HelpType.RECRUITMENT``, ``LOOP_RECRUIT`` or ``RECRUITMENT_LIST``
         """
         self.execute(AskHelpRequest.recruit(recruit_id, help_type), timeout=timeout)

@@ -122,6 +122,13 @@ for request in client.alliance.help_requests:
 help yourself with `request_build_help`, `request_repair_help`,
 `request_recruit_help` and `request_heal_help`.
 
+In one observed recruitment-list help request, the game sent `ahr` with
+`{"ID": 0, "T": 6}` and then pushed an `ahh` entry with `TID: 6`, the
+requesting player in `PID`, and `OP` containing the castle in `AID` and
+`RLID: 0`. This is one observed list request: it does not establish that every
+recruitment list uses ID 0 or how the game chooses the castle. The `LID` in
+`ahh` identifies the help-list entry, not the recruitment list.
+
 ## Members and other alliances
 
 ```python
