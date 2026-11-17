@@ -136,18 +136,18 @@ class TestPrebuiltCastles:
         assert castle.space_ids[0] is TreasureMapId.BLADE_COAST_NORMAL
 
     def test_the_main_castle_copy_flag(self):
-        assert game_data().prebuilt_castles[PrebuiltCastle.OUTER_REALMS_CASTLE_TRANSPORTATION].is_main_castle_copy
+        assert game_data().prebuilt_castles[PrebuiltCastle.CASTLE_TRANSPORTATION].is_main_castle_copy
 
     def test_names_come_from_the_game_s_text(self):
         assert PrebuiltCastle.STORM_TIDE_OUTPOST.text_id == "dialog_chooseCastle_preBuiltCastle_16"
         assert PrebuiltCastle.ICE_KNIGHTLY_CASTLE.text_id == "dialog_prebuiltCastle5_name"
-        assert PrebuiltCastle.OUTER_REALMS_CASTLE_TRANSPORTATION.display_name() is None
+        assert PrebuiltCastle.CASTLE_TRANSPORTATION.display_name() is None
 
 
 class TestSpecialServerSelections:
     def test_a_row_reads_its_start_and_its_own_costs(self):
         data = game_data()
-        row = data.outer_realms_prebuilt_castles[PrebuiltCastle.OUTER_REALMS_CASTLE_TRANSPORTATION]
+        row = data.outer_realms_prebuilt_castles[PrebuiltCastle.CASTLE_TRANSPORTATION]
         assert (row.start_level, row.start_legendary_level, row.start_resources_id) == (70, 800, 6)
         assert row.passage_token_package_id == 2358
         assert kinds(row.costs) == [(CollectableKind.CURRENCY, 1)]
