@@ -23,6 +23,7 @@ from empire_core.exceptions import AmbiguousLookupError, GameDataNotLoadedError,
 from empire_core.gamedata import (
     Effect,
     EffectValue,
+    Event,
     GameData,
     ToolStats,
     UnitStats,
@@ -622,6 +623,14 @@ class TestModels:
         tool = ToolStats.model_validate({"wodID": 1, "slotTypes": "9", "toolCategory": "Basic"})
         assert tool.tool_category == "basic"
         assert ToolStats.model_validate({"wodID": 1}).tool_category == ""
+
+    def test_an_event_tool_names_the_events_it_is_used_in(self):
+        # EventtoolUnitVO.parseXmlNode: getValueOrDefault("clientUsageEventID", t, "-1"), "-1" for none
+        tool = ToolStats.model_validate({"wodID": 1, "clientUsageEventID": "113"})
+        assert tool.used_for_events == (Event.BEYOND_THE_HORIZON,)
+        assert ToolStats.model_validate({"wodID": 1, "clientUsageEventID": "49,72"}).used_for_events == (49, 72)
+        assert ToolStats.model_validate({"wodID": 1, "clientUsageEventID": "-1"}).used_for_events == ()
+        assert ToolStats.model_validate({"wodID": 1}).used_for_events == ()
 
     def test_a_row_without_a_level_reads_minus_one(self):
         # BasicUnitVO.parseXmlNode: parseInt(getValueOrDefault("level", t, "-1"))

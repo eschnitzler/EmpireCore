@@ -546,6 +546,26 @@ class TestGenerator:
             "PREMIUMSTAKES_L2": 646,
         }
 
+    def test_an_event_tool_copying_a_tool_is_named_by_its_one_event(self):
+        rows = [
+            {"wodID": 611, "name": "Workshop", "type": "Ram", "toolCategory": "Basic", "slotTypes": "1"},
+            {"wodID": 1301, "name": "Eventtool", "type": "Ram", "clientUsageEventID": "113", "slotTypes": "1"},
+            {"wodID": 1302, "name": "Eventtool", "type": "Ram", "clientUsageEventID": "113", "slotTypes": "1"},
+            {"wodID": 141, "name": "Eventtool", "type": "Rage", "clientUsageEventID": "49,72", "slotTypes": "1"},
+            {"wodID": 560, "name": "Eventtool", "type": "Rage", "clientUsageEventID": "49,72", "slotTypes": "1"},
+            {"wodID": 1310, "name": "Eventtool", "type": "Idol", "clientUsageEventID": "113", "slotTypes": "1"},
+        ]
+        items = GameData.parse(ids.ITEMS_VERSION, {"units": rows})
+
+        assert self.members(items, "Tool") == {
+            "RAM": 611,
+            "BEYOND_THE_HORIZON_RAM_1301": 1301,
+            "BEYOND_THE_HORIZON_RAM_1302": 1302,
+            "RAGE_141": 141,
+            "RAGE_560": 560,
+            "IDOL": 1310,
+        }
+
     def test_every_member_of_a_colliding_group_is_suffixed(self, items):
         assert self.members(items, "GlobalEffect") == {
             "COOLDOWN_REDUCTION_RBC": 1,
