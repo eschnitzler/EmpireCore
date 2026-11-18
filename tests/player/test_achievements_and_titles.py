@@ -173,3 +173,17 @@ class TestState:
 
         state.update_from_packet("apt", {"TI": 50})
         assert state.get_title_ranks().storm_islands_title.title_id is Title.STORM_LORD
+
+    @pytest.mark.parametrize("name", [7, ["Ally"]])
+    def test_a_truthy_name_that_is_no_text_is_not_yours(self, name):
+        # APTCommand skips parseAPT for any truthy PN
+        state = logged_in_state(uar={**UAR, "ITM": {"TID": -1}})
+
+        state.update_from_packet("apt", {"TI": 50, "PN": name})
+
+        assert state.get_title_ranks().storm_islands_title.title_id is None
+
+    def test_a_falsy_name_or_title_reads_as_not_sent(self):
+        reply = AssignTitleResponse.model_validate({"TI": 0, "PN": 0})
+
+        assert (reply.title_id, reply.player_name, reply.is_own_title) == (None, None, False)

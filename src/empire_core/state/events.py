@@ -40,6 +40,7 @@ from empire_core.events.models import (
     EventEntry,
     FortuneTellerEvent,
     GachaEvent,
+    GetEventPointsResponse,
     GiftEvent,
     GlobalEffectBuffEvent,
     GlobalEffectEvent,
@@ -271,17 +272,18 @@ class EventState(StateBase):
         level points. The library reads every value through ``int()``, where the client keeps them
         as sent.
 
-        Client: ``PEPCommand.exec`` (bundle lines 128213-128216), which looks the ``EID`` up as sent,
-        and the ``setRankAndPoints`` of each class
+        Client: ``PEPCommand.exec`` (split.js line 646824) and the ``setRankAndPoints`` of each class;
+        see :class:`GetEventPointsResponse`
         """
         self._events_updated_at = time.time()
         self._expire_events()
-        event = self._sent_event(data.get("EID") if isinstance(data, dict) else None)
-        if event is None:
+        points = read_section(GetEventPointsResponse, data, "a pep")
+        event = self._sent_event(points.event_id) if points is not None else None
+        if points is None or event is None:
             return
-        updated = event.with_points(data.get("OR"), data.get("OP"), data.get("PT"))
-        if data.get("BLPP") is not None and "boss_level_points" in type(updated).model_fields:
-            updated = updated.model_copy(update={"boss_level_points": js_int(data["BLPP"])})
+        updated = event.with_points(points.own_ranks, points.own_points, points.max_points)
+        if points.boss_level_points is not None and "boss_level_points" in type(updated).model_fields:
+            updated = updated.model_copy(update={"boss_level_points": points.boss_level_points})
         self.events = {**self.events, event.event_id: updated}
         self._fire(self.on_events_updated, dict(self.events))
 

@@ -33,6 +33,7 @@ class TestModels:
 
         assert request.accepts_reply({"EID": 80.0, "OR": [1], "OP": [2]})
         assert not request.accepts_reply({"EID": 3, "OR": [1], "OP": [2]})
+        assert not request.accepts_reply({"EID": "80", "OR": [1], "OP": [2]})
         assert request.accepts_reply({})
 
     def test_the_reply_is_registered_for_pep(self):
@@ -48,6 +49,22 @@ class TestModels:
         reply = GetEventPointsResponse.model_validate({"EID": 46})
 
         assert (reply.own_ranks, reply.own_points, reply.max_points, reply.boss_level_points) == ([], [], None, None)
+
+    @pytest.mark.parametrize("event_id", ["3", True, 3.5])
+    def test_an_id_the_client_would_not_find_does_not_read(self, event_id):
+        # PEPCommand.exec looks the EID up with Map.get, as sent
+        with pytest.raises(ValueError):
+            GetEventPointsResponse.model_validate({"EID": event_id})
+
+    def test_values_not_sent_as_lists_read_as_not_sent(self):
+        reply = GetEventPointsResponse.model_validate({"EID": 60.0, "OR": 4, "OP": None, "PT": "x"})
+
+        assert (reply.event_id, reply.own_ranks, reply.own_points, reply.max_points) == (60, [], [], None)
+
+    def test_a_null_value_stays_unset(self):
+        reply = GetEventPointsResponse.model_validate({"EID": 60, "OR": [None, "3"], "PT": [None]})
+
+        assert (reply.own_ranks, reply.max_points) == ([None, 3], [None])
 
 
 class TestGetOwnPoints:

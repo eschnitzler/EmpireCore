@@ -136,9 +136,9 @@ class AllianceState(StateBase):
         )
 
     def _handle_sll(self, data: Any) -> None:
-        """Client: ``CastleAllianceData.parseSLL`` (bundle line 11605) replaces your alliance's laboratories."""
-        if read_section(AllianceLaboratoriesResponse, data, "the alliance's laboratories") is not None:
-            self._patch_own_alliance({"ALA": data.get("ALA")})
+        """Client: ``CastleAllianceData.parseSLL`` (split.js line 61793) replaces your alliance's laboratories."""
+        if (listed := read_section(AllianceLaboratoriesResponse, data, "the alliance's laboratories")) is not None:
+            self._patch_own_alliance({"ALA": listed.laboratories})
 
     def _handle_gap(self, data: Any) -> None:
         """Keep your cargo points and your alliance's.
