@@ -666,7 +666,8 @@ class BattleLogArea(SpyReportArea):
     copies them.
 
     Client: ``BattleLogVO.fillFromParamObject`` (bundle lines 690349-690358) and
-    ``InteractiveMapobjectVO.parseAreaInfoBattleLog`` with its overrides (see :class:`SpyReportArea`);
+    ``InteractiveMapobjectVO.parseAreaInfoBattleLog`` (bundle line 20066) with its overrides
+    (see :class:`SpyReportArea`);
     ``ABGAllianceTowerMapobjectVO.parseAreaInfoBattleLog`` (bundle line 169356) reads ``E`` with
     ``AllianceCrestVO.fillWithData`` (bundle line 60469), drawing a random crest when it is unsent
     """
