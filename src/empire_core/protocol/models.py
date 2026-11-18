@@ -1011,6 +1011,7 @@ from empire_core.player.models.account import (
     PlayerIdentityResponse,
     SendGiftPackagesRequest,
     SendGiftPackagesResponse,
+    VipStatusRequest,
     VipStatusResponse,
 )
 from empire_core.player.models.aqua import CargoPointsResponse, GetCargoPointsRequest
@@ -1451,6 +1452,7 @@ __all__ = [
     "LevelUpResponse",
     "PlayerIdentityResponse",
     "SpecialCurrenciesResponse",
+    "VipStatusRequest",
     "VipStatusResponse",
     "StartBerimondProtectionRequest",
     "StartBerimondProtectionResponse",

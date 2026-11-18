@@ -355,6 +355,7 @@ __all__ = [
     "PlayerGiftsResponse",
     "SendGiftPackagesRequest",
     "SendGiftPackagesResponse",
+    "VipStatusRequest",
 ]
 
 
@@ -417,9 +418,10 @@ class VipStatusResponse(BaseResponse):
     """
     Your VIP status: the ``vip`` login section, pushed as it changes.
 
-    Command: vip, as a login section of ``gbd``, a push, and inside an ``sbp`` reply.
+    Command: vip, as a login section of ``gbd``, a push, the reply to a :class:`VipStatusRequest`, and inside
+    an ``sbp`` reply.
 
-    Client: ``VIPCommand.exec`` (bundle line 129988), ``CastleVIPData.parse_VIP`` (bundle line 47542),
+    Client: ``VIPCommand.exec`` (bundle line 653087), ``CastleVIPData.parse_VIP`` (bundle line 245599),
     which reads each key through ``int()`` and keeps no VIP time for a ``VRS`` of 0 or less
     """
 
@@ -442,3 +444,17 @@ class VipStatusResponse(BaseResponse):
     @classmethod
     def _no_vip_time(cls, value: int) -> int:
         return max(0, value)
+
+
+class VipStatusRequest(BaseRequest):
+    """
+    Ask for your VIP status; the server answers with a ``vip``.
+
+    Command: vip
+    Payload: {}
+
+    Client: ``C2SVIPInfoEvent`` (bundle line 400604), sent by ``CastleVIPData.executeUpdate`` (bundle line
+    245782) once the VIP time it knows has run out
+    """
+
+    command = "vip"

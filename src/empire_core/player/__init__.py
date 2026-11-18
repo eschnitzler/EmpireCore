@@ -149,6 +149,7 @@ from .models import (
     TrainingProgramsResponse,
     UnlockSymbolRequest,
     UnlockSymbolResponse,
+    VipStatusRequest,
     VipStatusResponse,
 )
 from .service import PlayerDetailsBulkResult, PlayerService
@@ -241,6 +242,7 @@ __all__ = [
     "LevelUpResponse",
     "PlayerIdentityResponse",
     "SpecialCurrenciesResponse",
+    "VipStatusRequest",
     "VipStatusResponse",
     "StartBerimondProtectionRequest",
     "StartBerimondProtectionResponse",

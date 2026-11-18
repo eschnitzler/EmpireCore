@@ -1,4 +1,4 @@
-"""Your level, cargo points, skills, boosts, titles and achievements."""
+"""Your level, VIP status, cargo points, skills, boosts, titles and achievements."""
 
 from __future__ import annotations
 
@@ -10,6 +10,8 @@ from empire_core.player.models.account import (
     BuyLevelRequest,
     BuyLevelResponse,
     FoodProductionStatus,
+    VipStatusRequest,
+    VipStatusResponse,
 )
 from empire_core.player.models.aqua import (
     CargoPointsResponse,
@@ -67,6 +69,18 @@ class StandingMixin(ServiceMixin):
         self._require_spend_rubies(spend_rubies, "buying a level costs rubies")
         request = BuyLevelRequest(new_level=player.level + player.legendary_level + 1)
         self.request(request, BuyLevelResponse, timeout=timeout, spend_rubies=spend_rubies)
+
+    def get_vip_status(self, *, timeout: float = 5.0) -> VipStatusResponse:
+        """
+        Request your VIP status: points, level, VIP time left and premium commanders used today; it is
+        applied to your player in state too.
+
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+
+        Client: ``C2SVIPInfoEvent`` (bundle line 400604), ``VIPCommand.exec`` (bundle line 653087)
+        """
+        return self.request(VipStatusRequest(), VipStatusResponse, timeout=timeout)
 
     @property
     def cargo_points(self) -> int | float | None:

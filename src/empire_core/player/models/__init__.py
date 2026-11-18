@@ -19,6 +19,7 @@ from .account import (
     PlayerIdentityResponse,
     SendGiftPackagesRequest,
     SendGiftPackagesResponse,
+    VipStatusRequest,
     VipStatusResponse,
 )
 from .aqua import (
@@ -212,6 +213,7 @@ __all__ = [
     "LevelUpResponse",
     "PlayerIdentityResponse",
     "SpecialCurrenciesResponse",
+    "VipStatusRequest",
     "VipStatusResponse",
     "StartBerimondProtectionRequest",
     "StartBerimondProtectionResponse",
