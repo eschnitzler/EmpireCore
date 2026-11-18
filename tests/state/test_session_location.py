@@ -205,7 +205,7 @@ def test_unreadable_outpost_does_not_claim_to_be_unconquered(state, caplog, owne
     assert "map row" in caplog.text
 
 
-ATTACK_LANDED = {"KID": 0, "AI": [], "OI": [], "gui": {"I": []}, "esl": {}, "cat": {}, "sne": {}, "dms": {}}
+PUSHED_MAP_READ = {"KID": 0, "AI": [], "OI": []}
 SLOTS = {"OIDL": [5, -1], "SSC": 2}
 
 
@@ -236,15 +236,17 @@ def test_a_pushed_map_read_moves_nothing(state):
     # GAACommand.executeCommand applies uap, OI and the map rows; it never leaves the castle
     login(state, 1001)
     state.update_from_packet("jaa", joined_with_data())
+    state.placed_construction_items = ()
     revision = state.area_revision
     assert castle_data(state) == ([42], 2, [5])
 
-    state.update_from_packet("gaa", ATTACK_LANDED)
+    state.update_from_packet("gaa", PUSHED_MAP_READ)
 
     assert state.get_session_location() is SessionLocation.ISO
     assert not state.is_on_map()
     assert state.is_in_own_castle()
     assert castle_data(state) == ([42], 2, [5])
+    assert state.get_placed_construction_items() == ()
     assert state.area_revision == revision
 
 
@@ -262,6 +264,21 @@ def test_the_librarys_own_map_read_moves_the_session_to_the_world_map(state):
     assert state.is_on_map()
     assert castle_data(state) == ([42], 2, [5])
     assert state.area_revision == revision + 1
+
+
+@pytest.mark.parametrize("error_code", [0, 1])
+def test_a_raw_map_read_request_moves_the_session_too(state, error_code):
+    from empire_core.map import GetMapAreaRequest
+    from tests.service_helpers import xt_packet
+
+    login(state, 1001)
+    state.update_from_packet("jaa", joined_with_data())
+    client = map_read_client(state, xt_packet("gaa", {"KID": 0, "AI": [], "OI": []}, error_code=error_code))
+
+    client.request_packet(GetMapAreaRequest(x1=0, y1=0, x2=9, y2=9), "gaa")
+
+    assert state.get_session_location() is SessionLocation.WORLDMAP
+    assert castle_data(state) == ([42], 2, [5])
 
 
 def test_a_map_read_without_a_reply_does_not_move_the_session(state):
