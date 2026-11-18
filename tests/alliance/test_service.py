@@ -721,14 +721,6 @@ class TestAllianceDiplomacy:
         assert conn(client).request_payloads == [("ard", {"AID": 55})]
         assert alliance is not None and alliance.alliance_id == 55
 
-    @pytest.mark.parametrize(("enabled", "aw"), [(True, 1), (False, 0)])
-    def test_set_auto_war(self, enabled, aw):
-        client = member_client({"saw": xt_packet("saw", {"AW": aw})})
-
-        assert client.alliance.set_auto_war(enabled) is enabled
-
-        assert conn(client).request_payloads == [("saw", {"AW": aw})]
-
     def test_newsletter_encodes_both_parts(self):
         client = member_client()
 

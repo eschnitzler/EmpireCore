@@ -1,7 +1,7 @@
-"""Your alliance's details after diplomacy replies.
+"""Your alliance's details after diplomacy and auto war replies.
 
 ADPCommand.executeCommand (split.js 623011) reads AS and AO with parseAllianceInfo (split.js 61810),
-which keeps only your own alliance.
+which keeps only your own alliance; SAWCommand.executeCommand (split.js 625171) sets autoWarOn from AW.
 """
 
 from typing import Any
@@ -108,3 +108,56 @@ class TestChangeDiplomacy:
         held = state.get_own_alliance()
         assert held is not None and (held.glory_points, held.highest_glory_points) == (77, 88)
         assert statuses(state) == [(55, 1)]
+
+
+class TestSetAutoWar:
+    @pytest.mark.parametrize(("enabled", "aw"), [(True, 1), (False, 0)])
+    def test_the_reply_sets_your_alliances_auto_war(self, enabled, aw):
+        state = own_state(AW=1 - aw)
+        client = wired(state, "saw", {"AW": aw})
+
+        assert client.alliance.set_auto_war(enabled) is enabled
+
+        held = state.get_own_alliance()
+        assert held is not None and held.auto_war is enabled
+        assert conn(client).request_payloads == [("saw", {"AW": aw})]
+
+    def test_a_refusal_changes_nothing(self):
+        state = own_state(AW=0)
+        client = wired(state, "saw", {"AW": 1}, error_code=1)
+
+        with pytest.raises(CommandError):
+            client.alliance.set_auto_war(True)
+
+        held = state.get_own_alliance()
+        assert held is not None and held.auto_war is False
+
+    def test_a_reply_from_an_earlier_membership_changes_nothing(self):
+        state = own_state(AW=0)
+        client = wired(state, "saw", {"AW": 1}, then=lambda: rejoin(state))
+
+        with pytest.raises(ReplyMismatchError):
+            client.alliance.set_auto_war(True)
+
+        held = state.get_own_alliance()
+        assert held is not None and held.name == "New membership" and held.auto_war is False
+
+    def test_a_push_after_the_reply_is_kept(self):
+        state = own_state(AW=0)
+        client = wired(
+            state, "saw", {"AW": 1}, then=lambda: state.update_from_packet("ain", {"A": {"AID": 301, "AW": 0}})
+        )
+
+        client.alliance.set_auto_war(True)
+
+        held = state.get_own_alliance()
+        assert held is not None and held.auto_war is False
+
+    def test_no_alliance_details_are_made_up(self):
+        state = alliance_state()
+        state.own_alliance = None
+        client = wired(state, "saw", {"AW": 1})
+
+        assert client.alliance.set_auto_war(True) is True
+
+        assert state.get_own_alliance() is None
