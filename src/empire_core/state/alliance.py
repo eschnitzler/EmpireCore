@@ -288,11 +288,7 @@ class AllianceState(StateBase):
             self._require_membership_revision(membership_revision, alliance_id)
             if command is None:
                 return
-            receipt = self._alliance_reply_order.get(command)
-            if receipt is not None and receipt[0] is payload:
-                sequence = receipt[1]
-            else:
-                sequence = self._packet_sequence
+            sequence = self._alliance_reply_sequence(command, payload)
             reply = read_section(GetAllianceInfoResponse, data, "an alliance settings reply")
             alliance = reply.alliance if reply is not None else None
             if alliance is None or not self._is_own_alliance(alliance):
@@ -302,6 +298,22 @@ class AllianceState(StateBase):
                 return
             superseded = {name for name, order in self._alliance_field_order.items() if order > sequence}
             self._patch_own_alliance(**{name: getattr(alliance, name) for name in alliance.read_fields - superseded})
+
+    def apply_auto_war(
+        self, enabled: bool, *, membership_revision: int, alliance_id: int, payload: dict[str, Any]
+    ) -> None:
+        """Set your alliance's auto war from an accepted ``saw`` reply, in the membership that sent it.
+
+        Client: ``SAWCommand.executeCommand`` (split.js line 625171) sets ``myAllianceVO.autoWarOn``
+        """
+        with self._lock:
+            self._require_membership_revision(membership_revision, alliance_id)
+            if self._alliance_field_order.get("auto_war", 0) <= self._alliance_reply_sequence("saw", payload):
+                self._patch_own_alliance(auto_war=enabled)
+
+    def _alliance_reply_sequence(self, command: str, payload: dict[str, Any] | None) -> int:
+        receipt = self._alliance_reply_order.get(command)
+        return receipt[1] if receipt is not None and receipt[0] is payload else self._packet_sequence
 
     def _require_membership_revision(self, revision: int, alliance_id: int) -> None:
         current = self.local_player.AID if self.local_player is not None else None

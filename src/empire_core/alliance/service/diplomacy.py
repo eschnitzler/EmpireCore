@@ -104,11 +104,21 @@ class DiplomacyMixin(OwnAllianceMixin):
 
         Raises:
             NotInAllianceError: You are in no alliance (nothing is sent), or the server answered ``ALLI_NOT_FOUND``
+            ReplyMismatchError: Your alliance membership changed while the request was out
             CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+
+        Client: ``SAWCommand.executeCommand`` (split.js line 625171) sets your alliance's auto war from ``AW``
         """
         request = SetAutoWarRequest(auto_war=1 if enabled else 0)
-        with self._own_alliance():
-            return self.request(request, SetAutoWarResponse, timeout=timeout).auto_war
+        with self.client.connection.command_lock(request.command, timeout=timeout):
+            own_id = self._require_local_alliance_id()
+            revision = self.client.state.membership_revision
+            with self._own_alliance():
+                response, payload = self._request_membership(request, SetAutoWarResponse, timeout=timeout)
+            self.client.state.apply_auto_war(
+                response.auto_war, membership_revision=revision, alliance_id=own_id, payload=payload
+            )
+            return response.auto_war
 
     def send_newsletter(self, subject: str, text: str, *, timeout: float = 5.0) -> None:
         """
