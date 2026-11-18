@@ -20,6 +20,7 @@ from pydantic import ConfigDict, Field, ValidationInfo, field_validator, model_v
 from empire_core.enums import (
     AllianceBuffType,
     BerimondFaction,
+    BoosterId,
     CastleEffect,
     Kingdom,
     MapItemType,
@@ -1500,12 +1501,12 @@ class CurrencyDef(_Row):
 
 class VipLevelDef(_Row):
     """
-    A VIP level: the VIP points it spans and the premium commanders it gives free each day.
+    A VIP level: the VIP points it spans, the premium commanders it gives free each day and its attack speed bonus.
 
     The other bonuses the client reads from the row are not parsed.
 
-    Client: ``VIPLevelInfoVO.parseConfigXML`` and ``inPointRange`` (bundle lines 77271, 77287),
-    read from the ``viplevels`` table by ``CastleVIPData.parseVIPLevels`` (bundle line 47518)
+    Client: ``VIPLevelInfoVO.parseConfigXML`` and ``inPointRange`` (bundle lines 400638, 400754),
+    read from the ``viplevels`` table by ``CastleVIPData.parseVIPLevels`` (bundle line 245583)
     """
 
     vip_level_id: int = Field(validation_alias="vipLevelID", default=-1, description="VIP level, 1 and up")
@@ -1524,8 +1525,16 @@ class VipLevelDef(_Row):
         default=0,
         description="Premium commanders a day that cost no rubies while VIP time runs",
     )
+    attack_speed_bonus: int = Field(
+        validation_alias="attackSpeedBoost",
+        default=0,
+        description="Travel speed bonus percent for attacks while VIP time runs",
+    )
 
-    @field_validator("vip_level_id", "min_points", "max_points", "free_premium_commanders_per_day", mode="before")
+    @field_validator(
+        "vip_level_id", "min_points", "max_points", "free_premium_commanders_per_day", "attack_speed_bonus",
+        mode="before",
+    )  # fmt: skip
     @classmethod
     def _parse_int(cls, value: object, info: ValidationInfo) -> int:
         return _parse_int_or_default(value, cls.model_fields[str(info.field_name)].default)
@@ -1533,6 +1542,29 @@ class VipLevelDef(_Row):
     def in_point_range(self, points: int) -> bool:
         """Whether ``points`` VIP points fall in this level, both ends included."""
         return self.min_points <= points <= self.max_points
+
+
+class LevelBoosterDef(_Row):
+    """
+    One level of a King's Market booster bought in levels: the caravan overloader or the return speed booster.
+
+    Client: ``CastlePremiumBoostData.parseXML`` (bundle line 81350), read from the ``levelBoosters`` table
+    """
+
+    booster: GameDataId[BoosterId] = Field(validation_alias="boosterType", description="The booster")
+    level: int = Field(description="Booster level, 0 before the first purchase")
+    boost_percent: int = Field(validation_alias="boostPercentage", description="Its bonus in percent at this level")
+    cost_rubies: int = Field(validation_alias="costC2", description="Rubies this level costs")
+
+    @field_validator("booster", "level", "boost_percent", "cost_rubies", mode="before")
+    @classmethod
+    def _parse_int(cls, value: object, info: ValidationInfo) -> int:
+        if isinstance(value, int) and not isinstance(value, bool):
+            return value
+        parsed = js_parse_int(value or "")
+        if parsed is None:
+            raise ValueError(f"{info.field_name} {value!r} has no leading integer")
+        return parsed
 
 
 class RaidBossDef(_Row):

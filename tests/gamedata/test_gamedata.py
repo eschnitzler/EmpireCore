@@ -18,7 +18,7 @@ import pytest
 from pydantic import BaseModel
 
 from empire_core.army import SpyArmy
-from empire_core.enums import CollectableKind, Kingdom, ToolCategory, ToolSide, UnitRole
+from empire_core.enums import BoosterId, CollectableKind, Kingdom, ToolCategory, ToolSide, UnitRole
 from empire_core.exceptions import AmbiguousLookupError, GameDataNotLoadedError, NetworkError
 from empire_core.gamedata import (
     Effect,
@@ -803,6 +803,15 @@ class TestCombatTables:
             (5, 25),
         ]
 
+    def test_vip_levels_give_their_attack_speed_bonus(self):
+        rows = [
+            {"vipLevelID": "1", "thresholdMin": "0", "thresholdMax": "299"},
+            {"vipLevelID": "10", "thresholdMin": "8000", "thresholdMax": "19999", "attackSpeedBoost": "50"},
+        ]
+        data = GameData.parse("786.03", {"viplevels": rows})
+
+        assert [level.attack_speed_bonus for level in data.vip_levels.values()] == [0, 50]
+
     @pytest.mark.parametrize(
         ("points", "level_id"), [(0, 1), (299, 1), (8000, 5), (19999, 5), (500, 5), (900000, 5), (-1, None)]
     )
@@ -1499,3 +1508,59 @@ class TestLeagueTypes:
             os.umask(previous)
 
         assert (tmp_path / "items.json").stat().st_mode & 0o777 == 0o640
+
+
+# levelBoosters rows of v790.02: return speed levels 0-2 and caravan overloader levels 0-2
+LEVEL_BOOSTER_ROWS = [
+    {"boosterID": "0", "boosterType": "19", "level": "0", "costC2": "0", "boostPercentage": "0"},
+    {"boosterID": "1", "boosterType": "19", "level": "1", "costC2": "50", "boostPercentage": "20"},
+    {"boosterID": "2", "boosterType": "19", "level": "2", "costC2": "100", "boostPercentage": "40"},
+    {"boosterID": "51", "boosterType": "11", "level": "0", "costC2": "0", "boostPercentage": "0"},
+    {"boosterID": "52", "boosterType": "11", "level": "1", "costC2": "80", "boostPercentage": "7"},
+    {"boosterID": "53", "boosterType": "11", "level": "2", "costC2": "160", "boostPercentage": "14"},
+]
+
+
+class TestLevelBoosters:
+    """``CastlePremiumBoostData.parseXML`` and its level lookups."""
+
+    @pytest.fixture
+    def data(self) -> GameData:
+        return GameData.parse("790.02", {"levelBoosters": LEVEL_BOOSTER_ROWS})
+
+    def test_rows_are_read_by_booster_and_level(self, data):
+        levels = data.booster_levels(BoosterId.CARAVAN_OVERLOADER)
+
+        assert sorted(levels) == [0, 1, 2]
+        assert (levels[2].booster, levels[2].boost_percent, levels[2].cost_rubies) == (
+            BoosterId.CARAVAN_OVERLOADER,
+            14,
+            160,
+        )
+
+    @pytest.mark.parametrize(("level", "percent"), [(0, 0), (1, 20), (2, 40), (4, 0), (99, 0)])
+    def test_return_speed_is_0_past_the_row_count(self, data, level, percent):
+        assert data.returning_speed_percent(level) == percent
+
+    def test_return_speed_fails_where_the_client_does(self, data):
+        # three rows: getBoostForReturningSpeedLevel(3) reads the missing row 3
+        with pytest.raises(KeyError):
+            data.returning_speed_percent(3)
+
+    def test_caravan_overloader_percent(self, data):
+        assert [data.caravan_overloader_percent(level) for level in range(3)] == [0, 7, 14]
+        with pytest.raises(KeyError):
+            data.caravan_overloader_percent(3)
+
+    def test_a_row_without_a_number_is_left_out(self):
+        rows = [{"boosterType": "11", "level": "x", "costC2": "0", "boostPercentage": "0"}, *LEVEL_BOOSTER_ROWS]
+
+        assert len(GameData.parse("790.02", {"levelBoosters": rows}).level_boosters) == len(LEVEL_BOOSTER_ROWS)
+
+    def test_rows_survive_the_cache(self, data, tmp_path):
+        cache_file = tmp_path / "items_v790.02.trimmed.json"
+        data._write_cache(cache_file)
+
+        cached = GameData._read_cache(cache_file, "790.02")
+
+        assert cached is not None and cached.level_boosters == data.level_boosters
