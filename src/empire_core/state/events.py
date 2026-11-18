@@ -70,13 +70,17 @@ from empire_core.events.models import (
     event_class,
 )
 from empire_core.events.progression_models import (
-    AllianceCampInfo,
+    AllianceCampInfoResponse,
     DaimyoAreasResponse,
     DaimyoContractsResponse,
     DaimyoWarEffortsResponse,
 )
 from empire_core.events.special_server_models import CurrentServer, SpecialServerCastles
-from empire_core.events.status_models import GrandTournamentQuestStatus, GrandTournamentQuestUpdate, RiftRaidStatus
+from empire_core.events.status_models import (
+    CompleteGrandTournamentQuestResponse,
+    GrandTournamentQuestStatus,
+    RiftRaidStatus,
+)
 from empire_core.gamedata import PackageId
 from empire_core.gamedata.ids.events import Event
 from empire_core.map.models.areas import KingdomProtection
@@ -288,7 +292,7 @@ class EventState(StateBase):
         if not isinstance(data, dict) or "EID" not in data:
             return
         points = read_section(GetEventPointsResponse, data, "a pep")
-        event = self._sent_event(points.event_id) if points is not None else None
+        event = self.events.get(points.event_id) if points is not None else None
         if points is None or event is None:
             return
         updated = event.with_points(points.own_ranks, points.own_points, points.max_points)
@@ -321,15 +325,14 @@ class EventState(StateBase):
         self._fire(self.on_events_updated, dict(self.events))
 
     def _handle_aqs(self, data: Any) -> None:
-        """AQSCommand applies slots only to the named Grand Tournament event (bundle 127419-127420)."""
+        """Apply an alliance quest status to the Grand Tournament its ``EID`` names.
+
+        Client: ``AQSCommand.executeCommand`` (split.js line 644106); see :class:`GrandTournamentQuestStatus`
+        """
         self._expire_events()
-        event = self._sent_event(data.get("EID") if isinstance(data, dict) else None)
-        if not isinstance(event, GrandTournamentEvent):
-            return
-        try:
-            status = GrandTournamentQuestStatus.model_validate(data)
-        except ValidationError:
-            logger.warning("Unreadable alliance quest status; kept previous event status")
+        status = read_section(GrandTournamentQuestStatus, data, "the alliance quest status")
+        event = self.events.get(status.event_id) if status is not None else None
+        if status is None or not isinstance(event, GrandTournamentEvent):
             return
         updated = event.model_copy(update={"quest_status": status})
         self.events = {**self.events, event.event_id: updated}
@@ -337,17 +340,17 @@ class EventState(StateBase):
         self._fire(self.on_events_updated, dict(self.events))
 
     def _handle_grand_tournament_action(self, data: Any) -> None:
-        """Apply nested action slots in receive order (bundle 127430-127503)."""
-        if not isinstance(data, dict):
+        """Apply a quest action's slots to the Grand Tournament its ``aqs.EID`` names, in receive order.
+
+        Client: ``CAQCommand.executeCommand`` (split.js line 644180) and the ``CAAQ``, ``RAQ``, ``SAQ`` and
+        ``SCQ`` commands beside it; see :class:`CompleteGrandTournamentQuestResponse`
+        """
+        action = read_section(CompleteGrandTournamentQuestResponse, data, "a Grand Tournament quest action")
+        if action is None:
             return
-        try:
-            update = GrandTournamentQuestUpdate.model_validate(data.get("aqs"))
-        except ValidationError:
-            logger.warning("Unreadable Grand Tournament quest action; kept previous status")
-            return
+        update = action.status
         self._expire_events()
-        nested = data.get("aqs")
-        event = self._sent_event(nested.get("EID") if isinstance(nested, dict) else None)
+        event = self.events.get(update.event_id)
         if not isinstance(event, GrandTournamentEvent):
             return
         context = self._grand_tournament_action_context
@@ -460,7 +463,7 @@ class EventState(StateBase):
         and ``AllianceNomadInvasionEventVO.parse_RPR`` (bundle line 114369)
         """
         rage = read_section(RagePointsResponse, data, "the rage points")
-        event = self._sent_event(data.get("EID") if isinstance(data, dict) else None)
+        event = self.events.get(rage.event_id) if rage is not None else None
         if rage is not None and isinstance(event, NomadInvasionEvent):
             self._replace_event(
                 event.model_copy(update={"player_rage": rage.player_rage, "player_total_rage": rage.player_total_rage})
@@ -475,10 +478,9 @@ class EventState(StateBase):
         Client: ``AICCommand.executeCommand`` (bundle line 128188), ``AllianceNomadInvasionEventVO.parse_AIC``
         (bundle line 114370)
         """
-        rows = data.get("AC") if isinstance(data, dict) else None
-        first = rows[0] if isinstance(rows, list) and rows else None
-        camp = read_section(AllianceCampInfo, first, "the alliance invasion camp")
-        event = self._sent_event(first.get("EID")) if isinstance(first, dict) else None
+        pushed = read_section(AllianceCampInfoResponse, data, "the alliance invasion camp")
+        camp = pushed.camp if pushed is not None else None
+        event = self.events.get(camp.event_id) if camp is not None else None
         if camp is not None and isinstance(event, NomadInvasionEvent):
             self._replace_event(
                 event.model_copy(update={"alliance_rage": camp.alliance_rage, "khan_camp_id": camp.camp_id})
@@ -651,7 +653,7 @@ class EventState(StateBase):
         Client: ``CFCCommand.executeCommand`` (bundle line 124161), which looks the ``EID`` up as sent
         """
         reply = read_section(GachaFreeChestResponse, data, "a gacha free chest")
-        event = self._sent_event(data.get("EID") if isinstance(data, dict) else None)
+        event = self.events.get(reply.event_id) if reply is not None else None
         if reply is not None and isinstance(event, GachaEvent):
             self._replace_event(event.with_gacha_update(reply, _clock()))
 
@@ -687,12 +689,6 @@ class EventState(StateBase):
         self.events = {**self.events, event.event_id: event}
         self._events_updated_at = time.time()
         self._fire(self.on_events_updated, dict(self.events))
-
-    def _sent_event(self, eid: Any) -> SpecialEvent | None:
-        # The id as sent, compared as the client's Map compares keys: 3.0 is 3, "3" is not
-        if not isinstance(eid, (int, float)) or isinstance(eid, bool):
-            return None
-        return next((event for key, event in self.events.items() if key == eid), None)
 
     def _remove_event(self, eid: int) -> None:
         event = self.events.get(eid)

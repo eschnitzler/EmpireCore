@@ -30,7 +30,7 @@ from empire_core.events.progression_models import (
     DaimyoContractsResponse,
     DaimyoWarEffortsResponse,
 )
-from empire_core.events.status_models import GrandTournamentQuestStatus, RiftRaidStatus
+from empire_core.events.status_models import GrandTournamentQuestStatus, RiftRaidStatus, SentEventId
 from empire_core.exceptions import ReplyMismatchError
 from empire_core.gamedata import (
     AllianceInvasionCampId,
@@ -2047,7 +2047,7 @@ class GetEventPointsResponse(BaseResponse):
 
     command: ClassVar[str] = GGECommand.PEP
 
-    event_id: EnumOrInt[Event] = Field(validation_alias="EID", description="The event")
+    event_id: SentEventId = Field(validation_alias="EID", description="The event")
     own_ranks: list[ClientInt | None] = Field(
         default_factory=list,
         validation_alias="OR",
@@ -2068,13 +2068,6 @@ class GetEventPointsResponse(BaseResponse):
         validation_alias="BLPP",
         description="The points on the raid boss's current level; None for other events",
     )
-
-    @field_validator("event_id", mode="before")
-    @classmethod
-    def _as_sent(cls, value: Any) -> int:
-        if (event_id := js_whole_number(value)) is None:
-            raise ValueError(f"Not an event id: {value!r}")
-        return event_id
 
     @field_validator("own_ranks", "own_points", mode="before")
     @classmethod

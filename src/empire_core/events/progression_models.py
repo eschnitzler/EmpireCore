@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Literal
 from pydantic import BeforeValidator, Field, field_serializer, field_validator, model_validator
 
 from empire_core.enums import Kingdom
+from empire_core.events.status_models import SentEventId
 from empire_core.gamedata import (
     AllianceInvasionCampId,
     DaimyoContractId,
@@ -248,7 +249,7 @@ class AllianceCampInfo(BasePayload):
     ``isDifficultyScalingActivated`` (bundle line 128192)
     """
 
-    event_id: EnumOrInt[Event] = Field(validation_alias="EID", description="The event the camp belongs to")
+    event_id: SentEventId = Field(validation_alias="EID", description="The event the camp belongs to")
     camp_id: Annotated[AllianceInvasionCampId | ScalingCampId, BeforeValidator(js_int)] = Field(
         validation_alias="ACID",
         description="The camp: a GameData.scaling_camps row when its event has a difficulty chosen, else a "
@@ -261,18 +262,22 @@ class AllianceCampInfoResponse(BaseResponse):
     """
     An alliance invasion camp changed, pushed to its alliance's members.
 
-    Client: ``AICCommand.executeCommand`` (bundle line 128188) reads the first entry and hands it to the running
-    event's ``parse_AIC``, which only ``AllianceNomadInvasionEventVO`` has (bundle line 114370)
+    Client: ``AICCommand.executeCommand`` (split.js line 646604) reads only the first entry of ``AC``, does
+    nothing for a falsy one, and hands it to the running event's ``parse_AIC``, which only
+    ``AllianceNomadInvasionEventVO`` has (bundle line 114370)
     """
 
     command: ClassVar[str] = "aic"
 
-    camps: tuple[AllianceCampInfo, ...] = Field(validation_alias="AC", default=(), description="The camps")
+    camp: AllianceCampInfo | None = Field(
+        validation_alias="AC", default=None, description="The camp that changed; None when the push names none"
+    )
 
-    @field_validator("camps", mode="before")
+    @field_validator("camp", mode="before")
     @classmethod
-    def _camps(cls, value: Any) -> Any:
-        return readable_list(AllianceCampInfo, value)
+    def _first(cls, value: Any) -> Any:
+        first = value[0] if isinstance(value, list) and value else None
+        return first if js_truthy(first) else None
 
 
 # Part-paid unlocks
