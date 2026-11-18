@@ -165,11 +165,15 @@ class AllianceState(StateBase):
     def _handle_aja(self, data: Any) -> None:
         """Apply your new membership, then the alliance you were put in.
 
-        Client: ``AJACommand.executeCommand`` (bundle lines 121532-121534): ``parse_GAL(gal)``, then
-        ``parseAllianceInfo(A)``
+        Client: ``AJACommand.executeCommand`` (split.js line 623480): ``parse_GAL(o.gal)``, then
+        ``parseAllianceInfo(o.A)``
         """
-        if read_section(AutoJoinedAllianceResponse, data, "an automatic alliance join") is not None:
-            self._handle_gbd({"gal": data["gal"], "ain": {"A": data["A"]}})
+        if (joined := read_section(AutoJoinedAllianceResponse, data, "an automatic alliance join")) is not None:
+            self._apply_login(
+                LoginDataResponse(
+                    alliance=joined.membership, alliance_info=GetAllianceInfoResponse(alliance=joined.alliance)
+                )
+            )
 
     def _forget_own_alliance(self) -> None:
         self._alliance_field_order = {}
@@ -215,9 +219,9 @@ class AllianceState(StateBase):
             return
         sections: dict[str, Any] = {}
         if change.membership is not None:
-            sections["gal"] = data["gal"]
+            sections["gal"] = change.membership
         if change.alliance is not None:
-            sections["ain"] = {"A": data["A"]}
+            sections["ain"] = GetAllianceInfoResponse(alliance=change.alliance)
         if not sections:
             return
         with self._lock:
@@ -225,7 +229,7 @@ class AllianceState(StateBase):
                 expected = change.membership.alliance_id if change.membership is not None else -1
                 current = self.local_player.AID if self.local_player is not None else None
                 raise ReplyMismatchError(expected, current if current is not None else -1)
-            self._handle_gbd(sections)
+            self._apply_login(LoginDataResponse.model_validate(sections))
             if change.membership is not None and change.movements is not None:
                 self._apply_movement_list(change.movements, ())
 
@@ -334,8 +338,7 @@ class AllianceState(StateBase):
         self.membership_revision += 1
         self.alliance_chat = ()
         self.alliance_help = ()
-        if isinstance(data, dict) and "gal" in data:
-            self._handle_gbd({"gal": data["gal"]})
+        self._apply_login(LoginDataResponse.carried_by(data, ("gal",)))
         self._forget_own_alliance()
 
     def _parse_alliance_help(self, login: LoginDataResponse) -> bool:

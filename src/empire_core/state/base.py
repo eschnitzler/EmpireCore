@@ -84,6 +84,7 @@ from empire_core.protocol.base import read_or_none
 from empire_core.quests.models import DailyQuests, Quest, QuestBook
 from empire_core.rewards.models import ActivityChestInfo
 from empire_core.spy.models import MaxSpiesResponse, PlagueDoctorInfoResponse
+from empire_core.state.login_data import LoginDataResponse
 from empire_core.state.models import Castle, JoinedArea, Player
 from empire_core.utils.callbacks import BoundEvent, Registry
 
@@ -313,8 +314,8 @@ class StateBase:
             self._set_empty_session()
             self._movement_clock.notify()
 
-    def _handle_gbd(self, data: dict[str, Any]) -> set[str]:
-        """Apply login data, or one section in the same shape, and return the sections not applied;
+    def _apply_login(self, login: LoginDataResponse) -> set[str]:
+        """Apply login data, or the sections a push or reply carries, and return the sections not applied;
         :class:`GameState` implements it."""
         raise NotImplementedError
 

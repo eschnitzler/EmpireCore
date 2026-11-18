@@ -9,11 +9,13 @@ from typing import Any
 from empire_core.alliance.models.chat import AllianceChatLogResponse
 from empire_core.attack.models.send import CreateAttackResponse, DaimyoTauntResponse, TreasureHuntAttackResponse
 from empire_core.castle.models.castles import NameCastleInvitationResponse
+from empire_core.castle.models.storage import CarriedDecorationStorages
 from empire_core.enums import Kingdom
+from empire_core.events.minigame_models import SkipShadyLadyTargetResponse
 from empire_core.events.models import BerimondFactionJoinedResponse
 from empire_core.movements.models import SentMovementResponse, names_a_movement
 from empire_core.player.models.progress import LevelUpResponse
-from empire_core.protocol.js import js_truthy
+from empire_core.spy.models import SpyScreenInfoResponse
 from empire_core.state.account import ACCOUNT_SECTIONS, AccountState
 from empire_core.state.alliance import AllianceState
 from empire_core.state.area import AreaState
@@ -613,28 +615,29 @@ class GameState(
                 self._packet_times[cmd_id] = time.time()
                 if ok or cmd_id not in _MOVEMENT_REPLIES:
                     getattr(self, handler_name)(payload)
-            if ok and cmd_id in _DECORATION_STORAGE_REPLIES and isinstance(payload, dict) and "sin" in payload:
-                self._handle_sin(payload["sin"])
-            if ok and cmd_id in _NESTED_SECTIONS and isinstance(payload, dict):
-                if sections := {key: payload[key] for key in _NESTED_SECTIONS[cmd_id] if key in payload}:
-                    self._handle_gbd(sections)
+            if ok and cmd_id in _DECORATION_STORAGE_REPLIES:
+                carried = read_section(CarriedDecorationStorages, payload, "a reply's decoration storages")
+                if carried is not None:
+                    self._apply_decoration_storages(carried.storages)
+            if ok and cmd_id in _NESTED_SECTIONS:
+                self._apply_login(LoginDataResponse.carried_by(payload, _NESTED_SECTIONS[cmd_id]))
             self._advance_movements()
             self._expire_events()
 
     def _handle_gbd(self, data: dict[str, Any]) -> set[str]:
-        """Apply the login data, or the one section a push wraps in the same shape.
+        """Apply the login data, or the one section a push wraps in the same shape; see :meth:`_apply_login`."""
+        return self._apply_login(LoginDataResponse.model_validate(data))
 
-        Each section is read once, through :class:`LoginDataResponse`. Only ``kpi``'s ``fki`` is still
-        applied from its body.
+    def _apply_login(self, login: LoginDataResponse) -> set[str]:
+        """Apply login data: a gbd, a section pushed on its own, or the sections a reply carries.
 
-        Returns the sections present but not applied, which are not stamped.
+        Returns the sections not applied, which are not stamped.
 
         Client: ``GBDCommand.exec`` (split.js line 651188); the pushes are ``GPICommand``, ``GXPCommand``,
         ``GCUCommand``, ``VIPCommand``, ``GALCommand``, ``GCLCommand``, ``GHOCommand``, ``UAPCommand``,
         ``GPCCommand`` and ``GMSCommand`` (bundle line 120555); ``GBDCommand.exec`` applies ``gal``
         before ``ain`` and ``tei`` before ``sei``.
         """
-        login = LoginDataResponse.model_validate(data)
         self._apply_faction_protection(self._parse_player_sections(login))
         self._parse_special_currencies(login)
         previous_alliance_id = self.local_player.AID if self.local_player is not None else None
@@ -672,7 +675,7 @@ class GameState(
             self.movement_filter = login.movement_filter
         if login.castle_details is not None:
             self._apply_castle_details(login.castle_details)
-        elif "dcl" in login.sent_sections and js_truthy(data["dcl"]):
+        elif "dcl" in login.unread_sections:
             skipped.add("dcl")
         if "trigger_events" in login.model_fields_set:
             self._apply_trigger_events(login.trigger_events)
@@ -681,7 +684,7 @@ class GameState(
         if "kpi" not in skipped and login.berimond_kingdom_status is not None:
             # GBDCommand.exec parses the kpi after the sei (split.js line 651263), so its fki finds the event
             self._apply_berimond_status(login.berimond_kingdom_status)
-        self._stamp_sections(data, skipped)
+        self._stamp_sections(login.sent_sections, skipped)
         return skipped
 
     def _handle_attack_sent(self, data: Any) -> None:
@@ -735,17 +738,24 @@ class GameState(
         Client: ``GLUCommand.executeCommand`` (bundle line 129619)
         """
         if read_section(LevelUpResponse, data, "a level-up") is not None:
-            self._handle_gbd({key: data[key] for key in ("gcu", "gxp") if key in data})
+            self._apply_login(LoginDataResponse.carried_by(data, ("gcu", "gxp")))
 
     def _handle_mir(self, data: Any) -> None:
-        """Apply the castle list sent after taking a castle or outpost.
+        """Apply the castle lists sent after taking a castle or outpost.
 
-        Client: ``MIRCommand.executeCommand`` (bundle line 125107) / ``CastleUserData.parse_MIR`` (bundle
-        line 9884), which applies a truthy ``gcl``, ``gkl``, ``gml`` and ``gll``; see
-        :class:`NameCastleInvitationResponse`
+        Client: ``MIRCommand.executeCommand`` (split.js line 635776)
         """
-        if read_section(NameCastleInvitationResponse, data, "the castle lists of a taken castle") is not None:
-            self._handle_gbd({key: data[key] for key in ("gcl", "gkl", "gml", "gll") if js_truthy(data.get(key))})
+        lists = read_section(NameCastleInvitationResponse, data, "the castle lists of a taken castle")
+        if lists is not None:
+            self._apply_castle_lists(lists)
+
+    def _apply_castle_lists(self, lists: NameCastleInvitationResponse) -> None:
+        """Apply each castle list an ``mir`` sends, as its own section; a falsy one is not sent.
+
+        Client: ``CastleUserData.parse_MIR`` (split.js line 54024)
+        """
+        sent = {"gcl": lists.castles, "gkl": lists.royal_towers, "gml": lists.monuments, "gll": lists.laboratories}
+        self._apply_login(LoginDataResponse.model_validate({key: lst for key, lst in sent.items() if lst is not None}))
 
     def _handle_ikr(self, data: Any) -> None:
         """The Storm Islands reset: lock their kingdom, zero the cargo points, drop the movements there.
@@ -774,37 +784,38 @@ class GameState(
     def _handle_fjf(self, data: Any) -> None:
         """Apply a faction join reply's kingdoms (``kpi``), events (``sei``) and castle lists (``mir``), in that order.
 
-        Client: ``FJFCommand.executeCommand`` (bundle line 127820); see :class:`BerimondFactionJoinedResponse`
+        Client: ``FJFCommand.executeCommand`` (split.js line 645238); see :class:`BerimondFactionJoinedResponse`
         """
         joined = read_section(BerimondFactionJoinedResponse, data, "a faction join")
         if joined is None:
             return
         if joined.kingdoms is not None:
-            self._handle_gbd({"kpi": data["kpi"]})
-        self._apply_sei(data)
+            self._apply_login(LoginDataResponse.carried_by(data, ("kpi",)))
+        self._apply_login(LoginDataResponse.carried_by(data, ("sei",)))
         if joined.castle_lists is not None:
-            self._handle_mir(data["mir"])
+            self._apply_castle_lists(joined.castle_lists)
 
     def _handle_ssi(self, data: Any) -> None:
         """Apply the protection (``uap``) inside a spy screen's map read.
 
-        Client: ``CastleSpyData.parse_SSI`` (bundle line 140011) hands ``gaa.uap`` to ``CastleUserData.parse_UAP``
+        Client: ``SSICommand.executeCommand`` (split.js line 647890); ``CastleSpyData.parse_SSI`` (split.js
+        line 696915) hands ``gaa.uap`` to ``CastleUserData.parse_UAP``
         """
-        if isinstance(data, dict) and isinstance(area := data.get("gaa"), dict) and "uap" in area:
-            self._handle_gbd({"uap": area["uap"]})
+        screen = read_section(SpyScreenInfoResponse, data, "a spy screen")
+        if screen is not None and "protection" in screen.target_area.model_fields_set:
+            self._apply_login(LoginDataResponse(protection=screen.target_area.protection))
 
     def _handle_bst(self, data: Any) -> None:
         """Apply the reply to a Shady Lady target skip: its coins and rubies, then its ``sei``.
 
-        Client: ``BSTCommand.executeCommand`` (bundle line 127609)
+        Client: ``BSTCommand.executeCommand`` (split.js line 644688)
         """
-        if isinstance(data, dict):
-            if isinstance(gcu := data.get("gcu"), dict):
-                self._handle_gbd({"gcu": gcu})
-            self._apply_sei(data)
+        if (skipped := read_section(SkipShadyLadyTargetResponse, data, "a Shady Lady target skip")) is not None:
+            sections = ("gcu", "sei") if skipped.currency is not None else ("sei",)
+            self._apply_login(LoginDataResponse.carried_by(data, sections))
 
-    def _stamp_sections(self, data: dict[str, Any], skipped: AbstractSet[str] = frozenset()) -> None:
-        """Record when each section of a gbd payload, or a section push, was applied.
+    def _stamp_sections(self, sections: AbstractSet[str], skipped: AbstractSet[str] = frozenset()) -> None:
+        """Record when each section sent in a gbd, a section push or a reply was applied.
 
         A section present but null still counts as applied: "gal": None means
         "you are in no alliance", which is information, not absence of it.
@@ -814,7 +825,7 @@ class GameState(
         """
         now = time.time()
         for section in _TRACKED_SECTIONS:
-            if section in data and section not in skipped:
+            if section in sections and section not in skipped:
                 self._packet_times[section] = now
                 if section in _PLAYER_SECTIONS and self.local_player is not None:
                     self._player_updated_at = now
