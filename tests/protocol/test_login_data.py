@@ -35,6 +35,11 @@ class TestLoginData:
         assert login.sent_sections == {"gal", "gkl", "tmp", "skl"}
         assert caplog.text == ""
 
+    def test_the_error_code_is_no_section(self):
+        login = LoginDataResponse.model_validate({"E": 0, "gcu": {"C1": 1}})
+
+        assert login.sent_sections == {"gcu"}
+
     def test_the_live_login_reads_without_a_warning(self, caplog):
         with caplog.at_level(logging.WARNING):
             login = LoginDataResponse.model_validate(LIVE_LOGIN)
