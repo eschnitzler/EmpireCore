@@ -192,7 +192,7 @@ class AreaState(StateBase):
         (see :class:`ConstructionState`).
 
         Client: ``GTWARACommand.executeCommand`` (split.js line 643221) runs ``SwitchToWorldmapCommand``, which
-        destroys the mines (split.js line 519126, ``CastleMineData.destroy``, split.js line 258561)
+        destroys the mines (split.js line 519126, ``CastleMineData.destroy``, split.js line 258561).
         """
         self.mines = {}
         self._leave_castle()

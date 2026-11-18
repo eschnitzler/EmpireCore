@@ -308,3 +308,28 @@ def test_a_join_after_a_map_read_replaces_everything(state):
     assert state.get_session_location() is SessionLocation.ISO
     assert state.is_in_spectated_castle()
     assert castle_data(state) == ([77], 1, [6])
+
+
+def test_a_map_read_sent_without_waiting_moves_the_session(state):
+    from empire_core.map import GetMapAreaRequest
+
+    login(state, 1001)
+    state.update_from_packet("jaa", joined())
+
+    map_read_client(state, None).send(GetMapAreaRequest(x1=0, y1=0, x2=9, y2=9), wait=False)
+
+    assert state.get_session_location() is SessionLocation.WORLDMAP
+
+
+def test_a_join_while_a_map_read_waits_wins(state):
+    from tests.service_helpers import conn, xt_packet
+
+    login(state, 1001)
+    state.update_from_packet("jaa", joined())
+    client = map_read_client(state, xt_packet("gaa", {"KID": 0, "AI": [], "OI": []}))
+    conn(client).on_packet = lambda _reply: state.update_from_packet("jaa", joined(owner=2002))
+
+    client.map.scan_map_area(0, 0, 9, 9)
+
+    assert state.get_session_location() is SessionLocation.ISO
+    assert state.is_in_spectated_castle()
