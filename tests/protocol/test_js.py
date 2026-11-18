@@ -26,6 +26,7 @@ from empire_core.protocol.js import (
     js_parse_int_or_zero,
     js_round,
     js_truthy,
+    js_whole_number,
 )
 
 # (value, int(v), parseInt(v), !!v, 1 == v, 0 == v)
@@ -264,3 +265,12 @@ def test_js_number_reads_an_int_too_large_for_a_number_as_zero():
 def test_js_number_or_none_reads_an_int_too_large_for_a_number_as_none():
     assert js_number_or_none(10**400) is None
     assert js_number_or_none(-(10**400)) is None
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [(3, 3), (3.0, 3), (-2.0, -2), (3.5, None), ("3", None), (True, None), (None, None)]
+    + [(math.inf, None), (-math.inf, None), (math.nan, None), (10**400, 10**400)],
+)
+def test_js_whole_number(value, expected):
+    assert js_whole_number(value) == expected
