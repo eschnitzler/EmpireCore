@@ -395,9 +395,8 @@ class CarriedCastleBuildings(BasePayload):
     """
     The castle's buildings a push or reply carries under ``gca``.
 
-    Client: ``AreaDataUpdater.parseJAA``, ``parseGCA`` and ``parseEBE`` (split.js lines 658985, 658993, 659095),
-    handed the ``jaa`` and ``ebe`` replies and, by ``GCACommand.executeCommand`` (split.js line 628685), the
-    ``gca`` push
+    Client: ``AreaDataUpdater.parseGCA`` and ``parseEBE`` (split.js lines 658993, 659095), handed the ``ebe``
+    reply and, by ``GCACommand.executeCommand`` (split.js line 628685), the ``gca`` push
     """
 
     buildings: CastleBuildings | None = Field(

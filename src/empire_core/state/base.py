@@ -35,7 +35,7 @@ from empire_core.castle.models.landmarks import (
     RoyalTowerListResponse,
 )
 from empire_core.castle.models.mercenaries import MercenaryMissionsResponse
-from empire_core.castle.models.objects import BuildingConstructionItems, ConstructionList
+from empire_core.castle.models.objects import BuildingConstructionItems, CastleBuildings, ConstructionList
 from empire_core.castle.models.permanent import PermanentCastle
 from empire_core.castle.models.research import ResearchInfoResponse
 from empire_core.castle.models.storage import DecorationStorage, DecorationStorageKey
@@ -321,6 +321,10 @@ class StateBase:
     def _apply_login(self, login: LoginDataResponse) -> set[str]:
         """Apply login data, or the sections a push or reply carries, and return the sections not applied;
         :class:`GameState` implements it."""
+        raise NotImplementedError
+
+    def _replace_buildings(self, castle: CastleBuildings | None) -> None:
+        """Start the joined castle's objects over from a whole castle; :class:`BuildingsState` implements it."""
         raise NotImplementedError
 
     def _apply_area_booster(self, booster: AreaBooster) -> None:

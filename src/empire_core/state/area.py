@@ -39,8 +39,8 @@ _CART_COUNT = 3
 
 class AreaState(StateBase):
     def _handle_jaa(self, data: Any) -> None:
-        """Apply a join's reply: the joined area, its construction slots, and its mines and resource carts when it
-        sends them.
+        """Apply a join's reply: the joined area, its buildings and construction slots, and its mines and resource
+        carts when it sends them.
 
         A reply without ``gsm`` or ``rci`` leaves the mines or carts as they were, as the client does. It
         drops the resource citizen's goods (``CastleResourcePoolData.reset``), and the construction slots when its
@@ -58,6 +58,7 @@ class AreaState(StateBase):
         self._placed_construction_item_sequence = self._packet_sequence
         self.placed_construction_items = reply.buildings.construction_items if reply.buildings is not None else None
         self.construction_list = reply.buildings.construction_list if reply.buildings is not None else None
+        self._replace_buildings(reply.buildings)
         self.resource_pool = None
         kingdom = reply.kingdom
         castle_id = x = y = owner_id = occupier_id = None
