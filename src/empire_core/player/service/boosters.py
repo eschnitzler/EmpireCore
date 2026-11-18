@@ -107,7 +107,8 @@ class BoostersMixin(ServiceMixin):
         As the client offers it: while a feast runs only that one, extended; otherwise one your level is
         in range of (``FeastDef.offered_at``), paid from a castle outside Berimond. A ruby feast needs
         ``spend_rubies``; on a food feast ``spend_rubies`` pays the food the castle lacks with rubies, as the
-        client's resource dialog does after a refusal for missing food.
+        client's resource dialog does after a refusal for missing food. A food feast costs its
+        ``FeastDef.cost_food`` less ``client.castle.get_feast_cost_reduction()`` percent, as the dialogs show it.
 
         Args:
             feast: The feast, a ``Feast`` member

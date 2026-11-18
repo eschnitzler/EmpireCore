@@ -28,10 +28,18 @@ ITEMS = {
 }
 
 
-def client_with(script=None):
-    client = make_client(script)
+def skill_list(*activating: SceatSkill):
+    return xt_packet("skl", {"SID": [], "SIDS": [], "SSA": [{"ID": int(skill), "RS": 600} for skill in activating]})
+
+
+def client_with(script=None, activating=(BUILDINGS_SKILL, UNITS_SKILL)):
+    client = make_client({"skl": skill_list(*activating), **(script or {})})
     client.game_data = GameData.parse("790.02", ITEMS)
     return client
+
+
+def sent(client):
+    return [payload for payload in conn(client).request_payloads if payload[0] != "skl"]
 
 
 def test_the_requests_follow_the_client():
@@ -55,7 +63,14 @@ def test_a_refused_buy_raises():
 def test_the_skip_sends_the_skill_s_tab(skill, tab):
     client = client_with()
     client.player.skip_sceat_skill_activation(skill, spend_rubies=True)
-    assert conn(client).request_payloads == [("ssa", {"TID": tab})]
+    assert conn(client).request_payloads == [("skl", {}), ("ssa", {"TID": tab})]
+
+
+def test_a_skill_not_being_activated_is_not_skipped():
+    client = client_with(activating=(UNITS_SKILL,))
+    with pytest.raises(ValueError, match="not being activated"):
+        client.player.skip_sceat_skill_activation(BUILDINGS_SKILL, spend_rubies=True)
+    assert sent(client) == []
 
 
 def test_the_skip_needs_consent():

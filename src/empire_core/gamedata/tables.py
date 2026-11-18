@@ -2761,7 +2761,11 @@ class FeastDef(_Row):
     recruitment_speed_bonus: int = Field(
         validation_alias="productionBoost", default=0, description="Recruitment speed bonus in percent"
     )
-    cost_food: int = Field(validation_alias="costFood", default=0, description="Food it costs; 0 for a ruby feast")
+    cost_food: int = Field(
+        validation_alias="costFood",
+        default=0,
+        description="Food it costs before the feast cost reduction; 0 for a ruby feast",
+    )
     cost_rubies: int = Field(validation_alias="costC2", default=0, description="Rubies it costs; 0 for a food feast")
     feast_type: str = Field(validation_alias="type", default="", description="The kind its name is built from")
     sort_order: int = Field(validation_alias="sortOrder", default=-1, description="Its place in the feast list")
