@@ -381,12 +381,27 @@ class TestReviewedLeniency:
         from empire_core.protocol.models import CreateAttackResponse
 
         reply = CreateAttackResponse.model_validate(
-            {"AAM": {"M": {"MID": 9, "TA": [1, 2]}, "UM": {"L": {"ID": 3}}}, "gcu": {"C1": 10.5}}
+            {"AAM": {"M": {"MID": 9.5}, "UM": {"L": {"ID": 3}}}, "gcu": {"C1": 10.5}}
         )
         assert reply.attack_movement is None
         assert reply.movement_id == 9
         assert reply.leader is not None and reply.leader.commander_id == 3
         assert reply.currencies is not None and reply.currencies.coins == 10.5
+
+    def test_cra_keeps_its_movement_when_an_area_row_breaks(self):
+        from empire_core.protocol.models import CreateAttackResponse
+
+        reply = CreateAttackResponse.model_validate({"AAM": {"M": {"MID": 9, "TA": [1, 2]}, "UM": {"L": {"ID": 3}}}})
+        assert reply.attack_movement is not None and reply.attack_movement.movement.target_area is None
+        assert reply.movement_id == 9
+        assert reply.leader is not None and reply.leader.commander_id == 3
+
+    def test_cra_without_a_movement_id_names_no_movement(self, caplog):
+        from empire_core.protocol.models import CreateAttackResponse
+
+        reply = CreateAttackResponse.model_validate({"AAM": {"M": {"T": 0}}})
+        assert reply.attack_movement is None and reply.movement_id is None
+        assert caplog.records == []
 
     def test_equipment_effects_and_messages_the_client_still_reads(self):
         from empire_core.protocol.models import CommanderEffect, Equipment, SystemNotificationEvent

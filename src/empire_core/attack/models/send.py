@@ -26,6 +26,7 @@ from empire_core.movements.models import (
     MovementOwner,
     MovementWrapper,
     SentMovementResponse,
+    names_a_movement,
 )
 from empire_core.protocol.base import BaseRequest, BaseResponse, CurrencyBlock, read_or_none, readable_list
 from empire_core.protocol.js import js_truthy, movement_targets
@@ -328,7 +329,7 @@ class CreateAttackResponse(BaseResponse):
     @field_validator("attack_movement", mode="wrap")
     @classmethod
     def _movement_or_none(cls, value: object, handler: ValidatorFunctionWrapHandler) -> MovementWrapper | None:
-        if not value:
+        if not names_a_movement(value):
             return None
         return read_or_none(handler, value, warn=logger, what=f"the movement created by {cls.command}")
 

@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 from empire_core.enums import (
     AttackAdvisorType,
+    AttackType,
     AutoSkipCooldownType,
     Kingdom,
     KingdomTransferType,
@@ -158,6 +159,7 @@ __all__ = [
     "MovementFilter",
     "MovementType",
     "AttackAdvisorType",
+    "AttackType",
     "MovementsService",
     "AutoSkipCooldownType",
     "MapItemType",

@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from empire_core.enums import AutoSkipCooldownType, CollectableKind, Kingdom, MapItemType, SpyType
+from empire_core.enums import AutoSkipCooldownType, CollectableKind, Kingdom, MapItemType, MovementType, SpyType
 from empire_core.gamedata import Horse, Title, Tool, Unit
 from empire_core.protocol.base import Position, parse_response
 from empire_core.protocol.models import (
@@ -42,23 +42,63 @@ GOOD_MOVEMENT: dict[str, Any] = {
 
 
 class TestMalformedMovementBatch:
-    """A gam batch is all-or-nothing today; that is worth knowing about."""
+    """Each gam entry is read on its own, so one bad entry costs only itself."""
 
-    def test_one_entry_missing_a_required_field_discards_the_batch(self):
+    def test_an_entry_without_a_movement_id_is_skipped_quietly(self):
         broken = {**GOOD_MOVEMENT, "M": {key: value for key, value in GOOD_MOVEMENT["M"].items() if key != "MID"}}
-        with pytest.raises(ValidationError) as exc_info:
-            GetMovementsResponse.model_validate({"M": [GOOD_MOVEMENT, broken]})
-        # The error names the offending index and field, which is what makes a
-        # drift diagnosable from a log line.
-        assert "MID" in str(exc_info.value)
+        response = GetMovementsResponse.model_validate({"M": [GOOD_MOVEMENT, broken, {"M": {"MID": None}}, {}]})
+        assert [wrapper.movement.movement_id for wrapper in response.movements] == [1]
+        assert response.unreadable_movements == ()
 
-    def test_non_dict_entry_discards_the_batch(self):
-        with pytest.raises(ValidationError):
-            GetMovementsResponse.model_validate({"M": [GOOD_MOVEMENT, "junk"]})
+    def test_an_entry_that_is_no_object_is_skipped_quietly(self):
+        response = GetMovementsResponse.model_validate({"M": [GOOD_MOVEMENT, "junk", None, 5]})
+        assert len(response.movements) == 1 and response.unreadable_movements == ()
 
-    def test_movement_list_of_the_wrong_type_is_a_validation_error(self):
-        with pytest.raises(ValidationError):
-            GetMovementsResponse.model_validate({"M": "junk"})
+    def test_an_unreadable_entry_is_left_out_with_its_reason(self):
+        drifted = {**GOOD_MOVEMENT, "M": {**GOOD_MOVEMENT["M"], "MID": "not-an-int"}}
+        response = GetMovementsResponse.model_validate({"M": [drifted, GOOD_MOVEMENT]})
+        assert [wrapper.movement.movement_id for wrapper in response.movements] == [1]
+        [reason] = response.unreadable_movements
+        # The reason names the field that failed, which makes a drift diagnosable from a log line
+        assert "MID" in reason and "not-an-int" in reason
+
+    def test_a_movement_list_that_is_no_array_has_no_entries(self):
+        assert GetMovementsResponse.model_validate({"M": "junk"}).movements == []
+
+    def test_a_drifted_block_costs_only_itself(self):
+        wrapper = GetMovementsResponse.model_validate(
+            {"M": [{**GOOD_MOVEMENT, "AST": "junk", "UM": {"PWD": "x"}, "MM": [1]}]}
+        ).movements[0]
+        assert (wrapper.support_tools, wrapper.unit_info, wrapper.market) == ((), None, None)
+        assert wrapper.visible_army is not None and wrapper.visible_army.left == {1: 5}
+
+    @pytest.mark.parametrize("row", [["junk"], 0, [], [1, 2], "junk"])
+    def test_an_unreadable_area_row_reads_as_no_area(self, row):
+        wrapper = GetMovementsResponse.model_validate(
+            {"M": [{**GOOD_MOVEMENT, "M": {**GOOD_MOVEMENT["M"], "TA": row}}]}
+        )
+        record = wrapper.movements[0].movement
+        assert record.target_area is None and record.source_area is not None
+
+    def test_the_record_reads_numbers_as_the_client_does(self):
+        # BasicMapmovementVO.loadFromParamObject reads them with int(); parseMapMovement reads T with int()
+        record = (
+            GetMovementsResponse.model_validate(
+                {"M": [{"M": {"MID": 3, "T": "11", "PT": "4.7", "TT": None, "D": "1", "KID": "2", "OID": 9.9}}]}
+            )
+            .movements[0]
+            .movement
+        )
+        assert (record.movement_type, record.progress_time, record.total_time) == (MovementType.NPC_ATTACK, 4, 0)
+        assert (record.direction, record.kingdom_id, record.owner_id) == (1, Kingdom.ICE, 9)
+
+    def test_a_kingdom_the_library_lacks_reads_as_green(self):
+        record = GetMovementsResponse.model_validate({"M": [{"M": {"MID": 3, "KID": 99}}]}).movements[0].movement
+        assert record.kingdom_id is Kingdom.GREEN
+
+    def test_owner_records_without_an_id_are_skipped(self):
+        response = GetMovementsResponse.model_validate({"O": [{"OID": 5, "N": "a"}, {}, {"OID": 0}, "junk", None]})
+        assert [owner.player_id for owner in response.owners] == [5]
 
     def test_a_clean_batch_still_parses(self):
         response = GetMovementsResponse.model_validate({"M": [GOOD_MOVEMENT], "O": [{"OID": 17, "N": "me"}]})
