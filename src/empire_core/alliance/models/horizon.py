@@ -787,7 +787,7 @@ class JadePhase(EmpireModel):
     model_config = ConfigDict(frozen=True)
 
     phase: EnumOrInt[JadeScoringPhase] | None = Field(
-        default=None, description="The phase last pushed; None until a push named it"
+        default=None, description="The phase when the last push arrived; None until one named it"
     )
     phase_2_starts_at: float | None = Field(
         default=None, description="When phase 2 starts, in epoch seconds; None until a push named it"
