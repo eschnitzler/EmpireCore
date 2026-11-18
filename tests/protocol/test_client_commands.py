@@ -272,6 +272,50 @@ class TestUsage:
             "rlu": ["BasicSmartfoxClient.onExtensionResponse"],
         }
 
+    def test_a_parse_whose_result_is_dropped_is_not_a_read(self):
+        # MOTCommand and RCACommand (split.js lines 643636, 624977); VCommand keeps what it parses
+        bodies = {
+            "M": "switch(e){case a.ERROR.ALL_OK:JSON.parse(t[1]);break;default:this.showErrorDialog(e,t)}return!1",
+            "R": "switch(e){case a.ERROR.ALL_OK:JSON.parse(t[1])}return!1",
+            "V": "switch(e){case a.ERROR.ALL_OK:var i=JSON.parse(t[1]);r.parse(i)}return!1",
+            "T": "return e?null:JSON.parse(t[1]);",
+        }
+        source = "".join(
+            f'ClientConstSF.S2C_{name}="{name.lower()}";'
+            f"var x=function(e){{function {name}Command(){{}}return n.__extends({name}Command,e),"
+            f"{name}Command.prototype.executeCommand=function(e,t){{{body}}},{name}Command}}(l.CastleCommand);"
+            f"i.set(s.ClientConstSF.S2C_{name},new x.{name}Command);"
+            for name, body in bodies.items()
+        )
+
+        assert script.usage((source,))["handlers"] == {
+            "m": ["MCommand (ack)"],
+            "r": ["RCommand (ack)"],
+            "t": ["TCommand"],
+            "v": ["VCommand"],
+        }
+
+    def test_a_section_reader_handles_the_sections_with_no_handler_of_their_own(self):
+        # GBDCommand.exec reads n.drt and n.gac from its parsed payload (split.js line 651188)
+        source = (
+            'ClientConstSF.S2C_GBD="gbd",ClientConstSF.S2C_GCU="gcu",ClientConstSF.S2C_DRT="drt",'
+            'ClientConstSF.S2C_GAC="gac",ClientConstSF.C2S_ONLY="nsm";'
+            "var x=function(e){function GBDCommand(){}return n.__extends(GBDCommand,e),"
+            "GBDCommand.prototype.exec=function(e){var t=_.int(e[0]),i=e[1];var n,p=i[1];"
+            "try{n=JSON.parse(p)}catch(e){return}T.parseGCU(n.gcu),T.parse_DRT(n.drt),T.parse_UAP(n.gac),"
+            "T.ab=!n.nsm,n.pgl&&T.parse_PGL(n.pgl.G)},GBDCommand}(l.CastleCommand);"
+            "var y=function(e){function GCUCommand(){}return n.__extends(GCUCommand,e),"
+            "GCUCommand.prototype.executeCommand=function(e,t){return r.read(t),!0},GCUCommand}(l.CastleCommand);"
+            "i.set(s.ClientConstSF.S2C_GBD,new x.GBDCommand),i.set(s.ClientConstSF.S2C_GCU,new y.GCUCommand);"
+        )
+
+        assert script.usage((source,))["handlers"] == {
+            "drt": ["GBDCommand (section)"],
+            "gac": ["GBDCommand (section)"],
+            "gbd": ["GBDCommand"],
+            "gcu": ["GCUCommand"],
+        }
+
     def test_an_unresolvable_constant_raises(self):
         with pytest.raises(ValueError, match="C2S_NONE"):
             script.usage(("x.sendMessage(a.ClientConstSF.C2S_NONE,[]);",))

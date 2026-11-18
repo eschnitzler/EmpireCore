@@ -25,7 +25,12 @@
       "note": "OfficerTraining, whose E is the program's bonus, not an error code"
     },
     "seq": {"sections": ["gli", "gcu", "esl"], "note": "its gli, gcu and esl sections, as SEQCommand reads them"},
-    "bds": {"sections": ["gcu", "boi"], "note": "its gcu and boi sections, as BDSCommand reads them"}
+    "bds": {"sections": ["gcu", "boi"], "note": "its gcu and boi sections, as BDSCommand reads them"},
+    "gac": {
+      "model": "empire_core.state.login_data.LoginDataResponse",
+      "field": "second_protection",
+      "note": "LoginDataResponse.second_protection, read as GBDCommand reads its gac section (parse_UAP)"
+    }
   },
   "owners": {
     "534": ["bfs", "bss", "ssa"]

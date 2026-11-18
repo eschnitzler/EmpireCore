@@ -104,6 +104,11 @@ _CLASS = re.compile(r"\.__extends\(([\w$]+),")
 _PARENT = r"\b{}\}}\((?:[\w$]+(?:\([^()]*\))?\.)*([\w$]+)\)"
 _METHOD = re.compile(r"([\w$]+)\.prototype\.(executeCommand|exec)=function\(([\w$,]*)\)\{")
 _ERROR_DIALOG = r"\.showErrorDialog\([\w$]+,{}\)"
+# MOTCommand: case a.ERROR.ALL_OK:JSON.parse(t[1]);break; parses the payload as a statement and drops it
+_DISCARDED_PARSE = r"((?:case [\w$.]+|default):|[;{{}}])JSON\.parse\({}(?:\[\d+\])?\)(?=[;}}])"
+# Handlers that read other commands' payloads as sections of their own: GBDCommand.exec's n.drt, n.gac
+_SECTION_READERS = {"GBDCommand": "exec"}
+_PARSED = re.compile(r"([\w$]+)=JSON\.parse\(")
 # The snapshot's tables: the constants on each side, then what the client sends and handles
 _TABLES = ("client", "server", "requests", "handlers")
 _BUNDLE_NAME = re.compile(r"Game\.bundle\.([0-9a-f]+)\.js")
@@ -187,9 +192,10 @@ def _classes(source: str) -> dict[str, _ClientClass]:
 
 
 def _payload_used(body: str, names: set[str]) -> bool:
-    """Whether ``body`` uses any of ``names`` other than to show the server's error dialog."""
+    """Whether ``body`` uses any of ``names`` other than to show the server's error dialog or in a discarded parse."""
     for name in names:
         body = re.sub(_ERROR_DIALOG.format(re.escape(name)), "", body)
+        body = re.sub(_DISCARDED_PARSE.format(re.escape(name)), r"\1", body)
     return any(re.search(rf"(?<![\w$.]){re.escape(name)}(?![\w$])", body) for name in names)
 
 
@@ -241,7 +247,9 @@ def usage(sources: Sequence[str]) -> dict[str, dict[str, list[str]]]:
     ``sendMessage``/``sendServerMessageAndWait`` (``"Holder.NAME (sent)"``). A handler is a class
     the client registers under a constant with ``commandDict.set``, marked `` (ack)`` when it
     never reads the reply's payload, and the messages ``BasicSmartfoxClient`` handles itself
-    (``handleSystemMessage``, ``onExtensionResponse``). Registrations key the
+    (``handleSystemMessage``, ``onExtensionResponse``). A server command with no handler of its
+    own that a :data:`_SECTION_READERS` handler reads as a key of its parsed payload is handled
+    there, as ``"GBDCommand (section)"``. Registrations key the
     handler, not its ``cmdId`` getter: ``GPFCommand`` is registered under ``gpf`` but returns ``gdi``.
     A handler class is read from the file that registers it, since the bundle and dll share some
     names (``GPICommand``, ``SMSCommand``) for different classes.
@@ -298,6 +306,16 @@ def usage(sources: Sequence[str]) -> dict[str, dict[str, list[str]]]:
         }
         for command, names in handlers.items()
     }
+    server_commands = {value for (_, constant), value in values.items() if constant.startswith("S2C_")}
+    for found in classes:
+        for reader, method in _SECTION_READERS.items():
+            if method not in found.get(reader, _ClientClass()).methods:
+                continue
+            body = found[reader].methods[method][1]
+            for parsed in _PARSED.findall(body):
+                for section in re.findall(rf"(?<![\w$.]){re.escape(parsed)}\.([\w$]+)", body):
+                    if section in server_commands and section not in handlers:
+                        marked.setdefault(section, set()).add(f"{reader} (section)")
     return {
         "requests": {command: sorted(names) for command, names in sorted(requests.items())},
         "handlers": {command: sorted(names) for command, names in sorted(marked.items())},
