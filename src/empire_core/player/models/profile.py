@@ -16,7 +16,7 @@ from pydantic import Field, field_validator, model_validator
 from empire_core.enums import AllianceRank
 from empire_core.gamedata import EnumOrInt
 from empire_core.map.models.areas import AllianceEmblem
-from empire_core.map.models.owners import OwnerCastlePosition, OwnerCrest, OwnerFaction, owner_positions
+from empire_core.map.models.owners import OwnerCrest, OwnerFaction, OwnerPositions
 from empire_core.protocol.base import BasePayload, enum_or_none, object_or_none
 from empire_core.protocol.js import ParseInt, js_loose_equals, js_parse_int, js_parse_int_or_zero, js_truthy
 
@@ -69,11 +69,11 @@ class PlayerProfileBase(BasePayload):
     revenge_protection_seconds: ParseInt = Field(
         validation_alias="RPT", default=0, description="Seconds of peace protection left"
     )
-    castle_positions: list[OwnerCastlePosition] = Field(
-        validation_alias="AP", default_factory=list, description="Castles"
+    castle_positions: OwnerPositions = Field(
+        validation_alias="AP", default_factory=OwnerPositions, description="Castles"
     )
-    village_positions: list[OwnerCastlePosition] = Field(
-        validation_alias="VP", default_factory=list, description="Villages"
+    village_positions: OwnerPositions = Field(
+        validation_alias="VP", default_factory=OwnerPositions, description="Villages"
     )
     has_premium_flag: bool = Field(validation_alias="PF", default=False, description="The player has the premium flag")
     has_vip_flag: bool = Field(validation_alias="VF", default=False, description="The player has the VIP flag")
@@ -168,11 +168,6 @@ class PlayerProfileBase(BasePayload):
         # Client: getTitleByTitleID looks the id up as sent and finds none for -1 (bundle line 10794)
         number = js_parse_int(value)
         return number if number is not None and number >= 0 else None
-
-    @field_validator("castle_positions", "village_positions", mode="before")
-    @classmethod
-    def _position_rows(cls, value: Any) -> Any:
-        return owner_positions(value)
 
     @model_validator(mode="after")
     def _alliance_crest_only_in_an_alliance(self) -> PlayerProfileBase:

@@ -147,10 +147,60 @@ class TestGoldenMapArea:
 
     def test_positions_given_by_field_name_are_kept(self):
         from empire_core.map.models.areas import MapObject
+        from empire_core.map.models.owners import OwnerCastlePosition, OwnerPositions
+
+        position = OwnerCastlePosition(kingdom_id=0, area_id=1, x=2, y=3, area_type=1)
+        assert MapObject(owner_id=5, castle_positions=OwnerPositions([position])).castle_positions == [position]
+
+    def test_positions_read_as_a_sequence_of_named_positions(self):
+        from empire_core.map.models.owners import OwnerCastlePosition, OwnerPositions
+
+        rows = [[0, 1, 2, 3, 1], [2, 9, 8, 7], [10, 4, 5, 6, 12]]
+        positions = GetMapAreaResponse.model_validate({"OI": [{"OID": 5, "AP": rows}]}).owners[0].castle_positions
+        assert isinstance(positions, OwnerPositions)
+        assert len(positions) == 3
+        assert positions[1] == OwnerCastlePosition(2, 9, 8, 7, None)
+        assert positions[-1].area_type == 12
+        assert positions[1:] == [(2, 9, 8, 7, None), (10, 4, 5, 6, 12)]
+        assert [position.x for position in positions] == [2, 8, 5]
+        assert positions == OwnerPositions.from_rows(rows)
+        assert positions != [(0, 1, 2, 3, 1)]
+        with pytest.raises(IndexError):
+            positions[3]
+
+    def test_positions_keep_no_object_per_position_for_the_garbage_collector(self):
+        import gc
+
+        from empire_core.map.models.owners import OwnerPositions
+
+        positions = OwnerPositions.from_rows([[0, n, n, n, 1] for n in range(1000)])
+        gc.collect()
+        assert not gc.is_tracked(positions._packed)
+        assert [ref for ref in gc.get_referents(positions) if not isinstance(ref, type)] == [positions._packed]
+
+    def test_positions_dump_as_rows_that_read_back(self):
+        from empire_core.map.models.areas import MapObject
+
+        owner = MapObject.model_validate({"OID": 5, "AP": [[0, 1, 2, 3, 1], [2, 9, 8, 7]]})
+        dumped = owner.model_dump(by_alias=True)
+        assert dumped["AP"] == [[0, 1, 2, 3, 1], [2, 9, 8, 7, None]]
+        assert MapObject.model_validate(dumped).castle_positions == owner.castle_positions
+        assert MapObject.model_validate_json(owner.model_dump_json(by_alias=True)) == owner
+
+    def test_positions_given_as_a_tuple_by_field_name_are_kept(self):
+        from empire_core.map.models.areas import MapObject
         from empire_core.map.models.owners import OwnerCastlePosition
 
         position = OwnerCastlePosition(kingdom_id=0, area_id=1, x=2, y=3, area_type=1)
-        assert MapObject(owner_id=5, castle_positions=[position]).castle_positions == [position]
+        assert MapObject(owner_id=5, village_positions=(position,)).village_positions == [position]  # type: ignore[arg-type]
+
+    def test_owner_records_have_a_json_schema(self):
+        from empire_core.map.models.areas import MapObject
+        from empire_core.movements.models.movement import MovementOwner
+        from empire_core.player.models.profile import PlayerProfileBase
+
+        for model in (MapObject, PlayerProfileBase, MovementOwner):
+            assert model.model_json_schema()["properties"]["AP"]["type"] == "array"
 
     def test_short_rows_are_read_as_the_client_reads_them(self):
         response = GetMapAreaResponse.model_validate({"KID": 0, "AI": [[31, 2, 3], [43, 4, 5], CASTLE_ROW]})
@@ -408,7 +458,7 @@ class TestRelocatingCastles:
     def test_the_row_layout_is_kept_without_the_raw_row(self):
         moving = MapAreaItem.from_list([1, 5, 6, 4242])
         rebuilt = MapAreaItem.model_validate(moving.model_dump(exclude={"raw_data"}))
-        assert (rebuilt.raw_data, rebuilt.is_plot_row, rebuilt.is_relocating) == ([], True, True)
+        assert (rebuilt.raw_data, rebuilt.is_plot_row, rebuilt.is_relocating) == (None, True, True)
         built = MapAreaItem(item_type=MapItemType.CASTLE, occupier_id=4242)
         assert (built.is_plot_row, built.is_relocating) == (False, False)
 

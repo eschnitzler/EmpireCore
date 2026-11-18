@@ -153,6 +153,7 @@ class MapService(BaseService):
                 item_types or [],
                 request_timeout=timeout,
                 include_unowned_types=set(item_types or MapItemType),
+                keep_raw_data=True,
             )
         nearby = sorted(
             (item for item in scan.items if item.distance_to(x, y) <= radius), key=lambda item: item.distance_to(x, y)
@@ -169,6 +170,7 @@ class MapService(BaseService):
         include_unowned_types: set[MapItemType] | None = None,
         cancel: threading.Event | None = None,
         on_chunk: ChunkHandler | None = None,
+        keep_raw_data: bool = False,
         timeout: float = 300.0,
     ) -> ScanResult:
         """Scan a kingdom map. See MapScanner.scan_kingdom; the session leaves its castle."""
@@ -180,6 +182,7 @@ class MapService(BaseService):
             include_unowned_types=include_unowned_types,
             cancel=cancel,
             on_chunk=on_chunk,
+            keep_raw_data=keep_raw_data,
             timeout=timeout,
         )
 
@@ -194,6 +197,7 @@ class MapService(BaseService):
         include_unowned_types: set[MapItemType] | None = None,
         cancel: threading.Event | None = None,
         on_chunk: ChunkHandler | None = None,
+        keep_raw_data: bool = False,
         timeout: float = 300.0,
     ) -> ScanResult:
         """Scan an explicit chunk list (no BFS). See MapScanner.scan_chunks; the session leaves its castle."""
@@ -206,6 +210,7 @@ class MapService(BaseService):
             include_unowned_types=include_unowned_types,
             cancel=cancel,
             on_chunk=on_chunk,
+            keep_raw_data=keep_raw_data,
             timeout=timeout,
         )
 

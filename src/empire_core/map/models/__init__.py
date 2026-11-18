@@ -23,7 +23,7 @@ from .items import (
     MapAreaItem,
     parse_area_rows,
 )
-from .owners import AllianceCrest, AllianceEmblem, OwnerCastlePosition, OwnerCrest, OwnerFaction
+from .owners import AllianceCrest, AllianceEmblem, OwnerCastlePosition, OwnerCrest, OwnerFaction, OwnerPositions
 from .ruins import RememberRuinRequest, RuinInfoRequest, RuinInfoResponse
 from .treasure_maps import (
     NO_TREASURE_MAP,
@@ -71,6 +71,7 @@ __all__ = [
     "OwnerCastlePosition",
     "OwnerCrest",
     "OwnerFaction",
+    "OwnerPositions",
     "MapSize",
     "RememberRuinRequest",
     "RuinInfoRequest",

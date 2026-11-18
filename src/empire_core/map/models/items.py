@@ -602,7 +602,9 @@ class MapAreaItem(BasePayload):
     horizon_connections: tuple[HorizonTowerConnection, ...] | None = Field(
         default=None, description="The alliance tower's connections to the castles around it"
     )
-    raw_data: list[Any] = Field(default_factory=list, description="The whole row as sent")
+    raw_data: list[Any] | None = Field(
+        default=None, description="The whole row as sent; None when the scan that read it did not keep it"
+    )
 
     @classmethod
     def from_list(cls, data: Any, kingdom: Kingdom = Kingdom.GREEN) -> MapAreaItem:
@@ -617,12 +619,12 @@ class MapAreaItem(BasePayload):
         return cls(**cls.row_values(data, kingdom))
 
     @staticmethod
-    def row_values(data: Any, kingdom: Kingdom = Kingdom.GREEN) -> dict[str, Any]:
+    def row_values(data: Any, kingdom: Kingdom = Kingdom.GREEN, *, keep_raw_data: bool = True) -> dict[str, Any]:
         """
         The values :meth:`from_list` builds a map row from, by field name, before they are validated.
 
         A caller that drops most rows can look at a row's values first and
-        build only the rows it keeps.
+        build only the rows it keeps; one that never reads ``raw_data`` can leave it out.
 
         Raises:
             ValueError: The row is not a list, is empty, or has an area type
@@ -647,7 +649,7 @@ class MapAreaItem(BasePayload):
             "x": row.as_int(1),
             "y": row.as_int(2),
             "kingdom": kingdom if named is None else named,
-            "raw_data": data,
+            "raw_data": data if keep_raw_data else None,
             **fields,
         }
 

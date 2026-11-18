@@ -50,9 +50,10 @@ def _wire_integer(value: object) -> int | None:
 
 def _row_coordinates(area: MapAreaItem) -> tuple[int, int] | None:
     # Client: DungeonMapobjectVO.parseAreaInfo (22064) reads coordinates from e[1] and e[2].
-    if len(area.raw_data) < 3:
+    row = area.raw_data or []
+    if len(row) < 3:
         return None
-    x, y = (_wire_integer(area.raw_data[index]) for index in (1, 2))
+    x, y = (_wire_integer(row[index]) for index in (1, 2))
     return None if x is None or y is None else (x, y)
 
 
@@ -66,9 +67,10 @@ def _row_kingdom(area: MapAreaItem, fallback: Kingdom) -> int | None:
     }.get(area.item_type)
     if index is None:
         return int(fallback)
-    if len(area.raw_data) <= index:
+    row = area.raw_data or []
+    if len(row) <= index:
         return None
-    return _wire_integer(area.raw_data[index])
+    return _wire_integer(row[index])
 
 
 def _matches_target(payload: object, x: int, y: int, kingdom: Kingdom) -> bool:

@@ -5,10 +5,12 @@ A player's crest, Berimond standing, castle positions and alliance crest.
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Iterator, Sequence
 from contextlib import suppress
-from typing import TYPE_CHECKING, Annotated, Any, NamedTuple
+from typing import TYPE_CHECKING, Annotated, Any, NamedTuple, overload
 
-from pydantic import BeforeValidator, Field, TypeAdapter, ValidationError, field_validator
+from pydantic import BeforeValidator, Field, GetCoreSchemaHandler, TypeAdapter, ValidationError, field_validator
+from pydantic_core import core_schema
 
 from empire_core.enums import CoatOfArmsBackground, SymbolLayout
 from empire_core.gamedata import CoatOfArmsSymbolId, EnumOrInt
@@ -106,7 +108,6 @@ class OwnerFaction(BasePayload):
 class OwnerCastlePosition(NamedTuple):
     """One of an owner's castles or villages: an entry of ``AP`` or ``VP``, ``[kingdom_id, area_id, x, y, area_type]``.
 
-    A plain named tuple rather than a model: a kingdom scan keeps tens of thousands.
     ``kingdom_id`` and ``area_id`` are read through the client's ``int()``; ``area_type``
     is None when the entry has none.
 
@@ -121,36 +122,98 @@ class OwnerCastlePosition(NamedTuple):
 
 
 _POSITION = TypeAdapter(OwnerCastlePosition)
+_STRIDE = len(OwnerCastlePosition._fields)
 
 
-def owner_positions(value: Any) -> list[OwnerCastlePosition]:
+class OwnerPositions(Sequence[OwnerCastlePosition]):
     """
-    An owner record's ``AP`` or ``VP`` rows, as ``WorldMapOwnerInfoVO.parsePosList`` (bundle line 10795) reads them.
+    An owner record's castles or villages, its ``AP`` or ``VP``: a read-only sequence of :class:`OwnerCastlePosition`.
 
-    Only the first five entries of a row are read. A row the server wraps in one
-    extra list (seen on AP in Berimond) is unwrapped, which the client does not do;
-    a row that still cannot be read (fewer than four entries, or a position that is
-    not a number) is skipped instead of failing the record.
+    The positions are packed into one tuple of ints and each is built as it is read: a
+    kingdom scan reads tens of thousands, and one packed tuple of ints is an object the
+    garbage collector stops tracking, where a named tuple per position is one it tracks
+    each. It compares equal to a list or tuple of the same positions and serializes as rows.
 
-    A row of plain ints, the shape live replies carry, is taken as it is; only
-    another row goes through pydantic, one call per row.
+    Client: ``WorldMapOwnerInfoVO.parsePosList`` (split.js line 58463), one
+    ``MinWorldMapCastleInfoVO`` per row (split.js line 67077)
     """
-    if not isinstance(value, list):
-        return []
-    positions: list[OwnerCastlePosition] = []
-    for entry in value:
-        if isinstance(entry, (list, tuple)) and len(entry) == 1 and isinstance(entry[0], (list, tuple)):
-            entry = entry[0]
-        if isinstance(entry, OwnerCastlePosition):
-            positions.append(entry)
-        elif isinstance(entry, (list, tuple)) and len(entry) >= 4:
-            fields = entry[:5]
-            if set(map(type, fields)) == {int}:
-                positions.append(OwnerCastlePosition(*fields))
+
+    __slots__ = ("_packed",)
+
+    def __init__(self, positions: Iterable[OwnerCastlePosition] = ()) -> None:
+        self._packed: tuple[int | None, ...] = tuple(value for position in positions for value in position)
+
+    @classmethod
+    def from_rows(cls, value: Any) -> OwnerPositions:
+        """
+        Read ``AP`` or ``VP`` rows, as ``WorldMapOwnerInfoVO.parsePosList`` (split.js line 58463) does.
+
+        Only the first five entries of a row are read. A row the server wraps in one
+        extra list (seen on AP in Berimond) is unwrapped, which the client does not do;
+        a row that still cannot be read (fewer than four entries, or a position that is
+        not a number) is skipped instead of failing the record.
+
+        A row of plain ints, the shape live replies carry, is packed as it is; only
+        another row goes through pydantic, one call per row.
+        """
+        if isinstance(value, OwnerPositions):
+            return value
+        positions = cls()
+        if not isinstance(value, (list, tuple)):
+            return positions
+        packed: list[int | None] = []
+        for entry in value:
+            if isinstance(entry, (list, tuple)) and len(entry) == 1 and isinstance(entry[0], (list, tuple)):
+                entry = entry[0]
+            if not isinstance(entry, (list, tuple)) or len(entry) < 4:
+                continue
+            fields = entry[:_STRIDE]
+            if isinstance(entry, OwnerCastlePosition) or set(map(type, fields)) == {int}:
+                packed.extend(fields)
+                packed.extend([None] * (_STRIDE - len(fields)))
             else:
                 with suppress(ValidationError):
-                    positions.append(_POSITION.validate_python(fields))
-    return positions
+                    packed.extend(_POSITION.validate_python(fields))
+        positions._packed = tuple(packed)
+        return positions
+
+    def __len__(self) -> int:
+        return len(self._packed) // _STRIDE
+
+    @overload
+    def __getitem__(self, index: int) -> OwnerCastlePosition: ...
+    @overload
+    def __getitem__(self, index: slice) -> list[OwnerCastlePosition]: ...
+    def __getitem__(self, index: int | slice) -> OwnerCastlePosition | list[OwnerCastlePosition]:
+        if isinstance(index, slice):
+            return [self[i] for i in range(*index.indices(len(self)))]
+        start = range(len(self))[index] * _STRIDE
+        return OwnerCastlePosition._make(self._packed[start : start + _STRIDE])
+
+    def __iter__(self) -> Iterator[OwnerCastlePosition]:
+        packed = self._packed
+        for start in range(0, len(packed), _STRIDE):
+            yield OwnerCastlePosition._make(packed[start : start + _STRIDE])
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, OwnerPositions):
+            return self._packed == other._packed
+        if isinstance(other, (list, tuple)):
+            return list(self) == list(other)
+        return NotImplemented
+
+    def __repr__(self) -> str:
+        return f"OwnerPositions({list(self)!r})"
+
+    @classmethod
+    def __get_pydantic_core_schema__(cls, source: Any, handler: GetCoreSchemaHandler) -> core_schema.CoreSchema:
+        return core_schema.no_info_plain_validator_function(
+            cls.from_rows,
+            json_schema_input_schema=handler.generate_schema(list[OwnerCastlePosition]),
+            serialization=core_schema.plain_serializer_function_ser_schema(
+                lambda positions: [list(position) for position in positions]
+            ),
+        )
 
 
 class AllianceCrest(BasePayload):
@@ -210,5 +273,5 @@ __all__ = [
     "OwnerCastlePosition",
     "OwnerCrest",
     "OwnerFaction",
-    "owner_positions",
+    "OwnerPositions",
 ]
