@@ -9,7 +9,8 @@
       "core_spl", "core_tci", "ctc", "ctr", "fcs", "fte", "fwd", "gfl", "ggc", "kss", "lcb", "lgs", "lpl",
       "mns", "nse", "opt", "oqa", "rsv", "rus", "sgi", "smd", "spo", "ssp", "sur", "usg", "vsh"
     ],
-    "a login variant the library does not use; it logs in with lli": ["lgn"]
+    "a login variant the library does not use; it logs in with lli": ["lgn"],
+    "registration and account saving; out of scope for the library": ["gbd", "vpm"]
   },
   "covered_without_model": {
     "apiOK": {"raw": "server", "note": "SmartFox system message, read by the connection"},
@@ -34,8 +35,6 @@
       "note": "LoginDataResponse.second_protection, read as GBDCommand reads its gac section (parse_UAP)"
     }
   },
-  "owners": {
-    "532": ["gbd", "vpm"]
-  },
+  "owners": {},
   "unowned": {}
 }
