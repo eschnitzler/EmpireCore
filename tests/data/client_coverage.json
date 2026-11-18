@@ -6,8 +6,8 @@
     ],
     "UI, analytics, tutorial and social": [
       "FTF", "atl", "ato", "brp", "cif", "cmt", "core_afk", "core_gic", "core_gpi", "core_sic", "core_spe",
-      "core_spl", "core_tci", "ctc", "ctr", "fcs", "fte", "fwd", "gfl", "ggc", "kss", "lgs", "lpl", "mns",
-      "nse", "opt", "oqa", "rsv", "rus", "sgi", "smd", "spo", "ssp", "sur", "usg", "vsh"
+      "core_spl", "core_tci", "ctc", "ctr", "fcs", "fte", "fwd", "gfl", "ggc", "kss", "lcb", "lgs", "lpl",
+      "mns", "nse", "opt", "oqa", "rsv", "rus", "sgi", "smd", "spo", "ssp", "sur", "usg", "vsh"
     ],
     "a login variant the library does not use; it logs in with lli": ["lgn"]
   },
@@ -37,7 +37,5 @@
   "owners": {
     "532": ["gbd", "vpm"]
   },
-  "unowned": {
-    "lcb": "welcome-back popup C2"
-  }
+  "unowned": {}
 }
