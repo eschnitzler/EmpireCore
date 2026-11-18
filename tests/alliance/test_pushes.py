@@ -3,7 +3,7 @@
 import threading
 
 from empire_core.alliance.models.info import AllianceBuilding, AllianceInfo, GetAllianceInfoResponse
-from empire_core.alliance.models.membership import AllianceMembership, AllianceMembershipChange
+from empire_core.alliance.models.membership import AllianceMembershipChange, AllianceMembershipResponse
 from empire_core.map.models.items import MapAreaItem
 from empire_core.state.manager import GameState
 from empire_core.state.models import Player
@@ -223,7 +223,7 @@ def test_a_settings_reply_sets_every_forge_field_when_mf_and_if_are_sent():
 
 def test_the_reply_models_build_by_name():
     alliance = AllianceInfo.model_validate({"AID": 301})
-    membership = AllianceMembership.model_validate({"AID": 301, "R": 0})
+    membership = AllianceMembershipResponse.model_validate({"AID": 301, "R": 0})
     change = AllianceMembershipChange(membership=membership, alliance=alliance)
     assert change.membership is membership and change.alliance is alliance
     assert GetAllianceInfoResponse(alliance=alliance).alliance is alliance

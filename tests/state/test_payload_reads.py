@@ -1,16 +1,12 @@
-"""State reads pushes through their models: no ``.get(`` on a payload is left in ``state/``."""
+"""State reads pushes through their models: no ``.get(`` or ``[...]`` on a payload is left in ``state/``."""
 
 import ast
 from pathlib import Path
+from typing import NamedTuple
 
 import empire_core.state
 
 STATE = Path(empire_core.state.__file__).parent
-
-# Still read from the payload, each being converted to its models (#519)
-NOT_YET_TYPED = {
-    "manager.py",
-}
 
 # Models, whose validators are where the wire is read
 MODELS = {"login_data.py"}
@@ -19,6 +15,12 @@ _PAYLOAD_TYPES = {"Any", "dict", "dict[str, Any]"}
 
 # A copy of a payload is still the payload
 _COPIES = {"dict", "list", "tuple"}
+
+
+class PayloadRead(NamedTuple):
+    line: int
+    function: str
+    key: str | None
 
 
 def _roots(node: ast.expr) -> set[str]:
@@ -61,49 +63,52 @@ def _bindings(function: ast.FunctionDef) -> list[tuple[ast.expr, ast.expr]]:
 
 
 def _payload_names(function: ast.FunctionDef) -> set[str]:
-    """A handler's untyped parameters, and the names bound from them in any number of steps."""
+    """A handler's untyped parameters, and every name bound from them."""
     names = {
         arg.arg
         for arg in (*function.args.args, *function.args.kwonlyargs)
         if arg.arg != "self" and (arg.annotation is None or ast.unparse(arg.annotation) in _PAYLOAD_TYPES)
     }
     bindings = _bindings(function)
-    while found := {name for target, value in bindings if _roots(value) & names for name in _names(target)} - names:
+    while True:
+        found = set().union(*(_names(target) for target, value in bindings if _roots(value) & names)) - names
+        if not found:
+            return names
         names |= found
-    return names
 
 
-def payload_gets(path: Path) -> list[int]:
-    """The lines of ``path`` that call ``.get(`` on a payload."""
-    lines = []
+def payload_reads(path: Path) -> list[PayloadRead]:
+    """Each ``.get(`` or subscript read on a payload in ``path``."""
+    reads = set()
     for function in ast.walk(ast.parse(path.read_text())):
         if not isinstance(function, ast.FunctionDef):
             continue
         names = _payload_names(function)
-        lines += [
-            node.lineno
-            for node in ast.walk(function)
-            if isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-            and node.func.attr == "get"
-            and _roots(node.func.value) & names
-        ]
-    return sorted(lines)
+        for node in ast.walk(function):
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "get":
+                read, key = bool(_roots(node.func.value) & names), node.args[0] if node.args else None
+            elif isinstance(node, ast.Subscript) and isinstance(node.ctx, ast.Load):
+                read, key = bool(_roots(node.value) & names), node.slice
+            else:
+                continue
+            if read:
+                name = key.value if isinstance(key, ast.Constant) and isinstance(key.value, str) else None
+                reads.add(PayloadRead(node.lineno, function.name, name))
+    return sorted(reads)
 
 
-def test_state_reads_no_payload_with_get():
+def payload_gets(path: Path) -> list[int]:
+    """The lines of ``path`` that read a payload."""
+    return sorted({read.line for read in payload_reads(path)})
+
+
+def test_state_reads_no_payload():
     found = {
         path.name: lines
         for path in sorted(STATE.glob("*.py"))
-        if path.name not in NOT_YET_TYPED | MODELS and (lines := payload_gets(path))
+        if path.name not in MODELS and (lines := payload_gets(path))
     }
     assert found == {}, "read these payloads through their response models"
-
-
-def test_every_file_not_yet_typed_still_reads_a_payload():
-    # A converted file leaves the list, so the guard covers it from then on
-    done = sorted(name for name in NOT_YET_TYPED if not payload_gets(STATE / name))
-    assert done == []
 
 
 def test_the_guard_finds_a_payload_read(tmp_path):
@@ -113,9 +118,11 @@ def test_the_guard_finds_a_payload_read(tmp_path):
         "    block = data['A']\n"
         "    self.cache.get(1)\n"
         "    data['C'].get('D')\n"
-        "    return block.get('B')\n"
+        "    self.seen[data] = block.get('B')\n"
+        "    return {key: data[key] for key in KEYS}\n"
     )
-    assert payload_gets(handler) == [4, 5]
+    assert payload_gets(handler) == [2, 4, 5, 6]
+    assert PayloadRead(2, "_handle_x", "A") in payload_reads(handler)
 
 
 def test_the_guard_follows_loops_comprehensions_and_copies(tmp_path):
@@ -133,4 +140,4 @@ def test_the_guard_follows_loops_comprehensions_and_copies(tmp_path):
         "    model.get('E')\n"
         "    cache.get('F')\n"
     )
-    assert payload_gets(handler) == [3, 4, 6, 8]
+    assert payload_gets(handler) == [2, 3, 4, 6, 8]

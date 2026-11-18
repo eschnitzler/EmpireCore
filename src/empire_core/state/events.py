@@ -189,12 +189,6 @@ class EventState(StateBase):
     def _apply_events(self, events: SpecialEventsResponse | None) -> None:
         self._apply_event_entries(events.entries if events is not None else ())
 
-    def _apply_sei(self, data: dict[str, Any]) -> None:
-        """Apply the ``sei`` a reply carries, stamped as a sei."""
-        if "sei" in data:
-            self._packet_times["sei"] = time.time()
-            self._handle_sei(data["sei"])
-
     def _handle_tei(self, data: Any) -> None:
         """Handle 'trigger event info': each ``TE`` entry updates or adds its event, keyed by ``TRID``.
 

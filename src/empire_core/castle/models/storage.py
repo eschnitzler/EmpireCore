@@ -161,6 +161,17 @@ DecorationStorages = Annotated[list[DecorationStorage], BeforeValidator(_storage
 """A ``sin`` block: the storages it names, each replacing the one of the same id."""
 
 
+class CarriedDecorationStorages(BasePayload):
+    """
+    The decoration storages a reply carries under ``sin``.
+
+    Client: ``DecoStorageData.parseSIN`` (split.js line 702425), handed the ``sin`` of the ``ebe``, ``ebu``,
+    ``pio``, ``sob``, ``sbp``, ``jaa`` and ``sds`` replies
+    """
+
+    storages: DecorationStorages = Field(validation_alias="sin", default_factory=list, description="The storages sent")
+
+
 class ShowInventoryRequest(BaseRequest):
     """
     Read the decoration storages.

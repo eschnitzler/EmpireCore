@@ -28,6 +28,7 @@ from empire_core.gamedata import Judgement
 from empire_core.map.models.world import MapSize, ServerInfoResponse
 from empire_core.protocol.base import read_or_none
 from empire_core.state.base import StateBase, loaded, read_section
+from empire_core.state.login_data import LoginDataResponse
 from empire_core.state.models import JoinedArea
 
 logger = logging.getLogger(__name__)
@@ -143,7 +144,7 @@ class AreaState(StateBase):
             return
         self._apply_mines(reply.mines)
         if reply.currencies is not None:
-            self._handle_gbd({"gcu": data["gcu"]})
+            self._apply_login(LoginDataResponse.carried_by(data, ("gcu",)))
 
     def _apply_mines(self, mines: MineStatusList) -> None:
         """Replace every mine, keyed by object id.
