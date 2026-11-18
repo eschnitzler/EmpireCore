@@ -560,7 +560,12 @@ class GetMovementsResponse(BaseResponse):
             try:
                 movements.append(MovementWrapper.model_validate(entry))
             except ValidationError as error:
-                unreadable.append(str(error))
+                unreadable.append(
+                    "; ".join(
+                        f"{'.'.join(map(str, problem['loc']))}: {problem['msg']}, got {problem['input']!r:.80}"
+                        for problem in error.errors(include_url=False)
+                    )
+                )
         return {**data, "M": movements, "unreadable_movements": tuple(unreadable)}
 
     @field_validator("owners", mode="before")
