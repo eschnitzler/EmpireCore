@@ -47,7 +47,7 @@ from empire_core.gamedata import (
 from empire_core.gamedata.collectables import MINUTE_SKIP_FIRST_ID
 from empire_core.gamedata.ids.treasure_maps import TreasureMapId
 from empire_core.gamedata.lenient import known
-from empire_core.map.models import MapObject
+from empire_core.map.models import AllianceCrest, MapObject
 from empire_core.protocol.base import (
     BasePayload,
     BaseRequest,
@@ -665,9 +665,10 @@ class BattleLogArea(SpyReportArea):
     ``AID``, ``N``, ``ACVC`` and ``E`` are read into this block, as the client
     copies them.
 
-    Client: ``BattleLogVO.fillFromParamObject`` (bundle lines 138294-138303) and
-    ``InteractiveMapobjectVO.parseAreaInfoBattleLog`` (bundle line 3638) with its
-    overrides (see :class:`SpyReportArea`)
+    Client: ``BattleLogVO.fillFromParamObject`` (bundle lines 690349-690358) and
+    ``InteractiveMapobjectVO.parseAreaInfoBattleLog`` with its overrides (see :class:`SpyReportArea`);
+    ``ABGAllianceTowerMapobjectVO.parseAreaInfoBattleLog`` (bundle line 169356) reads ``E`` with
+    ``AllianceCrestVO.fillWithData`` (bundle line 60469), drawing a random crest when it is unsent
     """
 
     treasure_map_node_id: Annotated[TreasureMapNodeId, BeforeValidator(js_int)] = Field(
@@ -675,16 +676,11 @@ class BattleLogArea(SpyReportArea):
         default=TreasureMapNodeId(0),
         description="The treasure map node fought over; 0 or less for none",
     )
-    alliance_crest: dict[str, Any] | None = Field(
+    alliance_crest: Annotated[AllianceCrest | None, BeforeValidator(object_or_none)] = Field(
         validation_alias="E",
         default=None,
-        description="An alliance tower's alliance crest, as sent",
+        description="The crest of the alliance holding a Beyond the Horizon tower; None when unsent",
     )
-
-    @field_validator("alliance_crest", mode="before")
-    @classmethod
-    def _crest(cls, value: Any) -> Any:
-        return object_or_none(value)
 
 
 def _charge(value: Any) -> int:
