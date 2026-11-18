@@ -231,6 +231,8 @@ _SUCCESS_ONLY = frozenset(
     | {"gbd"}
     | (set(_NESTED_SECTIONS) - _MOVEMENT_REPLIES - {"gaa"})
     | {"rue", "kik", "gsm", "rci", "cmr", "rcc", "jaa", "csl", "gab", "gec", "ghw"}
+    # MASCommand, MACCommand (split.js lines 635734, 635691)
+    | {"mas", "mac"}
     | {"sde"}
     | {"qli", "qst", "qpg", "qfi", "msp", "cqs"}
     | {"nfo", "aqs", "bse", "bbs", "saq", "caq", "caaq", "raq", "scq", "aec"}
@@ -325,6 +327,7 @@ class GameState(
     castle resources (also)              ``grc``, the replies that    ``client.castle.get_resources(id)``
                                          carry one (``ebu``, ...)
     castle open-gate counter             ``gcl``, ``kik`` (pushed)    re-login
+    castle abandon timers                ``gcl``, ``mas``, ``mac``    re-login
     castle unlocked units and horses     ``gpc`` (pushed)             re-login
     joined area, slum level, discount    ``jaa``, ``csl``/``gab``     ``client.castle.join(id)``
                                          (pushed)
@@ -507,6 +510,8 @@ class GameState(
         "rue": "_handle_rue",
         "kik": "_handle_kik",
         "mos": "_handle_mos",
+        "mas": "_handle_mas",
+        "mac": "_handle_mac",
         "jaa": "_handle_jaa",
         "ghw": "_handle_ghw",
         "nfo": "_handle_nfo",
@@ -845,8 +850,8 @@ class GameState(
         daimyo's "gda", "gdc" and "gdw", the coat of arms symbols' "gus", the player name change's "gnci", the
         account deletion's "psd" and the skill reset's "skr" (each only a successful one),
         the officers' school's "gtp" (only a successful one), the quest pushes "qli", "qst", "qpg", "qfi", "msp" and the
-        campaign's "cqs", the castle pushes "rue", "kik", the Open Gate reply "mos" (only a successful one), the gem
-        push "gec", the Berimond protection reply "ffp", the
+        campaign's "cqs", the castle pushes "rue", "kik", the Open Gate reply "mos" and the abandon replies "mas"
+        and "mac" (each only a successful one), the gem push "gec", the Berimond protection reply "ffp", the
         rage points push "rpr", the alien reroll counts push "rce", the server kind "tse", the special server castles
         "tcc", the joined area's "jaa", "cmr", "rcc", "ghw", the events shutting down "sde", the map read "gaa" (refused
         too), the spy screen "ssi" (only a successful one) — and the login sections "gpi", "gxp", "gcu", "vip", "gal",
