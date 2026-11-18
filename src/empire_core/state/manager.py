@@ -126,8 +126,10 @@ _WHOLE_SECTIONS = {
 # JAACommand also brings its crai crafting queues (bundle line 130249)
 # CCDCommand and SAPCommand (bundle lines 127678, 127618) parse their gcu
 # MOSCommand (bundle line 125119) parses its gcu
+# BCRCommand (bundle line 640456) parses its gcu
 _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
     "mos": ("gcu",),
+    "bcr": ("gcu",),
     **dict.fromkeys(("arl", "gla", "sdi", "sti"), ("gli",)),
     "seq": ("gli", "gcu", "esl"),
     **dict.fromkeys(("aci", "abi", "acc", "adi", "aii", "ali", "avi", "cci", "coi", "cti", "gti", "cfi"), ("gli",)),

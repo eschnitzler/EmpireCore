@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from empire_core.events.models import ShuttingDownEvents, SpecialEvent, SpecialEventInfoRequest
 from empire_core.events.service.base import EventsBaseMixin
+from empire_core.events.service.campaign import CampaignMixin
 from empire_core.events.service.minigames import MinigamesMixin
 from empire_core.events.service.scores import ScoresMixin
 from empire_core.events.service.seasons import SeasonsMixin
@@ -16,7 +17,14 @@ from empire_core.services.base import BaseService
 
 
 class EventsService(
-    SpecialServersMixin, SeasonsMixin, GrandTournamentMixin, MinigamesMixin, ScoresMixin, EventsBaseMixin, BaseService
+    SpecialServersMixin,
+    SeasonsMixin,
+    GrandTournamentMixin,
+    MinigamesMixin,
+    CampaignMixin,
+    ScoresMixin,
+    EventsBaseMixin,
+    BaseService,
 ):
     """
     The server's active events, your event leagues and the events' scoreboards.

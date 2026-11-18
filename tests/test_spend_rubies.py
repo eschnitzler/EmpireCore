@@ -101,6 +101,8 @@ RUBY_REQUESTS = {
     "FinishResearchRequest": "rfi, ResearchConst.getFastCompleteCostC2 (getSkipCost, bundle line 413787)",
     "BuyLevelRequest": "blv, buyLevelData.getLevelUpCost in C2 (ButtonBuyLevelComponent.onClickButton, 548838)",
     "BuyPremiumFlagRequest": "gbp, PlayerConst.PREMIUM_FLAG_COST_C2 (CastleBuyPremiumFlagDialog, bundle line 396588)",
+    "BuyCampaignQuestRequest": "bcq, CastleQuestVO.buyCost, its c2Cost less reductions (bundle line 269537)",
+    "BuyCampaignRewardRequest": "bcr, TimeLimitedCampaignConst.calculateEndRewardPurchaseCost (bundle 607691)",
     "BuyReturnSpeedBoosterRequest": "brs, returnSpeedBoosterVO.finalCostsC2 (bundle line 463040)",
 }
 

@@ -139,6 +139,7 @@ call always does.
 | Travel | `movements.send_resources`, `send_support`, `send_troops`, `attack.send_attack`, the `client.spy` sends | a horse that costs rubies (not paid with feathers), any slowdown, the premium commander when none is free |
 | Boosters | `player.hire_booster`, `castle.bribe_tax_collector` | always |
 | Your level and flag | `player.buy_level`, `player.buy_premium_flag` | always |
+| Time-limited campaigns | `events.buy_campaign_quest`, `buy_campaign_reward` | always |
 | The rest | `castle.buy_expansion`, `rename`, `start_tax`, `castle.start_research`, `alliance.donate` | a premium expansion; a rename with no premium account; tax types 5 and 6; a ruby research; donated rubies |
 
 Pricing reads the game data, loaded on first use; the call raises

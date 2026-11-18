@@ -1136,6 +1136,10 @@ from empire_core.protocol.base import (
     parse_response,
 )
 from empire_core.quests.models import (
+    BuyCampaignQuestRequest,
+    BuyCampaignQuestResponse,
+    BuyCampaignRewardRequest,
+    BuyCampaignRewardResponse,
     CampaignQuestStatusResponse,
     DailyQuests,
     FinishQuestConditionRequest,
@@ -1651,6 +1655,10 @@ __all__ = [
     "QuestsStartedResponse",
     "FinishQuestConditionRequest",
     "QuestStarterClickRequest",
+    "BuyCampaignQuestRequest",
+    "BuyCampaignQuestResponse",
+    "BuyCampaignRewardRequest",
+    "BuyCampaignRewardResponse",
     "QuestDonateCurrencyRequest",
     "QuestDonateCurrencyResponse",
     "QuestDonateResourcesRequest",
