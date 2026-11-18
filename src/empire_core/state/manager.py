@@ -22,6 +22,7 @@ from empire_core.state.area import AreaState
 from empire_core.state.base import MovementEventCallback, read_section
 from empire_core.state.castles import AREA_LIST_SECTIONS, CastleState
 from empire_core.state.commanders import CommanderState
+from empire_core.state.construction import CONSTRUCTION_LIST_REPLIES, ConstructionState
 from empire_core.state.crafting import CRAFTING_QUEUE_REPLIES, CraftingState
 from empire_core.state.events import EventCallback, EventsCallback, EventState
 from empire_core.state.inventory import INVENTORY_SECTIONS, InventoryState
@@ -292,6 +293,7 @@ class GameState(
     RewardsState,
     TreasureMapState,
     CraftingState,
+    ConstructionState,
 ):
     """
     Manages game state parsed from server packets.
@@ -338,6 +340,10 @@ class GameState(
                                          ``cmr``
     joined castle's resource carts       ``rci`` (pushed), ``jaa``,   ``client.castle.join(id)``
                                          ``rcc``
+    joined castle's construction slots   ``jaa``, ``gca``/``ego``     ``client.castle.get_build_queue()``
+                                         (pushed), ``scl``, the
+                                         building replies (``ebu``,
+                                         ...)
     player identity/level/XP             ``gpi``/``gxp``/``glu``      re-login
     player coins/rubies, VIP, alliance    ``gcu``/``vip``/``gal``      ``client.player.get_vip_status()`` (VIP)
     honor, protection                    ``gho``/``uap``              ``client.player.get_protection()``
@@ -631,6 +637,8 @@ class GameState(
                 carried = read_section(CarriedDecorationStorages, payload, "a reply's decoration storages")
                 if carried is not None:
                     self._apply_decoration_storages(carried.storages)
+            if ok and cmd_id in CONSTRUCTION_LIST_REPLIES:
+                self._apply_carried_construction_list(cmd_id, payload)
             if ok and cmd_id in _NESTED_SECTIONS:
                 self._apply_login(LoginDataResponse.carried_by(payload, _NESTED_SECTIONS[cmd_id]))
             self._advance_movements()

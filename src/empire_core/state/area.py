@@ -39,10 +39,12 @@ _CART_COUNT = 3
 
 class AreaState(StateBase):
     def _handle_jaa(self, data: Any) -> None:
-        """Apply a join's reply: the joined area, and its mines and resource carts when it sends them.
+        """Apply a join's reply: the joined area, its construction slots, and its mines and resource carts when it
+        sends them.
 
         A reply without ``gsm`` or ``rci`` leaves the mines or carts as they were, as the client does. It
-        drops the resource citizen's goods (``CastleResourcePoolData.reset``).
+        drops the resource citizen's goods (``CastleResourcePoolData.reset``), and the construction slots when its
+        ``gca`` block has none: the client's new area starts with an empty list.
 
         Client: ``JAACommand.executeCommand`` (split.js line 654202), ``AreaFactory.parseAreaInfo``
         (split.js line 654365), ``AreaDataUpdater.parseJAA`` (split.js line 658985)
@@ -55,6 +57,7 @@ class AreaState(StateBase):
         self.area_revision += 1
         self._placed_construction_item_sequence = self._packet_sequence
         self.placed_construction_items = reply.buildings.construction_items if reply.buildings is not None else None
+        self.construction_list = reply.buildings.construction_list if reply.buildings is not None else None
         self.resource_pool = None
         kingdom = reply.kingdom
         castle_id = x = y = owner_id = occupier_id = None
@@ -187,13 +190,15 @@ class AreaState(StateBase):
         The client asks for map areas only on the world map (``CastleWorldmapData.updateAreaRange``,
         bundle line 19006), and switching there drops the mines (``SwitchToWorldmapCommand.execute``,
         bundle line 100945). It keeps its active area, which ``csl`` and ``gab`` still update, and
-        the resource carts, so state keeps ``joined_area`` and the carts too.
+        the resource carts, so state keeps ``joined_area`` and the carts too. It drops the construction slots,
+        which the client keeps (see :class:`ConstructionState`).
         """
         self.session_location = SessionLocation.WORLDMAP
         self.mines = {}
         self.area_revision += 1
         self._placed_construction_item_sequence = self._packet_sequence
         self.placed_construction_items = None
+        self.construction_list = None
 
     def _handle_csl(self, data: Any) -> None:
         """Apply a ``csl`` push to the joined area: its slum level.
@@ -227,10 +232,11 @@ class AreaState(StateBase):
                 self.joined_area = self.joined_area.model_copy(update={"x": moved.x, "y": moved.y})
 
     def _handle_gca(self, data: Any) -> None:
-        """Apply a ``gca`` push to the joined castle: the construction items on its buildings.
+        """Apply a ``gca`` push to the joined castle: the construction items on its buildings, and its
+        construction slots when the block has them.
 
-        Client: ``GCACommand.executeCommand`` (bundle line 122991) hands the block to the active area,
-        ``AreaDataUpdater.parseGCA`` (bundle line 131546)
+        Client: ``GCACommand.executeCommand`` (split.js line 628685) hands the block to the active area,
+        ``AreaDataUpdater.parseGCA`` and ``parseSCL`` (split.js lines 658993, 659010)
         """
         if not isinstance(data, dict) or self.joined_area is None:
             return
@@ -239,6 +245,8 @@ class AreaState(StateBase):
             return
         self._placed_construction_item_sequence = self._packet_sequence
         self.placed_construction_items = pushed.buildings.construction_items
+        if pushed.buildings.construction_list is not None:
+            self.construction_list = pushed.buildings.construction_list
 
     def _handle_nfo(self, data: Any) -> None:
         """Keep the server info pushed when the connection opens: the world map's size in sectors.

@@ -35,7 +35,7 @@ from empire_core.castle.models.landmarks import (
     RoyalTowerListResponse,
 )
 from empire_core.castle.models.mercenaries import MercenaryMissionsResponse
-from empire_core.castle.models.objects import BuildingConstructionItems
+from empire_core.castle.models.objects import BuildingConstructionItems, ConstructionList
 from empire_core.castle.models.permanent import PermanentCastle
 from empire_core.castle.models.research import ResearchInfoResponse
 from empire_core.castle.models.storage import DecorationStorage, DecorationStorageKey
@@ -191,6 +191,7 @@ class StateBase:
         # The last joined area, and the mines and resource carts last sent for it; swapped, never edited
         self.area_revision += 1
         self.placed_construction_items: tuple[BuildingConstructionItems, ...] | None = None
+        self.construction_list: ConstructionList | None = None
         self._packet_sequence = 0
         self._placed_construction_item_sequence = 0
         self._construction_item_reply_order: dict[str, tuple[object, int]] = {}
