@@ -72,7 +72,9 @@ _TRACKED_SECTIONS = (
 
 _PLAYER_SECTIONS = frozenset({"gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap", "gac", "sce"})
 
-# Pushes whose payload is the body of the gbd section of the same name.
+# Pushes whose payload is the body of the gbd section of the same name, applied only on success:
+# GPICommand, GXPCommand, GCUCommand, GALCommand, GCLCommand, GHOCommand, UAPCommand, GPCCommand, GMSCommand
+# (split.js lines 652152, 652270, 651580, 651059, 651531, 651753, 652788, 628980, 619878); VIPCommand below
 _SECTION_PUSHES = frozenset({"gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap", "gpc", "gms"})
 
 # Replies and pushes whose payload is the body of a gbd section, applied only on success:
@@ -206,6 +208,7 @@ _SUCCESS_ONLY = frozenset(
         "bfs",
         "gtp",
         *_WHOLE_SECTIONS,
+        *_SECTION_PUSHES,
     }
     | {"agr", "afa", "abl", "aee", "ahl", "ahh", "ahd", "sne", "dms", "ams", "uac", "pre"}
     # AJACommand, SLLCommand, GAPCommand (bundle lines 121532, 122063, 122976)
@@ -565,7 +568,7 @@ class GameState(
             if not ok and cmd_id in _SUCCESS_ONLY:
                 pass
             elif cmd_id in _SECTION_PUSHES:
-                # An unreadable frame arrives as {"raw": ...}; the client applies a push only on success
+                # An unreadable frame arrives as {"raw": ...}
                 if isinstance(payload, dict) and "raw" not in payload:
                     self._packet_times[cmd_id] = time.time()
                     self._handle_gbd({cmd_id: payload})
