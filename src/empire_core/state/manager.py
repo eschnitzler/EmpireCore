@@ -192,7 +192,7 @@ _MOVEMENT_REPLIES = frozenset(
 # 128409, 128394, 128214, 127782, 127608), ACMCommand, AQICommand, UFPCommand, BFSCommand (bundle
 # lines 121317, 121557, 121010, 122569), GTPCommand (bundle line 126146), UHTCommand, APTCommand,
 # CARCommand (bundle lines 129926, 123623, 125277), the section replies above;
-# a refused cpm or crm is still stamped (see _MOVEMENT_REPLIES). Also the castle
+# a refused movement reply is still stamped (see _MOVEMENT_REPLIES). Also the castle
 # pushes and replies:
 # RUECommand, KIKCommand, GSMCommand, RCICommand, CMRCommand, RCCCommand, JAACommand, CSLCommand and
 # GABCommand (bundle lines 125647, 123114, 125752, 123196, 125737, 123181, 130190, 122715, 122923); GECCommand
