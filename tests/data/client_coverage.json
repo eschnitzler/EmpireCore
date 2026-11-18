@@ -13,6 +13,7 @@
     "apiOK": {"raw": "server", "note": "SmartFox system message, read by the connection"},
     "joinOK": {"raw": "server", "note": "SmartFox system message, read by the connection"},
     "roundTripRes": {"raw": "server", "note": "SmartFox system message, read by the connection"},
+    "rlu": {"raw": "server", "note": "the room list, read by the connection"},
     "pin": {"raw": "client", "note": "the keepalive, sent as a raw frame"},
     "vck": {"raw": "client", "note": "the version check, sent as a raw frame"},
     "esl": {
@@ -30,9 +31,9 @@
     "534": ["bfs", "bss", "ssa"]
   },
   "unowned": {
-    "rww": "Ruby Wishing Well; being modelled, no area issue",
-    "sbp": "event package purchase; being modelled, no area issue",
-    "gbc": "event package buy counts; being modelled, no area issue",
+    "rww": "the Ruby Wishing Well",
+    "sbp": "buying an event package",
+    "gbc": "the event package buy counts",
     "gpf": "the premium flag push, GPFCommand",
     "vip": "the request C2SVIPInfoEvent",
     "mvf": "the request C2SMovementFilterOptionEvent",
@@ -53,6 +54,6 @@
     "cmt": "S2C_COMA_TEASER handler CMTCommand; needs triage",
     "lcb": "S2C_COMEBACK_POPUP handler LCBCommand; needs triage",
     "mot": "S2C_ABG_MINE_OUT_OF_TIME handler MOTCommand; needs triage",
-    "vpm": "C2S_VERIFY_PLAYER_MAIL_EVENT, sent from the dll only; needs triage"
+    "vpm": "C2S_VERIFY_PLAYER_MAIL_EVENT; needs triage"
   }
 }

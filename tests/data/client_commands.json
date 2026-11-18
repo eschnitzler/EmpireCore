@@ -2112,6 +2112,7 @@
     "res": ["RESCommand"],
     "rfi": ["RFICommand"],
     "rgg": ["RGGCommand"],
+    "rlu": ["BasicSmartfoxClient.onExtensionResponse"],
     "rmc": ["RMCCommand"],
     "rmm": ["RMMCommand (ack)"],
     "rms": ["RMSCommand"],

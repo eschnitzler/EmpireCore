@@ -84,6 +84,8 @@ _HOLDER = re.compile(r"\b([A-Za-z_$][\w$]*)=function\(\)\{return function ([A-Za
 # BasicSmartfoxClient.handleSystemMessage=function(e){...switch(n){case"apiOK":...default:
 _SYSTEM_HANDLER = re.compile(r"\.handleSystemMessage=function\(.*?\bdefault:", re.S)
 _SYSTEM_CASE = re.compile(r"case\"([A-Za-z]+)\":")
+# BasicSmartfoxClient.onExtensionResponse=function(e,t){switch(...,e){case BasicSmartfoxClient.S2C_ROOMLIST:...default:
+_EXTENSION_HANDLER = re.compile(r"\.onExtensionResponse=function\(.*?\bdefault:", re.S)
 # t.sendMessage(BasicSmartfoxClient.S2C_PING,[""])
 _SENT = re.compile(r"\.sendMessage\(([A-Za-z_$][\w$]*)\.(S2C_[A-Z0-9_]+)\b")
 # A command constant as code reads it: a.ClientConstSF.C2S_JOIN_CASTLE, f.S2C_PING
@@ -236,7 +238,8 @@ def usage(sources: Sequence[str]) -> dict[str, dict[str, list[str]]]:
     A request is a ``getCmdId`` class the client constructs, or a constant it passes straight to
     ``sendMessage``/``sendServerMessageAndWait`` (``"Holder.NAME (sent)"``). A handler is a class
     the client registers under a constant with ``commandDict.set``, marked `` (ack)`` when it
-    never reads the reply's payload, and the SmartFox system messages. Registrations key the
+    never reads the reply's payload, and the messages ``BasicSmartfoxClient`` handles itself
+    (``handleSystemMessage``, ``onExtensionResponse``). Registrations key the
     handler, not its ``cmdId`` getter: ``GPFCommand`` is registered under ``gpf`` but returns ``gdi``.
     """
     values: dict[tuple[str, str], str] = {}
@@ -278,6 +281,11 @@ def usage(sources: Sequence[str]) -> dict[str, dict[str, list[str]]]:
         for handler in _SYSTEM_HANDLER.finditer(source):
             for case in _SYSTEM_CASE.finditer(handler.group(0)):
                 handlers[case.group(1)].add("BasicSmartfoxClient.handleSystemMessage")
+        for handler in _EXTENSION_HANDLER.finditer(source):
+            for case in re.finditer(rf"case {_REFERENCE}:", handler.group(0)):
+                holder, constant = case.groups()
+                command = resolve(holder_name(holder, handler.start() + case.start()), constant)
+                handlers[command].add("BasicSmartfoxClient.onExtensionResponse")
     for name, sent in request_classes:
         if name in constructed:
             requests[sent].add(name)
