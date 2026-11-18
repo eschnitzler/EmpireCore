@@ -11,7 +11,7 @@ from empire_core.attack.models.send import CreateAttackResponse, DaimyoTauntResp
 from empire_core.castle.models.castles import NameCastleInvitationResponse
 from empire_core.enums import Kingdom
 from empire_core.events.models import BerimondFactionJoinedResponse
-from empire_core.movements.models import SentMovementResponse
+from empire_core.movements.models import SentMovementResponse, names_a_movement
 from empire_core.player.models.progress import LevelUpResponse
 from empire_core.protocol.js import js_truthy
 from empire_core.state.account import ACCOUNT_SECTIONS, AccountState
@@ -721,7 +721,7 @@ class GameState(
 
         Client: ``LDTCommand.executeCommand`` (split.js line 647055); see :class:`DaimyoTauntResponse`
         """
-        if (reply := self._read_movement_reply(DaimyoTauntResponse, data)) is not None:
+        if names_a_movement(data) and (reply := self._read_movement_reply(DaimyoTauntResponse, data)) is not None:
             self._apply_movement_wrappers([reply], ())
 
     def _handle_glu(self, data: Any) -> None:
