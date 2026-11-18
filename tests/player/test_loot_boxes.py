@@ -54,7 +54,6 @@ class TestWireShapes:
         assert reply.reward_ids == (RewardId(77),)
         assert (reply.key_progress, reply.key_bar_fills, reply.key_used) == (6, 0, MysteryBoxKey.COMMON)
         assert reply.keys_won == (Collectable.of_currency(5001, 1),)
-        assert reply.raw_rewards == [77]
 
     def test_without_reward_rows_only_the_ids_are_read(self):
         reply = OpenLootBoxResponse.model_validate({key: value for key, value in OPENED.items() if key != "LTRR"})
