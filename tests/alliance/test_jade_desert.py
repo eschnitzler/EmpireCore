@@ -22,7 +22,7 @@ CITADEL = {"X": 30, "Y": "40", "CR": 15, "L": 2, "ASJ": "25000", "RSJ": 120, "CD
 SETTLEMENT = {"X": 50, "Y": 60, "TCI": "101", "L": 2, "TCR": 48000, "CD": 0, "AE": [[1, [10], "x"]]}
 TRADE_REPLY = {
     "O": [],
-    "A": {"M": {"MID": 7, "T": 35, "TA": [4, 50, 60, 1]}, "A": [[620, 5]], "TRU": [[620, 2]]},
+    "A": {"M": {"MID": 7, "T": 35, "TT": 600, "TA": [4, 50, 60, 1]}, "A": [[620, 5]], "TRU": [[620, 2]]},
     "gcu": {"C1": 900, "C2": 4},
 }
 
@@ -62,11 +62,9 @@ class TestJadePhase:
     def test_a_push_keeps_what_it_leaves_out_but_the_condition(self):
         # parseJadePhaseInfo sets JP and JPT only when truthy, and JPP back to -1 when not
         first = JadePhase().updated(JadePhaseResponse.model_validate({"JPT": 600, "JPP": 40}), 1000.0)
-        assert (first.phase, first.phase_2_starts_at, first.phase_2_condition_percent) == (
-            JadeScoringPhase.PHASE_1,
-            1600.0,
-            40,
-        )
+        # the phase before any push comes from the event's own data, which is not read
+        assert (first.phase, first.phase_2_starts_at, first.phase_2_condition_percent) == (None, 1600.0, 40)
+        assert first.current_phase(1000.0) is None
 
         second = first.updated(JadePhaseResponse.model_validate({"JP": 2}), 1100.0)
         assert (second.phase, second.phase_2_starts_at, second.phase_2_condition_percent) == (
@@ -76,7 +74,7 @@ class TestJadePhase:
         )
 
     def test_phase_2_starts_when_its_time_passes(self):
-        phase = JadePhase(phase_2_starts_at=1600.0)
+        phase = JadePhase(phase=JadeScoringPhase.PHASE_1, phase_2_starts_at=1600.0)
         assert phase.current_phase(1599.0) is JadeScoringPhase.PHASE_1
         assert phase.seconds_until_phase_2(1599.0) == 1.0
         assert phase.current_phase(1600.0) is JadeScoringPhase.PHASE_2
@@ -230,3 +228,5 @@ class TestOasisSettlements:
         state = GameState()
         state.update_from_packet("jtr", TRADE_REPLY)
         assert state.get_last_packet_time("jtr") is not None
+        movement = state.get_movement_by_id(7)
+        assert movement is not None and movement.movement_type == MovementType.HORIZON_OASIS_TRADE
