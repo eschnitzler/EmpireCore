@@ -373,5 +373,5 @@ class LoginDataResponse(BaseResponse):
 _WIRE_KEYS = {
     name: field.validation_alias
     for name, field in LoginDataResponse.model_fields.items()
-    if isinstance(field.validation_alias, str)
+    if name not in BaseResponse.model_fields and isinstance(field.validation_alias, str)
 }
