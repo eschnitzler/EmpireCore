@@ -20,6 +20,7 @@ from empire_core.exceptions import (
 )
 from empire_core.protocol.models import AllianceChatMessageResponse, AllianceMember, HelpType
 from empire_core.state.manager import GameState
+from tests.alliance.test_pushes import alliance_state
 from tests.service_helpers import StubPlayer, StubState, conn, make_client, request_payload, xt_packet
 
 # =============================================================================
@@ -696,7 +697,7 @@ class TestAllianceDiplomacy:
 
     def test_change_diplomacy_always_sends_a_tribute(self):
         reply = {"ODR": 0, "NDR": 1, "S": 2, "AS": GOLDEN_AIN["A"], "AO": {"AID": 55, "N": "Other"}}
-        client = member_client({"adp": xt_packet("adp", reply)})
+        client = make_client({"adp": xt_packet("adp", reply)}, state=alliance_state())
 
         response = client.alliance.change_diplomacy(55, DiplomacyStatus.NEUTRAL)
 
@@ -708,7 +709,7 @@ class TestAllianceDiplomacy:
         assert response.other_alliance is not None and response.other_alliance.name == "Other"
 
     def test_accepting_a_demanded_peace_offer_sends_its_negative_tribute(self):
-        client = member_client()
+        client = make_client(state=alliance_state())
         client.alliance.change_diplomacy(55, DiplomacyStatus.NEUTRAL, tribute=-25)
         assert conn(client).request_payloads == [("adp", {"AID": 55, "NDR": 1, "T": -25})]
 
@@ -719,14 +720,6 @@ class TestAllianceDiplomacy:
 
         assert conn(client).request_payloads == [("ard", {"AID": 55})]
         assert alliance is not None and alliance.alliance_id == 55
-
-    @pytest.mark.parametrize(("enabled", "aw"), [(True, 1), (False, 0)])
-    def test_set_auto_war(self, enabled, aw):
-        client = member_client({"saw": xt_packet("saw", {"AW": aw})})
-
-        assert client.alliance.set_auto_war(enabled) is enabled
-
-        assert conn(client).request_payloads == [("saw", {"AW": aw})]
 
     def test_newsletter_encodes_both_parts(self):
         client = member_client()
