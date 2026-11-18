@@ -2823,6 +2823,7 @@ def _float_column(value: object, default: float) -> float:
 class OasisSettlementDef(_Row):
     """
     One level of a Beyond the Horizon Oasis Settlement: the trades it offers, its cooldown and the army it takes.
+    Its ``allianceBattleGroundScoringID`` is not read: the scorings table is not loaded.
 
     Client: ``TradingCampVO.parseXML`` (split.js line 717363), keyed by ``tradingCampID`` in
     ``ABGJadeCampData.parseXML`` (split.js line 717136)
@@ -2849,9 +2850,6 @@ class OasisSettlementDef(_Row):
     speed_multiplier: float = Field(
         validation_alias="speedMultiplier", default=1.0, description="Factor on the travel speed to it"
     )
-    scoring_id: int = Field(
-        validation_alias="allianceBattleGroundScoringID", default=0, description="The Beyond the Horizon scoring"
-    )
 
     @field_validator("settlement_id", mode="before")
     @classmethod
@@ -2865,7 +2863,7 @@ class OasisSettlementDef(_Row):
 
     @field_validator(
         "settlement_type_id", "level", "max_level", "trade_group_id", "cooldown_seconds", "resource_limit",
-        "max_army_size", "scoring_id", mode="before",
+        "max_army_size", mode="before",
     )  # fmt: skip
     @classmethod
     def _int_column(cls, value: object) -> int:
