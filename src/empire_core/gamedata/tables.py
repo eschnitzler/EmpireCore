@@ -158,6 +158,17 @@ HorizonSettingId = NewType("HorizonSettingId", int)
 """The id of an ``allianceBattleGroundSettings`` row, a Beyond the Horizon run's settings that
 :attr:`GameData.horizon_settings` describes."""
 
+OasisSettlementId = NewType("OasisSettlementId", int)
+"""The id of a ``tradingCamps`` row, a Beyond the Horizon Oasis Settlement level that
+:attr:`GameData.oasis_settlements` describes."""
+
+OasisTradeId = NewType("OasisTradeId", int)
+"""The id of a ``trades`` row, a trade an Oasis Settlement offers that :attr:`GameData.oasis_trades` describes."""
+
+CitadelLevelId = NewType("CitadelLevelId", int)
+"""The id of an ``allianceCitadels`` row, a level of the alliance Citadel that :attr:`GameData.citadel_levels`
+describes."""
+
 DaimyoContractId = NewType("DaimyoContractId", int)
 """The id of a daimyo alliance contract, a row of :attr:`GameData.daimyo_castle_contracts` or
 :attr:`GameData.daimyo_township_contracts`: each table counts its own."""
@@ -2803,6 +2814,193 @@ class AllianceInvasionCampDef(_Row):
         return _parse_int_or_default(value, 0)
 
 
+def _float_column(value: object, default: float) -> float:
+    """``parseFloat(getValueOrDefault(...))``; text the client reads as NaN takes the default."""
+    number = js_parse_float(_text(value, str(default)))
+    return default if math.isnan(number) else number
+
+
+class OasisSettlementDef(_Row):
+    """
+    One level of a Beyond the Horizon Oasis Settlement: the trades it offers, its cooldown and the army it takes.
+
+    Client: ``TradingCampVO.parseXML`` (split.js line 717363), keyed by ``tradingCampID`` in
+    ``ABGJadeCampData.parseXML`` (split.js line 717136)
+    """
+
+    settlement_id: OasisSettlementId = Field(validation_alias="tradingCampID", description="The settlement level")
+    name: str = Field(default="", description="The row's internal name")
+    settlement_type_id: int = Field(
+        validation_alias="tradingCampTypeID", default=0, description="The settlement kind its levels share"
+    )
+    level: int = Field(default=0, description="Its level")
+    max_level: int = Field(validation_alias="maxLevel", default=0, description="Its kind's highest level")
+    trade_group_id: int = Field(
+        validation_alias="tradeGroupID", default=0, description="The group of oasis_trades it offers"
+    )
+    cooldown_seconds: int = Field(
+        validation_alias="cooldownSeconds", default=0, description="Seconds before it trades again"
+    )
+    resource_limit: int = Field(validation_alias="resourceLimit", default=0, description="Troops it holds to trade")
+    max_army_size: int = Field(validation_alias="maxArmySize", default=0, description="Most units one trade sends")
+    travel_cost_multiplier: float = Field(
+        validation_alias="travelCostMultiplier", default=1.0, description="Factor on the travel cost to it"
+    )
+    speed_multiplier: float = Field(
+        validation_alias="speedMultiplier", default=1.0, description="Factor on the travel speed to it"
+    )
+    scoring_id: int = Field(
+        validation_alias="allianceBattleGroundScoringID", default=0, description="The Beyond the Horizon scoring"
+    )
+
+    @field_validator("settlement_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def _text_column(cls, value: object) -> str:
+        return _text(value)
+
+    @field_validator(
+        "settlement_type_id", "level", "max_level", "trade_group_id", "cooldown_seconds", "resource_limit",
+        "max_army_size", "scoring_id", mode="before",
+    )  # fmt: skip
+    @classmethod
+    def _int_column(cls, value: object) -> int:
+        return _parse_int_or_default(value, 0)
+
+    @field_validator("travel_cost_multiplier", "speed_multiplier", mode="before")
+    @classmethod
+    def _number(cls, value: object) -> float:
+        return _float_column(value, 1.0)
+
+    @property
+    def is_max_level(self) -> bool:
+        """Whether no higher level of its kind exists."""
+        return self.level >= self.max_level
+
+
+class OasisTradeDef(_Row):
+    """
+    A trade an Oasis Settlement offers: the materials one trade costs and what it brings.
+
+    Client: ``TradingCampTradeVO.parseXML`` (split.js line 717304), keyed by ``tradeID`` in
+    ``ABGJadeCampData.parseXML`` (split.js line 717136); a settlement offers the trades of its ``tradeGroupID``
+    (``getTradesForCamp``, split.js line 717204)
+    """
+
+    trade_id: OasisTradeId = Field(validation_alias="tradeID", description="The trade")
+    trade_group_id: int = Field(
+        validation_alias="tradeGroupID", default=0, description="The group the settlements offering it name"
+    )
+    main_reward_id: RewardId = Field(
+        validation_alias="mainRewardID", default=RewardId(0), description="What one trade brings"
+    )
+    secondary_reward_id: RewardId = Field(
+        validation_alias="secondaryRewardID", default=RewardId(0), description="What one trade brings besides"
+    )
+    resource_consumed: int = Field(
+        validation_alias="resourceConsumed", default=0, description="The settlement's troops one trade uses up"
+    )
+    loot_capacity_cost: int = Field(
+        validation_alias="lootCapacityCost", default=0, description="Loot capacity one trade's materials take"
+    )
+    costs: tuple[Collectable, ...] = Field(default=(), description="The materials one trade costs")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _read_costs(cls, row: object, info: ValidationInfo) -> object:
+        if not isinstance(row, dict) or "costs" in row:
+            return row
+        currency_ids = (info.context or {}).get("currency_ids", {})
+        return {**row, "costs": Collectable.from_columns(row, _XML_COST_PREFIX, currency_ids)}
+
+    @field_validator("trade_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator(
+        "trade_group_id", "main_reward_id", "secondary_reward_id", "resource_consumed", "loot_capacity_cost",
+        mode="before",
+    )  # fmt: skip
+    @classmethod
+    def _int_column(cls, value: object) -> int:
+        return _parse_int_or_default(value, 0)
+
+
+class CitadelLevelDef(_Row):
+    """
+    One level of the alliance Citadel in Beyond the Horizon's Jade Desert: its reach, defence and upgrade price.
+
+    A citadel stands at the highest level whose radius its current radius reaches
+    (``getAllianceCitadelVOByRadius``, split.js line 715794).
+
+    Client: ``ABGAllianceCitadelVO.parseXML`` (split.js line 134851), read from ``allianceCitadels`` by
+    ``CastleAllianceBattleGroundData`` (split.js line 715564); its costs keep only amounts above 0
+    """
+
+    citadel_level_id: CitadelLevelId = Field(validation_alias="allianceCitadelID", description="The row")
+    level: int = Field(default=0, description="The citadel level")
+    radius: int = Field(default=0, description="Fields the citadel reaches at this level")
+    exposed_statuettes_percent: int = Field(
+        validation_alias="exposedStatuettesPercentage",
+        default=0,
+        description="Percent of its Ancient Jade Statuettes attackers can take",
+    )
+    scatter_weights: tuple[int, ...] = Field(
+        validation_alias="scatterWeights", default=(), description="Weights of where taken statuettes scatter"
+    )
+    early_conversion_ratio: int = Field(
+        validation_alias="earlyConversionRatio",
+        default=0,
+        description="Ancient Jade Statuettes per Restored Jade Statuette before the event ends",
+    )
+    protection_mode_seconds: int = Field(
+        validation_alias="protectionModeDuration", default=0, description="Seconds of protection after an upgrade"
+    )
+    unit_wall_count: int = Field(validation_alias="unitWallCount", default=0, description="Defenders on its wall")
+    wall_bonus: int = Field(validation_alias="wallBonus", default=0, description="Wall protection, in percent")
+    gate_bonus: int = Field(validation_alias="gateBonus", default=0, description="Gate protection, in percent")
+    moat_bonus: int = Field(validation_alias="moatBonus", default=0, description="Moat protection, in percent")
+    wall_level: int = Field(validation_alias="wallLevel", default=0, description="Its wall's level")
+    gate_level: int = Field(validation_alias="gateLevel", default=0, description="Its gate's level")
+    moat_level: int = Field(validation_alias="moatLevel", default=0, description="Its moat's level")
+    keep_level: int = Field(validation_alias="keepLevel", default=0, description="Its keep's level")
+    guards: int = Field(default=0, description="Its guards")
+    costs: tuple[Collectable, ...] = Field(default=(), description="What upgrading to this level costs")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _read_costs(cls, row: object, info: ValidationInfo) -> object:
+        if not isinstance(row, dict) or "costs" in row:
+            return row
+        currency_ids = (info.context or {}).get("currency_ids", {})
+        costs = Collectable.from_columns(row, _XML_COST_PREFIX, currency_ids)
+        return {**row, "costs": [cost for cost in costs if cost.amount > 0]}
+
+    @field_validator("citadel_level_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator(
+        "level", "radius", "exposed_statuettes_percent", "early_conversion_ratio", "protection_mode_seconds",
+        "unit_wall_count", "wall_bonus", "gate_bonus", "moat_bonus", "wall_level", "gate_level", "moat_level",
+        "keep_level", "guards", mode="before",
+    )  # fmt: skip
+    @classmethod
+    def _int_column(cls, value: object) -> int:
+        return _parse_int_or_default(value, 0)
+
+    @field_validator("scatter_weights", mode="before")
+    @classmethod
+    def _ints(cls, value: object) -> list[int]:
+        return _int_list(value)
+
+
 def _reward_lists(value: object) -> list[list[int]]:
     """
     ``CollectableParser.createListsFromRewardIdsString`` (bundle line 40529): a list per ``,`` part, a part's ``#``
@@ -3048,6 +3246,8 @@ __all__ = [
     "AllianceInvasionCampDef",
     "AllianceInvasionCampId",
     "AllianceTowerEffectDef",
+    "CitadelLevelDef",
+    "CitadelLevelId",
     "DaimyoContractId",
     "DonationItemDef",
     "DonationItemId",
@@ -3059,6 +3259,10 @@ __all__ = [
     "GachaId",
     "HorizonSettingDef",
     "HorizonSettingId",
+    "OasisSettlementDef",
+    "OasisSettlementId",
+    "OasisTradeDef",
+    "OasisTradeId",
     "OuterRealmsSettingDef",
     "OuterRealmsSettingId",
     "PartPayPriceDef",
