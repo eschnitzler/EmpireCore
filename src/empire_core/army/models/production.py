@@ -8,6 +8,7 @@ Commands:
 - mup: Move a queued slot to another position
 - srm: Set a list's recruitment mode
 - sou: Finish a production slot now
+- ups: Unlock another production slot
 
 These act on the castle the session has joined (``jca``);
 ``bup`` and ``bou`` also name that castle and its kingdom.
@@ -648,7 +649,55 @@ class SkipProductionSlotResponse(BaseResponse):
     )
 
 
+UNLOCK_SLOT_RUBIES = 375
+"""What unlocking a production slot costs before ruby discounts.
+
+Client: ``UnitProductionConst.UNLOCK_C2`` (dll), priced by ``getFinalCostsC2``
+"""
+
+
+class UnlockProductionSlotRequest(BaseRequest):
+    """
+    Unlock another production slot of a list, for rubies.
+
+    Command: ups
+    Payload: {"LID": list_id}
+
+    Client: ``C2SUnlockPackageSlotVO`` (bundle line 120481), sent by ``UnitBuildListComponent.buySlot``
+    (bundle line 261026), ``AutoRecruitmentBuyRecruitmentSlots.buySlots`` (bundle line 312381) and
+    ``CastleToolSlotPremiumShopVO.buySlot`` (bundle line 397692)
+    """
+
+    command = "ups"
+
+    list_id: ProductionListId = Field(validation_alias="LID", description="The list to unlock a slot of")
+
+
+class UnlockProductionSlotResponse(BaseResponse):
+    """
+    The production list after an ``ups``; the slots it lists reach ``client.player.boosts``.
+
+    Command: ups
+    Payload: {"spl": {...}, "gcu": {...}, "boi": {...}}
+
+    Client: ``UPSCommand.executeCommand`` (bundle line 637946): ``spl`` to ``parse_SPL``,
+    ``gcu`` to ``CurrencyData.parseGCU``, ``boi`` to ``CastlePremiumBoostData.parse_BOI``
+    """
+
+    command = "ups"
+
+    production_list: ProductionListBlock = Field(
+        validation_alias="spl", default=None, description="The joined castle's list after; None when the reply has none"
+    )
+    currencies: CurrencyBlock = Field(
+        validation_alias="gcu", default=None, description="Coins and rubies after the change"
+    )
+
+
 __all__ = [
+    "UNLOCK_SLOT_RUBIES",
+    "UnlockProductionSlotRequest",
+    "UnlockProductionSlotResponse",
     "ProductionList",
     "ProductionSlot",
     "CurrentProductionSlot",
