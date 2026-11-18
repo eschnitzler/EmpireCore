@@ -94,9 +94,10 @@ class MovementFilter(IntEnum):
     """
     A kind of movement the map shows or hides, an ``mvf`` filter index.
 
-    Client: ``CastleSettingsData.parse_MVF`` (bundle line 139750) tests the ``AFS`` list for 0, 1 and 2;
-    the options dialog pairs them with ``toggleMapPVPAttacks``, ``toggleMapPvPAttacksAlliance`` and
-    ``toggleMapMarketBarrows``
+    Client: ``MovementFilterConst`` (dll: ``PLAYER_PVP_ATTACKS`` 0, ``ALLIANCE_PVP_ATTACKS`` 1,
+    ``RESOURCE_TRANSPORTS`` 2); ``CastleSettingsData.parse_MVF`` (bundle line 695800) tests the ``AFS`` list
+    for them, and the options dialog sends them from ``toggleMapPVPAttacks``, ``toggleMapPvPAttacksAlliance``
+    and ``toggleMapMarketBarrows``
     """
 
     PLAYER_ATTACKS = 0
