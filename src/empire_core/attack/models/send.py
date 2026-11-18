@@ -316,6 +316,12 @@ class CreateAttackResponse(BaseResponse):
 
     _raw_attack_movement: dict[str, Any] = PrivateAttr(default_factory=dict)
 
+    @field_validator("arrival_seconds", "army_size", mode="wrap")
+    @classmethod
+    def _number_or_none(cls, value: object, handler: ValidatorFunctionWrapHandler) -> int | float | None:
+        # Only the ATTACK_IN_PROGRESS dialog reads them, so one that is no number must not cost the movement
+        return read_or_none(handler, value)
+
     @model_validator(mode="wrap")
     @classmethod
     def _keep_the_raw_movement(
