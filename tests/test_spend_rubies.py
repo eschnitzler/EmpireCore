@@ -107,6 +107,7 @@ RUBY_REQUESTS = {
     "BuyReturnSpeedBoosterRequest": "brs, returnSpeedBoosterVO.finalCostsC2 (bundle line 463040)",
     "SkipSceatSkillActivationRequest": "ssa, SceatSkillConst.getFastCompleteCostC2 (getSkipCosts, split.js 121688)",
     "HoldFeastRequest": "bfs, a ruby feast's costC2 (hasC2Costs, split.js 333252) and PWR 1 (split.js 183813)",
+    "WishingWellRequest": "rww, S throws in entryCosts C2, SK calculateWishingWellSkipCost, U with PWR 1",
 }
 
 SENT_WITHOUT_CONSENT = {
@@ -116,6 +117,8 @@ SENT_WITHOUT_CONSENT = {
     "CastleService.start_mission": "sends mpe only for an open mission while none runs, which costs coins",
     "CastleService.collect_mission": "sends mpe only for a mission the client would collect for 0 rubies",
     "CastleService.skip_construction_crafting_time": "sci with a minute skip and PWR 0 spends the skip item",
+    "CastleService.get_wishing_well": "rww UD only reads the wishing well",
+    "CastleService.collect_wishing_well": "rww C collects the rubies a finished wishing well gives",
 }
 
 CONSENT_WITHOUT_REQUEST = {

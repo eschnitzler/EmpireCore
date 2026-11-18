@@ -285,7 +285,7 @@ from .villages import (
     UpgradePrivateVillageResponse,
     VillageListResponse,
 )
-from .wishing_well import WishingWellResponse
+from .wishing_well import WishingWellRequest, WishingWellResponse, wishing_well_skip_rubies
 
 __all__ = [
     "HunterInfo",
@@ -473,7 +473,9 @@ __all__ = [
     "StartTaxResponse",
     "TaxInfo",
     "TaxInfoResponse",
+    "WishingWellRequest",
     "WishingWellResponse",
+    "wishing_well_skip_rubies",
     "GetLaboratoryProgressRequest",
     "GetMonumentProgressRequest",
     "LaboratoryProgressResponse",

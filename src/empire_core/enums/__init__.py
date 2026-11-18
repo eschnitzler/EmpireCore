@@ -36,6 +36,7 @@ from .castle import (
     SessionLocation,
     TaxStatus,
     Weekday,
+    WishingWellOption,
 )
 from .collectables import BoosterId, CollectableKind, RewardGrantType
 from .combat import (
@@ -221,6 +222,7 @@ __all__ = [
     "Resource",
     "ResourceCartType",
     "JudgementOption",
+    "WishingWellOption",
     "TaxStatus",
     "Weekday",
     "KingdomTransferType",

@@ -11,6 +11,7 @@ It covers:
 - Research and the mercenary camp's missions
 - The refinery and toolsmith crafting queues, construction item crafting and the decoration fusion forge
 - A monument's or laboratory's upgrade progress
+- The ruby wishing well
 
 Sending goods, support and troops from a castle is on ``client.movements``.
 
@@ -48,6 +49,7 @@ from empire_core.castle.service.gates import OpenGateMixin
 from empire_core.castle.service.mercenaries import MercenaryCampMixin
 from empire_core.castle.service.modification import CastleModificationMixin
 from empire_core.castle.service.research import ResearchMixin
+from empire_core.castle.service.wishing_well import WishingWellMixin
 from empire_core.protocol.base import BaseResponse
 from empire_core.services.base import BaseService
 from empire_core.utils.callbacks import Event
@@ -67,6 +69,7 @@ class CastleService(
     ResearchMixin,
     MercenaryCampMixin,
     CraftingMixin,
+    WishingWellMixin,
     BaseService,
 ):
     """

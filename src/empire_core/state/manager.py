@@ -339,7 +339,7 @@ class GameState(
     daimyo areas, contracts, efforts     ``gda``, ``gdc``, ``gdw``    ``client.events.get_daimyo_areas()``, ...
     boosted global effects               ``bie`` (pushed)             re-login
     gift packages                        ``pgl``                      re-login
-    ruby wishing well                    ``rww``                      re-login
+    ruby wishing well                    ``rww``                      ``client.castle.get_wishing_well()``
     new relics flag                      ``nrf`` (pushed)             re-login
     frozen food production               ``DTS`` (pushed)             re-login
     your coat of arms                    ``gem`` (pushed), ``cem``    re-login
