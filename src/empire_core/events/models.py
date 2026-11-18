@@ -39,6 +39,7 @@ from empire_core.gamedata import (
     EventDifficultyId,
     LeaderboardRewardSetId,
     OuterRealmsSettingId,
+    PackageId,
     RewardId,
     RewardSetId,
     ScalingCampId,
@@ -79,6 +80,7 @@ if TYPE_CHECKING:
         LeaderboardRewardDef,
         LeagueType,
         LeagueTypeEventDef,
+        PackageDef,
         QuestId,
         RaidBoss,
         TreasureMapId,
@@ -1418,6 +1420,65 @@ class TravelingKnightsEvent(SpecialEvent):
         values["skin_id"] = js_int(entry.get("SID"))
 
 
+class PackageShopEvent(SpecialEvent):
+    """
+    An event whose shop sells packages for a fixed price: the packages its game data names, and those the server
+    adds.
+
+    Client: ``BuyPackagesEventVO.parseEventXmlNode``, ``parseParamObject``, ``mergeNewEventPackages`` and
+    ``sortEventPackages`` (split.js lines 33778-33808); its ``parseParamObject`` does not reach
+    ``ASpecialEventVO``'s, which reads KL
+    """
+
+    _reads_kl = False
+
+    added_package_ids: tuple[PackageId, ...] = Field(
+        default=(), validation_alias="PIDS", description="The packages the server adds to its shop"
+    )
+
+    @classmethod
+    def _read(
+        cls, values: dict[str, Any], entry: dict[str, Any], now: float, events: Mapping[int, SpecialEvent]
+    ) -> None:
+        super()._read(values, entry, now, events)
+        if js_truthy(added := entry.get("PIDS")) and cls._reads_added_packages(values["event_id"]):
+            values["added_package_ids"] = tuple(
+                package_id for part in js_string(added).split(",") if (package_id := js_parse_int(part)) is not None
+            )
+
+    @classmethod
+    def _reads_added_packages(cls, event_id: int) -> bool:
+        return True
+
+    def packages(self, *, game_data: GameData | None = None) -> tuple[PackageDef, ...]:
+        """
+        The packages its shop sells, by their sort order: its game data's, then those the server added. A package
+        the game data lacks is left out, as the client leaves it out.
+
+        Raises:
+            GameDataNotLoadedError: ``game_data`` is None and the game data cannot be loaded
+        """
+        data = _game_data(game_data)
+        event = data.events.get(self.event_id)
+        ids = (*(event.package_ids if event is not None else ()), *self.added_package_ids)
+        found = [package for package_id in ids if (package := data.packages.get(package_id)) is not None]
+        return tuple(sorted(found, key=lambda package: package.sort_order))
+
+
+class MercenaryShopEvent(PackageShopEvent):
+    """
+    A mercenary camp, or the Berimond armorers: a shop that sells units. Only Berimond Armorer (76) reads the
+    packages the server adds.
+
+    Client: ``UnitDealerEventVO.parseParamObject`` (split.js line 150401), whose ``FactionArmorerEventVO`` and
+    ``FactionHunterEventVO`` (split.js lines 594672, 594761) read the same
+    """
+
+    @classmethod
+    def _reads_added_packages(cls, event_id: int) -> bool:
+        return event_id == Event.BERIMOND_ARMORER_76
+
+
 class SeasonEvent(SpecialEvent):
     """
     A season event: the Thorn King (2), the Blade Coast (4) or the Underworld (64).
@@ -1840,6 +1901,35 @@ EVENT_CLASSES: dict[Event, type[SpecialEvent]] = {
     Event.TOURNAMENT: TournamentEvent,
     Event.TIME_LIMITED_CAMPAIGN_EVENT: CampaignEvent,
     Event.TIME_LIMITED_CAMPAIGN_QUEST_EVENT: CampaignQuestEvent,
+    **dict.fromkeys(
+        (
+            Event.TRAVELING_MERCHANT,
+            Event.TRAVELING_MERCHANT_EVENT,
+            Event.NOMAD_HUNTER,
+            Event.DAIMYO_SHOP,
+            Event.SAMURAI_ARMORER,
+            Event.ARMORER,
+            Event.GIFT_PEDDLER,
+            Event.EQUIPMENT_TRADER,
+            Event.PLAGUE_DOCTORS,
+            Event.APPRENTICE_SMITH,
+            Event.APPRENTICE_TOKEN_VENDOR,
+            Event.WISHING_WELL_COIN_VENDOR,
+            Event.RAIDBOSS_SHOP_EVENT,
+        ),
+        PackageShopEvent,
+    ),
+    **dict.fromkeys(
+        (
+            Event.MERCENARY_THORN_KING,
+            Event.MERCENARY_BLADE_COAST,
+            Event.MERCENARY_UNDERWORLD,
+            Event.MERCENARY_STORM_ISLANDS,
+            Event.BERIMOND_ARMORER_76,
+            Event.BERIMOND_ARMORER_86,
+        ),
+        MercenaryShopEvent,
+    ),
 }
 """The model each event's entries are read into; any other event is a plain :class:`SpecialEvent`.
 
