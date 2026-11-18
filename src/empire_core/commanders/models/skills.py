@@ -576,11 +576,11 @@ class ObjectUpdateEvent(BaseResponse):
     """
     An object update pushed by the server.
 
-    Only the skill list is read here; the area update the client also takes
-    from it stays in the extra fields.
+    Only the skill list is read here; the joined castle's part of the same payload is
+    :class:`~empire_core.castle.models.updates.ObjectUpdated`.
 
     Command: ego
-    Client: ``EGOCommand.executeCommand`` (bundle line 122801)
+    Client: ``EGOCommand.executeCommand`` (split.js line 628214)
     """
 
     command = "ego"
