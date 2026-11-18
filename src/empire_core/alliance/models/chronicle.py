@@ -390,7 +390,8 @@ class AllianceChronicleEntry(BasePayload):
     action_values: list[Any] = Field(
         validation_alias="AV",
         default_factory=list,
-        description="The action's text arguments as sent; typed by details",
+        description="The action's text arguments, which the client keeps as sent "
+        "(AllianceActionListItemVO.parseActionListItem); typed by details",
     )
 
     @field_validator("player_name", mode="before")
