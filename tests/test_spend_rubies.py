@@ -108,6 +108,7 @@ RUBY_REQUESTS = {
     "SkipSceatSkillActivationRequest": "ssa, SceatSkillConst.getFastCompleteCostC2 (getSkipCosts, split.js 121688)",
     "HoldFeastRequest": "bfs, a ruby feast's costC2 (hasC2Costs, split.js 333252) and PWR 1 (split.js 183813)",
     "WishingWellRequest": "rww, S throws in entryCosts C2, SK calculateWishingWellSkipCost, U with PWR 1",
+    "BuyEventPackageRequest": "sbp, a package's C2 price (EventPackageVO.priceC2) and PWR 1 (split.js 183839)",
 }
 
 SENT_WITHOUT_CONSENT = {

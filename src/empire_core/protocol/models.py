@@ -1234,6 +1234,13 @@ from empire_core.rewards.models import (
     RedeemWeeklyHonorRequest,
     RedeemWeeklyHonorResponse,
 )
+from empire_core.shop.models import (
+    BuyEventPackageRequest,
+    BuyEventPackageResponse,
+    GetPackageBuyCountsRequest,
+    PackageBuyCount,
+    PackageBuyCountsResponse,
+)
 from empire_core.spy.models import (
     AutoSpyRequest,
     AutoSpyResponse,
@@ -2370,4 +2377,9 @@ __all__ = [
     "SelectBerimondCampResponse",
     "AllianceUpgradeRequest",
     "AllianceUpgradeResponse",
+    "BuyEventPackageRequest",
+    "BuyEventPackageResponse",
+    "GetPackageBuyCountsRequest",
+    "PackageBuyCount",
+    "PackageBuyCountsResponse",
 ]

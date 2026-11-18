@@ -46,6 +46,7 @@ from empire_core.protocol.packet import Packet
 from empire_core.quests.service import QuestsService
 from empire_core.ranking.service import RankingService
 from empire_core.rewards.service import RewardsService
+from empire_core.shop.service import ShopService
 from empire_core.spy.service import SpyService
 from empire_core.state.manager import GameState
 from empire_core.utils.callbacks import Event, Registry
@@ -137,6 +138,7 @@ class EmpireClient:
     events: EventsService
     rewards: RewardsService
     quests: QuestsService
+    shop: ShopService
 
     def __init__(
         self,
@@ -223,6 +225,7 @@ class EmpireClient:
         self.player = PlayerService(self)
         self.events = EventsService(self)
         self.rewards = RewardsService(self)
+        self.shop = ShopService(self)
         self.quests = QuestsService(self)
 
     def _register_handler(self, command: str, handler: Callable[[BaseResponse], None]) -> None:

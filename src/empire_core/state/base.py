@@ -51,7 +51,7 @@ from empire_core.events.models import ShuttingDownEvents, SpecialEvent
 from empire_core.events.special_server_models import CurrentServer, SpecialServerCastles
 from empire_core.events.status_models import RiftRaidStatus
 from empire_core.exceptions import StateNotLoadedError
-from empire_core.gamedata import CraftingQueueId
+from empire_core.gamedata import CraftingQueueId, PackageId
 from empire_core.map.models.treasure_maps import TreasureMap
 from empire_core.map.models.world import ServerInfoResponse
 from empire_core.messages.models import MessageInfo, MessagesSentToday
@@ -208,6 +208,8 @@ class StateBase:
         self.movement_filter: MovementFilterResponse | None = None
         self.current_server: CurrentServer | None = None
         self.special_server_castles: SpecialServerCastles | None = None
+        # How often each package was bought, by package id, from gbc and sbp; swapped, never edited
+        self.package_buy_counts: dict[PackageId, int] | None = None
 
         # The officers' school's programs, the hunter, the open citizen judgement and your hero; each replaced
         self.training_programs: TrainingProgramsResponse | None = None

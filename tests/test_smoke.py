@@ -25,6 +25,7 @@ from empire_core.quests.service import QuestsService
 from empire_core.ranking.service import RankingService
 from empire_core.rewards.service import RewardsService
 from empire_core.services.base import BaseService
+from empire_core.shop.service import ShopService
 from empire_core.spy.service import SpyService
 
 SERVICE_TYPES = {
@@ -44,6 +45,7 @@ SERVICE_TYPES = {
     "events": EventsService,
     "rewards": RewardsService,
     "quests": QuestsService,
+    "shop": ShopService,
 }
 
 

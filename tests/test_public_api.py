@@ -58,6 +58,7 @@ PUBLIC_MODULES = (
     "empire_core.ranking",
     "empire_core.rewards",
     "empire_core.services",
+    "empire_core.shop",
     "empire_core.spy",
     "empire_core.state",
     "empire_core.texts",
