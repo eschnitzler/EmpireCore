@@ -647,7 +647,8 @@ class EventDef(_Row):
     An event: who sees it and where.
 
     Client: ``ASpecialEventVO.parseBasicsFromXmlNode`` (bundle lines 2959-2974); a season event's own map is the
-    first of ``mapID`` (``ASeasonEventVO.parseEventXmlNode``, bundle line 31385)
+    first of ``mapID`` (``ASeasonEventVO.parseEventXmlNode``, bundle line 31385); a shop's packages are
+    ``packageIDs`` (``BuyPackagesEventVO.parseEventXmlNode``, split.js line 33778)
     """
 
     event_id: GameDataId["Event"] = Field(validation_alias="eventID", description="The event")
@@ -697,6 +698,11 @@ class EventDef(_Row):
         default=(),
         description="The treasure maps it runs on, e.g. a season event's, whose first is its own map",
     )
+    package_ids: tuple[PackageId, ...] = Field(
+        validation_alias="packageIDs",
+        default=(),
+        description="The packages its shop sells, for an event with a shop, before those the server adds",
+    )
 
     @field_validator("event_id", mode="before")
     @classmethod
@@ -729,6 +735,11 @@ class EventDef(_Row):
     @classmethod
     def _map_ids(cls, value: object) -> list[int]:
         return _int_list(value)
+
+    @field_validator("package_ids", mode="before")
+    @classmethod
+    def _package_ids(cls, value: object) -> list[int]:
+        return _int_list(value, separator="+")
 
     @field_validator("event_type", mode="before")
     @classmethod
@@ -2047,12 +2058,29 @@ class CoatOfArmsSymbolDef(_Row):
         return self.required_achievement_id > 0
 
 
+_LEGEND_LEVEL_CAP = 950
+"""``PlayerConst.LEGEND_LEVEL_CAP`` (ggs.dll.js line 237)."""
+
+_MAX_BUY_PER_CLICK = 1000
+"""``PackageConst.MAX_BUY_PER_CLICK`` (ggs.dll.js line 237, written ``1e3``)."""
+
+PACKAGE_TYPE_BUNDLE = "packageBundle"
+"""A package that gives the rewards of the packages it names.
+
+Client: ``ClientConstPackages.PACKAGE_TYPE_BUNDLE`` (split.js line 27633)
+"""
+
+
 class PackageDef(_Row):
     """
-    An event package: what a shop sells, and what a gift package holds. Only its id, type and gift flag are read.
+    An event package: what a shop sells for a fixed price, and what a gift package holds.
 
-    Client: ``EventPackageVO.fillFromParamXML`` (bundle line 34024), kept by id in ``CastleEventPackageData``
-    (``getEventPackageByID``, bundle line 134408)
+    ``costs`` are its price before discounts, in the order the client shows it, and ``rewards`` what it gives; a
+    bundle's rewards add up those of the packages it names (``GameData.packages`` passes their rows in).
+
+    Client: ``EventPackageVO.fillFromParamXML`` (split.js line 177696), read by
+    ``CastleEventPackageData.parseXml`` (split.js line 670335), which reads a bundle's rewards again once every
+    package is read
     """
 
     package_id: PackageId = Field(validation_alias="packageID", description="The package")
@@ -2062,6 +2090,67 @@ class PackageDef(_Row):
     is_gift_package: bool = Field(
         validation_alias="isGiftPackage", default=False, description="Whether it is a gift package you may send"
     )
+    costs: tuple[Collectable, ...] = Field(default=(), description="Its price before discounts")
+    rewards: tuple[Collectable, ...] = Field(default=(), description="What it gives")
+    min_level: int = Field(validation_alias="minLevel", default=0, description="Lowest player level it is shown to")
+    max_level: int = Field(validation_alias="maxLevel", default=99, description="Highest player level it is shown to")
+    min_legend_level: int = Field(
+        validation_alias="minLegendLevel", default=0, description="Lowest legendary level it is shown to"
+    )
+    max_legend_level: int = Field(
+        validation_alias="maxLegendLevel",
+        default=_LEGEND_LEVEL_CAP,
+        description="Highest legendary level it is shown to",
+    )
+    sort_order: float = Field(validation_alias="sortOrder", default=0.0, description="Its place in a shop")
+    stock: int = Field(
+        validation_alias="stock", default=-1, description="How many you may buy in all; 0 or less for no limit"
+    )
+    not_rebuyable: bool = Field(
+        validation_alias="notRebuyable", default=False, description="Whether you may buy it only once"
+    )
+    fill_up_resource_storage: bool = Field(
+        validation_alias="fillUpResourceStorage",
+        default=False,
+        description="Whether it fills the castle's storage, priced by the free space",
+    )
+    fill_all_storages: bool = Field(
+        validation_alias="fillAllStorages",
+        default=False,
+        description="Whether it fills the storages of all your kingdoms, at a price the server names",
+    )
+    is_banner_package: bool = Field(
+        validation_alias="isBannerPackage", default=False, description="Whether a shop shows it as its banner"
+    )
+    max_buy_per_click: int = Field(
+        validation_alias="maxBuyPerClick",
+        default=_MAX_BUY_PER_CLICK,
+        description="Most you may buy at once of a package without a stock",
+    )
+    bundle_package_ids: tuple[PackageId, ...] = Field(
+        validation_alias="packageIDs", default=(), description="The packages a bundle gives"
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _read_costs_and_rewards(cls, row: object, info: ValidationInfo) -> object:
+        if not isinstance(row, dict) or "costs" in row:
+            return row
+        context = info.context or {}
+        currency_ids = context.get("currency_ids", {})
+        bundled = None
+        if _text(row.get("packageType"), "0") == PACKAGE_TYPE_BUNDLE:
+            rows = context.get("package_rows", {})
+            bundled = {
+                package_id: Collectable.package_rewards(rows[package_id], currency_ids)
+                for package_id in _int_list(row.get("packageIDs"))
+                if package_id in rows
+            }
+        return {
+            **row,
+            "costs": Collectable.package_costs(row, currency_ids),
+            "rewards": Collectable.package_rewards(row, currency_ids, bundled),
+        }
 
     @field_validator("package_id", mode="before")
     @classmethod
@@ -2073,10 +2162,127 @@ class PackageDef(_Row):
     def _text_column(cls, value: object) -> str:
         return _text(value, "0")
 
-    @field_validator("is_gift_package", mode="before")
+    @field_validator(
+        "is_gift_package", "not_rebuyable", "fill_up_resource_storage", "fill_all_storages", "is_banner_package",
+        mode="before",
+    )  # fmt: skip
     @classmethod
     def _flag(cls, value: object) -> bool:
         return _is_one(value)
+
+    @field_validator("min_level", "min_legend_level", mode="before")
+    @classmethod
+    def _zero_default(cls, value: object) -> int:
+        return _parse_int_or_default(value, 0)
+
+    @field_validator("max_level", mode="before")
+    @classmethod
+    def _max_level(cls, value: object) -> int:
+        return _parse_int_or_default(value, 99)
+
+    @field_validator("max_legend_level", mode="before")
+    @classmethod
+    def _max_legend_level(cls, value: object) -> int:
+        return _parse_int_or_default(value, _LEGEND_LEVEL_CAP)
+
+    @field_validator("stock", mode="before")
+    @classmethod
+    def _stock(cls, value: object) -> int:
+        return _parse_int_or_default(value, -1)
+
+    @field_validator("max_buy_per_click", mode="before")
+    @classmethod
+    def _max_buy_per_click(cls, value: object) -> int:
+        return _parse_int_or_default(value, _MAX_BUY_PER_CLICK)
+
+    @field_validator("sort_order", mode="before")
+    @classmethod
+    def _sort_order(cls, value: object) -> float:
+        number = js_parse_float(value if not js_falsy(value) else "0")
+        return 0.0 if math.isnan(number) else number
+
+    @field_validator("bundle_package_ids", mode="before")
+    @classmethod
+    def _bundle(cls, value: object) -> list[int]:
+        return _int_list(value)
+
+    @property
+    def has_custom_price(self) -> bool:
+        """
+        Whether its price depends on your storages, so the client names it when buying.
+
+        Client: ``EventPackageVO.hasCustomPrice`` (split.js line 178359)
+        """
+        return self.fill_all_storages or self.fill_up_resource_storage
+
+    @property
+    def is_stock_limited(self) -> bool:
+        """
+        Whether you may buy it only so often: once, or up to its stock.
+
+        Client: ``EventPackageVO.isStockLimited`` (split.js line 177877)
+        """
+        return self.not_rebuyable or self.stock > 0
+
+    def remaining_stock(self, bought: int = 0) -> int:
+        """
+        How many you may still buy, having bought ``bought``; ``max_buy_per_click`` for a package without a stock.
+
+        Client: ``EventPackageVO.remainingStock`` (split.js line 177884)
+        """
+        if self.stock > 0:
+            return max(self.stock - bought, 0)
+        if self.not_rebuyable:
+            return max(1 - bought, 0)
+        return self.max_buy_per_click
+
+    @property
+    def shown_reward(self) -> Collectable | None:
+        """
+        The reward a shop shows for it: its one reward, or None where it shows the package itself, for several
+        rewards, a random one, or more than one random equipment, hero equipment or gem.
+
+        Client: ``EventPackageVO.reward`` and ``usePackageIcon`` (split.js lines 178430, 178148)
+        """
+        if len(self.rewards) != 1:
+            return None
+        reward = self.rewards[0]
+        if reward.kind is CollectableKind.RANDOM_REWARD or (reward.amount > 1 and reward.kind in _RANDOM_KINDS):
+            return None
+        return reward
+
+    @property
+    def places_building(self) -> bool:
+        """
+        Whether buying it places a building, so the client names the castle it goes to.
+
+        Client: ``AMerchantBuyDialog.onBtnOkClick`` (split.js line 214956) checks ``reward.itemType``
+        """
+        return self.shown_reward is not None and self.shown_reward.kind is CollectableKind.BUILDING
+
+    def may_be_bought_in_bulk(self, bought: int = 0) -> bool:
+        """
+        Whether more than one may be bought at once, having bought ``bought``; the client offers one only otherwise.
+
+        Client: ``EventPackageVO.mayBeBoughtInBulk`` (split.js line 178329), which shows the amount slider of
+        ``CastleGenericSliderBuyDialog`` (split.js line 34317)
+        """
+        reward = self.shown_reward
+        if reward is not None and reward.kind in _NEVER_IN_BULK:
+            return False
+        first_is_random = bool(self.rewards) and self.rewards[0].kind is CollectableKind.RANDOM_REWARD
+        return (
+            not self.has_custom_price
+            and not self.is_banner_package
+            and not self.not_rebuyable
+            and not first_is_random
+            and self.stock != 1
+            and self.remaining_stock(bought) > 1
+        )
+
+
+_RANDOM_KINDS = frozenset({CollectableKind.EQUIPMENT_RARENESS, CollectableKind.HERO_RANDOM, CollectableKind.GEM_RANDOM})
+_NEVER_IN_BULK = _RANDOM_KINDS | {CollectableKind.BUILDING}
 
 
 class PlayerNameChangeDef(_Row):

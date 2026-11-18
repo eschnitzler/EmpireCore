@@ -34,7 +34,7 @@ from empire_core.protocol.base import EmpireModel
 
 from . import cache, cdn
 from .assets import AssetIndex
-from .collectables import _KINDS_BY_XML_KEY, _XML_ADD_PREFIX, Collectable, is_reward_column
+from .collectables import _KINDS_BY_XML_KEY, _XML_ADD_PREFIX, Collectable, is_package_column, is_reward_column
 from .lenient import GameDataId
 from .models import (
     READING_CACHE,
@@ -501,7 +501,7 @@ _TABLES: dict[str, _TableSource] = {
     "construction_item_recipes": _TableSource("constructionItemRecipes", ConstructionItemRecipeDef, "recipe_id"),
     "scaling_camps": _TableSource("eventAutoScalingCamps", ScalingCampDef, "scaling_camp_id"),
     "coat_of_arms_symbols": _TableSource("crestsymbols", CoatOfArmsSymbolDef, "symbol_id"),
-    "packages": _TableSource("packages", PackageDef, "package_id"),
+    "packages": _TableSource("packages", PackageDef, "package_id", reads=is_package_column),
     "player_name_changes": _TableSource("playerNameChanges", PlayerNameChangeDef, "name_change_id"),
     "prebuilt_castles": _TableSource("prebuiltcastles", PrebuiltCastleDef, "prebuilt_castle_id", reads=is_cost_column),
     "outer_realms_prebuilt_castles": _TableSource(
@@ -857,7 +857,9 @@ class GameData(EmpireModel):
     @cached_property
     def packages(self) -> Table[PackageId, PackageDef]:
         """The ``packages`` rows, by the package id a shop or a gift package names."""
-        return self._table("packages")
+        return self._table(
+            "packages", context={"currency_ids": self._currency_ids(), "package_rows": self._table_rows["packages"]}
+        )
 
     @cached_property
     def player_name_changes(self) -> Table[int, PlayerNameChangeDef]:

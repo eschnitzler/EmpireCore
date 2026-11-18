@@ -22,7 +22,14 @@ from pydantic import BeforeValidator, ConfigDict, Field, PlainSerializer, PlainV
 
 from empire_core.enums import BoosterId, CollectableKind, Rareness
 from empire_core.protocol.base import EmpireModel
-from empire_core.protocol.js import js_int, js_number_or_none, js_parse_int, js_parse_int_or_zero, js_truthy
+from empire_core.protocol.js import (
+    js_int,
+    js_number_or_none,
+    js_parse_int,
+    js_parse_int_or_zero,
+    js_string,
+    js_truthy,
+)
 
 from .lenient import EnumOrInt, known
 
@@ -251,12 +258,13 @@ _GOODS = (
     CollectableKind.GLASS,
     CollectableKind.IRON,
     CollectableKind.AQUAMARINE,
+    CollectableKind.HONEY,
     CollectableKind.MEAD,
     CollectableKind.BEEF,
-    CollectableKind.HONEY,
     CollectableKind.COINS,
     CollectableKind.RUBIES,
 )
+"""The goods, in the client's order: ``ClientConstCollectable.GROUP_LIST_GOODS`` (split.js line 15653)."""
 
 _READERS: dict[CollectableKind, Callable[[Any], dict[str, Any]]] = {
     **dict.fromkeys(_GOODS, _amount),
@@ -316,6 +324,12 @@ _XML_ADD_PREFIX = "add"
 
 _XML_COST_PREFIX = "cost"
 """``ClientConstCollectable.XML_PREFIX_COST`` (bundle line 3074): ``cost<kind or currency name>`` columns."""
+
+_XML_AMOUNT_PREFIX = "amount"
+"""``ClientConstCollectable.XML_PREFIX_AMOUNT`` (split.js line 15703): ``amount<kind or currency name>`` columns."""
+
+_PACKAGE_PRICE_PREFIX = "packagePrice"
+"""An event package's goods price columns, ``packagePrice<goods>`` (split.js line 325541)."""
 
 
 def _parts(text: str) -> list[int]:
@@ -630,6 +644,56 @@ class Collectable(EmpireModel):
                 found.append(cls(kind=CollectableKind.OTHER, key=column, value=text))
         return tuple(found)
 
+    @classmethod
+    def package_costs(cls, row: Mapping[str, Any], currency_ids: Mapping[str, int]) -> tuple[Collectable, ...]:
+        """
+        What an event package row costs before discounts: each goods' ``packagePrice<name>`` above 0, in the
+        client's goods order, then its ``cost`` columns; rubies 0 for a row with neither.
+
+        A column naming no kind or currency is dropped, as the client drops it.
+
+        Client: ``CollectableParserX2CEventPackages.createCostList`` (split.js line 325525),
+        ``CollectableHelper.getGoodsKeySuffix`` (split.js line 9426)
+        """
+        prices = [
+            cls(kind=kind, key=kind.server_key, amount=amount)
+            for kind in _GOODS
+            if (amount := _int_column(row.get(_PACKAGE_PRICE_PREFIX + _goods_suffix(kind)))) > 0
+        ]
+        costs = (*prices, *_named(cls.from_columns(row, _XML_COST_PREFIX, currency_ids)))
+        return costs or (cls(kind=CollectableKind.RUBIES, key=CollectableKind.RUBIES.server_key, amount=0),)
+
+    @classmethod
+    def package_rewards(
+        cls,
+        row: Mapping[str, Any],
+        currency_ids: Mapping[str, int],
+        bundled: Mapping[int, tuple[Collectable, ...]] | None = None,
+    ) -> tuple[Collectable, ...]:
+        """
+        What an event package row gives: its ``add``, ``amount`` and kind or currency columns, each pass added up
+        with the ones before, then the columns the client reads one by one, in the row's order.
+
+        ``bundled`` are the rewards of the packages a bundle's ``packageIDs`` names, by package id; a package
+        it lacks gives nothing, as in the client. A column naming no kind or currency is dropped.
+
+        Client: ``CollectableParserX2CEventPackages.createRewardList`` (split.js line 325561) with
+        ``CollectableParserX2CList.createList`` (split.js line 325769)
+        """
+        found: list[Collectable] = []
+        for prefix in (_XML_ADD_PREFIX, _XML_AMOUNT_PREFIX, ""):
+            found = list(cls.merged([*found, *_named(cls.from_columns(row, prefix, currency_ids))]))
+        for column in row:
+            if column == "packageIDs":
+                for package_id in _package_ids(row[column]):
+                    found = list(cls.merged([*found, *(bundled or {}).get(package_id, ())]))
+            elif column == "lootBox":
+                if found and found[0].kind is CollectableKind.LOOT_BOX:
+                    found[0] = cls._from_xml(CollectableKind.LOOT_BOX, _text(row[column]))
+            elif (reward := _PACKAGE_COLUMNS.get(column)) is not None and (item := reward(row)) is not None:
+                found.append(item)
+        return tuple(found)
+
     @staticmethod
     def merged(collectables: Iterable[Collectable]) -> tuple[Collectable, ...]:
         """
@@ -699,6 +763,148 @@ class Collectable(EmpireModel):
         if self.kind is CollectableKind.OTHER:
             raise ValueError(f"{self.key!r} names no collectable the client knows, so it is never sent")
         return self.kind.server_key
+
+
+def _text(value: Any) -> str:
+    return "" if value is None else js_string(value)
+
+
+def _int_column(value: Any, default: str = "0") -> int:
+    """``parseInt(getValueOrDefault(column, row, default))``, NaN as 0."""
+    return js_parse_int_or_zero(value if js_truthy(value) else default)
+
+
+def _goods_suffix(kind: CollectableKind) -> str:
+    """Coins and rubies by their server key, the other goods by their items key, with a capital first letter."""
+    name = kind.server_key if kind in (CollectableKind.COINS, CollectableKind.RUBIES) else kind.xml_keys[0]
+    return name[:1].upper() + name[1:]
+
+
+def _named(collectables: Iterable[Collectable]) -> list[Collectable]:
+    return [collectable for collectable in collectables if collectable.kind is not CollectableKind.OTHER]
+
+
+def _package_ids(value: Any) -> list[int]:
+    return [package_id for part in _text(value).split(",") if part and (package_id := js_parse_int(part)) is not None]
+
+
+def _package_building(row: Mapping[str, Any]) -> Collectable:
+    from .ids import Building
+
+    return Collectable(
+        kind=CollectableKind.BUILDING,
+        key=CollectableKind.BUILDING.server_key,
+        item=known(Building, js_parse_int_or_zero(row.get("buildingID"))),
+        amount=_int_column(row.get("buildingAmount"), "1"),
+    )
+
+
+def _package_units(row: Mapping[str, Any]) -> Collectable:
+    from .ids import Tool, Unit
+
+    return Collectable(
+        kind=CollectableKind.UNITS,
+        key=CollectableKind.UNITS.server_key,
+        item=known((Unit, Tool), js_parse_int_or_zero(row.get("unitID"))),
+        amount=js_parse_int_or_zero(row.get("unitAmount")),
+    )
+
+
+def _package_hero(row: Mapping[str, Any]) -> Collectable:
+    return Collectable(
+        kind=CollectableKind.HERO_RANDOM,
+        key=CollectableKind.HERO_RANDOM.server_key,
+        item=known(Rareness, _int_column(row.get("specialHeroOfRarenessID"))),
+        amount=_int_column(row.get("heroAmount")),
+    )
+
+
+def _package_construction_item(row: Mapping[str, Any]) -> Collectable:
+    from .ids import ConstructionItem
+
+    return Collectable(
+        kind=CollectableKind.CONSTRUCTION_ITEM,
+        key=CollectableKind.CONSTRUCTION_ITEM.server_key,
+        item=known(ConstructionItem, _int_column(row.get("constructionItemID"))),
+        amount=_int_column(row.get("constructionItemAmount")),
+    )
+
+
+def _package_plague_doctors(row: Mapping[str, Any]) -> Collectable:
+    return Collectable(
+        kind=CollectableKind.PLAGUE_DOCTORS,
+        key=CollectableKind.PLAGUE_DOCTORS.server_key,
+        amount=js_parse_int_or_zero(row.get("plagueMonkCount")),
+    )
+
+
+def _random(kind: CollectableKind, amount: int) -> Collectable:
+    return Collectable(kind=CollectableKind.RANDOM_REWARD, key="", item=kind, amount=amount)
+
+
+def _package_equipment(row: Mapping[str, Any]) -> Collectable | None:
+    if _int_list_text(row.get("equipmentIDs")) or _text(row.get("enchantedEquipmentIDs") or ""):
+        return None
+    amount = _int_column(row.get("equipmentAmount"))
+    rareness = _int_column(row.get("specialEquipmentOfRarenessID"))
+    if rareness > 0:
+        kind = CollectableKind.EQUIPMENT_RARENESS
+        return Collectable(kind=kind, key=kind.server_key, item=known(Rareness, rareness), amount=amount)
+    return _random(CollectableKind.EQUIPMENT_RARENESS, amount)
+
+
+def _package_gems(row: Mapping[str, Any]) -> Collectable | None:
+    if _text(row.get("gemIDs") or ""):
+        return None
+    amount = _int_column(row.get("gemAmount"))
+    level = _int_column(row.get("specialGemOfLevelID"))
+    if level > 0:
+        kind = CollectableKind.GEM_RANDOM
+        return Collectable(kind=kind, key=kind.server_key, item=-level, amount=amount)
+    return _random(CollectableKind.GEM_RANDOM, amount)
+
+
+def _package_xp(row: Mapping[str, Any]) -> Collectable:
+    return Collectable(
+        kind=CollectableKind.XP, key=CollectableKind.XP.server_key, amount=js_parse_int_or_zero(row.get("amountXP"))
+    )
+
+
+def _int_list_text(value: Any) -> list[str]:
+    """``CastleXMLUtils.getIntArrayFromString`` (split.js line 5834): the non-empty ``,`` parts."""
+    return [part for part in _text(value or "").split(",") if part]
+
+
+_PACKAGE_COLUMNS: dict[str, Callable[[Mapping[str, Any]], Collectable | None]] = {
+    "buildingID": _package_building,
+    "unitID": _package_units,
+    "heroAmount": _package_hero,
+    "constructionItemID": _package_construction_item,
+    "plagueMonkCount": _package_plague_doctors,
+    "equipmentAmount": _package_equipment,
+    "gemAmount": _package_gems,
+    "amountXP": _package_xp,
+}
+"""The event package columns the client reads one by one into a reward, as the switch of
+``CollectableParserX2CEventPackages.createRewardList`` does (split.js lines 325585-325732): a random equipment or
+gem only where the row names no equipment or gem.
+"""
+
+PACKAGE_REWARD_COLUMNS = frozenset({*_PACKAGE_COLUMNS, "packageIDs", "lootBox", "buildingAmount", "unitAmount",
+    "specialHeroOfRarenessID", "constructionItemAmount", "equipmentIDs", "enchantedEquipmentIDs",
+    "specialEquipmentOfRarenessID", "gemIDs", "specialGemOfLevelID"})  # fmt: skip
+"""Every column the switch of ``createRewardList`` reads."""
+
+
+def is_package_column(column: str) -> bool:
+    """Whether a ``packages`` column can hold a cost or a reward: a prefixed column, a kind's or a currency's name."""
+    return (
+        column.startswith((_PACKAGE_PRICE_PREFIX, _XML_COST_PREFIX, _XML_ADD_PREFIX, _XML_AMOUNT_PREFIX))
+        or column in _KINDS_BY_XML_KEY
+        or column in PACKAGE_REWARD_COLUMNS
+        or column[:1].isupper()
+        or column[:1].isdigit()
+    )
 
 
 def _collectables(read: Callable[[Any], tuple[Collectable, ...]]) -> Callable[[Any], Any]:

@@ -38,8 +38,6 @@
     "532": ["gbd", "vpm"]
   },
   "unowned": {
-    "sbp": "buying an event package",
-    "gbc": "the event package buy counts",
     "lcb": "welcome-back popup C2"
   }
 }

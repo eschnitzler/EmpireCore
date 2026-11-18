@@ -45,6 +45,7 @@ RANK = {
     "alliance": 6,
     "messages": 7,
     "spy": 8,
+    "shop": 9,
 }
 PLUMBING = {"protocol", "enums", "gamedata", "exceptions", "config", "utils", "services", "texts"}
 ABOVE = {"client", "state", "network", "accounts", "pool", "console"}

@@ -231,6 +231,8 @@ _SUCCESS_ONLY = frozenset(
     | {"crin", *CRAFTING_QUEUE_REPLIES, "ffi"}
     # TSECommand, TCCCommand (bundle lines 128917, 127354)
     | {"tse", "tcc"}
+    # GBCCommand.executeCommand (split.js line 651107); sbp is a nested section reply
+    | {"gbc"}
     # GAECommand.executeCommand (bundle line 127262)
     | {"gae"}
     # ABGICommand.executeCommand (split.js line 643311)
@@ -342,6 +344,7 @@ class GameState(
     boosted global effects               ``bie`` (pushed)             re-login
     gift packages                        ``pgl``                      re-login
     ruby wishing well                    ``rww``                      ``client.castle.get_wishing_well()``
+    packages bought                      ``gbc``, ``sbp``             ``client.shop.get_package_buy_counts(id)``
     new relics flag                      ``nrf`` (pushed)             re-login
     frozen food production               ``DTS`` (pushed)             re-login
     your coat of arms                    ``gem`` (pushed), ``cem``    re-login
@@ -515,6 +518,8 @@ class GameState(
         "ffi": "_handle_ffi",
         "tse": "_handle_tse",
         "tcc": "_handle_tcc",
+        "sbp": "_handle_sbp",
+        "gbc": "_handle_gbc",
         "lws": "_handle_lws",
         "lwj": "_handle_lwj",
         "lwc": "_handle_lwc",

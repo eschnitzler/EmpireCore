@@ -16,12 +16,14 @@ Failure modes are kept distinct so callers can react to them individually:
 - ``UnsendableGoodsError``: a market send carries goods the client would not send.
 - ``PremiumCommanderCostError``: a send led by the premium commander may cost rubies.
 - ``LoginBonusUnavailableError``: the login bonus is asked for below the XP the client asks from.
+- ``NotEnoughSpecialCurrencyError``: a package costs an event currency you lack.
 """
 
 from typing import Any
 
 from empire_core.enums import GGEError, ProductionListId, VersionCheckStatus
 from empire_core.gamedata.lenient import EnumOrInt, known
+from empire_core.gamedata.tables import PackageId
 from empire_core.texts import cached_text
 
 
@@ -366,6 +368,24 @@ class ProductionSlotsNeededError(CommandError):
         self.missing_slots: int | None = details.get("AMT")
 
 
+class NotEnoughSpecialCurrencyError(CommandError):
+    """The server refused a package with ``NOT_ENOUGH_SPECIAL_CURRENCY`` (327): you lack the event currency it costs.
+
+    Attributes:
+        package_id: the package refused (``PID``), or None when the reply names none
+
+    Client: ``SBPCommand.executeCommand`` (split.js line 647153) reads ``PID`` to show the currencies it costs.
+    """
+
+    def __init__(self, command: str, code: int, payload: Any = None):
+        super().__init__(command, code, payload)
+        details = payload if isinstance(payload, dict) else {}
+        package_id = details.get("PID")
+        self.package_id: PackageId | None = (
+            PackageId(package_id) if isinstance(package_id, int) and not isinstance(package_id, bool) else None
+        )
+
+
 class AttackBelowMinimumError(EmpireError, ValueError):
     """An attack's waves carry fewer units than the client lets it send.
 
@@ -490,6 +510,7 @@ __all__ = [
     "CommandError",
     "AttackInProgressError",
     "ProductionSlotsNeededError",
+    "NotEnoughSpecialCurrencyError",
     "AttackBelowMinimumError",
     "UnsendableGoodsError",
     "PremiumCommanderCostError",

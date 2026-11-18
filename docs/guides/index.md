@@ -13,6 +13,7 @@ client.alliance     client.castle      client.army       client.attack
 client.commanders   client.equipment   client.spy        client.map
 client.movements    client.messages    client.player     client.defense
 client.ranking      client.events      client.rewards     client.quests
+client.shop
 ```
 
 ## Services
@@ -141,6 +142,7 @@ call always does.
 | Your level and flag | `player.buy_level`, `player.buy_premium_flag` | always |
 | The ruby wishing well's entry | `castle.start_wishing_well` | always |
 | Time-limited campaigns | `events.buy_campaign_quest`, `buy_campaign_reward` | always |
+| Event shops | `shop.buy_event_package` | a package priced in rubies; with the flag the costs you lack are paid with rubies |
 | The rest | `castle.buy_expansion`, `rename`, `start_tax`, `castle.start_research`, `alliance.donate` | a premium expansion; a rename with no premium account; tax types 5 and 6; a ruby research; donated rubies |
 
 Pricing reads the game data, loaded on first use; the call raises
