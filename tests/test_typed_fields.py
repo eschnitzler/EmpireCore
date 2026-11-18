@@ -76,6 +76,7 @@ ALLOWED: dict[str, str] = {
     "gamedata.tables.GeneralRarityDef.upgrade_costs": "shard costs, one per star level; not ids",
     "gamedata.tables.GeneralRarityDef.xp_requirements": "xp totals, one per level; not ids",
     "gamedata.tables.BuildingDef.construction_item_group_ids": "construction item groups have no name",
+    "gamedata.tables.CitadelLevelDef.scatter_weights": "weights, not ids",
     "gamedata.tables.BuildingDef.low_level_build_durations": "durations in seconds, not ids",
     "gamedata.tables.BuildingDef.low_level_main_castle_cost_rubies": "ruby amounts, not ids",
     "gamedata.tables.CraftingQueueDef.production_slot_unlock_coins": "coin amounts, one per slot; not ids",
@@ -179,6 +180,9 @@ GAME_DATA_SCALAR_IDS: dict[str, str] = {
     "gamedata.tables.QuestDef.questbook_tab_id": "quest book tabs have no table",
     "gamedata.tables.QuestDef.series_id": "quest series have no table",
     "gamedata.tables.ResearchDef.group_id": "research groups have no table",
+    "gamedata.tables.OasisSettlementDef.settlement_type_id": "oasis settlement kinds have no table",
+    "gamedata.tables.OasisSettlementDef.trade_group_id": "trade groups group oasis_trades rows; no table",
+    "gamedata.tables.OasisTradeDef.trade_group_id": "trade groups group oasis_trades rows; no table",
 }
 """Game-data row fields named ``*_id`` that hold a plain int, each with why no enum types it."""
 

@@ -40,6 +40,7 @@ class MovementType(IntEnum):
     HORIZON_ALLIANCE_TOWER_SUPPORT = 32
     HORIZON_ALLIANCE_TOWER_ATTACK = 33
     WOLFGARD_TAUNT_ATTACK = 34
+    HORIZON_OASIS_TRADE = 35
 
     @property
     def is_attack(self) -> bool:

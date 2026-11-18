@@ -1,6 +1,7 @@
 """Your own alliance's details (ain), the alliance chat history (acl, acm) and the help list (ahl, ahh, ahd)."""
 
 import logging
+import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
@@ -13,7 +14,12 @@ from empire_core.alliance.models.help import (
     AllianceHelpRequestChanged,
     AllianceHelpRequestRemoved,
 )
-from empire_core.alliance.models.horizon import HorizonMemberPerformance, HorizonPerformanceResponse
+from empire_core.alliance.models.horizon import (
+    HorizonMemberPerformance,
+    HorizonPerformanceResponse,
+    JadePhase,
+    JadePhaseResponse,
+)
 from empire_core.alliance.models.info import (
     AllianceBuffsResponse,
     AllianceCrestChangedResponse,
@@ -172,6 +178,15 @@ class AllianceState(StateBase):
         performance = read_section(HorizonPerformanceResponse, data, "Beyond the Horizon performance")
         if performance is not None:
             self.horizon_performance = tuple(performance.members)
+
+    def _handle_abgi(self, data: Any) -> None:
+        """Apply a Jade Desert scoring phase push over the phase the earlier ones left.
+
+        Client: ``AllianceBattleGroundEventVO.parseJadePhaseInfo`` (split.js line 585444)
+        """
+        push = read_section(JadePhaseResponse, data, "the Jade Desert's scoring phase")
+        if push is not None:
+            self.jade_phase = (self.jade_phase or JadePhase()).updated(push, time.time())
 
     def _handle_aja(self, data: Any) -> None:
         """Apply your new membership, then the alliance you were put in.
@@ -450,6 +465,11 @@ class AllianceState(StateBase):
             if self.horizon_performance is None:
                 return None
             return [member.model_copy(deep=True) for member in self.horizon_performance]
+
+    def get_jade_phase(self) -> JadePhase | None:
+        """The Jade Desert's scoring phase, from the ``abgi`` pushes so far; None until one arrived."""
+        with self._lock:
+            return self.jade_phase
 
     def get_own_alliance(self) -> AllianceInfo | None:
         """Your alliance's details and members, from the last ``ain`` about it; None in no alliance or before one.

@@ -46,6 +46,7 @@ RUBY_REQUESTS = {
     "SelectSpecialServerCastleRequest": "tsc, OC2 for a castle priced in C2 (bundle line 27953)",
     "RerollChargeCampEffectRequest": "ccr, the reroll's c2Cost (bundle line 140279)",
     "SendTowerSupportRequest": "tde, same as cds",
+    "SendOasisTradeRequest": "jtr, BPC, a ruby horse (CastlePostTradeHorseDialog.getBoostCostC2, split.js 566722)",
     "TreasureHuntAttackRequest": "thm, BPC, a ruby horse",
     "CreateMarketMovementRequest": "crm, a ruby horse, a slowdown",
     "SendSpyRequest": "csm, a ruby horse, a slowdown",

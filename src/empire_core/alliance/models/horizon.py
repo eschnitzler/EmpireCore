@@ -1,4 +1,4 @@
-"""Beyond the Horizon: alliance tower buffs, towers, centers of power, influence and performance.
+"""Beyond the Horizon: alliance towers, centers of power, influence, performance and the Jade Desert.
 
 Commands:
 - tbi: An alliance tower's buffs
@@ -12,28 +12,63 @@ Commands:
 - gabgpp: A player's Beyond the Horizon influence
 - gae: Your alliance members' Beyond the Horizon performance
 - ajp: Your alliance as Beyond the Horizon will see it, before you join
+- bgc: The conditions for entering Beyond the Horizon you do not meet yet
+- abgi: The Jade Desert's scoring phase (push)
+- jci: Your alliance's Citadel and the enemy citadels in the Jade Desert
+- ujc: Upgrade your alliance's Citadel
+- cjs: Convert Ancient Jade Statuettes into Restored Jade Statuettes
+- jtci: An Oasis Settlement's state
+- jtr: Send troops and trading materials to an Oasis Settlement
 """
 
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Annotated, Any
 
-from pydantic import Field, field_validator
+from pydantic import BeforeValidator, ConfigDict, Field, PlainSerializer, field_validator
 
-from empire_core.enums import AllianceRank, PerformanceStatistic
+from empire_core.commanders.models.roster import CommanderEffects
+from empire_core.enums import (
+    AllianceRank,
+    HorizonEntryConditionType,
+    JadeScoringPhase,
+    Kingdom,
+    PerformanceStatistic,
+)
+from empire_core.gamedata import OasisSettlementId, OasisTradeId, WodAmountSlots
 from empire_core.gamedata.ids.events import Event
-from empire_core.gamedata.lenient import EnumOrInt
+from empire_core.gamedata.lenient import EnumOrInt, EnumOrStr
 from empire_core.map.models.areas import MapObject
 from empire_core.map.models.items import MapAreaItem, parse_area_rows
 from empire_core.map.models.owners import OwnerCrest
-from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, readable_list
-from empire_core.protocol.js import ClientInt, js_int, js_truthy
+from empire_core.movements.models.movement import NO_HORSE, HorseBoosterId, SentMovementResponse
+from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, EmpireModel, readable_list
+from empire_core.protocol.js import ClientInt, js_int, js_truthy, movement_targets
 
 if TYPE_CHECKING:
-    from empire_core.gamedata.ids import AllianceTowerEffect, Effect
+    from empire_core.gamedata.ids import AllianceTowerEffect, Building, Effect
 
 logger = logging.getLogger(__name__)
+
+
+def _trade_amounts(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return dict(value)
+    if isinstance(value, list | tuple):
+        return {row[0]: row[1] for row in value if isinstance(row, list | tuple) and len(row) == 2}
+    return value
+
+
+OasisTradeAmounts = Annotated[
+    dict[OasisTradeId, int],
+    BeforeValidator(_trade_amounts),
+    PlainSerializer(lambda trades: [[trade_id, amount] for trade_id, amount in trades.items()]),
+]
+"""How often to make each Oasis Settlement trade, ``[[trade_id, amount], ...]`` on the wire.
+
+Client: ``TradingCampTradeSelectionVO.getTradesParam`` (split.js line 565226)"""
 
 
 def _area_rows(value: Any, what: str) -> list[MapAreaItem]:
@@ -629,6 +664,389 @@ class HorizonEntryResponse(BaseResponse):
     rank: EnumOrInt[AllianceRank] = Field(validation_alias="R", default=0, description="Your alliance rank")
 
 
+class GetHorizonEntryConditionsRequest(BaseRequest):
+    """
+    Ask which conditions for entering Beyond the Horizon you do not meet yet.
+
+    Command: bgc
+    Payload: {}
+
+    Client: ``C2SAllianceBattleGroundEntryConditionsVO`` (split.js line 716195), sent by
+    ``CastleAllianceBattleGroundData.requestEntryConditions`` (split.js line 716008) whenever the Jade Desert
+    event dialog's overview opens
+    """
+
+    command = "bgc"
+
+
+class HorizonEntryCondition(BasePayload):
+    """
+    One condition for entering Beyond the Horizon that you do not meet yet.
+
+    Client: ``ABGEntryConditionVO.parseData`` (split.js line 716688) reads ``MBW`` through ``int()``; the dialog
+    names each missing building with ``wodData.getBuildingVOById`` (split.js line 474649)
+    """
+
+    condition_type: EnumOrStr[HorizonEntryConditionType] = Field(
+        validation_alias="ECT", default="", description="What kind of condition it is"
+    )
+    missing_buildings: list[EnumOrInt["Building"]] = Field(
+        validation_alias="MBW", default_factory=list, description="The buildings you still need"
+    )
+
+    @field_validator("missing_buildings", mode="before")
+    @classmethod
+    def _building_ids(cls, value: Any) -> list[int]:
+        return [js_int(wod_id) for wod_id in value] if isinstance(value, list) else []
+
+
+class HorizonEntryConditionsResponse(BaseResponse):
+    """
+    The conditions for entering Beyond the Horizon that you do not meet yet; none when you may enter.
+
+    Command: bgc
+    Payload: {"ENCO": [{"ECT": condition_type, "MBW": [building_wod_id, ...]}, ...]}
+
+    Client: ``BGCCommand.executeCommand`` (split.js line 642786) hands the reply to
+    ``CastleAllianceBattleGroundData.parseEntryConditions`` (split.js line 716014)
+    """
+
+    command = "bgc"
+
+    conditions: list[HorizonEntryCondition] = Field(
+        validation_alias="ENCO", default_factory=list, description="Each condition not met"
+    )
+
+    @field_validator("conditions", mode="before")
+    @classmethod
+    def _condition_rows(cls, value: Any) -> list[HorizonEntryCondition]:
+        return readable_list(
+            HorizonEntryCondition,
+            value,
+            accept=lambda row: isinstance(row, dict),
+            warn=logger,
+            what="Beyond the Horizon entry conditions",
+        )
+
+    @property
+    def missing_buildings(self) -> list[EnumOrInt["Building"]]:
+        """The buildings every building condition still needs, in order."""
+        return [
+            building
+            for condition in self.conditions
+            if condition.condition_type is HorizonEntryConditionType.BUILDINGS
+            for building in condition.missing_buildings
+        ]
+
+
+class JadePhaseResponse(BaseResponse):
+    """
+    The Jade Desert's scoring phase, pushed while you play Beyond the Horizon's jade season.
+
+    A key the push leaves out, or sends as 0, keeps the value the client had; only the phase 2 condition goes back
+    to none.
+
+    Command: abgi, pushed
+    Payload: {"JP": phase, "JPT": seconds_until_phase_2, "JPP": phase_2_condition_percent}
+
+    Client: ``ABGICommand.executeCommand`` (split.js line 643311), which ignores the push with no Beyond the Horizon
+    event, hands it to ``AllianceBattleGroundEventVO.parseJadePhaseInfo`` (split.js line 585444)
+    """
+
+    command = "abgi"
+
+    phase: EnumOrInt[JadeScoringPhase] | None = Field(
+        validation_alias="JP", default=None, description="The scoring phase; None when not sent"
+    )
+    seconds_until_phase_2: int | None = Field(
+        validation_alias="JPT", default=None, description="Seconds until phase 2 starts; None when not sent"
+    )
+    phase_2_condition_percent: int | None = Field(
+        validation_alias="JPP",
+        default=None,
+        description="Percent of the condition that starts phase 2 early that is met; None when there is none",
+    )
+
+    @field_validator("phase", "seconds_until_phase_2", "phase_2_condition_percent", mode="before")
+    @classmethod
+    def _set_or_none(cls, value: Any) -> int | None:
+        return js_int(value) if js_truthy(value) else None
+
+
+class JadePhase(EmpireModel):
+    """
+    The Jade Desert's scoring phase as the ``abgi`` pushes so far left it.
+
+    The client starts from the event's own data, which is not read here, so a phase no push has named is None.
+
+    Client: ``AllianceBattleGroundEventVO.parseJadePhaseInfo`` (split.js line 585444), also run by its
+    ``parseParamObject``. Each push stops the phase 2 timer and only one naming ``JPT`` while the phase is not 2
+    starts it again; ``onJadePhaseTimer`` (split.js line 585466) then turns the phase to 2 once that time passes
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    phase: EnumOrInt[JadeScoringPhase] | None = Field(
+        default=None, description="The phase when the last push arrived; None until one named it"
+    )
+    phase_2_starts_at: float | None = Field(
+        default=None, description="When phase 2 starts, in epoch seconds; None until a push named it"
+    )
+    phase_2_condition_percent: int | None = Field(
+        default=None, description="Percent of the condition that starts phase 2 early that is met; None for none"
+    )
+    phase_2_timer_running: bool = Field(
+        default=False,
+        description="Whether the phase turns to 2 at phase_2_starts_at: the last push named it before phase 2",
+    )
+
+    def updated(self, push: JadePhaseResponse, received_at: float) -> JadePhase:
+        """This phase with ``push`` applied, received at ``received_at`` epoch seconds."""
+        phase = self.current_phase(received_at) if push.phase is None else push.phase
+        if push.seconds_until_phase_2 is None:
+            starts_at, timer_running = self.phase_2_starts_at, False
+        else:
+            starts_at = received_at + push.seconds_until_phase_2
+            timer_running = phase != JadeScoringPhase.PHASE_2
+        return JadePhase(
+            phase=phase,
+            phase_2_starts_at=starts_at,
+            phase_2_condition_percent=push.phase_2_condition_percent,
+            phase_2_timer_running=timer_running,
+        )
+
+    def current_phase(self, now: float) -> EnumOrInt[JadeScoringPhase] | None:
+        """The phase at ``now`` epoch seconds: phase 2 once a running timer's start has passed; None while unknown."""
+        if self.phase_2_timer_running and self.phase_2_starts_at is not None and now >= self.phase_2_starts_at:
+            return JadeScoringPhase.PHASE_2
+        return self.phase
+
+    def seconds_until_phase_2(self, now: float) -> float:
+        """Seconds from ``now`` until phase 2 starts; 0 once it has, or when no push named it.
+
+        Client: ``AllianceBattleGroundEventVO.remainingTimeInSecondsUntilJadePhase2`` (split.js line 585649)
+        """
+        return max(0.0, self.phase_2_starts_at - now) if self.phase_2_starts_at is not None else 0.0
+
+
+class GetCitadelsRequest(BaseRequest):
+    """
+    Ask for your alliance's Citadel and the enemy citadels in the Jade Desert.
+
+    Command: jci
+    Payload: {}
+
+    Client: ``C2SGetJadeCitadelInfoVO`` (split.js line 716216), sent by
+    ``CastleAllianceBattleGroundData.requestJadeCitadelInfo`` (split.js line 716001) only when
+    ``ABGHelper.isOnABGAndJade`` (split.js line 9010)
+    """
+
+    command = "jci"
+
+
+class Citadel(BasePayload):
+    """
+    An alliance's Citadel in the Jade Desert: where it stands, how far it reaches and the statuettes it holds.
+
+    Its level row is the :attr:`GameData.citadel_levels` row of the highest level whose radius ``radius`` reaches.
+
+    Client: ``ABGCitadelInfoVO.parseData`` (split.js line 716575) reads ``X``, ``Y``, ``CR``, ``ASJ`` and ``RSJ``
+    through ``int()``, ``L`` as sent and ``CD`` as ``int(CD) || 0``
+    """
+
+    x: ClientInt = Field(validation_alias="X", default=0, description="Its map x")
+    y: ClientInt = Field(validation_alias="Y", default=0, description="Its map y")
+    radius: ClientInt = Field(validation_alias="CR", default=0, description="Fields it reaches")
+    level: ClientInt = Field(validation_alias="L", default=0, description="Its level")
+    ancient_jade_statuettes: ClientInt = Field(
+        validation_alias="ASJ", default=0, description="Ancient Jade Statuettes it holds"
+    )
+    restored_jade_statuettes: ClientInt = Field(
+        validation_alias="RSJ", default=0, description="Restored Jade Statuettes it holds"
+    )
+    protection_seconds: ClientInt = Field(
+        validation_alias="CD", default=0, description="Seconds its attack protection lasts; 0 for none"
+    )
+
+
+class CitadelsResponse(BaseResponse):
+    """
+    Your alliance's Citadel and the enemy citadels in the Jade Desert.
+
+    Command: jci
+    Payload: {"CI": citadel, "ECI": [citadel, ...]}
+
+    Client: ``JCICommand.executeCommand`` (split.js line 643404) hands the reply to
+    ``CastleAllianceBattleGroundData.parseJadeCitadelInfo`` (split.js line 715890)
+    """
+
+    command = "jci"
+
+    own: Citadel | None = Field(validation_alias="CI", default=None, description="Your alliance's; None for none")
+    enemies: list[Citadel] = Field(validation_alias="ECI", default_factory=list, description="The enemy citadels")
+
+    @field_validator("own", mode="before")
+    @classmethod
+    def _own_or_none(cls, value: Any) -> Any:
+        return value if js_truthy(value) else None
+
+    @field_validator("enemies", mode="before")
+    @classmethod
+    def _enemy_rows(cls, value: Any) -> list[Citadel]:
+        return readable_list(
+            Citadel, value, accept=lambda row: isinstance(row, dict), warn=logger, what="enemy citadels"
+        )
+
+
+class UpgradeCitadelRequest(BaseRequest):
+    """
+    Upgrade your alliance's Citadel to its next level, for the level's Ancient Jade Statuettes.
+
+    Command: ujc
+    Payload: {}
+
+    The server answers with no payload; the client reads the citadel's map area again.
+
+    Client: ``C2SUpgradeJadeCitadelVO`` (split.js line 474000), sent by
+    ``CastleAllianceBattleGroundEventJadeDialogCitadelManagement.sendUpgrade`` (split.js line 473865);
+    ``UJCCommand.executeCommand`` (split.js line 644013)
+    """
+
+    command = "ujc"
+
+
+class ConvertJadeStatuettesRequest(BaseRequest):
+    """
+    Convert Ancient Jade Statuettes into Restored Jade Statuettes before the event ends.
+
+    Each Restored Jade Statuette takes your citadel level's ``early_conversion_ratio`` Ancient ones.
+
+    Command: cjs
+    Payload: {"AMT": restored_amount}
+
+    The server answers with no payload.
+
+    Client: ``C2SConvertJadeStatuettesVO`` (split.js line 474398), sent by
+    ``ABGJadeStatuetteConversionComponent.sendConversion`` (split.js line 474233) with ``convertedRestoredAmount``,
+    the Ancient statuettes picked divided by the ratio, rounded down; ``CJSCommand.executeCommand``
+    (split.js line 643361)
+    """
+
+    command = "cjs"
+
+    restored_amount: int = Field(validation_alias="AMT", description="Restored Jade Statuettes to make")
+
+
+class GetOasisSettlementRequest(BaseRequest):
+    """
+    Ask for an Oasis Settlement's state: its level, troops left to trade and cooldown.
+
+    Command: jtci
+    Payload: {"TX": x, "TY": y, "KID": kingdom}
+
+    Client: ``C2SGetTradingCampInfoVO`` (split.js line 565054), sent with the settlement's position and kingdom by
+    ``AllianceBattleGroundJadeTradeDialog`` when it opens (split.js line 564457)
+    """
+
+    command = "jtci"
+
+    x: int = Field(validation_alias="TX", description="The settlement's map x")
+    y: int = Field(validation_alias="TY", description="The settlement's map y")
+    kingdom: Kingdom = Field(validation_alias="KID", default=Kingdom.GREEN, description="The settlement's kingdom")
+
+
+class OasisSettlementResponse(BaseResponse):
+    """
+    An Oasis Settlement's state: its level, the troops it has left to trade and its cooldown.
+
+    Command: jtci
+    Payload: {"X": x, "Y": y, "TCI": settlement_id, "L": level, "TCR": remaining, "CD": cooldown_seconds,
+              "AE": [[effect_id, values, source], ...]}
+
+    Client: ``JTCICommand.executeCommand`` (split.js line 643456), ``TradingCampInfoVO.parseParamObject``
+    (split.js line 643498) reads the numbers through ``int()`` and ``AE`` with ``SimpleEffectSource.parseEffects``
+    (split.js line 159926), the rows a commander's effects have
+    """
+
+    command = "jtci"
+
+    x: ClientInt = Field(validation_alias="X", default=0, description="Its map x")
+    y: ClientInt = Field(validation_alias="Y", default=0, description="Its map y")
+    settlement_id: Annotated[OasisSettlementId, BeforeValidator(js_int)] = Field(
+        validation_alias="TCI",
+        default=OasisSettlementId(0),
+        description="Its level's row, a GameData.oasis_settlements row",
+    )
+    level: ClientInt = Field(validation_alias="L", default=0, description="Its level")
+    remaining: ClientInt = Field(validation_alias="TCR", default=0, description="Troops it has left to trade")
+    cooldown_seconds: ClientInt = Field(
+        validation_alias="CD", default=0, description="Seconds until it trades again; 0 when it can"
+    )
+    area_effects: CommanderEffects = Field(
+        validation_alias="AE", default_factory=list, description="Effects on trades with it"
+    )
+
+
+class SendOasisTradeRequest(BaseRequest):
+    """
+    Send troops and trading materials from a castle to an Oasis Settlement to trade.
+
+    Command: jtr
+    Payload: {"SX": source_x, "SY": source_y, "TX": target_x, "TY": target_y, "KID": kingdom,
+              "LID": commander_id, "BPC": use_premium_commander, "HBW": horse_booster_id,
+              "PTT": feathers, "A": [[wod_id, amount], ...], "TR": [[trade_id, amount], ...]}
+
+    ``LID`` is 0 when the premium commander leads (``BPC`` 1). ``HBW`` is -1 and ``PTT`` 1 when the horse is paid
+    with feathers.
+
+    Client: ``C2SCreateTradeMovementVO`` (split.js line 566844), sent by
+    ``CastlePostTradeHorseDialog.sendTradeMovement`` (split.js line 566640) from the main castle, with the army
+    from ``TradingCampArmyVO.getArmyParam`` (split.js line 301804) and the trades from
+    ``TradingCampTradeSelectionVO.getTradesParam`` (split.js line 565226), which lists amounts above 0
+    """
+
+    command = "jtr"
+
+    source_x: int = Field(validation_alias="SX", description="Map x of the castle the troops leave from")
+    source_y: int = Field(validation_alias="SY", description="Map y of the castle the troops leave from")
+    target_x: int = Field(validation_alias="TX", description="The settlement's map x")
+    target_y: int = Field(validation_alias="TY", description="The settlement's map y")
+    kingdom: Kingdom = Field(validation_alias="KID", default=Kingdom.GREEN, description="The settlement's kingdom")
+    commander_id: int = Field(
+        validation_alias="LID", description="The commander leading them; 0 when the premium commander leads"
+    )
+    use_premium_commander: int = Field(
+        validation_alias="BPC", default=0, description="1 when the premium commander leads"
+    )
+    horse_booster_id: HorseBoosterId = Field(
+        validation_alias="HBW",
+        default=NO_HORSE,
+        description="The horse booster, NO_HORSE for none or when paid with feathers",
+    )
+    feathers: int = Field(validation_alias="PTT", default=0, description="1 when the horse is paid with feathers")
+    units: WodAmountSlots = Field(validation_alias="A", description="The units, one pair per filled slot")
+    trades: OasisTradeAmounts = Field(validation_alias="TR", description="How often to make each trade")
+
+    def accepts_reply(self, payload: Any) -> bool:
+        """Whether a jtr reply is the movement this sent: its target area (``A.M.TA``) is ``TX``/``TY``."""
+        return isinstance(payload, dict) and movement_targets(payload.get("A"), self.target_x, self.target_y)
+
+
+class SendOasisTradeResponse(SentMovementResponse):
+    """
+    The trade on its way to the Oasis Settlement.
+
+    Command: jtr
+    Payload: {"O": [owner, ...], "A": movement, "gcu": {...}}
+
+    Client: ``JTRCommand.executeCommand`` (split.js line 643584) hands ``O`` to ``parseOwnerInfoArray``, ``[A]``
+    to ``CastleArmyData.parseMapMovementArray`` and ``gcu`` to ``CurrencyData.parseGCU``, as the other send replies
+    do; the movement's type is ``MOVEMENTTYPE_ALLIANCE_BATTLE_GROUND_TRADE`` (``TradeMapmovementVO``)
+    """
+
+    command = "jtr"
+
+
 __all__ = [
     "ActivateAllianceTowerBuffsRequest",
     "ActivateAllianceTowerBuffsResponse",
@@ -640,6 +1058,21 @@ __all__ = [
     "HorizonMemberPerformance",
     "HorizonPerformanceResponse",
     "CenterOfPower",
+    "Citadel",
+    "CitadelsResponse",
+    "ConvertJadeStatuettesRequest",
+    "GetCitadelsRequest",
+    "GetHorizonEntryConditionsRequest",
+    "GetOasisSettlementRequest",
+    "HorizonEntryCondition",
+    "HorizonEntryConditionsResponse",
+    "JadePhase",
+    "JadePhaseResponse",
+    "OasisSettlementResponse",
+    "OasisTradeAmounts",
+    "SendOasisTradeRequest",
+    "SendOasisTradeResponse",
+    "UpgradeCitadelRequest",
     "CentersOfPowerResponse",
     "CentersOfPowerDetailResponse",
     "GetAllianceInfluenceRequest",

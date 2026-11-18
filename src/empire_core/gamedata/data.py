@@ -85,6 +85,8 @@ from .tables import (
     AllianceTowerEffectDef,
     BerimondSpecialCampDef,
     BuildingDef,
+    CitadelLevelDef,
+    CitadelLevelId,
     CoatOfArmsSymbolDef,
     CoatOfArmsSymbolId,
     ConstructionItemRecipeDef,
@@ -122,6 +124,10 @@ from .tables import (
     LeagueTypeEventId,
     LootBoxDef,
     LootBoxTypeDef,
+    OasisSettlementDef,
+    OasisSettlementId,
+    OasisTradeDef,
+    OasisTradeId,
     OuterRealmsSettingDef,
     OuterRealmsSettingId,
     PackageDef,
@@ -281,6 +287,9 @@ _CACHED_MODELS = (
     OuterRealmsSettingDef,
     HorizonSettingDef,
     AllianceTowerEffectDef,
+    OasisSettlementDef,
+    OasisTradeDef,
+    CitadelLevelDef,
     AllianceInvasionCampDef,
     BerimondSpecialCampDef,
     LeagueTypeEventDef,
@@ -523,6 +532,9 @@ _TABLES: dict[str, _TableSource] = {
     "outer_realms_settings": _TableSource("tempServerSettings", OuterRealmsSettingDef, "setting_id"),
     "horizon_settings": _TableSource("allianceBattleGroundSettings", HorizonSettingDef, "setting_id"),
     "alliance_tower_effects": _TableSource("allianceTowerEffects", AllianceTowerEffectDef, "tower_effect_id"),
+    "oasis_settlements": _TableSource("tradingCamps", OasisSettlementDef, "settlement_id"),
+    "oasis_trades": _TableSource("trades", OasisTradeDef, "trade_id", reads=is_cost_column),
+    "citadel_levels": _TableSource("allianceCitadels", CitadelLevelDef, "citadel_level_id", reads=is_cost_column),
     "alliance_invasion_camps": _TableSource("allianceInvasionCamps", AllianceInvasionCampDef, "camp_id"),
     "equipment_effects": _TableSource("equipment_effects", EquipmentEffectDef, "equipment_effect_id"),
     "daimyo_castles": _TableSource("daimyoCastles", DaimyoCastleDef, "camp_id"),
@@ -986,6 +998,21 @@ class GameData(EmpireModel):
     def alliance_tower_effects(self) -> Table[GameDataId["AllianceTowerEffect"], AllianceTowerEffectDef]:
         """Beyond the Horizon's alliance tower effects by ``AllianceTowerEffect``."""
         return self._table("alliance_tower_effects")
+
+    @cached_property
+    def oasis_settlements(self) -> Table[OasisSettlementId, OasisSettlementDef]:
+        """Beyond the Horizon's Oasis Settlements (``tradingCamps``), one row per level, by settlement id."""
+        return self._table("oasis_settlements")
+
+    @cached_property
+    def oasis_trades(self) -> Table[OasisTradeId, OasisTradeDef]:
+        """The trades Oasis Settlements offer (``trades``), by trade id."""
+        return self._table("oasis_trades", context={"currency_ids": self._currency_ids()})
+
+    @cached_property
+    def citadel_levels(self) -> Table[CitadelLevelId, CitadelLevelDef]:
+        """The alliance Citadel's levels in Beyond the Horizon's Jade Desert (``allianceCitadels``), by row id."""
+        return self._table("citadel_levels", context={"currency_ids": self._currency_ids()})
 
     @cached_property
     def alliance_invasion_camps(self) -> Table[AllianceInvasionCampId, AllianceInvasionCampDef]:

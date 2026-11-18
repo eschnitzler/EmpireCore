@@ -24,6 +24,7 @@ from empire_core.enums import (
 from empire_core.gamedata import (
     AllianceInvasionCampId,
     BuildingDef,
+    CitadelLevelId,
     DailyQuestDef,
     DonationItemId,
     DonationSettingId,
@@ -38,6 +39,8 @@ from empire_core.gamedata import (
     GachaId,
     GameData,
     HorizonSettingId,
+    OasisSettlementId,
+    OasisTradeId,
     OuterRealmsSettingId,
     PartPayPriceId,
     QuestCondition,
@@ -390,6 +393,38 @@ class TestEventTables:
         "allianceTowerEffects": [
             {"allianceTowerEffectID": "1", "effectID": "141", "effectStartValue": "1", "effectIncrease": "2.5"}
         ],
+        "currencies": [
+            {"currencyID": "126", "Name": "JadeBlades"},
+            {"currencyID": "93", "Name": "AncientJadeStatuette"},
+        ],
+        "tradingCamps": [
+            {
+                "tradingCampID": "100",
+                "tradingCampTypeID": "1",
+                "level": "1",
+                "tradeGroupID": "1",
+                "speedMultiplier": "x",
+            }
+        ],
+        "trades": [
+            {
+                "tradeID": "10",
+                "tradeGroupID": "1",
+                "mainRewardID": "7",
+                "costJadeBlades": "20",
+                "lootCapacityCost": "200",
+            }
+        ],
+        "allianceCitadels": [
+            {"allianceCitadelID": "1", "level": "1", "radius": "10", "costAncientJadeStatuette": "0"},
+            {
+                "allianceCitadelID": "2",
+                "level": "2",
+                "radius": "15",
+                "costAncientJadeStatuette": "25000",
+                "scatterWeights": "15,5",
+            },
+        ],
         "allianceInvasionCamps": [
             {"allianceInvasionCampID": "85", "eventID": "72", "dungeonlevel": "105", "rageNeededForLevelUp": "18500"}
         ],
@@ -461,6 +496,20 @@ class TestEventTables:
         )
         effect = data.alliance_tower_effects[ids.AllianceTowerEffect.SHRINE_WALL_BOOST]
         assert (effect.effect_id, effect.start_value, effect.increase) == (141, 1.0, 2.5)
+
+    def test_jade_desert_settlements_trades_and_citadel_levels(self):
+        data = GameData.parse("790.02", self.ITEMS)
+
+        settlement = data.oasis_settlements[OasisSettlementId(100)]
+        assert (settlement.level, settlement.trade_group_id, settlement.cooldown_seconds) == (1, 1, 0)
+        assert (settlement.speed_multiplier, settlement.travel_cost_multiplier) == (1.0, 1.0)
+        trade = data.oasis_trades[OasisTradeId(10)]
+        assert (trade.trade_group_id, trade.main_reward_id, trade.loot_capacity_cost) == (1, 7, 200)
+        assert [(cost.item, cost.amount) for cost in trade.costs] == [(ids.Currency.JADE_BLADES, 20)]
+        assert data.citadel_levels[CitadelLevelId(1)].costs == ()
+        level_2 = data.citadel_levels[CitadelLevelId(2)]
+        assert (level_2.radius, level_2.scatter_weights) == (15, (15, 5))
+        assert [(cost.item, cost.amount) for cost in level_2.costs] == [(ids.Currency.ANCIENT_JADE_STATUETTE, 25000)]
 
     def test_alliance_invasion_camps_by_id(self):
         data = GameData.parse("788.02", self.ITEMS)
