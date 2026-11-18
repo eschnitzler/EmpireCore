@@ -242,6 +242,8 @@ _SUCCESS_ONLY = frozenset(
     | {"hin", "sjc", "jjc", "hdc", "aic", "gda", "gdc", "gdw"}
     # GUSCommand, GNCICommand, PSDCommand (bundle lines 125060, 120604, 131797)
     | {"gus", "gnci", "psd"}
+    # VIPCommand.exec, MVFCommand.executeCommand (split.js lines 653087, 652365)
+    | {"vip", "mvf"}
 )
 
 

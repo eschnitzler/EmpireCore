@@ -31,3 +31,9 @@ def test_a_refused_request_raises():
     client = make_client({"vip": xt_packet("vip", error_code=1)})
     with pytest.raises(CommandError):
         client.player.get_vip_status()
+
+
+def test_a_refused_reply_leaves_your_player_alone():
+    state = logged_in_state(vip={"VP": 2, "VRL": 3, "VRS": 0, "UPG": 0})
+    state.update_from_packet("vip", {"VP": 9000}, error_code=1)
+    assert state.get_local_player().vip_points == 2
