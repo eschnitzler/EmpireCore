@@ -102,7 +102,7 @@ OPAQUE: dict[str, str] = {
         "the client reads only its length (FactionCapitalMapobjectVO.parseAreaInfo, bundle line 119979)"
     ),
     "map.models.items.MapAreaItem.raw_data": (
-        "the row held by reference so a map scan stays fast (#343, #354); typed accessors parse it as the client does"
+        "the row as sent, which a scan keeps only on request (#357); typed accessors parse it as the client does"
     ),
     "quests.models.Popup.value": (
         "deferred: each popup's dialog reads its own shape (CastlePopUpHelper.displayPopUp, bundle line 68586)"

@@ -12,6 +12,7 @@ import pytest
 
 from empire_core.enums import GGEError, Kingdom, MapItemType
 from empire_core.exceptions import CommandError, EmpireTimeoutError, NetworkError
+from empire_core.map.models.items import MapAreaItem
 from empire_core.map.models.world import MapSize
 from empire_core.map.pacing import MapAreaPacer
 from empire_core.map.scanner import MapScanner, scan_kingdom_with
@@ -588,6 +589,28 @@ class TestItemTypeFiltering:
         fake = _FakeClient(content_chunks=set(), payloads={(1, 1): self.ROBBER_BARON_AI})
         result = _make_scanner(fake).scan_chunks(kingdom=Kingdom.GREEN, chunks=[(1, 1)], item_types=[], chunk_delay=0)
         assert [i.item_type for i in result.items] == [MapItemType.DUNGEON]
+
+
+class TestRawData:
+    ROW = [1, 95, 95, 900, 42]
+
+    def test_a_scan_keeps_no_row_as_sent_by_default(self):
+        fake = _FakeClient(content_chunks=set(), payloads={(1, 1): {"AI": [self.ROW], "OI": []}})
+        result = _make_scanner(fake).scan_chunks(Kingdom.GREEN, [(1, 1)])
+        assert [(item.owner_id, item.raw_data) for item in result.items] == [(42, None)]
+
+    def test_keep_raw_data_keeps_each_row_as_sent(self):
+        fake = _FakeClient(content_chunks=set(), payloads={(1, 1): {"AI": [self.ROW], "OI": []}})
+        result = _make_scanner(fake).scan_chunks(Kingdom.GREEN, [(1, 1)], keep_raw_data=True)
+        assert [item.raw_data for item in result.items] == [self.ROW]
+
+    def test_scanning_with_several_clients_passes_keep_raw_data_on(self):
+        fakes = [_FakeClient(content_chunks=set(), payloads={(1, 1): {"AI": [self.ROW], "OI": []}}) for _ in range(2)]
+        result = scan_kingdom_with(fakes, chunks=[(1, 1)], keep_raw_data=True)  # type: ignore[arg-type]
+        assert [item.raw_data for item in result.items] == [self.ROW]
+
+    def test_a_row_read_on_its_own_keeps_its_row(self):
+        assert MapAreaItem.from_list(self.ROW).raw_data == self.ROW
 
 
 class TestRelocatingCastles:

@@ -248,7 +248,8 @@ class AttackInfoResponse(BaseResponse):
         Client: ``WorldmapObjectFactory.parseWorldMapArea(t.gaa.AI)`` in
         ``CastleAttackInfoVO.fillFromParamObject`` (bundle line 30620).
         """
-        return list(self.target_area.area.raw_data) if self.target_area.area else []
+        area = self.target_area.area
+        return list(area.raw_data or []) if area else []
 
     def owner_records(self) -> list[MapObject]:
         """
