@@ -10,6 +10,7 @@ from empire_core.castle.models.actions import (
 )
 from empire_core.castle.models.castles import GetCastlesRequest, GetCastlesResponse, PlayerCastle
 from empire_core.castle.models.details import CastleProductionArea, DetailedCastleInfo, GetDetailedCastleResponse
+from empire_core.castle.models.updates import BuildingChanged
 from empire_core.enums import Kingdom, MapItemType
 from empire_core.protocol.models import parse_response
 from tests.model_helpers import gdi_location_row
@@ -347,3 +348,25 @@ class TestProductionArea:
     def test_dcl_flags_go_through_boolean(self):
         info = DetailedCastleInfo.model_validate({"AID": "7", "B": 2, "WS": 0, "D": "57.5"})
         assert (info.castle_id, info.has_barracks, info.has_siege_workshop, info.defense_value) == (7, True, False, 57)
+
+
+# =============================================================================
+# ego
+# =============================================================================
+
+
+class TestBuildingChangedPayload:
+    def test_reads_the_object_slots_and_discount(self):
+        # AreaDataUpdater.parseEGO: updateObjectInfo(O), parseSCL(scl), parseGAB(gab)
+        update = BuildingChanged.model_validate(
+            {"O": [101, 5, 3, 4, 0], "scl": {"OIDL": [5], "SSC": 1}, "gab": {"B": 10}}
+        )
+
+        assert update.building is not None and update.building.object_id == 5
+        assert update.construction_list is not None and update.construction_list.building_object_ids == [5]
+        assert update.area_booster is not None and update.area_booster.builder_discount == 10
+
+    def test_a_payload_without_them_reads_none(self):
+        update = BuildingChanged.model_validate({"skl": {}, "scl": "bad", "gab": None})
+
+        assert (update.building, update.construction_list, update.area_booster) == (None, None, None)

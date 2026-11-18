@@ -39,8 +39,8 @@ _CART_COUNT = 3
 
 class AreaState(StateBase):
     def _handle_jaa(self, data: Any) -> None:
-        """Apply a join's reply: the joined area, its construction slots, and its mines and resource carts when it
-        sends them.
+        """Apply a join's reply: the joined area, its buildings and construction slots, and its mines and resource
+        carts when it sends them.
 
         A reply without ``gsm`` or ``rci`` leaves the mines or carts as they were, as the client does. It
         drops the resource citizen's goods (``CastleResourcePoolData.reset``), and the construction slots when its
@@ -58,6 +58,7 @@ class AreaState(StateBase):
         self._placed_construction_item_sequence = self._packet_sequence
         self.placed_construction_items = reply.buildings.construction_items if reply.buildings is not None else None
         self.construction_list = reply.buildings.construction_list if reply.buildings is not None else None
+        self._replace_buildings(reply.buildings)
         self.resource_pool = None
         kingdom = reply.kingdom
         castle_id = x = y = owner_id = occupier_id = None
@@ -199,6 +200,7 @@ class AreaState(StateBase):
         self._placed_construction_item_sequence = self._packet_sequence
         self.placed_construction_items = None
         self.construction_list = None
+        self.buildings = None
 
     def _handle_csl(self, data: Any) -> None:
         """Apply a ``csl`` push to the joined area: its slum level.
@@ -218,7 +220,16 @@ class AreaState(StateBase):
         if isinstance(data, dict) and self.joined_area is not None:
             booster = read_or_none(AreaBooster.model_validate, data, warn=logger, what="a gab push")
             if booster is not None:
-                self.joined_area = self.joined_area.model_copy(update={"builder_discount": booster.builder_discount})
+                self._apply_area_booster(booster)
+
+    def _apply_area_booster(self, booster: AreaBooster) -> None:
+        """Set the joined area's builder discount, from a ``gab`` push or the ``gab`` an ``ego`` carries.
+
+        Client: ``AreaDataCommonInfo.parseGAB`` (split.js line 656983)
+        """
+        if self.joined_area is not None:
+            self.joined_area = self.joined_area.model_copy(update={"builder_discount": booster.builder_discount})
+            self._packet_times["gab"] = time.time()
 
     def _handle_ghw(self, data: Any) -> None:
         """Apply a ``ghw`` push: the joined area's new position.

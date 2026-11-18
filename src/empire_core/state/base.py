@@ -35,11 +35,12 @@ from empire_core.castle.models.landmarks import (
     RoyalTowerListResponse,
 )
 from empire_core.castle.models.mercenaries import MercenaryMissionsResponse
-from empire_core.castle.models.objects import BuildingConstructionItems, ConstructionList
+from empire_core.castle.models.objects import BuildingConstructionItems, CastleBuildings, ConstructionList
 from empire_core.castle.models.permanent import PermanentCastle
 from empire_core.castle.models.research import ResearchInfoResponse
 from empire_core.castle.models.storage import DecorationStorage, DecorationStorageKey
 from empire_core.castle.models.tax import TaxInfo
+from empire_core.castle.models.updates import AreaBooster
 from empire_core.castle.models.upkeep import ConstructionItemExpiryResponse, ResourcePoolResponse
 from empire_core.castle.models.villages import VillageListResponse
 from empire_core.castle.models.wishing_well import WishingWellResponse
@@ -85,7 +86,7 @@ from empire_core.quests.models import DailyQuests, Quest, QuestBook
 from empire_core.rewards.models import ActivityChestInfo
 from empire_core.spy.models import MaxSpiesResponse, PlagueDoctorInfoResponse
 from empire_core.state.login_data import LoginDataResponse
-from empire_core.state.models import Castle, JoinedArea, Player
+from empire_core.state.models import Castle, JoinedArea, PlacedBuilding, Player
 from empire_core.utils.callbacks import BoundEvent, Registry
 
 if TYPE_CHECKING:
@@ -192,6 +193,8 @@ class StateBase:
         self.area_revision += 1
         self.placed_construction_items: tuple[BuildingConstructionItems, ...] | None = None
         self.construction_list: ConstructionList | None = None
+        # The joined castle's placed objects by object id
+        self.buildings: dict[int, PlacedBuilding] | None = None
         self._packet_sequence = 0
         self._placed_construction_item_sequence = 0
         self._construction_item_reply_order: dict[str, tuple[object, int]] = {}
@@ -318,6 +321,14 @@ class StateBase:
     def _apply_login(self, login: LoginDataResponse) -> set[str]:
         """Apply login data, or the sections a push or reply carries, and return the sections not applied;
         :class:`GameState` implements it."""
+        raise NotImplementedError
+
+    def _replace_buildings(self, castle: CastleBuildings | None) -> None:
+        """Start the joined castle's objects over from a whole castle; :class:`BuildingsState` implements it."""
+        raise NotImplementedError
+
+    def _apply_area_booster(self, booster: AreaBooster) -> None:
+        """Set the joined area's builder discount; :class:`AreaState` implements it."""
         raise NotImplementedError
 
     def _apply_crafting_queues(self, queues: tuple[CraftingQueue, ...]) -> None:

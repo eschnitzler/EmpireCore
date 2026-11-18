@@ -20,6 +20,7 @@ from empire_core.state.account import ACCOUNT_SECTIONS, AccountState
 from empire_core.state.alliance import AllianceState
 from empire_core.state.area import AreaState
 from empire_core.state.base import MovementEventCallback, read_section
+from empire_core.state.buildings import BUILDING_CARRIERS, BuildingsState
 from empire_core.state.castles import AREA_LIST_SECTIONS, CastleState
 from empire_core.state.commanders import CommanderState
 from empire_core.state.construction import CONSTRUCTION_LIST_REPLIES, ConstructionState
@@ -281,6 +282,7 @@ class GameState(
     MovementState,
     CastleState,
     AreaState,
+    BuildingsState,
     PlayerState,
     EventState,
     CommanderState,
@@ -344,6 +346,10 @@ class GameState(
                                          (pushed), ``scl``, the
                                          building replies (``ebu``,
                                          ...)
+    joined castle's buildings            ``jaa``, ``gca``/``gcb``/    ``client.castle.join(id)``
+                                         ``gdb``/``ego`` (pushed),
+                                         the building replies
+                                         (``ebu``, ``eup``, ...)
     player identity/level/XP             ``gpi``/``gxp``/``glu``      re-login
     player coins/rubies, VIP, alliance    ``gcu``/``vip``/``gal``      ``client.player.get_vip_status()`` (VIP)
     honor, protection                    ``gho``/``uap``              ``client.player.get_protection()``
@@ -633,6 +639,8 @@ class GameState(
                 self._packet_times[cmd_id] = time.time()
                 if ok or cmd_id not in _MOVEMENT_REPLIES:
                     getattr(self, handler_name)(payload)
+            if cmd_id in BUILDING_CARRIERS:
+                self._apply_building_carrier(cmd_id, payload, error_code)
             if ok and cmd_id in _DECORATION_STORAGE_REPLIES:
                 carried = read_section(CarriedDecorationStorages, payload, "a reply's decoration storages")
                 if carried is not None:
@@ -876,8 +884,9 @@ class GameState(
         from an arl, "ain" from an akm, "rei" from a res, "kpi" from a kut, "tmp" from a tcn, "gem" from a cem, ...),
         plus "gac" and "drt", which only come inside a gbd.
         "gsm" and "rci" are stamped whenever mines or resource carts are applied, from their push or a jaa, cmr or rcc
-        reply; "csl" and "gab" from their push or a jaa, the push even when no area was joined to apply it to. A send
-        reply is stamped even when the server refused the send; the commands the client reads only from a successful
+        reply; "csl" and "gab" from their push or a jaa, the push even when no area was joined to apply it to, and
+        "gab" from an ego that carries one while an area is joined. A send reply is stamped even when the server
+        refused the send; the commands the client reads only from a successful
         reply (the event ones, the login section ones, the castle ones, the quest ones, "gec", "acm", "aqi", "ufp",
         "uht", "apt", "car" and "bfs") are not, nor is a login section that was not applied: unreadable, not valid, or
         another alliance's "ain". ``None`` means none was ever seen; packets this manager ignores are never recorded.

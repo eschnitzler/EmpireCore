@@ -128,9 +128,9 @@ class CastleService(
 
     on_buildings_changed = Event[DamagedBuildings]()
     """Register a callback for buildings of the joined castle that were damaged (``gdb``) or
-    whose efficiency changed (``gcb``, a :class:`BuildingEfficiencyChanged`), with their new rows.
-    State does not keep the joined castle's buildings: the build, upgrade and repair replies change
-    them too. Runs on the receive thread, as :attr:`on_joined_area_moved`.
+    whose efficiency changed (``gcb``, a :class:`BuildingEfficiencyChanged`), with their new rows, after
+    :attr:`buildings` has them. The building replies and the ``ego`` push change :attr:`buildings` too,
+    without this callback. Runs on the receive thread, as :attr:`on_joined_area_moved`.
 
     Client: ``GDBCommand`` and ``GCBCommand`` (bundle lines 122998, 122968),
     ``IsoUpdaterData.updateMultipleObjectInfos`` (bundle line 130259)
