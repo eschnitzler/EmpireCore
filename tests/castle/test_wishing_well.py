@@ -51,6 +51,15 @@ def test_get_reads_the_well():
     assert conn(client).request_payloads == [("rww", {"PWR": 0, "_PO": -1, "WOP": "UD"})]
 
 
+def test_a_reply_updates_the_state_and_a_refused_one_does_not():
+    state = GameState()
+    state.update_from_packet("rww", {"L": 3, "RT": -1}, error_code=GGEError.NOT_ENOUGH_RESOURCES)
+    assert state.get_wishing_well() is None
+    state.update_from_packet("rww", {"L": 2, "RT": 600})
+    well = state.get_wishing_well()
+    assert well is not None and (well.level, well.is_running) == (2, True)
+
+
 def test_start_needs_spend_rubies():
     client = make_client()
     with pytest.raises(ValueError, match="entry rubies"):
@@ -67,6 +76,13 @@ def test_start_sends_s_with_consent():
 def test_finish_names_the_price_of_the_running_well():
     client = make_client(state=logged_in_state(rww={"L": 1, "RT": 3600}))
     with pytest.raises(ValueError, match=r"costs (29|30) rubies"):
+        client.castle.finish_wishing_well()
+    assert conn(client).request_payloads == []
+
+
+def test_finish_without_a_known_well_still_needs_consent():
+    client = make_client(state=GameState())
+    with pytest.raises(ValueError, match="costs rubies"):
         client.castle.finish_wishing_well()
     assert conn(client).request_payloads == []
 
