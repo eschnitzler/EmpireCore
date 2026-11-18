@@ -13,7 +13,7 @@ from empire_core.commanders.models.roster import Commander
 from empire_core.enums import AttackAdvisorType, AutoSkipCooldownType, Kingdom, MovementFilter, SpyType
 from empire_core.gamedata import CollectableRows, EnumOrInt, SupportToolSlots, WodAmounts
 from empire_core.map.models.items import MapAreaItem
-from empire_core.map.models.owners import OwnerCastlePosition, OwnerCrest, OwnerFaction, owner_positions
+from empire_core.map.models.owners import OwnerCrest, OwnerFaction, OwnerPositions
 from empire_core.protocol.base import (
     BasePayload,
     BaseRequest,
@@ -361,8 +361,12 @@ class MovementOwner(BasePayload):
     alliance_name: str = Field(validation_alias="AN", default="")
     is_searching_alliance: bool = Field(validation_alias="SA", default=False)
     peace_seconds: int = Field(validation_alias="RPT", default=0, description="Remaining peace time")
-    castle_positions: list[OwnerCastlePosition] = Field(validation_alias="AP", default_factory=list)
-    village_positions: list[OwnerCastlePosition] = Field(validation_alias="VP", default_factory=list)
+    castle_positions: OwnerPositions = Field(
+        validation_alias="AP", default_factory=OwnerPositions, description="The player's castles"
+    )
+    village_positions: OwnerPositions = Field(
+        validation_alias="VP", default_factory=OwnerPositions, description="The player's villages"
+    )
     has_premium: bool = Field(validation_alias="PF", default=False)
     has_vip: bool = Field(validation_alias="VF", default=False)
     is_dummy: bool = Field(validation_alias="DUM", default=False, description="The owner record is a dummy")
@@ -396,11 +400,6 @@ class MovementOwner(BasePayload):
     @classmethod
     def _parsed_one_flag(cls, value: Any) -> bool:
         return js_parse_int(value) == 1
-
-    @field_validator("castle_positions", "village_positions", mode="before")
-    @classmethod
-    def _position_rows(cls, value: Any) -> Any:
-        return owner_positions(value)
 
     @field_validator("is_dummy", mode="before")
     @classmethod

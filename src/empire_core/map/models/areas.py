@@ -35,7 +35,7 @@ from empire_core.protocol.js import (
 )
 
 from .items import MapAreaItem, parse_area_rows
-from .owners import AllianceEmblem, OwnerCastlePosition, OwnerCrest, OwnerFaction, owner_positions
+from .owners import AllianceEmblem, OwnerCrest, OwnerFaction, OwnerPositions
 
 if TYPE_CHECKING:
     from empire_core.gamedata import Title
@@ -171,11 +171,11 @@ class MapObject(BasePayload):
     remaining_protection_time: ParseInt = Field(
         validation_alias="RPT", default=0, description="Seconds of peace protection left"
     )
-    castle_positions: list[OwnerCastlePosition] = Field(
-        validation_alias="AP", default_factory=list, description="The player's castles"
+    castle_positions: OwnerPositions = Field(
+        validation_alias="AP", default_factory=OwnerPositions, description="The player's castles"
     )
-    village_positions: list[OwnerCastlePosition] = Field(
-        validation_alias="VP", default_factory=list, description="The player's villages"
+    village_positions: OwnerPositions = Field(
+        validation_alias="VP", default_factory=OwnerPositions, description="The player's villages"
     )
     is_searching_alliance: bool = Field(validation_alias="SA", default=False, description="Looking for an alliance")
     has_vip_flag: bool = Field(validation_alias="VF", default=False, description="VIP flag")
@@ -240,11 +240,6 @@ class MapObject(BasePayload):
     def _block_needs_an_object(cls, value: Any) -> Any:
         # The client only reads keys off these; anything that is not an object leaves its defaults
         return object_or_none(value)
-
-    @field_validator("castle_positions", "village_positions", mode="plain")
-    @classmethod
-    def _position_rows(cls, value: Any) -> list[OwnerCastlePosition]:
-        return owner_positions(value)
 
 
 def _owner_records(value: Any) -> list[MapObject]:
