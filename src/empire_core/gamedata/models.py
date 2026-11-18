@@ -1079,7 +1079,7 @@ class SceatSkillTreeDef(_Row):
     """
     A Hall of Legends sceat skill tree and the tab it shows in.
 
-    Client: ``CastleLegendSkillData.parseXML`` (split.js line 576541) skips a row without a ``skillTreeID`` and files
+    Client: ``CastleLegendSkillData.parseXML`` (split.js line 576514) skips a row without a ``skillTreeID`` and files
     the tree under its ``tabID`` in ``sceatTreeTabMap``
     """
 
