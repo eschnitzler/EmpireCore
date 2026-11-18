@@ -66,7 +66,6 @@ def test_a_refusal_raises():
 
 
 def test_a_late_reply_with_no_waiter_still_updates_the_systems():
-    # STECommand applies every successful ste through parseSTE, whoever sent it
     state = logged_in_state()
 
     state.update_from_packet("ste", {"PFX": "FACTION", "SFX": "ISLE"})
