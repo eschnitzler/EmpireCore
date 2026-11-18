@@ -20,7 +20,6 @@ from .movement import (
     MovementArea,
     MovementArmy,
     MovementFilterResponse,
-    SetMovementFilterRequest,
     MovementForceCancelableResponse,
     MovementMarket,
     MovementOwner,
@@ -30,6 +29,7 @@ from .movement import (
     MovementUnitInfo,
     MovementWrapper,
     SentMovementResponse,
+    SetMovementFilterRequest,
 )
 from .support import (
     GetTravelInfoRequest,
