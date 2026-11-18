@@ -74,11 +74,28 @@ class TestJadePhase:
         )
 
     def test_phase_2_starts_when_its_time_passes(self):
-        phase = JadePhase(phase=JadeScoringPhase.PHASE_1, phase_2_starts_at=1600.0)
+        phase = JadePhase().updated(JadePhaseResponse.model_validate({"JP": 1, "JPT": 600}), 1000.0)
+        assert phase.phase_2_timer_running
         assert phase.current_phase(1599.0) is JadeScoringPhase.PHASE_1
         assert phase.seconds_until_phase_2(1599.0) == 1.0
         assert phase.current_phase(1600.0) is JadeScoringPhase.PHASE_2
         assert phase.seconds_until_phase_2(1700.0) == 0.0
+
+    def test_a_push_without_the_time_stops_the_timer(self):
+        # parseJadePhaseInfo removes the timer listener on every push and adds it back only for a truthy JPT
+        armed = JadePhase().updated(JadePhaseResponse.model_validate({"JP": 1, "JPT": 600}), 1000.0)
+        stopped = armed.updated(JadePhaseResponse.model_validate({"JPP": 25}), 1100.0)
+        assert not stopped.phase_2_timer_running and stopped.phase_2_starts_at == 1600.0
+        assert stopped.current_phase(1700.0) is JadeScoringPhase.PHASE_1
+
+    def test_a_switch_already_made_survives_the_next_push(self):
+        armed = JadePhase().updated(JadePhaseResponse.model_validate({"JP": 1, "JPT": 600}), 1000.0)
+        later = armed.updated(JadePhaseResponse.model_validate({"JPP": 25}), 1700.0)
+        assert later.current_phase(1700.0) is JadeScoringPhase.PHASE_2
+
+    def test_no_timer_once_in_phase_2(self):
+        phase = JadePhase().updated(JadePhaseResponse.model_validate({"JP": 2, "JPT": 600}), 1000.0)
+        assert not phase.phase_2_timer_running
 
     def test_the_push_is_kept_on_state_and_read_on_the_alliance(self):
         client = make_client(state=GameState())
