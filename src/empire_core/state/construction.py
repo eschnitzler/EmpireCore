@@ -48,8 +48,9 @@ class ConstructionState(StateBase):
     """
     The joined castle's construction slots.
 
-    A join's reply replaces them, and a map read or a lost session drops them. The client keeps them on its
-    active area until the next join; the library drops them deliberately when the session leaves the castle.
+    A join's reply replaces them; losing the area (``gtwara``), a relocation (``rst``) or a lost session drops
+    them. The client keeps them on its active area until the next join; the library drops them deliberately when
+    the area is gone. A map read keeps them, pushed or the library's own.
     """
 
     def _apply_carried_construction_list(self, command: str, data: Any) -> None:
@@ -75,7 +76,7 @@ class ConstructionState(StateBase):
             self.construction_list = carried
 
     def get_construction_list(self) -> ConstructionList | None:
-        """The joined castle's construction slots; None before a join, after a map read, or when the join sent
-        none."""
+        """The joined castle's construction slots; None before a join, after the area is lost or relocated,
+        or when the join sent none."""
         with self._lock:
             return None if self.construction_list is None else self.construction_list.model_copy(deep=True)

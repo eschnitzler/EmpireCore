@@ -127,6 +127,7 @@ class BuildingsState(StateBase):
 
     def get_buildings(self) -> dict[int, PlacedBuilding] | None:
         """The joined castle's placed objects by object id, each as the last packet that carried its row sent it;
-        None before a join, after a map read and after a join whose reply had no buildings."""
+        None before a join, after the area is lost or relocated and after a join whose reply had no
+        buildings."""
         with self._lock:
             return None if self.buildings is None else dict(self.buildings)

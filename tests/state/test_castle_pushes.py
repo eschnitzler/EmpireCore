@@ -156,23 +156,37 @@ class TestJoinedArea:
 
         assert state.get_joined_area() is None
 
-    def test_a_map_read_drops_only_the_mines(self, state):
-        # SwitchToWorldmapCommand destroys mineData; the active area and the carts stay, a refused gaa too
+    def test_a_map_read_keeps_the_mines(self, state):
+        state.update_from_packet("jaa", jaa_payload(gsm=MINES))
+
+        state.update_from_packet("gaa", {"KID": 0, "AI": [], "OI": []})
+
+        assert sorted(state.get_mines()) == [42, 43]
+
+    def test_losing_the_area_drops_only_the_mines(self, state):
+        # SwitchToWorldmapCommand destroys mineData; the active area and the carts stay
         state.update_from_packet("jaa", jaa_payload(gsm=MINES, rci=CARTS))
         carts = state.get_resource_carts()
 
-        state.update_from_packet("gaa", {"KID": 0, "AI": [], "OI": []}, 1)
+        state.update_from_packet("gtwara", {})
         state.update_from_packet("csl", {"SL": 3})
 
         assert state.get_mines() == {}
         area = state.get_joined_area()
         assert (area.castle_id, area.slum_level) == (1, 3)
         assert state.get_resource_carts() == carts
-        assert state.get_last_packet_time("gaa") is not None
 
-    def test_a_join_after_a_map_read_fills_the_mines_again(self, state):
+    def test_a_relocation_keeps_the_mines(self, state):
+        # RSTCommand sets the world map state without SwitchToWorldmapCommand
         state.update_from_packet("jaa", jaa_payload(gsm=MINES))
-        state.update_from_packet("gaa", {"KID": 0, "AI": [], "OI": []})
+
+        state.update_from_packet("rst", {})
+
+        assert sorted(state.get_mines()) == [42, 43]
+
+    def test_a_join_after_losing_the_area_fills_the_mines_again(self, state):
+        state.update_from_packet("jaa", jaa_payload(gsm=MINES))
+        state.update_from_packet("gtwara", {})
 
         state.update_from_packet("jaa", jaa_payload(gsm=MINES))
 
