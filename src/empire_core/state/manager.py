@@ -618,8 +618,8 @@ class GameState(
     def _handle_gbd(self, data: dict[str, Any]) -> set[str]:
         """Apply the login data, or the one section a push wraps in the same shape.
 
-        Each section is read once, through :class:`LoginDataResponse`. ``ain``, ``dql``, ``dcl``, ``gms``
-        and the sections a gbd never carries (``grc``, ``crai``) are still applied from their bodies.
+        Each section is read once, through :class:`LoginDataResponse`. ``ain`` and a join's ``crai`` are
+        still applied from their bodies.
 
         Returns the sections present but not applied, which are not stamped.
 
@@ -645,8 +645,8 @@ class GameState(
                 ("sne", self._parse_mailbox(login)),
                 ("gli", self._parse_commanders(login)),
                 ("skl", self._parse_skills(login)),
-                ("dql", self._parse_daily_quests(data)),
-                ("grc", self._parse_castle_resources(data)),
+                ("dql", self._parse_daily_quests(login)),
+                ("grc", self._parse_castle_resources(login)),
                 # CastleVIPData.parse_VIP (bundle line 47527) ignores a vip that is not set
                 ("vip", login.vip is not None),
             )
@@ -661,13 +661,15 @@ class GameState(
             self._parse_castles(login.castles)
         if login.permanent_castles is not None:
             self._parse_permanent_castles(login.permanent_castles)
-        self._parse_max_spies(data)
+        self._parse_max_spies(login)
         if login.movement_filter is not None:
             self.movement_filter = login.movement_filter
         if isinstance(crai := data.get("crai"), dict) and js_truthy(crai.get("CAI")):
             self._handle_crin(crai)
-        if dcl := data.get("dcl"):
-            self._handle_dcl(dcl)
+        if login.castle_details is not None:
+            self._apply_castle_details(login.castle_details)
+        elif "dcl" in login.sent_sections and js_truthy(data["dcl"]):
+            skipped.add("dcl")
         if "trigger_events" in login.model_fields_set:
             self._apply_trigger_events(login.trigger_events)
         if "events" in login.model_fields_set:

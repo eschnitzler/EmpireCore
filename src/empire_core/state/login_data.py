@@ -34,6 +34,7 @@ from empire_core.castle.models.landmarks import (
 from empire_core.castle.models.mercenaries import MercenaryMissionsResponse
 from empire_core.castle.models.permanent import PermanentCastleDataResponse
 from empire_core.castle.models.research import ResearchInfoResponse
+from empire_core.castle.models.resources import CastleResources
 from empire_core.castle.models.tax import TaxInfoResponse
 from empire_core.castle.models.upkeep import ConstructionItemExpiryResponse, ResourcePoolResponse
 from empire_core.castle.models.villages import VillageListResponse
@@ -91,12 +92,15 @@ class LoginDataResponse(BaseResponse):
     Command: gbd, pushed after a login; ``client.state`` applies each section as it comes, and a section
     pushed on its own as a login data of that one section. ``gii``, ``csp`` and ``irc`` come only that way.
 
+    A castle's resources (``grc``) come only in replies, which ``client.state`` applies as a section too.
+
     Client: ``GBDCommand.exec`` (split.js line 651188), which hands each section to its parser in the
     order the fields here follow; most parsers skip a falsy section, and ``client.state`` keeps the
     exceptions (a falsy ``sei`` still refreshes the events, a falsy ``gatp`` ends the training).
     ``parse_GIE``, ``parse_PGL`` and ``parse_MCD`` (split.js lines 711633, 582271, 672695) also skip a
     block whose ``GE``, ``G`` or ``MTC`` is falsy. ``GIICommand``, ``CSPCommand`` and ``IRCCommand``
-    (split.js lines 629668, 631395, 629121) bring the rest
+    (split.js lines 629668, 631395, 629121) bring the rest; ``AreaDataUpdater.parseGRC``
+    (split.js line 659020) for ``grc``
     """
 
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
@@ -336,6 +340,11 @@ class LoginDataResponse(BaseResponse):
         default=None,
         description="What the citizen in your castle carries; None when not sent or unreadable",
     )
+    castle_resources: CastleResources | None = Field(
+        validation_alias="grc",
+        default=None,
+        description="A castle's resources, sent in replies, never at login; None when not sent or unreadable",
+    )
 
     @property
     def sent_sections(self) -> set[str]:
@@ -405,6 +414,7 @@ class LoginDataResponse(BaseResponse):
         "construction_items",
         "construction_item_space",
         "resource_pool",
+        "castle_resources",
         mode="wrap",
     )
     @classmethod

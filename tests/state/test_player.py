@@ -633,6 +633,15 @@ class TestMaxSpies:
         spies = state.get_max_spies()
         assert (spies.max_spies, spies.bonus_spies) == (0, 0)
 
+    @pytest.mark.parametrize("section", [[1, 2], "spies", 5])
+    def test_a_truthy_section_that_is_no_object_reads_as_zero(self, state, section):
+        # parse_GMS reads int(e.MS) and int(e.BS) of anything truthy, undefined on a non-object
+        state.update_from_packet("gbd", {"gms": {"MS": 12, "BS": 1}})
+        state.update_from_packet("gbd", {"gms": section})
+
+        spies = state.get_max_spies()
+        assert (spies.max_spies, spies.bonus_spies) == (0, 0)
+
     def test_reset_forgets_the_count(self, state):
         state.update_from_packet("gbd", {"gms": {"MS": 12}})
         state.reset()

@@ -5,7 +5,6 @@ import time
 from typing import Any
 
 from empire_core.protocol.base import read_or_none
-from empire_core.protocol.js import js_truthy
 from empire_core.quests.models import (
     DailyQuests,
     PopupsResponse,
@@ -17,6 +16,7 @@ from empire_core.quests.models import (
     QuestsStartedResponse,
 )
 from empire_core.state.base import StateBase, loaded, read_section
+from empire_core.state.login_data import LoginDataResponse
 from empire_core.utils import callbacks
 
 logger = logging.getLogger(__name__)
@@ -150,16 +150,15 @@ class QuestState(StateBase):
         self.quests = {key: value for key, value in self.quests.items() if key != quest.quest_id}
         self._fire(self.on_quest_finished, quest)
 
-    def _parse_daily_quests(self, data: dict[str, Any]) -> bool:
+    def _parse_daily_quests(self, login: LoginDataResponse) -> bool:
         """Apply a ``dql`` section: daily quest level, today's quests and reward thresholds; whether it was applied.
 
-        Client: ``CastleDailyQuestData.parse_DQL`` (bundle line 134062), from ``GBDCommand.exec``
-        (bundle line 129381) and ``DQLCommand.exec`` (bundle line 126512); it does nothing for a falsy section
+        Client: ``CastleDailyQuestData.parse_DQL`` (split.js line 669180), from ``GBDCommand.exec``
+        (split.js line 651188) and ``DQLCommand.exec``; it does nothing for a falsy section
         """
-        dql = data.get("dql")
-        if not (js_truthy(dql) and isinstance(dql, dict)):
+        if login.daily_quests is None:
             return False
-        self.daily_quests = DailyQuests.from_section(dql, self.daily_quests)
+        self.daily_quests = login.daily_quests.over(self.daily_quests)
         self._fire(self.on_daily_quests_updated, self.daily_quests)
         return True
 
