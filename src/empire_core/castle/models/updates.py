@@ -275,7 +275,6 @@ __all__ = [
     "DamagedBuildings",
     "JoinedAreaMoved",
     "NewDay",
-    "ObjectUpdated",
     "SlumLevel",
     "UnitsReceived",
 ]

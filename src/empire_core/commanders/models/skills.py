@@ -577,7 +577,7 @@ class ObjectUpdateEvent(BaseResponse):
     An object update pushed by the server.
 
     Only the skill list is read here; the joined castle's part of the same payload is
-    :class:`~empire_core.castle.models.updates.ObjectUpdated`.
+    :class:`~empire_core.castle.models.updates.BuildingChanged`.
 
     Command: ego
     Client: ``EGOCommand.executeCommand`` (split.js line 628214)

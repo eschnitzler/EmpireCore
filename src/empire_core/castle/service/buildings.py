@@ -49,6 +49,7 @@ from empire_core.gamedata import BuildingDef, Currency
 
 if TYPE_CHECKING:
     from empire_core.gamedata import Building
+    from empire_core.state.models import PlacedBuilding
 
 # ConstructionConst.FREE_SKIP_TIME (dll line 18962)
 _FREE_SKIP_SECONDS = 240
@@ -68,6 +69,12 @@ class BuildingsMixin(CastlesMixin, WishingWellMixin):
         """The joined castle's construction slots, as the last join, push or building reply left them; None before
         a join, after a map read, or when the join sent none."""
         return self.client.state.get_construction_list()
+
+    @property
+    def buildings(self) -> dict[int, PlacedBuilding] | None:
+        """The joined castle's placed objects by object id, kept current by the server's pushes and the building
+        replies; None before a join and after a map read."""
+        return self.client.state.get_buildings()
 
     def get_build_queue(self, *, timeout: float = 5.0) -> ConstructionList:
         """

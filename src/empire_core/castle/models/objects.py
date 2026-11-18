@@ -391,6 +391,25 @@ class CastleBuildings(BasePayload):
         return next((row for row in self.all_objects() if row.object_id == object_id), None)
 
 
+class CarriedCastleBuildings(BasePayload):
+    """
+    The castle's buildings a push or reply carries under ``gca``.
+
+    Client: ``AreaDataUpdater.parseJAA``, ``parseGCA`` and ``parseEBE`` (split.js lines 658985, 658993, 659095),
+    handed the ``jaa`` and ``ebe`` replies and, by ``GCACommand.executeCommand`` (split.js line 628685), the
+    ``gca`` push
+    """
+
+    buildings: CastleBuildings | None = Field(
+        validation_alias="gca", default=None, description="The castle's buildings; None when not sent or unreadable"
+    )
+
+    @field_validator("buildings", mode="before")
+    @classmethod
+    def _buildings(cls, value: Any) -> CastleBuildings | None:
+        return block_or_none(CastleBuildings, value)
+
+
 # =============================================================================
 # SCL - Show Construction List
 # =============================================================================

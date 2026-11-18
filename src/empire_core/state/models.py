@@ -1,4 +1,4 @@
-"""The state's models: the local player, castles and resources."""
+"""The state's models: the local player, castles, resources, the joined area and its buildings."""
 
 import time
 from typing import TYPE_CHECKING, Any, ClassVar
@@ -7,6 +7,7 @@ from pydantic import ConfigDict, Field
 
 from empire_core.alliance.models.membership import AllianceMembership
 from empire_core.castle.models.details import DetailedCastleInfo, ResourceProduction, SafeAmount, StorageCapacity
+from empire_core.castle.models.objects import BuildingRow
 from empire_core.enums import Kingdom, MapItemType
 from empire_core.gamedata import EnumOrStr, WodAmounts
 from empire_core.map.models.areas import KingdomProtection
@@ -370,3 +371,19 @@ class JoinedArea(EmpireModel):
     owner_id: int | None = Field(default=None, description="Owner from gca.O, or a non-outpost map row")
     occupier_id: int | None = Field(default=None, description="Outpost occupier; a positive id means conquest")
     area_type: MapItemType | None = Field(default=None, description="The joined area's map type")
+
+
+class PlacedBuilding(EmpireModel):
+    """
+    One placed object of the joined castle, as the last packet that carried its row sent it.
+
+    Client: ``IsoUpdaterData.updateObjectInfo`` (split.js line 654563), which replaces the object of the
+    row's object id or adds it
+    """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    row: BuildingRow = Field(description="The object's row")
+    received_at: float = Field(
+        description="When the row arrived, in time.time() seconds; its construction_completed_seconds is as of then"
+    )
