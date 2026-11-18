@@ -881,6 +881,13 @@ class TestMovementLifecycle:
         assert wait_for(lambda: len(recalled) == 1)
         assert recalled[0].is_returning
 
+    @pytest.mark.parametrize("cmd", ["gam", "abr", "asr", "mcm"])
+    def test_a_refused_movement_reply_changes_nothing(self, state, cmd):
+        # GAMCommand, ABRCommand, ASRCommand and MCMCommand read the body only on ALL_OK
+        payload = gam_payload(210) if cmd == "gam" else push_payload(210)
+        state.update_from_packet(cmd, payload, error_code=1)
+        assert state.movements == {}
+
     def test_mfc_marks_movement_force_cancelable(self, state):
         state.update_from_packet("gam", gam_payload(209))
         state.update_from_packet("mfc", {"MID": 209})

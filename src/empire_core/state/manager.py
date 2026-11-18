@@ -260,6 +260,8 @@ _SUCCESS_ONLY = frozenset(
     | {"vip", "mvf"}
     # SKRCommand.executeCommand (split.js line 652567)
     | {"skr"}
+    # GAMCommand, ABRCommand, ASRCommand, MCMCommand (split.js lines 638976, 638456, 638501, 639021)
+    | {"gam", "abr", "asr", "mcm"}
 )
 
 
