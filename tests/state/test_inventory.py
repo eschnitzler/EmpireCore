@@ -5,9 +5,15 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from empire_core.castle import KingdomInfoResponse, MercenaryMissionsResponse, ResourcePoolResponse, TaxStatus
+from empire_core.castle import (
+    ConstructionItemExpiryResponse,
+    KingdomInfoResponse,
+    MercenaryMissionsResponse,
+    ResourcePoolResponse,
+    TaxStatus,
+)
 from empire_core.commanders import GemInventoryResponse, GemsChangedResponse
-from empire_core.enums import CollectableKind, Kingdom
+from empire_core.enums import CollectableKind, Event, Kingdom
 from empire_core.gamedata import Currency, Gem, LootBox, LootBoxType, Tool, Unit
 from tests.state.test_castle_pushes import jaa_payload
 
@@ -231,6 +237,45 @@ class TestPushes:
         assert 890 < expiry.remaining_seconds() <= 900 and expiry.last_expired_at == 1700000000
         state.update_from_packet("nec", {"NCRS": -1, "LECT": 1700000900})
         assert state.get_construction_item_expiry().remaining_seconds() is None
+
+    @pytest.mark.parametrize(("placed", "items"), [(None, None), ([], ()), ("bad", None)])
+    def test_an_nec_reads_its_placed_items_only_from_a_list(self, placed, items):
+        # NECCommand.executeCommand: i.CI && ... parseConstructionItems(i.CI)
+        expiry = ConstructionItemExpiryResponse.model_validate({"NCRS": 60, "LECT": -1, "CI": placed})
+        assert expiry.placed_items == items and expiry.next_expiry_seconds == 60
+
+    def test_a_kpi_hands_a_set_fki_on_after_the_events(self, state):
+        # parse_FKI reads each flag off what it gets: a truthy non-object sets none
+        state.update_from_packet(
+            "gbd",
+            {"sei": {"E": [{"EID": 3, "RS": 600, "UL": 1}]}, "kpi": {"UL": [], "fki": 1}},
+        )
+        event = state.get_event(Event.BATTLE_FOR_BERIMOND)
+        assert event is not None and event.kingdom_status is not None
+        assert not event.kingdom_status.active_in_event and not event.kingdom_status.gerbrandt_capital_reachable
+
+
+class TestConstructionItemSpace:
+    @pytest.mark.parametrize(
+        ("rows", "space"),
+        [
+            # ConstructionItemData.updateInventory: INVENTORY_SOFTCAP (5e3) - (t += o[1]), node-checked
+            ([[1, 3], [2, 2]], 4995),
+            ([[1, "3"], [2, 2]], 4968),
+            ([[1, 1.5], [2, 1.5]], 4997),
+            ([], 5000),
+            ([[1, 3], [2, "x"]], None),
+        ],
+    )
+    def test_a_gii_counts_the_space_left_from_the_amounts_as_sent(self, state, rows, space):
+        state.update_from_packet("gii", {"CI": rows})
+        left = state.get_construction_item_space()
+        assert (left.space_left if left is not None else None) == space
+        assert state.get_last_packet_time("gii") is not None
+
+    def test_a_csp_sets_the_space(self, state):
+        state.update_from_packet("csp", {"C": "12"})
+        assert state.get_construction_item_space().space_left == 12
 
     def test_an_irc_push(self, state):
         state.update_from_packet("irc", {"G": [["W", 120]], "EG": 1})

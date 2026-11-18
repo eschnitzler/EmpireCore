@@ -16,123 +16,93 @@ from empire_core.castle.models.kingdoms import KingdomInfoResponse
 from empire_core.castle.models.mercenaries import MercenaryMissionsResponse
 from empire_core.castle.models.objects import BuildingConstructionItems
 from empire_core.castle.models.storage import DecorationStorage, DecorationStorageKey, DecorationStorageResponse
-from empire_core.castle.models.tax import TaxInfo, TaxInfoResponse
+from empire_core.castle.models.tax import TaxInfo
 from empire_core.castle.models.upkeep import ConstructionItemExpiryResponse, ResourcePoolResponse
 from empire_core.commanders.models.inventory import GemChange, GemInventoryResponse, GemsChangedResponse, InventorySpace
 from empire_core.enums import Kingdom
 from empire_core.exceptions import PacketError, ReplyMismatchError
 from empire_core.player.models.economy import LootBoxesResponse, LootBoxKeys
 from empire_core.protocol.base import read_or_none
-from empire_core.protocol.js import js_int, js_number, js_number_or_none, js_string, js_truthy
 from empire_core.state.base import StateBase, read_section
+from empire_core.state.login_data import LoginDataResponse
 
 INVENTORY_SECTIONS = ("gii", "csp", "ggm", "gls", "esl", "kpi", "mpe", "txi", "nec", "irc")
 
 
 class InventoryState(StateBase):
-    def _parse_inventory(self, data: dict[str, Any]) -> set[str]:
+    def _parse_inventory(self, login: LoginDataResponse) -> set[str]:
         """Apply the inventory and economy sections of a gbd, or the one a push or reply carries; return those
         not applied.
 
-        Client: ``GBDCommand.exec`` (bundle line 129381) calls ``parse_GLS``, ``parse_ESL``, ``parse_KPI``,
-        ``parse_MPE`` and ``parse_TXI``, each of which skips a falsy block, and ``parseGGM`` and ``parse_NEC``
-        only when ``ggm`` and ``nec`` are truthy; ``irc`` comes only as a push (``IRCCommand``, bundle line 123090)
+        Client: ``GBDCommand.exec`` (split.js line 651188) hands them to ``CastleGemData.parseGGM``,
+        ``CastleLootboxData.parse_GLS``, ``CastleEquipmentData.parse_ESL`` and ``CastleGemData.parse_ESL``,
+        ``CastleKingdomData.parse_KPI``, ``CastleMercenaryData.parse_MPE``, ``CastleTaxData.parse_TXI`` and
+        ``ConstructionItemData.parse_NEC`` (split.js lines 714185, 577582, 711891, 714500, 670927, 150683,
+        579393, 120941); ``gii``, ``csp`` and ``irc`` come on their own, to ``ConstructionItemData.updateInventory``,
+        ``parse_CSP`` and ``CastleResourcePoolData.parseIRC`` (split.js lines 120812, 120836, 695523)
         """
         applied: set[str] = set()
-        if "csp" in data:
-            if (
-                construction_space := read_section(ConstructionItemSpace, data["csp"], "the construction item space")
-            ) is not None:
-                self.construction_item_space = construction_space
-                applied.add("csp")
-        if "gii" in data:
-            if (
-                inventory := read_section(ConstructionItemInventory, data["gii"], "the construction inventory")
-            ) is not None:
-                self.construction_items = inventory
-                # ConstructionItemData.updateInventory (bundle 22954-22959), ConstructionItemConst (dll 18989).
-                total: float | str = 0.0
-                rows = data["gii"].get("CI", [])
-                if len(rows) == len(inventory.items) and all(isinstance(row, list) and len(row) >= 2 for row in rows):
-                    for row in rows:
-                        amount = row[1]
-                        total = (
-                            js_string(total) + js_string(amount)
-                            if isinstance(total, str) or isinstance(amount, str)
-                            else total + js_number(amount)
-                        )
-                    summed = js_number_or_none(total)
-                    self.construction_item_space = ConstructionItemSpace(
-                        space_left=js_int(5000 - summed) if summed is not None else 0
-                    )
-                else:
-                    self.construction_item_space = None
-                applied.add("gii")
-        if js_truthy(ggm := data.get("ggm")):
-            if (gems := read_section(GemInventoryResponse, ggm, "the gems")) is not None:
-                self.gems = gems
-                applied.add("ggm")
-        if js_truthy(gls := data.get("gls")) and self._apply_loot_boxes(gls):
+        if login.construction_item_space is not None:
+            self.construction_item_space = login.construction_item_space
+            applied.add("csp")
+        if (inventory := login.construction_items) is not None:
+            self.construction_items = inventory
+            self.construction_item_space = (
+                None if inventory.space_left is None else ConstructionItemSpace(space_left=inventory.space_left)
+            )
+            applied.add("gii")
+        if login.gems is not None:
+            self.gems = login.gems
+            applied.add("ggm")
+        if login.loot_boxes is not None:
+            self._apply_loot_boxes(login.loot_boxes)
             applied.add("gls")
-        if js_truthy(esl := data.get("esl")):
-            if (space := read_section(InventorySpace, esl, "the inventory space")) is not None:
-                self.inventory_space = space
-                applied.add("esl")
-        if js_truthy(kpi := data.get("kpi")) and self._apply_kingdoms(kpi):
+        if login.inventory_space is not None:
+            self.inventory_space = login.inventory_space
+            applied.add("esl")
+        if login.kingdoms is not None:
+            self._apply_kingdoms(login.kingdoms)
             applied.add("kpi")
-        if js_truthy(mpe := data.get("mpe")):
-            if (missions := read_section(MercenaryMissionsResponse, mpe, "the mercenary missions")) is not None:
-                self.mercenary_missions = missions
-                applied.add("mpe")
-        if js_truthy(txi := data.get("txi")):
-            if (tax := read_section(TaxInfoResponse, txi, "the tax")) is not None:
-                self.tax = tax.tax
-                applied.add("txi")
-        if js_truthy(nec := data.get("nec")):
-            if (expiry := read_section(ConstructionItemExpiryResponse, nec, "the item expiry")) is not None:
-                self.construction_item_expiry = expiry
-                if self.joined_area is not None and isinstance(nec, dict) and "CI" in nec:
-                    placement = read_section(ConstructionItemPlacement, nec, "the expiring construction items")
-                    if placement is not None:
-                        self.placed_construction_items = placement.items
-                        self._placed_construction_item_sequence = self._packet_sequence
-                applied.add("nec")
-        if "irc" in data and (pool := read_section(ResourcePoolResponse, data["irc"], "the resource pool")) is not None:
-            self.resource_pool = pool
+        if login.mercenary_missions is not None:
+            self.mercenary_missions = login.mercenary_missions
+            applied.add("mpe")
+        if login.tax is not None:
+            self.tax = login.tax.tax
+            applied.add("txi")
+        if (expiry := login.construction_item_expiry) is not None:
+            self.construction_item_expiry = expiry
+            if self.joined_area is not None and expiry.placed_items is not None:
+                self.placed_construction_items = expiry.placed_items
+                self._placed_construction_item_sequence = self._packet_sequence
+            applied.add("nec")
+        if login.resource_pool is not None:
+            self.resource_pool = login.resource_pool
             applied.add("irc")
-        return {section for section in INVENTORY_SECTIONS if section in data} - applied
+        return (login.sent_sections & set(INVENTORY_SECTIONS)) - applied
 
-    def _apply_loot_boxes(self, body: Any) -> bool:
-        """Read a ``gls``: the loot boxes whole, and key progress over the types known.
+    def _apply_loot_boxes(self, boxes: LootBoxesResponse) -> None:
+        """Keep the loot boxes whole, and key progress over the types known.
 
-        Client: ``CastleLootboxData.parse_GLS`` (bundle line 112332), which sets the progress of each
+        Client: ``CastleLootboxData.parse_GLS`` (split.js line 577582), which sets the progress of each
         type ``KEY`` lists and leaves the others
         """
-        boxes = read_section(LootBoxesResponse, body, "the loot boxes")
-        if boxes is None:
-            return False
         if self.loot_boxes is not None:
             keys = {entry.loot_box_type_id: entry for entry in self.loot_boxes.key_progress}
             keys.update((entry.loot_box_type_id, entry) for entry in boxes.key_progress)
             boxes = boxes.model_copy(update={"key_progress": tuple(keys.values())})
         self.loot_boxes = boxes
-        return True
 
-    def _apply_kingdoms(self, body: Any) -> bool:
-        """Read a ``kpi``: the kingdoms it lists over those known, and the transfers whole.
+    def _apply_kingdoms(self, info: KingdomInfoResponse) -> None:
+        """Keep the kingdoms a ``kpi`` lists over those known, and the transfers whole.
 
-        Client: ``CastleKingdomData.parse_KPI`` (bundle line 134539), which updates each kingdom in
+        Client: ``CastleKingdomData.parse_KPI`` (split.js line 670927), which updates each kingdom in
         ``UL`` and rebuilds the transfer lists
         """
-        info = read_section(KingdomInfoResponse, body, "the kingdom info")
-        if info is None:
-            return False
         if self.kingdoms is not None:
             kingdoms = {kingdom.kingdom_id: kingdom for kingdom in self.kingdoms.kingdoms}
             kingdoms.update((kingdom.kingdom_id, kingdom) for kingdom in info.kingdoms)
             info = info.model_copy(update={"kingdoms": tuple(kingdoms.values())})
         self.kingdoms = info
-        return True
 
     def _handle_gec(self, data: Any) -> None:
         """Handle a ``gec`` push: gems added to or taken from the inventory.

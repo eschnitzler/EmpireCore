@@ -5,7 +5,15 @@ from __future__ import annotations
 import logging
 from typing import Any, ClassVar
 
-from pydantic import ConfigDict, Field, ValidationInfo, ValidatorFunctionWrapHandler, field_validator
+from pydantic import (
+    AliasPath,
+    ConfigDict,
+    Field,
+    ValidationInfo,
+    ValidatorFunctionWrapHandler,
+    field_validator,
+    model_validator,
+)
 
 from empire_core.alliance.models.chat import AllianceChatLogResponse
 from empire_core.alliance.models.help import AllianceHelpListResponse
@@ -13,6 +21,7 @@ from empire_core.alliance.models.info import GetAllianceInfoResponse
 from empire_core.alliance.models.membership import AllianceMembershipResponse
 from empire_core.attack.models.counter import AttackCounterResponse
 from empire_core.castle.models.castles import GetCastlesResponse
+from empire_core.castle.models.construction_items import ConstructionItemInventory, ConstructionItemSpace
 from empire_core.castle.models.details import GetDetailedCastleResponse
 from empire_core.castle.models.kingdoms import KingdomInfoResponse
 from empire_core.castle.models.landmarks import (
@@ -26,12 +35,13 @@ from empire_core.castle.models.mercenaries import MercenaryMissionsResponse
 from empire_core.castle.models.permanent import PermanentCastleDataResponse
 from empire_core.castle.models.research import ResearchInfoResponse
 from empire_core.castle.models.tax import TaxInfoResponse
-from empire_core.castle.models.upkeep import ConstructionItemExpiryResponse
+from empire_core.castle.models.upkeep import ConstructionItemExpiryResponse, ResourcePoolResponse
 from empire_core.castle.models.villages import VillageListResponse
 from empire_core.castle.models.wishing_well import WishingWellResponse
 from empire_core.commanders.models.inventory import GemInventoryResponse, InventorySpace, NewRelicsResponse
 from empire_core.commanders.models.roster import CommanderRoster
 from empire_core.commanders.models.skills import SkillList
+from empire_core.events.berimond_models import BerimondKingdomStatus
 from empire_core.events.models import SpecialEventsResponse, TriggerEventsResponse
 from empire_core.map.models.areas import KingdomProtection
 from empire_core.map.models.treasure_maps import TreasureHuntInfoResponse, TreasureMapsResponse
@@ -41,6 +51,7 @@ from empire_core.player.models.account import (
     BoostedGlobalEffectsResponse,
     DailyResetResponse,
     FoodProductionStatus,
+    OfficerTraining,
     PlayerGiftsResponse,
     PlayerIdentityResponse,
     PremiumFlagResponse,
@@ -74,15 +85,18 @@ class LoginDataResponse(BaseResponse):
 
     A section that is not sent, is falsy, or that its model cannot read, is None; the rest of the login
     data still reads, and which sections were sent is in ``model_fields_set``. Sections the library has
-    no model for yet stay as extras. The client reads ``mcd`` from the whole payload when the section is
-    missing, and ``nsm`` as a negated flag; neither is modelled here.
+    no model for yet stay as extras. A falsy ``mcd`` gives way to the login data's own ``MTC``, as in the
+    client; ``nsm``, a negated flag, is not modelled.
 
     Command: gbd, pushed after a login; ``client.state`` applies each section as it comes, and a section
-    pushed on its own as a login data of that one section.
+    pushed on its own as a login data of that one section. ``gii``, ``csp`` and ``irc`` come only that way.
 
     Client: ``GBDCommand.exec`` (split.js line 651188), which hands each section to its parser in the
     order the fields here follow; most parsers skip a falsy section, and ``client.state`` keeps the
-    exceptions (a falsy ``sei`` still refreshes the events)
+    exceptions (a falsy ``sei`` still refreshes the events, a falsy ``gatp`` ends the training).
+    ``parse_GIE``, ``parse_PGL`` and ``parse_MCD`` (split.js lines 711633, 582271, 672695) also skip a
+    block whose ``GE``, ``G`` or ``MTC`` is falsy. ``GIICommand``, ``CSPCommand`` and ``IRCCommand``
+    (split.js lines 629668, 631395, 629121) bring the rest
     """
 
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
@@ -230,6 +244,11 @@ class LoginDataResponse(BaseResponse):
         default=None,
         description="Your kingdoms' unlocks and transfers; None when not sent or unreadable",
     )
+    berimond_kingdom_status: BerimondKingdomStatus | None = Field(
+        validation_alias=AliasPath("kpi", "fki"),
+        default=None,
+        description="The Battle for Berimond's kingdom status the kpi carries; None when not sent or unreadable",
+    )
     relocation: RelocationInfoResponse | None = Field(
         validation_alias="gri", default=None, description="Your castle relocation; None when not sent or unreadable"
     )
@@ -272,6 +291,11 @@ class LoginDataResponse(BaseResponse):
     castle_details: GetDetailedCastleResponse | None = Field(
         validation_alias="dcl", default=None, description="Your castles' details; None when not sent or unreadable"
     )
+    officer_training: OfficerTraining | None = Field(
+        validation_alias="gatp",
+        default=None,
+        description="The officers' school training running, unset when none runs; None when not sent or unreadable",
+    )
     boosted_global_effects: BoostedGlobalEffectsResponse | None = Field(
         validation_alias="bie",
         default=None,
@@ -296,6 +320,21 @@ class LoginDataResponse(BaseResponse):
     )
     attack_counter: AttackCounterResponse | None = Field(
         validation_alias="gai", default=None, description="Your attack counter; None when not sent or unreadable"
+    )
+    construction_items: ConstructionItemInventory | None = Field(
+        validation_alias="gii",
+        default=None,
+        description="The construction items in storage; None when not sent or unreadable",
+    )
+    construction_item_space: ConstructionItemSpace | None = Field(
+        validation_alias="csp",
+        default=None,
+        description="Free construction item storage; None when not sent or unreadable",
+    )
+    resource_pool: ResourcePoolResponse | None = Field(
+        validation_alias="irc",
+        default=None,
+        description="What the citizen in your castle carries; None when not sent or unreadable",
     )
 
     @property
@@ -343,6 +382,7 @@ class LoginDataResponse(BaseResponse):
         "tax",
         "research",
         "kingdoms",
+        "berimond_kingdom_status",
         "relocation",
         "plague_doctors",
         "commanders",
@@ -362,13 +402,35 @@ class LoginDataResponse(BaseResponse):
         "skills",
         "construction_item_expiry",
         "attack_counter",
+        "construction_items",
+        "construction_item_space",
+        "resource_pool",
         mode="wrap",
     )
     @classmethod
     def _section(cls, value: Any, handler: ValidatorFunctionWrapHandler, info: ValidationInfo) -> Any:
-        if not js_truthy(value):
+        gate = _GATES.get(info.field_name)
+        if not js_truthy(value) or (gate is not None and not (isinstance(value, dict) and js_truthy(value.get(gate)))):
             return None
         return read_or_none(handler, value, warn=logger, what=f"the {info.field_name} login section")
+
+    @field_validator("officer_training", mode="wrap")
+    @classmethod
+    def _officer_training(cls, value: Any, handler: ValidatorFunctionWrapHandler) -> Any:
+        # parse_GATP (split.js line 715112) ends the running training on a falsy block
+        if not js_truthy(value):
+            return OfficerTraining()
+        return read_or_none(handler, value, warn=logger, what="the officer_training login section")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _messages_sent_today(cls, data: Any) -> Any:
+        if isinstance(data, dict) and not js_truthy(data.get("mcd")) and js_truthy(data.get("MTC")):
+            return {**data, "mcd": {"MTC": data["MTC"]}}
+        return data
+
+
+_GATES: dict[str | None, str] = {"boosted_global_effects": "GE", "gifts": "G", "messages_sent_today": "MTC"}
 
 
 _WIRE_KEYS = {

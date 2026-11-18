@@ -618,9 +618,8 @@ class GameState(
     def _handle_gbd(self, data: dict[str, Any]) -> set[str]:
         """Apply the login data, or the one section a push wraps in the same shape.
 
-        Each section is read once, through :class:`LoginDataResponse`. The account and inventory
-        sections, ``ain``, ``dql``, ``dcl``, ``gms``, ``kpi``'s ``fki`` and the sections a gbd never
-        carries (``grc``, ``crai``) are still applied from their bodies.
+        Each section is read once, through :class:`LoginDataResponse`. ``ain``, ``dql``, ``dcl``, ``gms``
+        and the sections a gbd never carries (``grc``, ``crai``) are still applied from their bodies.
 
         Returns the sections present but not applied, which are not stamped.
 
@@ -654,8 +653,8 @@ class GameState(
             if not applied
         }
         skipped |= self._parse_progress(login)
-        skipped |= self._parse_account(data)
-        skipped |= self._parse_inventory(data)
+        skipped |= self._parse_account(login)
+        skipped |= self._parse_inventory(login)
         skipped |= self._parse_treasure_maps(login)
         skipped |= self._parse_area_lists(login)
         if login.castles is not None:
@@ -673,9 +672,9 @@ class GameState(
             self._apply_trigger_events(login.trigger_events)
         if "events" in login.model_fields_set:
             self._apply_events(login.events)
-        if "kpi" not in skipped and isinstance(kpi := data.get("kpi"), dict) and "fki" in kpi:
-            # GBDCommand.exec parses the kpi after the sei (bundle line 129425), so its fki finds the event
-            self._handle_fki(kpi["fki"])
+        if "kpi" not in skipped and login.berimond_kingdom_status is not None:
+            # GBDCommand.exec parses the kpi after the sei (split.js line 651263), so its fki finds the event
+            self._apply_berimond_status(login.berimond_kingdom_status)
         self._stamp_sections(data, skipped)
         return skipped
 
