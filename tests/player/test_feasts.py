@@ -132,3 +132,10 @@ def test_the_reply_reaches_the_boosts():
 def test_an_unknown_feast_id_is_kept():
     reply = parse_response("bfs", {"T": 99, "RT": 10})
     assert isinstance(reply, HoldFeastResponse) and reply.feast_id == 99
+
+
+def test_a_feast_the_game_data_lacks_is_not_sent():
+    client = client_with()
+    with pytest.raises(ValueError, match="not in the game data"):
+        client.player.hold_feast(Feast.HEARTY_IMPERIAL_BANQUET, 5)
+    assert conn(client).request_payloads == []
