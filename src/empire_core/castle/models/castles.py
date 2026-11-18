@@ -431,16 +431,23 @@ class GetCastlesResponse(BaseResponse):
     Command: gcl
     Payload: {"PID": player_id, "C": [{"KID": kingdom, "AI": [{"AI": [row...], "AOT": .., "TA": ..}, ...]}, ...]}
 
-    Entries are flattened across kingdoms into ``castles``.
+    Entries are flattened across kingdoms into ``castles``. A row that cannot be read is skipped and
+    counted, so one bad row costs only itself; a ``C`` that is no list counts as one such row, where
+    the client would read it as no castles at all.
 
-    Client: ``CastleListVO.parseCastleList`` (bundle line 13698), which gdi
-    uses for its ``gcl`` block too.
+    Client: ``CastleListVO.parseCastleList`` (split.js line 73142), which gdi uses for its ``gcl``
+    block too; it reads ``OGT`` and ``OGC`` through ``int()`` when they are truthy (split.js line 73151)
     """
 
     command = "gcl"
 
-    player_id: int = Field(validation_alias="PID", default=0)
-    castles: list[CastleInfo] = Field(default_factory=list)
+    player_id: int = Field(validation_alias="PID", default=0, description="The player whose castles these are")
+    castles: list[CastleInfo] = Field(
+        default_factory=list, description="The castles of every kingdom, from C; empty when C was not sent"
+    )
+    unreadable_rows: int = Field(
+        default=0, exclude=True, description="Rows of C that could not be read and are not in castles"
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -449,27 +456,27 @@ class GetCastlesResponse(BaseResponse):
             return data
         data = dict(data)
         section = data.pop("C")
-        if isinstance(section, list):
-            unreadable = [k for k in section if not (isinstance(k, dict) and isinstance(k.get("AI"), list))]
-            if unreadable:
-                logger.warning(
-                    f"Skipped {len(unreadable)}/{len(section)} malformed gcl kingdom entries; "
-                    "the castle list may be incomplete"
-                )
-        castles = []
-        unparsed = 0
-        for kid, entry in _kingdom_entries(section):
-            try:
-                castle = CastleInfo.from_entry(entry, kid)
-            except (ValidationError, TypeError, ValueError, KeyError) as e:
-                logger.debug(f"Skipping unreadable gcl row {entry!r}: {e}")
-                unparsed += 1
+        castles: list[CastleInfo] = []
+        rows = unreadable = 0
+        for kingdom in section if isinstance(section, list) else [section]:
+            if not (isinstance(kingdom, dict) and isinstance(kingdom.get("AI"), list)):
+                rows += 1
+                unreadable += 1
                 continue
-            if castle is not None:
-                castles.append(castle)
-        if unparsed:
-            logger.warning(f"Skipped {unparsed} gcl castle rows that could not be read")
+            for entry in kingdom["AI"]:
+                rows += 1
+                try:
+                    castle = CastleInfo.from_entry(entry, kingdom.get("KID", 0))
+                except (ValidationError, TypeError, ValueError, KeyError) as e:
+                    logger.debug(f"Skipping unreadable gcl row {entry!r}: {e}")
+                    unreadable += 1
+                    continue
+                if castle is not None:
+                    castles.append(castle)
+        if unreadable:
+            logger.warning(f"Skipped {unreadable}/{rows} gcl rows that could not be read; the list may be incomplete")
         data["castles"] = castles
+        data["unreadable_rows"] = unreadable
         return data
 
 

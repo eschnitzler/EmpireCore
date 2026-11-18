@@ -193,6 +193,23 @@ class TestCastleStaleDrop:
         assert len(warnings) == 1, "schema drift wiped state with only a debug log"
         assert "3/3" in warnings[0].getMessage(), "skip count missing from the warning"
 
+    @pytest.mark.parametrize("section", [None, 5, {"KID": 0}, [{"KID": 0}], [{"KID": 0, "AI": None}]])
+    def test_castle_section_that_does_not_read_keeps_castles(self, state, section):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")])})
+
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": {"C": section}})
+
+        assert [c.id for c in state.get_castles()] == [1]
+
+    def test_one_unreadable_row_costs_only_itself(self, state):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main"), (2, "Outpost")])})
+        listed = gcl_payload([(2, "Outpost")])
+        listed["C"][0]["AI"].append({"AI": "garbage"})
+
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": listed})
+
+        assert [c.id for c in state.get_castles()] == [2]
+
     @pytest.mark.parametrize("gcl", [{}, None, {"X": 1}])
     def test_packet_without_castle_section_keeps_castles(self, state, gcl):
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")])})
