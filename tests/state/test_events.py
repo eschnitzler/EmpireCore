@@ -1,5 +1,6 @@
 """GameState event tracking: typed events from sei and tei, their ends, pep scores and the event callbacks."""
 
+import logging
 import math
 import threading
 from typing import Any
@@ -410,6 +411,16 @@ class TestPoints:
 
         point = state.get_event(60)
         assert (point.own_rank, point.own_points, point.max_points) == (12, 3500, 9000)
+
+    def test_a_pep_without_an_id_changes_nothing_quietly(self, state, clock, caplog):
+        state.update_from_packet("sei", {"E": [{"EID": 60, "RS": 60}]})
+        before = state.get_events()
+
+        with caplog.at_level(logging.WARNING):
+            state.update_from_packet("pep", {"OR": [5], "OP": [80]})
+
+        assert state.get_events() == before
+        assert caplog.text == ""
 
     def test_a_null_value_keeps_its_value(self, state, clock):
         state.update_from_packet("sei", {"E": [{"EID": 60, "RS": 60}]})
