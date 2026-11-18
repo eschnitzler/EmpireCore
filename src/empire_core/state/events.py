@@ -366,7 +366,7 @@ class EventState(StateBase):
     def _handle_fki(self, data: Any) -> None:
         """Handle a Berimond kingdom status pushed on its own.
 
-        Client: ``FKICommand.executeCommand`` (bundle line 127859) hands a set one to ``parse_FKI``
+        Client: ``FKICommand.executeCommand`` (split.js line 645405) hands a set one to ``parse_FKI``
         """
         if js_truthy(data):
             self._apply_berimond_status(BerimondKingdomStatus.model_validate(data))
@@ -375,7 +375,7 @@ class EventState(StateBase):
         """Keep a Berimond kingdom status on the running Battle for Berimond.
 
         Client: ``FKICommand.executeCommand`` and ``CastleKingdomData.parse_KPI`` (split.js line 670927) hand it
-        to the running event's ``FactionEventVO.parse_FKI`` (bundle line 7365)
+        to the running event's ``FactionEventVO.parse_FKI`` (split.js line 40919)
         """
         self._expire_events()
         event = self.events.get(Event.BATTLE_FOR_BERIMOND)
