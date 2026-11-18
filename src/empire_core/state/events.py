@@ -364,16 +364,23 @@ class EventState(StateBase):
         self._fire(self.on_events_updated, dict(self.events))
 
     def _handle_fki(self, data: Any) -> None:
-        """Handle a Berimond kingdom status, pushed on its own or inside a ``kpi``: kept on the running event.
+        """Handle a Berimond kingdom status pushed on its own.
 
-        Client: ``FKICommand.executeCommand`` (bundle line 127859) and ``CastleKingdomData.parse_KPI``
-        (bundle line 134604) hand a set one to the running Battle for Berimond's ``parse_FKI`` (bundle line 7365)
+        Client: ``FKICommand.executeCommand`` (split.js line 645405) hands a set one to ``parse_FKI``
+        """
+        if js_truthy(data):
+            self._apply_berimond_status(BerimondKingdomStatus.model_validate(data))
+
+    def _apply_berimond_status(self, status: BerimondKingdomStatus) -> None:
+        """Keep a Berimond kingdom status on the running Battle for Berimond.
+
+        Client: ``FKICommand.executeCommand`` and ``CastleKingdomData.parse_KPI`` (split.js line 670927) hand it
+        to the running event's ``FactionEventVO.parse_FKI`` (split.js line 40919)
         """
         self._expire_events()
         event = self.events.get(Event.BATTLE_FOR_BERIMOND)
-        if not js_truthy(data) or not isinstance(event, BerimondEvent):
+        if not isinstance(event, BerimondEvent):
             return
-        status = BerimondKingdomStatus.model_validate(data if isinstance(data, dict) else {})
         self.events = {**self.events, event.event_id: event.model_copy(update={"kingdom_status": status})}
         self._events_updated_at = time.time()
         self._fire(self.on_events_updated, dict(self.events))
