@@ -35,6 +35,7 @@ from empire_core.player.models.aqua import CargoPointsResponse, StormIslandsInfo
 from empire_core.protocol.base import read_or_none
 from empire_core.protocol.js import js_int, js_truthy
 from empire_core.state.base import StateBase, read_section
+from empire_core.state.login_data import LoginDataResponse
 
 logger = logging.getLogger(__name__)
 
@@ -365,19 +366,17 @@ class AllianceState(StateBase):
             self._handle_gbd({"gal": data["gal"]})
         self._forget_own_alliance()
 
-    def _parse_alliance_help(self, data: dict[str, Any]) -> bool:
+    def _parse_alliance_help(self, login: LoginDataResponse) -> bool:
         """Apply the login data's ``ahl`` section; whether it was applied."""
-        if "ahl" not in data:
+        if login.alliance_help is None:
             return False
-        return self._handle_ahl(data["ahl"])
-
-    def _handle_ahl(self, data: Any) -> bool:
-        """Replace the help list with an ``ahl``'s."""
-        listed = read_section(AllianceHelpListResponse, data, "the alliance help list")
-        if listed is None:
-            return False
-        self.alliance_help = tuple(listed.requests)
+        self.alliance_help = tuple(login.alliance_help.requests)
         return True
+
+    def _handle_ahl(self, data: Any) -> None:
+        """Replace the help list with an ``ahl``'s."""
+        if (listed := read_section(AllianceHelpListResponse, data, "the alliance help list")) is not None:
+            self.alliance_help = tuple(listed.requests)
 
     def _handle_ahh(self, data: Any) -> None:
         """Replace the help request an ``ahh`` names by ``LID``, or add it."""
@@ -412,7 +411,7 @@ class AllianceState(StateBase):
         with self._lock:
             return list(self.alliance_help)
 
-    def _parse_chat_history(self, data: dict[str, Any], *, replace: bool = False) -> bool:
+    def _parse_chat_history(self, log: AllianceChatLogResponse | None, *, replace: bool = False) -> bool:
         """Add an ``acl`` section's messages to the chat history, after the ones already there;
         whether it was applied.
 
@@ -422,10 +421,6 @@ class AllianceState(StateBase):
 
         Client: ``CastleChatData.parseHistory`` (bundle line 111294), which appends every ``CM`` entry
         """
-        acl = data.get("acl")
-        if not isinstance(acl, dict):
-            return False
-        log = read_or_none(AllianceChatLogResponse.model_validate, acl, warn=logger, what="the alliance chat log")
         if log is None:
             return False
         self.alliance_chat = (*(() if replace else self.alliance_chat), *log.chat_log)

@@ -5,9 +5,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from empire_core.events.models import SeasonEvent, SpecialEvent
-from empire_core.map.models.treasure_maps import TreasureHuntInfoResponse, TreasureMap, TreasureMapsResponse
-from empire_core.protocol.js import js_truthy
-from empire_core.state.base import StateBase, read_section
+from empire_core.map.models.treasure_maps import TreasureMap, TreasureMapsResponse
+from empire_core.state.base import StateBase
+from empire_core.state.login_data import LoginDataResponse
 
 if TYPE_CHECKING:
     from empire_core.gamedata import TreasureMapId
@@ -16,22 +16,22 @@ TREASURE_MAP_SECTIONS = ("tmp", "thi")
 
 
 class TreasureMapState(StateBase):
-    def _parse_treasure_maps(self, data: dict[str, Any]) -> set[str]:
+    def _parse_treasure_maps(self, login: LoginDataResponse) -> set[str]:
         """Apply the ``tmp`` and ``thi`` of a gbd, or the one a push or reply carries; return those not applied.
 
         Client: ``GBDCommand.exec`` (bundle line 129425) calls ``parse_TMP`` and then ``parse_THI``,
         each of which skips a falsy block
         """
         applied: set[str] = set()
-        if js_truthy(tmp := data.get("tmp")) and self._apply_treasure_maps(tmp):
+        if login.treasure_maps is not None:
+            self._apply_treasure_maps(login.treasure_maps)
             applied.add("tmp")
-        if js_truthy(thi := data.get("thi")):
-            if (hunt := read_section(TreasureHuntInfoResponse, thi, "the treasure hunt")) is not None:
-                self.treasure_hunt_map_id = hunt.map_id
-                applied.add("thi")
-        return {section for section in TREASURE_MAP_SECTIONS if section in data} - applied
+        if login.treasure_hunt is not None:
+            self.treasure_hunt_map_id = login.treasure_hunt.map_id
+            applied.add("thi")
+        return (login.sent_sections & set(TREASURE_MAP_SECTIONS)) - applied
 
-    def _apply_treasure_maps(self, body: Any) -> bool:
+    def _apply_treasure_maps(self, update: TreasureMapsResponse) -> None:
         """Read a ``tmp``: the maps it sends over those known, or in their place when it is a full list.
 
         A node the new row leaves out keeps what was known of it; one sent again keeps the goods paid
@@ -43,15 +43,11 @@ class TreasureMapState(StateBase):
         (bundle line 26940) sets the paid goods only from a truthy ``G``, and ``fillAchivedNodes``
         (bundle line 140577) only ever sets ``isDefeated``
         """
-        update = read_section(TreasureMapsResponse, body, "the treasure maps")
-        if update is None:
-            return False
         maps = {} if self.treasure_maps is None or update.is_full_list else dict(self.treasure_maps)
         for sent in update.maps:
             known = maps.get(sent.map_id)
             maps[sent.map_id] = sent if known is None else _merged_map(known, sent)
         self.treasure_maps = maps
-        return True
 
     def _forget_treasure_map_of(self, event: SpecialEvent) -> None:
         """Drop the treasure map of a season event that ended.

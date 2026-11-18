@@ -9,26 +9,29 @@ from empire_core.messages.models import (
     SystemNotificationEvent,
 )
 from empire_core.state.base import StateBase, read_section
+from empire_core.state.login_data import LoginDataResponse
 
 
 class MailboxState(StateBase):
-    def _parse_mailbox(self, data: dict[str, Any]) -> bool:
+    def _parse_mailbox(self, login: LoginDataResponse) -> bool:
         """Apply the login data's ``sne`` section; whether it was applied."""
-        if "sne" not in data:
+        if login.system_notifications is None:
             return False
-        return self._handle_sne(data["sne"])
+        self._apply_mailbox(login.system_notifications)
+        return True
 
-    def _handle_sne(self, data: Any) -> bool:
+    def _handle_sne(self, data: Any) -> None:
+        """Apply an ``sne`` push; see :meth:`_apply_mailbox`."""
+        if (event := read_section(SystemNotificationEvent, data, "the mailbox messages")) is not None:
+            self._apply_mailbox(event)
+
+    def _apply_mailbox(self, event: SystemNotificationEvent) -> None:
         """Add or replace the messages an ``sne`` names, by message id.
 
-        Client: ``GBDCommand.exec`` (bundle line 129381) and ``SNECommand.exec`` (bundle line 125499)
+        Client: ``GBDCommand.exec`` (split.js line 651188) and ``SNECommand.exec`` (bundle line 125499)
         both call ``parse_SNE`` (bundle line 134961)
         """
-        event = read_section(SystemNotificationEvent, data, "the mailbox messages")
-        if event is None:
-            return False
         self.mailbox = {**self.mailbox, **{message.message_id: message for message in event.messages}}
-        return True
 
     def _handle_dms(self, data: Any) -> None:
         """Remove the messages a delete reply names."""

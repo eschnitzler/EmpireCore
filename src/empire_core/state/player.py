@@ -10,14 +10,13 @@ from empire_core.alliance.models.membership import AllianceMembershipResponse
 from empire_core.enums import Hero
 from empire_core.gamedata import Currency
 from empire_core.map.models.areas import KingdomProtection
-from empire_core.player.models.account import PlayerIdentityResponse, VipStatusResponse
-from empire_core.player.models.economy import CurrencyResponse, SpecialCurrenciesResponse
+from empire_core.player.models.economy import SpecialCurrenciesResponse
 from empire_core.player.models.hero import HeroDecisionResponse
-from empire_core.player.models.progress import ExperienceResponse, HonorResponse
 from empire_core.protocol.base import BasePayload, read_or_none
 from empire_core.protocol.js import js_truthy
 from empire_core.spy.models import MaxSpiesResponse
 from empire_core.state.base import StateBase, loaded, read_section
+from empire_core.state.login_data import LoginDataResponse
 from empire_core.state.models import Player
 
 logger = logging.getLogger(__name__)
@@ -71,7 +70,7 @@ _IDENTITY_FIELDS = {"PID": "player_id", "PN": "name", "E": "email", "user_id": "
 
 
 class PlayerState(StateBase):
-    def _parse_player_sections(self, data: dict[str, Any]) -> list[KingdomProtection]:
+    def _parse_player_sections(self, login: LoginDataResponse) -> list[KingdomProtection]:
         """Parse the gpi/gxp/gcu/vip/gho/uap/gac sections as ONE atomic player update.
 
         Returns the protection blocks read, for the events they also update.
@@ -94,10 +93,14 @@ class PlayerState(StateBase):
         Client: ``CastleUserData.parse_GPI`` / ``parse_GXP`` / ``parse_GHO`` /
         ``parse_UAP``, ``CurrencyData.parseGCU``, ``CastleVIPData.parse_VIP``.
         """
-        blocks = self._protection_blocks(data)
+        blocks = [
+            block
+            for block in (login.protection, login.second_protection)
+            if block is not None and block.kingdom_id is not None
+        ]
         pid = None
         player = self.local_player
-        identity = read_section(PlayerIdentityResponse, data.get("gpi"), "the gpi section")
+        identity = login.identity
         if identity is not None and "player_id" in identity.model_fields_set:
             pid = identity.player_id
             player = self.players.get(pid)
@@ -115,7 +118,7 @@ class PlayerState(StateBase):
                     merged[field_name] = getattr(identity, source)
                     updated.add(field_name)
 
-        if gxp := read_section(ExperienceResponse, data.get("gxp"), "the gxp section"):
+        if gxp := login.experience:
             level = merged["level"] if gxp.level is None else gxp.level
             xp = _sent(gxp, "xp", merged["xp"])
             legend, current, following = level_progress(level, xp)
@@ -128,12 +131,12 @@ class PlayerState(StateBase):
             )
             updated |= {"level", "xp", "legendary_level", "xp_for_current_level", "xp_to_next_level"}
 
-        if gcu := read_section(CurrencyResponse, data.get("gcu"), "the gcu section"):
+        if gcu := login.currencies:
             merged["coins"] = merged["coins"] if gcu.coins is None else gcu.coins
             merged["rubies"] = merged["rubies"] if gcu.rubies is None else gcu.rubies
             updated |= {"coins", "rubies"}
 
-        if vip := read_section(VipStatusResponse, data.get("vip"), "the vip section"):
+        if vip := login.vip:
             # parse_VIP (bundle line 47542) reads a missing key as 0; here it keeps its value,
             # so a vip without UPG never frees premium commanders already used
             merged["vip_points"] = _sent(vip, "vip_points", merged["vip_points"])
@@ -142,7 +145,7 @@ class PlayerState(StateBase):
             merged["used_premium_commanders"] = _sent(vip, "used_premium_commanders", merged["used_premium_commanders"])
             updated |= {"vip_points", "vip_level", "vip_time_left", "used_premium_commanders"}
 
-        if gho := read_section(HonorResponse, data.get("gho"), "the gho section"):
+        if gho := login.honor:
             merged["honor"] = _sent(gho, "honor", merged["honor"])
             merged["ranking"] = _sent(gho, "ranking_points", merged["ranking"])
             updated |= {"honor", "ranking"}
@@ -168,23 +171,14 @@ class PlayerState(StateBase):
             logger.debug(f"Local player: {player.name} (ID: {pid})")
         return blocks
 
-    @staticmethod
-    def _protection_blocks(data: dict[str, Any]) -> list[KingdomProtection]:
-        """The login data's ``uap`` and ``gac``, or a ``uap`` push, each for the kingdom it names.
-
-        Client: ``GBDCommand.exec`` (bundle line 129425) hands both to ``CastleUserData.parse_UAP`` (bundle line 9906)
-        """
-        blocks = (read_section(KingdomProtection, data.get(key), f"the {key} protection") for key in ("uap", "gac"))
-        return [block for block in blocks if block is not None and block.kingdom_id is not None]
-
-    def _parse_special_currencies(self, data: dict[str, Any]) -> None:
+    def _parse_special_currencies(self, login: LoginDataResponse) -> None:
         """Apply the login data's sce section (special currencies)."""
-        if js_truthy(data.get("sce")) and self.local_player:
-            total = self._apply_special_currencies(data["sce"])
+        if login.special_currencies is not None and self.local_player:
+            total = self._apply_special_currencies(login.special_currencies)
             logger.debug(f"Parsed {total} special currencies")
 
-    def _apply_special_currencies(self, body: Any) -> int:
-        """Merge an ``sce`` body, ``[[currency_key, amount], ...]``, into the special currencies.
+    def _apply_special_currencies(self, currencies: SpecialCurrenciesResponse) -> int:
+        """Merge an ``sce``, ``[[currency_key, amount], ...]``, into the special currencies.
 
         The dict is rebuilt and swapped rather than updated in place: user
         threads read ``local_player.special_currencies`` without the lock, and
@@ -198,15 +192,12 @@ class PlayerState(StateBase):
             The number of special currencies known afterwards.
         """
         player = self.local_player
-        currencies = read_or_none(
-            SpecialCurrenciesResponse.model_validate, body, warn=logger, what="the special currencies"
-        )
-        if player is None or currencies is None:
+        if player is None:
             return 0
         player.special_currencies = {**player.special_currencies, **currencies.amounts}
         return len(player.special_currencies)
 
-    def _parse_alliance_info(self, data: dict[str, Any]) -> AllianceMembershipResponse | None:
+    def _parse_alliance_info(self, login: LoginDataResponse) -> AllianceMembershipResponse | None:
         """Apply the gal section: your alliance membership; the section as read, None when it is no object.
 
         Two cases are deliberately distinguished:
@@ -222,9 +213,9 @@ class PlayerState(StateBase):
 
         Client: ``CastleUserData.parse_GAL`` (bundle line 9876).
         """
-        if "gal" not in data:
+        if "alliance" not in login.model_fields_set:
             return None
-        membership = read_section(AllianceMembershipResponse, data.get("gal"), "the gal section")
+        membership = login.alliance
         player = self.local_player
         if player is None:
             return membership
@@ -258,7 +249,10 @@ class PlayerState(StateBase):
         which does nothing for a falsy body
         """
         if js_truthy(data) and self.local_player:
-            total = self._apply_special_currencies(data)
+            currencies = read_or_none(
+                SpecialCurrenciesResponse.model_validate, data, warn=logger, what="the special currencies"
+            )
+            total = self._apply_special_currencies(currencies) if currencies is not None else 0
             self._player_updated_at = time.time()
             logger.debug(f"Special currencies known after the sce: {total}")
 

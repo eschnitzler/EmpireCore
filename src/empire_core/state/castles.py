@@ -24,8 +24,9 @@ from empire_core.castle.models.updates import NewDay, UnitsReceived
 from empire_core.castle.models.villages import VillageListResponse
 from empire_core.enums import Kingdom, Weekday
 from empire_core.protocol.base import enum_or_none, read_or_none
-from empire_core.protocol.js import js_int, js_truthy
-from empire_core.state.base import StateBase, read_section
+from empire_core.protocol.js import js_truthy
+from empire_core.state.base import StateBase
+from empire_core.state.login_data import LoginDataResponse
 from empire_core.state.models import Castle, Resources
 
 if TYPE_CHECKING:
@@ -41,7 +42,7 @@ AREA_LIST_SECTIONS = ("gkl", "gml", "gll", "kgv", "mre", "lrr")
 
 
 class CastleState(StateBase):
-    def _parse_area_lists(self, data: dict[str, Any]) -> set[str]:
+    def _parse_area_lists(self, login: LoginDataResponse) -> set[str]:
         """Apply the royal tower, monument, laboratory and village lists and the landmark resets of a gbd,
         or the one a push, a reply or an ``mir`` carries; return those not applied.
 
@@ -52,35 +53,29 @@ class CastleState(StateBase):
         (bundle lines 46192, 134899), which ignore a time of 0 and keep the countdown only for a positive one
         """
         applied: set[str] = set()
-        if js_truthy(gkl := data.get("gkl")):
-            if (royal_towers := read_section(RoyalTowerListResponse, gkl, "your royal towers")) is not None:
-                self.royal_towers = royal_towers
-                applied.add("gkl")
-        if js_truthy(gml := data.get("gml")):
-            if (monuments := read_section(MonumentListResponse, gml, "your monuments")) is not None:
-                self.monuments = monuments
-                applied.add("gml")
-        if js_truthy(gll := data.get("gll")):
-            if (laboratories := read_section(LaboratoryListResponse, gll, "your laboratories")) is not None:
-                self.laboratories = laboratories
-                applied.add("gll")
-        if js_truthy(kgv := data.get("kgv")):
-            if (villages := read_section(VillageListResponse, kgv, "your villages")) is not None:
-                self.villages = villages
-                applied.add("kgv")
-        if js_truthy(mre := data.get("mre")):
-            if (monument_reset := read_section(MonumentResetResponse, mre, "the monument reset")) is not None:
-                if monument_reset.seconds > 0:
-                    self.monument_reset = monument_reset
-                if monument_reset.seconds != 0:
-                    applied.add("mre")
-        if js_truthy(lrr := data.get("lrr")):
-            if (reset := read_section(LaboratoryResetResponse, lrr, "the laboratory reset")) is not None:
-                if reset.seconds > 0:
-                    self.laboratory_reset = reset
-                if reset.seconds != 0:
-                    applied.add("lrr")
-        return {section for section in AREA_LIST_SECTIONS if section in data} - applied
+        if login.royal_towers is not None:
+            self.royal_towers = login.royal_towers
+            applied.add("gkl")
+        if login.monuments is not None:
+            self.monuments = login.monuments
+            applied.add("gml")
+        if login.laboratories is not None:
+            self.laboratories = login.laboratories
+            applied.add("gll")
+        if login.villages is not None:
+            self.villages = login.villages
+            applied.add("kgv")
+        if (monument_reset := login.monument_reset) is not None:
+            if monument_reset.seconds > 0:
+                self.monument_reset = monument_reset
+            if monument_reset.seconds != 0:
+                applied.add("mre")
+        if (laboratory_reset := login.laboratory_reset) is not None:
+            if laboratory_reset.seconds > 0:
+                self.laboratory_reset = laboratory_reset
+            if laboratory_reset.seconds != 0:
+                applied.add("lrr")
+        return (login.sent_sections & set(AREA_LIST_SECTIONS)) - applied
 
     def get_royal_towers(self) -> RoyalTowerListResponse | None:
         """Your royal towers, from the last ``gkl``; None until one arrived."""
@@ -112,12 +107,7 @@ class CastleState(StateBase):
         with self._lock:
             return self.laboratory_reset
 
-    def _parse_castles(self, data: dict[str, Any]) -> None:
-        """Apply a gcl section's castle list; see :meth:`_apply_castle_list`."""
-        if (listed := read_section(GetCastlesResponse, data.get("gcl"), "the castle list")) is not None:
-            self._apply_castle_list(listed)
-
-    def _apply_castle_list(self, listed: GetCastlesResponse) -> None:
+    def _parse_castles(self, listed: GetCastlesResponse) -> None:
         """Keep the castles of yours a castle list names.
 
         A list that carries a castle section (``C``) is authoritative: castles it does not list are no
@@ -305,15 +295,12 @@ class CastleState(StateBase):
         }
         self._swap_model_fields(castle, {**castle.__dict__, **fields}, set(fields))
 
-    def _parse_permanent_castles(self, data: dict[str, Any]) -> None:
+    def _parse_permanent_castles(self, listed: PermanentCastleDataResponse) -> None:
         """Apply a gpc section or push: each castle it names is replaced, the others kept.
 
         Client: ``CastlePermanentCastleData.parseGPC`` (bundle line 139128)
         """
-        gpc = data.get("gpc")
-        if not isinstance(gpc, dict):
-            return
-        castles = PermanentCastleDataResponse.model_validate(gpc).castles
+        castles = listed.castles
         if not castles:
             return
         merged = dict(self.permanent_castles)
