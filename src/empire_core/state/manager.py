@@ -582,7 +582,7 @@ class GameState(
         with self._lock:
             self._packet_sequence += 1
             # Settings apply after service validation, preserving later pushes by receive order.
-            if ok and cmd_id in {"acd", "acn", "cal", "aug", "ain"}:
+            if ok and cmd_id in {"acd", "acn", "cal", "aug", "ain", "adp"}:
                 self._alliance_reply_order[cmd_id] = (payload, self._packet_sequence)
             if ok and cmd_id in {"rpc", "cri", "ubc"}:
                 self._construction_item_reply_order[cmd_id] = (payload, self._packet_sequence)

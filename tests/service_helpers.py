@@ -320,6 +320,7 @@ class StubState:
         self.boosted_global_effects: BoostedGlobalEffectsResponse | None = None
         self.boosts: Any = BoosterInfoResponse.model_validate(LOGIN_SECTIONS["boi"])
         self.commanders: CommanderRoster | None = None
+        self.membership_revision = 0
 
     def update_from_packet(self, cmd_id: str, payload: object, error_code: int = 0) -> None:
         self.updates.append((cmd_id, payload))

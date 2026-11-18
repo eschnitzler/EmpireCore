@@ -43,6 +43,8 @@ class DiplomacyMixin(OwnAllianceMixin):
         """
         Change or propose your alliance's relation with another alliance.
 
+        The reply's own alliance (``AS``) updates your alliance's details; the other one is not kept.
+
         Args:
             alliance_id: The other alliance, e.g. ``AllianceDiplomacyStatus.alliance_id``
             new_status: The relation to change to
@@ -50,14 +52,27 @@ class DiplomacyMixin(OwnAllianceMixin):
 
         Raises:
             NotInAllianceError: You are in no alliance (nothing is sent), or the server answered ``ALLI_NOT_FOUND``
+            ReplyMismatchError: Your alliance membership changed while the request was out
             CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
 
         Client: ``CastleAllianceInfoDialogDiplomacy.updateButtons`` (bundle line 72349) offers
-        each change from the other alliance's status to your own
+        each change from the other alliance's status to your own; ``ADPCommand.executeCommand``
+        (split.js line 623011) reads ``AS`` and ``AO`` with ``parseAllianceInfo`` (split.js line 61810)
         """
         request = ChangeDiplomacyRequest(alliance_id=alliance_id, new_status=new_status, tribute=tribute)
-        with self._own_alliance():
-            return self.request(request, ChangeDiplomacyResponse, timeout=timeout)
+        with self.client.connection.command_lock(request.command, timeout=timeout):
+            own_id = self._require_local_alliance_id()
+            revision = self.client.state.membership_revision
+            with self._own_alliance():
+                response, payload = self._request_membership(request, ChangeDiplomacyResponse, timeout=timeout)
+            self.client.state.apply_alliance_settings(
+                {"A": payload.get("AS")},
+                membership_revision=revision,
+                alliance_id=own_id,
+                command=request.command,
+                payload=payload,
+            )
+            return response
 
     def refuse_diplomacy(self, alliance_id: int, *, timeout: float = 5.0) -> AllianceInfo | None:
         """
