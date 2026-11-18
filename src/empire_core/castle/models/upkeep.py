@@ -44,7 +44,7 @@ class ConstructionItemExpiryResponse(TimedResponse):
 
     Client: ``NECCommand.executeCommand`` (split.js line 629754), which hands a truthy ``CI`` to the joined
     area's ``parseConstructionItems``; ``ConstructionItemData.parse_NEC`` (split.js line 120941) and
-    ``hasNewExpiredItems`` (bundle line 22992)
+    ``hasNewExpiredItems`` (split.js line 121010)
     """
 
     command = "nec"
