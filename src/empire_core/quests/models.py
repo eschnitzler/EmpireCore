@@ -375,10 +375,11 @@ class DailyQuests(BaseResponse):
     Payload: {"PQL": level, "FDQ": [finished quest id, ...], "RDQ": [{"QID": id, "P": [counter, ...]}, ...],
     "RS": [threshold rewards, ...]}
 
-    The client drops the ids its items lack; the library keeps every one.
+    The client drops the ids its items lack; the library keeps every one. A falsy ``RS`` leaves the
+    thresholds unset, so :meth:`over` keeps the earlier ones.
 
-    Client: ``DQLCommand.exec`` (bundle line 126550), ``CastleDailyQuestData.parse_DQL`` (bundle line 134062),
-    ``parse_RDQ`` and ``parse_FDQ`` (bundle lines 134063, 134070)
+    Client: ``DQLCommand.exec`` (split.js line 640563), ``CastleDailyQuestData.parse_DQL`` (split.js line 669180),
+    ``parse_RDQ``, ``parse_FDQ`` and ``parseThresholdRewardList`` (split.js lines 669195, 669205, 669215)
     """
 
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
@@ -398,9 +399,15 @@ class DailyQuests(BaseResponse):
     @model_validator(mode="before")
     @classmethod
     def _quest_lists(cls, data: Any) -> Any:
-        if not isinstance(data, dict) or not ("FDQ" in data or "RDQ" in data):
+        if not isinstance(data, dict):
             return data
-        values = {key: value for key, value in data.items() if key not in ("FDQ", "RDQ")}
+        values = {
+            key: value
+            for key, value in data.items()
+            if key not in ("FDQ", "RDQ") and not (key == "RS" and not js_truthy(value))
+        }
+        if not ("FDQ" in data or "RDQ" in data):
+            return values
         finished, running = data.get("FDQ"), data.get("RDQ")
         quests = [
             DailyQuest(quest_id=js_int(qid), finished=True) for qid in (finished if isinstance(finished, list) else ())
@@ -427,17 +434,15 @@ class DailyQuests(BaseResponse):
     def _thresholds(cls, value: Any) -> Any:
         if isinstance(value, tuple):
             return value
-        if js_truthy(value) and isinstance(value, list):
+        if isinstance(value, list):
             return tuple(Collectable.from_rows(rows) for rows in value)
         return ()
 
-    @classmethod
-    def from_section(cls, section: dict[str, Any], previous: DailyQuests | None = None) -> DailyQuests:
-        """The daily quests a ``dql`` makes; a falsy ``RS`` keeps the thresholds of ``previous``."""
-        daily, rows = cls.model_validate(section), section.get("RS")
-        if previous is not None and not (js_truthy(rows) and isinstance(rows, list)):
-            daily = daily.model_copy(update={"threshold_rewards": previous.threshold_rewards})
-        return daily
+    def over(self, previous: DailyQuests | None) -> DailyQuests:
+        """These daily quests applied over ``previous``: without thresholds of their own, they keep its."""
+        if previous is None or "threshold_rewards" in self.model_fields_set:
+            return self
+        return self.model_copy(update={"threshold_rewards": previous.threshold_rewards})
 
 
 class QuestDonateResourcesRequest(BaseRequest):

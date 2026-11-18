@@ -179,6 +179,22 @@ class TestDailyQuests:
         with pytest.raises(StateNotLoadedError):
             state.get_daily_quests()
 
+    @pytest.mark.parametrize("rows", [None, 0])
+    def test_a_push_with_a_falsy_rs_keeps_the_thresholds(self, state, rows):
+        # parseThresholdRewardList(e.RS) replaces the thresholds only for a truthy RS
+        state.update_from_packet("gbd", {"dql": self.DQL})
+        state.update_from_packet("dql", {"PQL": 4, "RS": rows})
+
+        daily = state.get_daily_quests()
+        assert daily.level == 4 and len(daily.threshold_rewards) == 1
+
+    def test_a_section_that_is_no_object_is_not_applied(self, state, caplog):
+        state.update_from_packet("gbd", {"dql": self.DQL})
+        state.update_from_packet("gbd", {"dql": [1, 2]})
+
+        assert state.get_daily_quests().level == 3
+        assert "daily_quests" in caplog.text
+
     def test_an_error_push_is_not_applied(self, state):
         state.update_from_packet("dql", self.DQL, error_code=1)
 

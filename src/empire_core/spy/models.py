@@ -419,9 +419,9 @@ class MaxSpiesResponse(BaseResponse):
     Command: gms, as a login section of ``gbd`` and as a push. The client
     never sends a ``gms`` request.
 
-    Client: ``GMSCommand.executeCommand`` (bundle line 120555),
-    ``CastleSpyData.parse_GMS`` (bundle line 139979), read from ``gbd``
-    (bundle line 129381)
+    Client: ``GMSCommand.executeCommand`` (split.js line 619878),
+    ``CastleSpyData.parse_GMS`` (split.js line 697008), read from ``gbd``
+    (split.js line 651188); a truthy block that is no object reads as 0 spies
     """
 
     command = "gms"
@@ -430,6 +430,11 @@ class MaxSpiesResponse(BaseResponse):
     bonus_spies: ClientInt = Field(
         validation_alias="BS", default=0, description="Bonus spies, not part of the spy count"
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _object(cls, data: Any) -> Any:
+        return data if isinstance(data, (dict, MaxSpiesResponse)) else {}
 
 
 class PlagueDoctorInfoResponse(BaseResponse):

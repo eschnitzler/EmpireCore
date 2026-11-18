@@ -72,7 +72,7 @@ class TestQuestBook:
 
 class TestDailyQuests:
     def test_finished_and_running_sorted_by_id(self):
-        daily = DailyQuests.from_section(
+        daily = DailyQuests.model_validate(
             {"PQL": 4, "FDQ": [30, "10"], "RDQ": [{"QID": 20, "P": [1, 0]}], "RS": [[["C1", 500]], [["C2", 5]]]}
         )
 
@@ -86,13 +86,32 @@ class TestDailyQuests:
         rewards = [[(reward.kind, reward.amount) for reward in rows] for rows in daily.threshold_rewards]
         assert rewards == [[(CollectableKind.COINS, 500)], [(CollectableKind.RUBIES, 5)]]
 
-    def test_a_falsy_rs_keeps_the_thresholds(self):
-        first = DailyQuests.from_section({"PQL": 1, "RS": [[["W", 1]]]})
+    @pytest.mark.parametrize("rows", [None, 0, "", False])
+    def test_a_falsy_rs_keeps_the_thresholds(self, rows):
+        # parseThresholdRewardList only replaces the thresholds for a truthy RS
+        first = DailyQuests.model_validate({"PQL": 1, "RS": [[["W", 1]]]})
 
-        again = DailyQuests.from_section({"PQL": 2, "RDQ": [{"QID": 3, "P": [2]}]}, first)
+        again = DailyQuests.model_validate({"PQL": 2, "RDQ": [{"QID": 3, "P": [2]}], "RS": rows}).over(first)
 
         assert again.threshold_rewards == first.threshold_rewards and again.level == 2
         assert again.quests == (DailyQuest(quest_id=3, progress=(2,)),)
+
+    def test_a_missing_rs_keeps_the_thresholds(self):
+        first = DailyQuests.model_validate({"PQL": 1, "RS": [[["W", 1]]]})
+
+        assert DailyQuests.model_validate({"PQL": 2}).over(first).threshold_rewards == first.threshold_rewards
+
+    @pytest.mark.parametrize("rows", [[], {}])
+    def test_a_truthy_rs_without_rows_empties_the_thresholds(self, rows):
+        # A JS [] or {} is truthy: the list is reset, and nothing is pushed for an object without a length
+        first = DailyQuests.model_validate({"PQL": 1, "RS": [[["W", 1]]]})
+
+        assert DailyQuests.model_validate({"PQL": 2, "RS": rows}).over(first).threshold_rewards == ()
+
+    def test_with_nothing_before_they_stand_alone(self):
+        daily = DailyQuests.model_validate({"PQL": 2})
+
+        assert daily.over(None) is daily
 
     def test_the_dql_push_parses_as_its_section(self):
         # DQLCommand.exec hands the push to parse_DQL, as the login data's dql
@@ -102,6 +121,6 @@ class TestDailyQuests:
 
         assert isinstance(pushed, DailyQuests)
         assert pushed.level == 3
-        assert pushed.quests == DailyQuests.from_section(section).quests
-        assert pushed.threshold_rewards == DailyQuests.from_section(section).threshold_rewards
+        assert pushed.quests == DailyQuests.model_validate(section).quests
+        assert pushed.threshold_rewards == DailyQuests.model_validate(section).threshold_rewards
         assert "FDQ" not in (pushed.model_extra or {}) and "RDQ" not in (pushed.model_extra or {})

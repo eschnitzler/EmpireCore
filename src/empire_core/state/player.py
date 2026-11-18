@@ -232,15 +232,13 @@ class PlayerState(StateBase):
         self._swap_model_fields(player, merged, {"alliance", "AID"})
         return membership
 
-    def _parse_max_spies(self, data: dict[str, Any]) -> None:
+    def _parse_max_spies(self, login: LoginDataResponse) -> None:
         """Apply a gbd's ``gms`` section, or a ``gms`` push.
 
-        Client: ``CastleSpyData.parse_GMS`` (bundle line 139979), which skips a falsy section
-        and reads ``MS`` and ``BS`` of anything else through ``int()``.
+        Client: ``CastleSpyData.parse_GMS`` (split.js line 697008), which skips a falsy section
         """
-        gms = data.get("gms")
-        if js_truthy(gms):
-            self.max_spies = MaxSpiesResponse.model_validate(gms if isinstance(gms, dict) else {})
+        if login.max_spies is not None:
+            self.max_spies = login.max_spies
 
     def _handle_sce(self, data: Any) -> None:
         """Handle a special currencies push: ``[[currency_key, amount], ...]``.
