@@ -13,6 +13,7 @@ from empire_core.player.models.account import FoodProductionStatus
 from empire_core.player.models.progress import AchievementFinishedResponse, GetTitleRanksRequest
 from empire_core.player.service.account import AccountMixin
 from empire_core.player.service.base import PlayerBaseMixin
+from empire_core.player.service.boosters import BoostersMixin
 from empire_core.player.service.players import PlayerDetailsBulkResult, PlayersMixin
 from empire_core.player.service.protection import ProtectionMixin
 from empire_core.player.service.skills import SkillsMixin
@@ -29,7 +30,15 @@ logger = logging.getLogger(__name__)
 
 
 class PlayerService(
-    StandingMixin, TrainingMixin, AccountMixin, ProtectionMixin, PlayersMixin, SkillsMixin, PlayerBaseMixin, BaseService
+    StandingMixin,
+    BoostersMixin,
+    TrainingMixin,
+    AccountMixin,
+    ProtectionMixin,
+    PlayersMixin,
+    SkillsMixin,
+    PlayerBaseMixin,
+    BaseService,
 ):
     """
     Other players' details, finding a player by name, and your own player: currencies, skills,

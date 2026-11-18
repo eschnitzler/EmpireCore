@@ -21,6 +21,10 @@ trying again.
 
 ::: empire_core.player.models.account
 
+## `player.models.boosters`
+
+::: empire_core.player.models.boosters
+
 ## `player.models.economy`
 
 ::: empire_core.player.models.economy

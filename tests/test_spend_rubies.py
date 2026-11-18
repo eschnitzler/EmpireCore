@@ -93,6 +93,11 @@ RUBY_REQUESTS = {
     "RerollTrainingProgramsRequest": "rtp, P 1 is the ruby reroll (hardRerollCosts, bundle line 85714)",
     "UnlockEventRequest": "ule, SC 1 pays the missing resource in rubies (bundle lines 37628, 67853)",
     "SelectEventDifficultyRequest": "sede, C2U 1 rents a locked difficulty for its rentC2Cost (bundle line 145390)",
+    "HireInstructorRequest": "bis, the booster's finalCostsC2 (BuyBoosterCommand.execute, bundle line 459673)",
+    "HireMarauderRequest": "bms, the booster's finalCostsC2 (BuyBoosterCommand.execute, bundle line 459673)",
+    "HireOverseerRequest": "ovs, the booster's finalCostsC2 (BuyBoosterCommand.execute, bundle line 459673)",
+    "HireCaravanOverloaderRequest": "bcs, the booster's finalCostsC2 (BuyBoosterCommand.execute, bundle line 459673)",
+    "BuyReturnSpeedBoosterRequest": "brs, returnSpeedBoosterVO.finalCostsC2 (bundle line 463040)",
 }
 
 SENT_WITHOUT_CONSENT = {
@@ -127,6 +132,7 @@ NOT_CONSENT = {
     "ruby_payment": "picks the resource an unlock pays in rubies; the rubies it costs need spend_rubies",
     "unlock_with_rubies": "picks a locked difficulty's ruby rent; the rubies it costs need spend_rubies",
     "food_boost": "the hunter's food production setting, not a purchase",
+    "booster": "picks the booster to hire; the rubies it costs need spend_rubies",
 }
 
 
