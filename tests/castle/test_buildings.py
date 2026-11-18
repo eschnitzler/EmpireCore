@@ -440,6 +440,10 @@ JOINED_CASTLE = {
             row(109, 49, state=13, target=104),  # upgrading to 104, not to its upgradeWodID
             row(101, 50, done=10, state=10),  # repairing: the time left is not worked out
             row(110, 51),  # the last level
+            row(600, 60),
+            row(601, 61),  # CastleRubyWishingWellData.MIN_WOD_ID to MAX_WOD_ID: the ruby wishing well
+            row(611, 62),
+            row(612, 63),
         ]
     },
 }
@@ -470,6 +474,15 @@ class TestBuildingService:
             (
                 lambda c: c.castle.upgrade_building(12345, 43, spend_rubies=True),
                 [JOIN, ("eup", {"OID": 43, "PWR": 1, "PO": -1})],
+            ),
+            # IsoServerCommands.upgradeBuilding sends rww for a wishing well
+            (
+                lambda c: c.castle.upgrade_building(12345, 61),
+                [JOIN, ("rww", {"PWR": 0, "_PO": -1, "WOP": "U"})],
+            ),
+            (
+                lambda c: c.castle.upgrade_building(12345, 62, spend_rubies=True, private_offer_id=7),
+                [JOIN, ("rww", {"PWR": 1, "_PO": -1, "WOP": "U"})],
             ),
             (lambda c: c.castle.move_building(42, 3, 4, 1), [("emo", {"OID": 42, "X": 3, "Y": 4, "R": 1})]),
             (lambda c: c.castle.sell_decoration(42), [("sbd", {"OID": 42})]),
@@ -511,6 +524,8 @@ class TestBuildingService:
             (lambda c: c.castle.upgrade_building(12345, 49), "500 rubies"),
             (lambda c: c.castle.upgrade_building(12345, 46), "not in the castle"),
             (lambda c: c.castle.upgrade_building(12345, 51), "no next level"),
+            (lambda c: c.castle.upgrade_building(12345, 60), "no next level"),
+            (lambda c: c.castle.upgrade_building(12345, 63), "no next level"),
             (lambda c: c.castle.finish_construction(12345, 45), "seconds left"),
             (lambda c: c.castle.finish_construction(12345, 46), "seconds left"),
             (lambda c: c.castle.finish_construction(12345, 50), "seconds left"),
