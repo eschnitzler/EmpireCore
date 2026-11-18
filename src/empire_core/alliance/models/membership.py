@@ -15,8 +15,9 @@ from pydantic import AliasChoices, ConfigDict, Field, field_serializer, field_va
 from empire_core.alliance.models.info import AllianceInfo, alliance_block
 from empire_core.enums import AllianceRank
 from empire_core.gamedata.lenient import EnumOrInt
+from empire_core.movements.models import GetMovementsResponse
 from empire_core.player.models.profile import PlayerProfileBase
-from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, readable_list
+from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, object_or_none, readable_list
 from empire_core.protocol.js import ClientInt, js_int, js_parse_int, js_same_number, js_truthy
 from empire_core.protocol.text import encode_json_text
 
@@ -161,7 +162,8 @@ class AllianceMembershipChange(BasePayload):
     Client: ``JOACommand`` (split.js line 624892), ``AAICommand`` (split.js line 622475) and ``AJACommand``
     (split.js line 623480) read ``gal`` with ``parse_GAL``, then ``A`` with ``parseAllianceInfo``;
     ``AFOCommand`` (split.js line 623283) reads ``A``, then ``gal``; ``AASCommand`` (split.js line 622569)
-    reads ``gal``, then a truthy ``gam``
+    reads ``gal``, then a truthy ``gam`` with ``CastleArmyData.parse_GAM`` (split.js line 667215), which
+    reads its movements and not its owner records
     """
 
     membership: AllianceMembership | None = Field(
@@ -169,6 +171,9 @@ class AllianceMembershipChange(BasePayload):
     )
     alliance: AllianceInfo | None = Field(
         validation_alias="A", default=None, description="The alliance; None when not sent or without an id"
+    )
+    movements: GetMovementsResponse | None = Field(
+        validation_alias="gam", default=None, description="Your movements; None when not sent"
     )
 
     @field_validator("membership", mode="before")
@@ -180,6 +185,11 @@ class AllianceMembershipChange(BasePayload):
     @classmethod
     def _alliance(cls, value: Any) -> Any:
         return alliance_block(value)
+
+    @field_validator("movements", mode="before")
+    @classmethod
+    def _movements(cls, value: Any) -> Any:
+        return object_or_none(value)
 
 
 class GetAllianceInvitationRequest(BaseRequest):

@@ -30,6 +30,7 @@ from .movement import (
     MovementWrapper,
     SentMovementResponse,
     SetMovementFilterRequest,
+    names_a_movement,
 )
 from .support import (
     GetTravelInfoRequest,
@@ -79,6 +80,7 @@ __all__ = [
     "ArmyRadiusPush",
     "MovementFilterResponse",
     "SetMovementFilterRequest",
+    "names_a_movement",
     "MovementForceCancelableResponse",
     "MovementRemovedResponse",
     "GetTravelInfoRequest",

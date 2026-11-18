@@ -456,7 +456,7 @@ def test_output_results_reflow_when_the_pane_is_resized(tmp_path):
 def test_detail_reflows_when_its_pane_is_resized_or_zoomed(tmp_path):
     with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
         console = make_console(tmp_path)
-        console.frames.add(Frame(FrameDirection.RECEIVED, "gam", 0, '%xt%gam%1%0%{"M":[],"O":[]}%', 0.0))
+        console.frames.add(Frame(FrameDirection.RECEIVED, "mfc", 0, '%xt%mfc%1%0%{"MID":5}%', 0.0))
         console.flush()
         narrow = console.detail.text
         console.zoomed = True

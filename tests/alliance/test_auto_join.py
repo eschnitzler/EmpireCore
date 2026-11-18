@@ -65,6 +65,26 @@ def test_auto_join_applies_membership_and_movements():
     assert state.get_local_player().alliance_id == 301
 
 
+def test_auto_join_stores_the_movements_of_its_gam_but_not_their_owners():
+    # AASCommand hands gam to CastleArmyData.parse_GAM, which reads M and not O
+    state = player_state()
+    movement = {"M": {"MID": 41, "T": 0, "TT": 600, "OID": 7, "TID": 9}}
+    gam = {"M": [movement, {"M": {"T": 0}}], "O": [{"OID": 9, "N": "Target"}]}
+    client = wired({"aas": xt_packet("aas", {"gal": {"AID": 301, "R": 9}, "gam": gam})}, state)
+    client.alliance.auto_join("Alliance", timeout=0.2)
+    assert list(state.movements) == [41]
+    assert state.movements[41].target_player_name == ""
+
+
+def test_a_gam_without_a_membership_is_not_applied():
+    state = player_state()
+    gam = {"M": [{"M": {"MID": 41, "T": 0, "TT": 600, "OID": 7}}]}
+    state.apply_membership_response(
+        {"A": {"AID": 301, "N": "Guild"}, "gam": gam}, membership_revision=state.membership_revision
+    )
+    assert state.movements == {}
+
+
 def test_auto_join_is_not_sent_inside_an_alliance():
     client = make_client(state=player_state(201))
     with pytest.raises(ValueError, match="already"):

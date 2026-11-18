@@ -25,6 +25,7 @@ from empire_core.movements.models import (
     MovementSpy,
     MovementWrapper,
     SentMovementResponse,
+    names_a_movement,
 )
 from empire_core.protocol.base import (
     BasePayload,
@@ -160,7 +161,7 @@ class SendSpyResponse(BaseResponse):
     @field_validator("spy_movement", mode="wrap")
     @classmethod
     def _movement_or_none(cls, value: object, handler: ValidatorFunctionWrapHandler) -> MovementWrapper | None:
-        if not value:
+        if not names_a_movement(value):
             return None
         return read_or_none(handler, value, warn=logger, what="the movement created by csm")
 

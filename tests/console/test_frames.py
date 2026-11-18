@@ -129,9 +129,9 @@ def test_unmodelled_and_sent_frames_show_raw():
 
 
 def test_a_payload_that_does_not_parse_shows_raw_with_a_note():
-    detail = frame_detail(frame("gam", '%xt%gam%1%0%{"M":"lots"}%'))
-    assert detail.model is None and "GetMovementsResponse" in detail.text.splitlines()[0]
-    assert '"M": "lots"' in detail.text
+    detail = frame_detail(frame("mcm", '%xt%mcm%1%0%{"A":"lots"}%'))
+    assert detail.model is None and "CancelMovementResponse" in detail.text.splitlines()[0]
+    assert '"A": "lots"' in detail.text
 
 
 def test_detail_falls_back_to_raw_text():

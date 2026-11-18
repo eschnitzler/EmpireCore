@@ -3,6 +3,7 @@
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
 
 from empire_core.castle.models.castles import NameCastleInvitationResponse
 from empire_core.enums import MovementFilter
@@ -33,6 +34,20 @@ class TestArmyRadiusPushes:
 
     def test_no_movement_when_a_is_no_object(self):
         assert ArmyInSmallRadiusResponse.model_validate({"A": []}).movement is None
+
+    @pytest.mark.parametrize("wrapper", [{}, {"M": {}}, {"M": {"T": 0}}, {"M": {"MID": None}}, {"M": "junk"}])
+    def test_no_movement_when_a_names_none(self, wrapper, caplog):
+        assert ArmyInBigRadiusResponse.model_validate({"A": wrapper}).movement is None
+        assert caplog.records == []
+
+    def test_an_unreadable_owner_costs_only_itself(self, caplog):
+        push = ArmyInBigRadiusResponse.model_validate({"O": {"OID": 999, "L": "junk"}, "A": WRAPPER})
+        assert push.owner is None and push.movement is not None
+        assert [record.getMessage() for record in caplog.records] == ["Could not read an army push's owner"]
+
+    def test_an_unreadable_movement_fails_the_push(self):
+        with pytest.raises(ValidationError, match="MID"):
+            ArmyInBigRadiusResponse.model_validate({"A": {"M": {"MID": "not-an-int"}}})
 
 
 class TestMovementIds:
