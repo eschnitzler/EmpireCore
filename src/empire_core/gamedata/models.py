@@ -1592,6 +1592,113 @@ class LevelBoosterDef(_Row):
         return parsed
 
 
+def _landmark_int(value: object, default: str) -> int | None:
+    """``parseInt`` of a column the client reads as ``value || default``; None where it reads NaN."""
+    if READING_CACHE.get() and (value is None or (isinstance(value, int) and not isinstance(value, bool))):
+        return value
+    return js_parse_int(default if js_falsy(value) else value)
+
+
+def _landmark_level(value: object) -> int:
+    level = _landmark_int(value, "")
+    if level is None:
+        raise ValueError(f"level {value!r} has no leading integer")
+    return level
+
+
+class MonumentLevelDef(_Row):
+    """
+    A monument level: the glory bonus it gives and the upgrade points that reach it.
+
+    A row without a readable level is left out: the client keys it as NaN, which no lookup reaches.
+
+    Client: ``MonumentLevelInfoVO.parseXML`` (split.js line 375127), read from the ``monuments`` table by
+    ``CastleMonumentData.parseXML`` (split.js line 239069), which keys the rows by level
+    """
+
+    level: int = Field(description="The monument level")
+    glory_bonus: int | None = Field(
+        validation_alias="fameBoost", default=None, description="Percent glory bonus when attacking; None if unreadable"
+    )
+    required_points: int | None = Field(
+        validation_alias="requiredPoints",
+        default=None,
+        description="Upgrade points that reach this level; None if unreadable, and then never reached",
+    )
+
+    @field_validator("level", mode="before")
+    @classmethod
+    def _level(cls, value: object) -> int:
+        return _landmark_level(value)
+
+    @field_validator("glory_bonus", "required_points", mode="before")
+    @classmethod
+    def _number(cls, value: object) -> int | None:
+        return _landmark_int(value, "")
+
+
+class LaboratoryLevelDef(_Row):
+    """
+    A laboratory level in one kingdom: the production bonus it gives and the upgrade points that reach it.
+
+    A row without a readable level or kingdom is left out: the client keys it as NaN, which no lookup reaches.
+
+    Client: ``LaboratoryLevelInfoVO.parseXML`` and ``landmarkBonus`` (split.js lines 672286, 672323), read from
+    the ``laboratories`` table by ``CastleLaboratoryData.parseXML`` (split.js line 672181), which keys the rows
+    by kingdom and level
+    """
+
+    level: int = Field(description="The laboratory level")
+    kingdom: GameDataId[Kingdom] = Field(
+        validation_alias="kID", default=Kingdom.GREEN, description="The kingdom whose laboratories have this level"
+    )
+    iron_bonus: int = Field(
+        validation_alias="ironAllianceBoost", default=0, description="Percent production bonus on iron ore"
+    )
+    charcoal_bonus: int = Field(
+        validation_alias="charcoalAllianceBoost", default=0, description="Percent production bonus on charcoal"
+    )
+    olive_oil_bonus: int = Field(
+        validation_alias="oliveOilAllianceBoost", default=0, description="Percent production bonus on olive oil"
+    )
+    glass_bonus: int = Field(
+        validation_alias="glassAllianceBoost", default=0, description="Percent production bonus on glass"
+    )
+    required_points: int | None = Field(
+        validation_alias="requiredPoints",
+        default=0,
+        description="Upgrade points that reach this level; None if unreadable, and then never reached",
+    )
+
+    @field_validator("level", mode="before")
+    @classmethod
+    def _level(cls, value: object) -> int:
+        return _landmark_level(value)
+
+    @field_validator("kingdom", mode="before")
+    @classmethod
+    def _kingdom(cls, value: object) -> int:
+        kingdom = _landmark_int(value, "0")
+        if kingdom is None:
+            raise ValueError(f"kID {value!r} has no leading integer")
+        return kingdom
+
+    @field_validator("iron_bonus", "charcoal_bonus", "olive_oil_bonus", "glass_bonus", mode="before")
+    @classmethod
+    def _bonus(cls, value: object) -> int:
+        return _parse_int_or_default(value, 0)
+
+    @field_validator("required_points", mode="before")
+    @classmethod
+    def _required_points(cls, value: object) -> int | None:
+        return _landmark_int(value, "0")
+
+    @property
+    def production_bonus(self) -> int:
+        """The bonus the laboratory gives: the highest of its four."""
+        return max(self.iron_bonus, self.charcoal_bonus, self.olive_oil_bonus, self.glass_bonus)
+
+
 class RaidBossDef(_Row):
     """
     An alliance raid boss.
