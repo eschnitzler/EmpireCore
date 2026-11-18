@@ -382,6 +382,24 @@ class TestMessagesSentToday:
         client.state.update_from_packet("mcd", {"MTC": [[2, 6]]})
         assert client.messages.sent_today == MessagesSentToday(sent={MessageType.USER_OUT: 6})
 
+    def test_a_push_sets_the_types_it_lists_and_keeps_the_others(self):
+        client = _client()
+        client.state.update_from_packet("gbd", {"mcd": {"MTC": [[2, 5], [22, 3]]}})
+
+        client.state.update_from_packet("mcd", {"MTC": [[2, 6]]})
+
+        assert client.messages.sent_today == MessagesSentToday(
+            sent={MessageType.USER_OUT: 6, MessageType.ALLIANCE_NEWSLETTER: 3}
+        )
+
+    def test_a_push_without_counts_changes_nothing(self):
+        client = _client()
+        client.state.update_from_packet("gbd", {"mcd": {"MTC": [[2, 5]]}})
+
+        client.state.update_from_packet("mcd", {})
+
+        assert client.messages.sent_today == MessagesSentToday(sent={MessageType.USER_OUT: 5})
+
     def test_the_login_data_without_an_mcd_is_read_itself(self):
         state = GameState()
         state.update_from_packet("gbd", {"MTC": [[2, 1]]})
