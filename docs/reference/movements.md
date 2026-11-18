@@ -25,3 +25,7 @@ Army movements, and the sends that start them, behind `client.movements`.
 ## `movements.models.transfers`
 
 ::: empire_core.movements.models.transfers
+
+## `movements.travel`
+
+::: empire_core.movements.travel
