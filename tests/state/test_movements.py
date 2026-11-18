@@ -1359,6 +1359,31 @@ class TestMovementParseFailures:
         assert mov.owner is None and mov.source_player_name == ""
         assert [r.getMessage() for r in caplog.records] == ["Could not read an army push's owner"]
 
+    def test_any_drifted_value_costs_at_most_its_own_movement(self):
+        def mutants(value, path=()):
+            for junk in (None, True, 1.5, "junk", [], [[1]], {"x": 1}):
+                yield path, junk
+            children = value.items() if isinstance(value, dict) else enumerate(value) if isinstance(value, list) else ()
+            for key, child in children:
+                yield from mutants(child, (*path, key))
+
+        def replaced(value, path, junk):
+            if not path:
+                return junk
+            copy = dict(value) if isinstance(value, dict) else list(value)
+            copy[path[0]] = replaced(value[path[0]], path[1:], junk)
+            return copy
+
+        good = {"M": {"MID": 777, "T": 0, "TT": 600, "OID": 5, "TID": 1}}
+        for path, junk in mutants(SENT_ATTACK["AAM"]):
+            mutant = replaced(SENT_ATTACK["AAM"], path, junk)
+            state = GameState()
+            state.update_from_packet("gam", {"M": [mutant, good], "O": SENT_ATTACK["O"]})
+            state.update_from_packet("abr", {"A": mutant, "O": {}})
+            state.update_from_packet("cra", {"AAM": mutant, "O": []})
+            assert 777 in state.movements, (path, junk)
+            state.shutdown()
+
     def test_repeated_failures_do_not_flood(self, state, caplog):
         with caplog.at_level(logging.DEBUG, logger="empire_core.state.movements"):
             for _ in range(25):
@@ -1887,6 +1912,24 @@ class TestSentMovements:
             state.update_from_packet("cds", {"A": {"M": {"MID": None}}, "O": SENT_ATTACK["O"]})
         assert state.movements == {}
         assert [record for record in caplog.records if record.levelno >= logging.WARNING] == []
+
+    def test_a_daimyo_taunt_without_an_id_is_skipped_quietly(self, state, caplog):
+        with caplog.at_level(logging.DEBUG):
+            state.update_from_packet("ldt", {"M": {"T": 0}})
+        assert state.movements == {}
+        assert [record for record in caplog.records if record.levelno >= logging.WARNING] == []
+
+    def test_a_recall_reply_without_its_movement_is_logged(self, state, caplog):
+        # MCMCommand reads A unconditionally, so a successful reply without one is malformed
+        state.update_from_packet("mcm", {"A": {"M": {}}})
+        assert state.movements == {}
+        assert [record.levelno for record in caplog.records] == [logging.WARNING]
+
+    def test_an_attack_reply_keeps_its_movement_whatever_its_dialog_values(self, state):
+        # CRACommand reads TS and AS only for its ATTACK_IN_PROGRESS dialog
+        login(state, self.ME)
+        state.update_from_packet("cra", {**SENT_ATTACK, "TS": "junk", "AS": [1]})
+        assert [m.movement_id for m in state.get_outgoing_movements()] == [self.MID]
 
     def test_the_owner_records_come_with_a_reply_whatever_its_movement(self, state):
         login(state, self.ME)
