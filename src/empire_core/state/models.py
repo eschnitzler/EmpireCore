@@ -96,8 +96,8 @@ class Castle(EmpireModel):
     ``details`` does not; a ``kik`` push on a Monday sets every
     ``open_gate_counter`` to 0, an ``mos`` reply sets the Open Gate, counting an
     opening once, an ``mas`` reply starts the abandon timers and an ``mac``
-    reply clears them. A timer the server sends as 0 or less (-1 when it is
-    not running) is ``None``.
+    reply clears them (the client sets both to -1). A timer of 0 or less, or
+    one the list leaves out, is ``None``.
 
     Client: ``CastleListVO.parseCastleList`` (split.js line 73142),
     ``DetailedCastleVO.parseData``, ``CastleUserCastleListDetailed.parse_rue``
