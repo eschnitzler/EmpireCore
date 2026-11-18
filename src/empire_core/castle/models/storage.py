@@ -350,7 +350,6 @@ class PlaceStoredDecorationResponse(BaseResponse):
 
 
 __all__ = [
-    "CarriedDecorationStorages",
     "DecorationStorage",
     "DecorationStorageKey",
     "DecorationStorageResponse",

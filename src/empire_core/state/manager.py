@@ -735,7 +735,7 @@ class GameState(
 
         ``L`` and ``LL`` only drive the client's level-up dialog; see :class:`LevelUpResponse`.
 
-        Client: ``GLUCommand.executeCommand`` (bundle line 129619)
+        Client: ``GLUCommand.executeCommand`` (split.js line 651942)
         """
         if read_section(LevelUpResponse, data, "a level-up") is not None:
             self._apply_login(LoginDataResponse.carried_by(data, ("gcu", "gxp")))
