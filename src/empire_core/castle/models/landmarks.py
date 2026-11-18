@@ -62,7 +62,8 @@ class LandmarkProgress(BaseResponse):
     A monument's or laboratory's upgrade points.
 
     The client turns the points into a level through the ``monuments`` and ``laboratories`` level tables
-    (``UpgradableLandmarkMapobjectVO.updateProgress``, bundle line 42666), which the game data does not load.
+    (``UpgradableLandmarkMapobjectVO.updateProgress``, split.js line 221000), as ``GameData.monument_level``
+    and ``GameData.laboratory_level`` do.
     """
 
     object_id: int = Field(validation_alias="OID", description="The landmark's MapAreaItem.location_id")
