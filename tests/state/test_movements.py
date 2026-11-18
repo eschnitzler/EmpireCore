@@ -1325,6 +1325,40 @@ class TestMovementParseFailures:
         assert warnings[0].exc_info is not None, "no traceback: schema drift undiagnosable"
         assert state.movements == {}
 
+    def test_one_unreadable_gam_entry_costs_only_itself(self, state, caplog):
+        payload = gam_payload(400)
+        payload["M"] = [{"M": {"MID": "not-an-int", "T": 0}}, *payload["M"], {"M": {"T": 0}}, "junk"]
+        with caplog.at_level(logging.DEBUG, logger="empire_core.state.movements"):
+            state.update_from_packet("gam", payload)
+
+        assert list(state.movements) == [400]
+        assert state.movements[400].source_player_name == "Attacker"
+        [warning] = [r for r in caplog.records if r.levelno >= logging.WARNING]
+        assert "MID" in warning.getMessage() and "not-an-int" in warning.getMessage()
+
+    def test_gam_and_push_failures_share_the_rate_limit(self, state, caplog):
+        with caplog.at_level(logging.DEBUG, logger="empire_core.state.movements"):
+            state.update_from_packet("abr", self.BAD)
+            state.update_from_packet("gam", {"M": [self.BAD["A"]]})
+
+        assert len([r for r in caplog.records if r.levelno >= logging.WARNING]) == 1
+
+    @pytest.mark.parametrize("cmd", ["abr", "asr"])
+    def test_a_movement_without_an_id_is_skipped_quietly(self, state, caplog, cmd):
+        with caplog.at_level(logging.DEBUG):
+            state.update_from_packet(cmd, {"A": {"M": {"T": 0}}, "O": {"OID": 999, "N": "Attacker"}})
+            state.update_from_packet("gam", {"M": [{"M": {"MID": None}}, {"M": {}}, {}]})
+        assert state.movements == {}
+        assert [r for r in caplog.records if r.levelno >= logging.WARNING] == []
+
+    def test_an_unreadable_push_owner_keeps_the_movement(self, state, caplog):
+        payload = push_payload(401)
+        payload["O"] = {"OID": 999, "N": "Attacker", "L": "junk"}
+        state.update_from_packet("abr", payload)
+        mov = state.movements[401]
+        assert mov.owner is None and mov.source_player_name == ""
+        assert [r.getMessage() for r in caplog.records] == ["Could not read an army push's owner"]
+
     def test_repeated_failures_do_not_flood(self, state, caplog):
         with caplog.at_level(logging.DEBUG, logger="empire_core.state.movements"):
             for _ in range(25):
@@ -1822,12 +1856,43 @@ class TestSentMovements:
         state.update_from_packet("ldt", {"M": {"MID": 7, "T": 0, "TT": 60, "OID": self.ME}})
         assert [m.movement_id for m in state.get_outgoing_movements()] == [7]
 
-    def test_reply_coins_and_rubies_are_applied(self, state):
+    @pytest.mark.parametrize(
+        ("cmd", "key"),
+        [
+            *((cmd, "AAM") for cmd in ("cra", "cam", "abgcam")),
+            *((cmd, "A") for cmd in ("cds", "csm", "cat", "crm", "css", "tde", "cdd", "cpm", "jtr")),
+            ("thm", "TM"),
+        ],
+    )
+    def test_reply_coins_and_rubies_are_applied(self, state, cmd, key):
+        # Each of these commands hands its gcu to CurrencyData.parseGCU on ALL_OK
         login(state, self.ME)
-        state.update_from_packet("cra", {**SENT_ATTACK, "gcu": {"C1": 1200, "C2": 30}})
+        state.update_from_packet(cmd, {key: SENT_ATTACK["AAM"], "O": [], "gcu": {"C1": 1200, "C2": 30}})
         assert state.local_player is not None
         assert (state.local_player.coins, state.local_player.rubies) == (1200, 30)
         assert state.get_last_packet_time("gcu") is not None
+        assert [m.movement_id for m in state.get_outgoing_movements()] == [self.MID]
+
+    def test_a_refused_reply_keeps_coins_and_rubies(self, state):
+        login(state, self.ME)
+        state.update_from_packet("gbd", {"gcu": {"C1": 500, "C2": 7}})
+        state.update_from_packet("cds", {"gcu": {"C1": 1, "C2": 1}}, error_code=1)
+        assert state.local_player is not None
+        assert (state.local_player.coins, state.local_player.rubies) == (500, 7)
+
+    def test_a_reply_movement_without_an_id_is_skipped_quietly(self, state, caplog):
+        login(state, self.ME)
+        with caplog.at_level(logging.DEBUG):
+            state.update_from_packet("cra", {**SENT_ATTACK, "AAM": {"M": {"T": 0}}})
+            state.update_from_packet("cds", {"A": {"M": {"MID": None}}, "O": SENT_ATTACK["O"]})
+        assert state.movements == {}
+        assert [record for record in caplog.records if record.levelno >= logging.WARNING] == []
+
+    def test_the_owner_records_come_with_a_reply_whatever_its_movement(self, state):
+        login(state, self.ME)
+        state.update_from_packet("cds", {"A": {}, "O": SENT_ATTACK["O"]})
+        state.update_from_packet("gam", {"M": [SENT_ATTACK["AAM"]]})
+        assert state.movements[self.MID].source_player_name == "me"
 
     def test_reply_without_gcu_keeps_coins_and_rubies(self, state):
         login(state, self.ME)
