@@ -11,7 +11,7 @@ It covers:
 - Your alliance's chronicle and subscriber count
 - Map bookmarks, your own and your alliance's (list, add, change, delete)
 - Joining automatically, members' cargo points and the alliance forge
-- Beyond the Horizon: entry, performance, influence, centers of power and alliance towers
+- Beyond the Horizon: entry, performance, influence, centers of power, alliance towers and the Jade Desert
 """
 
 from __future__ import annotations

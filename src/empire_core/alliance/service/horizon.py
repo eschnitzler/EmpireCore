@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
+from typing import TYPE_CHECKING
+
 from empire_core.alliance.models.horizon import (
     ActivateAllianceTowerBuffsRequest,
     ActivateAllianceTowerBuffsResponse,
@@ -11,6 +14,8 @@ from empire_core.alliance.models.horizon import (
     CenterOfPower,
     CentersOfPowerDetailResponse,
     CentersOfPowerResponse,
+    CitadelsResponse,
+    ConvertJadeStatuettesRequest,
     GetAllianceInfluenceRequest,
     GetAllianceTowerBuffsRequest,
     GetAllianceTowerBuffsResponse,
@@ -20,18 +25,34 @@ from empire_core.alliance.models.horizon import (
     GetAllianceTowersResponse,
     GetCentersOfPowerDetailRequest,
     GetCentersOfPowerRequest,
+    GetCitadelsRequest,
+    GetHorizonEntryConditionsRequest,
     GetHorizonEntryRequest,
     GetHorizonPerformanceRequest,
+    GetOasisSettlementRequest,
     GetPlayerInfluenceRequest,
+    HorizonEntryConditionsResponse,
     HorizonEntryResponse,
     HorizonMemberPerformance,
     HorizonPerformanceResponse,
     IncreaseAllianceTowerBuffsRequest,
     IncreaseAllianceTowerBuffsResponse,
+    JadePhase,
+    OasisSettlementResponse,
     PlayerInfluenceResponse,
+    SendOasisTradeRequest,
+    SendOasisTradeResponse,
+    UpgradeCitadelRequest,
 )
 from empire_core.alliance.service.own import OwnAllianceMixin
+from empire_core.commanders.models.roster import PREMIUM_COMMANDER_ID
+from empire_core.enums import Kingdom
+from empire_core.gamedata import OasisTradeId, WodAmount, WodAmountMapping
 from empire_core.map.models.items import MapAreaItem
+from empire_core.movements.models.movement import NO_HORSE
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import Horse
 
 
 class HorizonMixin(OwnAllianceMixin):
@@ -222,3 +243,165 @@ class HorizonMixin(OwnAllianceMixin):
             timeout=timeout,
             spend_rubies=spend_rubies,
         ).tower_buffs
+
+    # =========================================================================
+    # The Jade Desert
+    # =========================================================================
+
+    def get_horizon_entry_conditions(self, *, timeout: float = 5.0) -> HorizonEntryConditionsResponse:
+        """
+        The conditions for entering Beyond the Horizon that you do not meet yet; none when you may enter.
+
+        Sent on your main server, as the client does when the Jade Desert's event dialog opens.
+
+        Raises:
+            CommandError: The server refused
+
+        Client: ``CastleAllianceBattleGroundData.requestEntryConditions`` (split.js line 716008)
+        """
+        return self.request(GetHorizonEntryConditionsRequest(), HorizonEntryConditionsResponse, timeout=timeout)
+
+    @property
+    def jade_phase(self) -> JadePhase | None:
+        """The Jade Desert's scoring phase, from the ``abgi`` pushes so far; None until one arrived."""
+        return self.client.state.get_jade_phase()
+
+    def get_citadels(self, *, timeout: float = 5.0) -> CitadelsResponse:
+        """
+        Your alliance's Citadel and the enemy citadels in the Jade Desert.
+
+        Only on the Beyond the Horizon server, in the Jade Desert, where the client alone sends it.
+
+        Raises:
+            CommandError: The server refused
+
+        Client: ``CastleAllianceBattleGroundData.requestJadeCitadelInfo`` (split.js line 716001)
+        """
+        return self.request(GetCitadelsRequest(), CitadelsResponse, timeout=timeout)
+
+    def upgrade_citadel(self, *, timeout: float = 5.0) -> None:
+        """
+        Upgrade your alliance's Citadel to its next level, for that level's Ancient Jade Statuettes.
+
+        Only on the Beyond the Horizon server, in the Jade Desert. The price is the next
+        :attr:`GameData.citadel_levels` row's costs. An upgrade can end the citadel's attack protection; the client
+        asks before sending one that does.
+
+        Raises:
+            CommandError: The server refused
+
+        Client: ``CastleAllianceBattleGroundEventJadeDialogCitadelManagement.onUpgradeClicked`` (split.js line 473840)
+        """
+        self.execute(UpgradeCitadelRequest(), timeout=timeout)
+
+    def convert_jade_statuettes(self, restored_amount: int, *, timeout: float = 5.0) -> None:
+        """
+        Convert Ancient Jade Statuettes into ``restored_amount`` Restored Jade Statuettes before the event ends.
+
+        Only on the Beyond the Horizon server, in the Jade Desert. Each Restored Jade Statuette takes your
+        citadel level's ``early_conversion_ratio`` Ancient ones (:attr:`GameData.citadel_levels`); the conversion
+        cannot be undone.
+
+        Raises:
+            ValueError: ``restored_amount`` is not above 0; nothing is sent, as in the client
+            CommandError: The server refused
+
+        Client: ``ABGJadeStatuetteConversionComponent.sendConversion`` (split.js line 474233)
+        """
+        if restored_amount <= 0:
+            raise ValueError("convert at least one Restored Jade Statuette")
+        self.execute(ConvertJadeStatuettesRequest(restored_amount=restored_amount), timeout=timeout)
+
+    def get_oasis_settlement(
+        self, x: int, y: int, kingdom: Kingdom = Kingdom.GREEN, *, timeout: float = 5.0
+    ) -> OasisSettlementResponse:
+        """
+        The Oasis Settlement at ``(x, y)``: its level, the troops it has left to trade and its cooldown.
+
+        Only on the Beyond the Horizon server, in the Jade Desert.
+
+        Raises:
+            CommandError: The server refused
+
+        Client: ``AllianceBattleGroundJadeTradeDialog`` (split.js line 564457) asks when it opens
+        """
+        return self.request(
+            GetOasisSettlementRequest(x=x, y=y, kingdom=kingdom), OasisSettlementResponse, timeout=timeout
+        )
+
+    def send_oasis_trade(
+        self,
+        source_x: int,
+        source_y: int,
+        target_x: int,
+        target_y: int,
+        units: WodAmountMapping | Sequence[WodAmount],
+        trades: Mapping[OasisTradeId, int],
+        commander_id: int,
+        *,
+        kingdom: Kingdom = Kingdom.GREEN,
+        horse_booster_id: Horse | None = None,
+        feathers: bool = False,
+        spend_rubies: bool = False,
+        timeout: float = 5.0,
+    ) -> SendOasisTradeResponse:
+        """
+        Send troops and trading materials from your castle to the Oasis Settlement at ``(target_x, target_y)``.
+
+        Only on the Beyond the Horizon server, in the Jade Desert. The client sends from your main castle there.
+        ``trades`` names how often to make each of the settlement's trades (:attr:`GameData.oasis_trades`); the
+        materials they cost travel with the troops.
+
+        Rubies as for ``client.movements.send_troops``: the premium commander and a horse that costs rubies unless
+        paid with feathers need ``spend_rubies``.
+
+        Args:
+            source_x: Map x of the castle the troops leave from
+            source_y: Map y of the castle the troops leave from
+            target_x: The settlement's map x
+            target_y: The settlement's map y
+            units: The units: ``{Unit.X: 100}``, or pairs one per slot
+            trades: How often to make each trade, ``{OasisTradeId(10): 3}``; amounts of 0 are left out
+            commander_id: The commander to lead them, a ``Commander.commander_id``; ``PREMIUM_COMMANDER_ID`` for
+                the premium commander, sent as 0 with the premium flag, as the client does
+            kingdom: The settlement's kingdom
+            horse_booster_id: The horse, None for none; sent as none whenever feathers are used, as the client does
+            feathers: Pay for the horse with feathers
+            spend_rubies: Send even when the premium commander or the horse costs rubies
+            timeout: Timeout in seconds
+
+        Raises:
+            ValueError: No trade is above 0, which the client cannot send; or the horse costs rubies and
+                ``spend_rubies`` is False
+            PremiumCommanderCostError: The premium commander leads, may cost rubies, and ``spend_rubies`` is
+                False; see ``client.commanders.premium_send``
+            CommandError: The server refused the trade
+
+        Client: ``CastlePostTradeHorseDialog.sendTradeMovement`` (split.js line 566640); the trade button is
+        enabled only with a trade selected (``AllianceBattleGroundJadeTradeDialog.updateTradeButton``,
+        split.js line 564758)
+        """
+        selected = {trade_id: amount for trade_id, amount in trades.items() if amount > 0}
+        if not selected:
+            raise ValueError("name at least one trade to make")
+        self._require_spend_rubies(spend_rubies, self._travel_ruby_cost(horse_booster_id, feathers, 0))
+        premium = commander_id == PREMIUM_COMMANDER_ID
+        request = SendOasisTradeRequest(
+            source_x=source_x,
+            source_y=source_y,
+            target_x=target_x,
+            target_y=target_y,
+            kingdom=kingdom,
+            commander_id=0 if premium else commander_id,
+            use_premium_commander=1 if premium else 0,
+            horse_booster_id=NO_HORSE if feathers or horse_booster_id is None else horse_booster_id,
+            feathers=1 if feathers else 0,
+            units=WodAmount.slots(units),
+            trades=selected,
+        )
+        return self.client.commanders.premium_send(
+            commander_id,
+            premium,
+            lambda: self.request(request, SendOasisTradeResponse, timeout=timeout, spend_rubies=spend_rubies),
+            spend_rubies=spend_rubies,
+        )

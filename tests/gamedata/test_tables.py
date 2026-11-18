@@ -23,8 +23,8 @@ from empire_core.enums import (
 )
 from empire_core.gamedata import (
     AllianceInvasionCampId,
-    CitadelLevelId,
     BuildingDef,
+    CitadelLevelId,
     DailyQuestDef,
     DonationItemId,
     DonationSettingId,
