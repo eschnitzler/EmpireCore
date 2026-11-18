@@ -1,5 +1,9 @@
 """Alliance push updates, from AllianceInfoVO and AEECommand."""
 
+import threading
+
+from empire_core.alliance.models.info import AllianceBuilding
+from empire_core.map.models.items import MapAreaItem
 from empire_core.state.manager import GameState
 from empire_core.state.models import Player
 
@@ -19,7 +23,7 @@ def test_fame_push_is_copy_on_write_and_survives_kept_context():
     current = state.get_own_alliance()
     assert current is not None and current.glory_points == 10 and current.highest_glory_points == 20
     assert previous is not None and previous.glory_points == 1
-    assert state._own_alliance_raw is not None and state._own_alliance_raw["CF"] == 10
+    assert state.own_alliance is not None and state.own_alliance.glory_points == 10
 
 
 def test_buff_push_replaces_list_including_valid_empty():
@@ -99,3 +103,79 @@ def test_the_push_models_read_as_the_client_does():
     assert changed.crests is not None and changed.crests.crest is not None
     assert changed.fallback_crest is None, "a fallback without ACCS is not read"
     assert AllianceCrestChangedResponse.model_validate({"ACCA": "bad"}).crests is None
+
+
+LABORATORY_ROW = [28, 10, 20, 900, 7, 3, 2, 0, "Lab"]
+
+
+def test_pushes_and_a_later_ain_keep_typed_rows():
+    state = alliance_state()
+    state.update_from_packet("sll", {"ALA": [LABORATORY_ROW]})
+    state.update_from_packet("abl", {"ABL": [{"BT": 6, "L": 2, "CD": -1}]})
+    held = state.own_alliance
+    assert held is not None
+    assert [type(lab) for lab in held.laboratories] == [MapAreaItem]
+    assert [type(buff) for buff in held.buildings] == [AllianceBuilding]
+    assert held.laboratories[0].location_id == 900 and held.buildings[0].level == 2
+
+    state.update_from_packet("ain", {"A": {"AID": 301, "N": "Guild", "ABL": [{"BT": 6, "L": 3}], "ALA": []}})
+    held = state.own_alliance
+    assert held is not None and held.laboratories == []
+    assert [(type(buff), buff.level) for buff in held.buildings] == [(AllianceBuilding, 3)]
+
+
+def test_an_ain_keeps_what_fill_from_param_object_keeps():
+    # AllianceInfoVO.fillFromParamObject (split.js 137516): AA, AW, AP kept when null; STO, ACLS kept when
+    # falsy; MF, IF, SRFU, HRFU kept unless MF and IF are both sent; everything else read again
+    state = alliance_state()
+    full = {
+        "AID": 301, "N": "Guild", "AA": 3, "AW": 1, "AP": 40, "STO": {"W": 5}, "ACLS": [{"ACLI": 1, "ACIA": 1}],
+        "MF": 1, "IF": 0, "SRFU": 2, "HRFU": 4, "FR": 1,
+    }  # fmt: skip
+    state.update_from_packet("ain", {"A": full})
+    state.update_from_packet("ain", {"A": {"AID": 301, "N": "Renamed", "AA": None, "STO": 0, "ACLS": None, "MF": 0}})
+    held = state.get_own_alliance()
+    assert held is not None
+    assert (held.application_count, held.auto_war, held.cargo_points) == (3, True, 40)
+    assert held.storage is not None and held.storage.wood == 5
+    assert [layout.layout_id for layout in held.crest_layouts] == [1]
+    assert (held.is_able_to_forge, held.soft_relic_forge_uses, held.hard_relic_forge_uses) == (True, 2, 4)
+    assert (held.name, held.free_renames) == ("Renamed", 0)
+
+    state.update_from_packet("ain", {"A": {"AID": 301, "AA": 0, "ACLS": [], "MF": 0, "IF": 1}})
+    held = state.get_own_alliance()
+    assert held is not None and held.application_count == 0 and held.crest_layouts == []
+    assert (held.is_able_to_forge, held.is_forge_inventory_full, held.soft_relic_forge_uses) == (False, True, 0)
+
+
+def test_another_alliances_ain_is_not_kept():
+    state = alliance_state()
+    state.update_from_packet("ain", {"A": {"AID": 999, "N": "Other"}})
+    held = state.get_own_alliance()
+    assert held is not None and (held.alliance_id, held.name) == (301, "Guild")
+
+
+def test_readers_never_see_a_half_applied_push():
+    state = alliance_state()
+    state.update_from_packet("afa", {"CF": 0, "HF": 0})
+    stop = threading.Event()
+    torn: list[tuple[int, int]] = []
+
+    def read() -> None:
+        while not stop.is_set():
+            held = state.get_own_alliance()
+            if held is not None and held.glory_points != held.highest_glory_points:
+                torn.append((held.glory_points, held.highest_glory_points))
+
+    reader = threading.Thread(target=read)
+    reader.start()
+    try:
+        for points in range(300):
+            state.update_from_packet("afa", {"CF": points, "HF": points})
+            state.update_from_packet("abl", {"ABL": [{"BT": 6, "L": points % 5}]})
+    finally:
+        stop.set()
+        reader.join(5)
+    assert torn == []
+    held = state.get_own_alliance()
+    assert held is not None and held.glory_points == 299 and held.buildings[0].level == 299 % 5

@@ -6,7 +6,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
 
-from empire_core.alliance.models.chat import AllianceChatLogResponse, ChatMessageData
+from empire_core.alliance.models.chat import AllianceChatLogResponse, AllianceChatMessageResponse, ChatMessageData
 from empire_core.alliance.models.gifts import AllianceGift, AllianceGiftReceived
 from empire_core.alliance.models.help import (
     AllianceHelpListResponse,
@@ -23,104 +23,80 @@ from empire_core.alliance.models.horizon import (
 from empire_core.alliance.models.info import (
     AllianceBuffsResponse,
     AllianceCrestChangedResponse,
+    AllianceCrests,
     AllianceGloryResponse,
     AllianceInfo,
-    alliance_of_ain,
+    GetAllianceInfoResponse,
 )
 from empire_core.alliance.models.landmarks import AllianceLaboratoriesResponse
-from empire_core.alliance.models.membership import AllianceMembership, AutoJoinedAllianceResponse
+from empire_core.alliance.models.membership import (
+    AllianceMembership,
+    AllianceMembershipChange,
+    AutoJoinedAllianceResponse,
+)
 from empire_core.enums import OnlineState
 from empire_core.exceptions import ReplyMismatchError
 from empire_core.player.models.aqua import CargoPointsResponse, StormIslandsInfo
 from empire_core.protocol.base import read_or_none
-from empire_core.protocol.js import js_int, js_truthy
+from empire_core.protocol.js import js_int
 from empire_core.state.base import StateBase, read_section
 from empire_core.state.login_data import LoginDataResponse
 
 logger = logging.getLogger(__name__)
 
-# Keys AllianceInfoVO.fillFromParamObject leaves as they were when a reply sends them as null
-_KEPT_WHEN_NULL = ("AA", "AW", "AP")
-# ... and when it sends them falsy
-_KEPT_WHEN_FALSY = ("STO", "ACLS", "aee")
-_FORGE_KEYS = ("MF", "IF", "SRFU", "HRFU")
-
 
 class AllianceState(StateBase):
-    def _parse_own_alliance(self, data: dict[str, Any], *, changed_keys: set[str] | None = None) -> bool:
+    def _parse_own_alliance(self, login: LoginDataResponse) -> bool:
         """Apply an ``ain`` section when it is about your own alliance; whether it was applied.
 
         Other alliances' details (``client.alliance.get_alliance_info(other_id)``) are not kept.
-        A reply for the same alliance is read over the last one: the keys the client keeps
-        when a reply leaves them out (``AA``, ``AW``, ``AP``, ``STO``, ``ACLS``, ``aee``, and
-        ``MF``, ``IF``, ``SRFU``, ``HRFU`` unless both ``MF`` and ``IF`` are sent) keep their values.
+        A reply for the same alliance is read over the last one (:meth:`AllianceInfo.filled_over`).
 
-        Client: ``CastleAllianceData.parse_AIN`` (bundle line 11560) and ``parseAllianceInfo``
-        (bundle line 11605), which keeps the alliance whose ``AID`` is ``userData.allianceID`` as
-        ``myAllianceVO``; ``AllianceInfoVO.fillFromParamObject`` (bundle line 25928)
+        Client: ``CastleAllianceData.parse_AIN`` (split.js line 61657) and ``parseAllianceInfo``
+        (split.js line 61810), which keeps the alliance whose ``AID`` is ``userData.allianceID`` as
+        ``myAllianceVO``
         """
-        if "ain" not in data:
+        alliance = login.alliance_info.alliance if login.alliance_info is not None else None
+        if alliance is None or not self._is_own_alliance(alliance):
             return False
-        block = alliance_of_ain(data["ain"])
-        player = self.local_player
-        if block is None or player is None or player.AID is None:
-            return False
-        if js_int(block["AID"]) != js_int(player.AID):
-            return False
-        raw = dict(block)
-        previous = self._own_alliance_raw
-        if previous is not None and js_int(previous.get("AID")) == js_int(raw["AID"]):
-            for key in _KEPT_WHEN_NULL:
-                if raw.get(key) is None and key in previous:
-                    raw[key] = previous[key]
-            for key in _KEPT_WHEN_FALSY:
-                if not js_truthy(raw.get(key)) and key in previous:
-                    raw[key] = previous[key]
-            if raw.get("MF") is None or raw.get("IF") is None:
-                for key in _FORGE_KEYS:
-                    raw.pop(key, None)
-                    if key in previous:
-                        raw[key] = previous[key]
-        return self._store_own_alliance(raw, changed_keys=changed_keys)
-
-    def _store_own_alliance(self, raw: dict[str, Any], *, changed_keys: set[str] | None = None) -> bool:
-        alliance = read_or_none(AllianceInfo.model_validate, raw, warn=logger, what="your alliance's details")
-        if alliance is None:
-            return False
-        if changed_keys is not None and self.own_alliance is not None:
-            updates = {
-                name: getattr(alliance, name)
-                for name, field in AllianceInfo.model_fields.items()
-                if field.validation_alias in changed_keys
-            }
-            alliance = self.own_alliance.model_copy(deep=True, update=updates)
-            alliance.model_post_init(None)
-        keys = changed_keys if changed_keys is not None else set(raw) | set(self._own_alliance_raw or {})
-        for key in keys:
-            self._alliance_field_order[key] = self._packet_sequence
-        self._own_alliance_raw = raw
-        self.own_alliance = alliance
+        previous = self.own_alliance
+        if previous is not None and previous.alliance_id == alliance.alliance_id:
+            alliance = alliance.filled_over(previous)
+        self._store_own_alliance(alliance)
         return True
 
-    def _patch_own_alliance(self, fields: dict[str, Any]) -> None:
-        raw = self._own_alliance_raw
+    def _is_own_alliance(self, alliance: AllianceInfo) -> bool:
         player = self.local_player
-        if raw is None or player is None or player.AID is None or js_int(raw.get("AID")) != player.AID:
+        return player is not None and player.AID is not None and alliance.alliance_id == js_int(player.AID)
+
+    def _store_own_alliance(self, alliance: AllianceInfo) -> None:
+        for name in AllianceInfo.model_fields:
+            self._alliance_field_order[name] = self._packet_sequence
+        self.own_alliance = alliance
+
+    def _patch_own_alliance(self, **fields: Any) -> None:
+        """Change ``fields`` of your alliance's details, while they are about your alliance."""
+        alliance = self.own_alliance
+        if alliance is None or not self._is_own_alliance(alliance):
             return
-        self._store_own_alliance({**raw, **fields}, changed_keys=set(fields))
+        patched = alliance.model_copy(deep=True, update=fields)
+        patched.model_post_init(None)
+        for name in fields:
+            self._alliance_field_order[name] = self._packet_sequence
+        self.own_alliance = patched
 
     def _handle_afa(self, data: Any) -> None:
         """Client: ``AllianceInfoVO.parseAFA`` (bundle line 26001); see :class:`AllianceGloryResponse`."""
         if not isinstance(data, dict) or "raw" in data:
             return
         if (glory := read_section(AllianceGloryResponse, data, "the alliance's glory")) is not None:
-            self._patch_own_alliance({"CF": glory.glory_points, "HF": glory.highest_glory_points})
+            self._patch_own_alliance(glory_points=glory.glory_points, highest_glory_points=glory.highest_glory_points)
 
     def _handle_abl(self, data: Any) -> None:
         """Client: ``AllianceInfoVO.parseABL`` (bundle line 26003); see :class:`AllianceBuffsResponse`."""
         buffs = read_or_none(AllianceBuffsResponse.model_validate, data, warn=logger, what="the alliance's buffs")
         if buffs is not None:
-            self._patch_own_alliance({"ABL": [row.model_dump(by_alias=True) for row in buffs.buildings]})
+            self._patch_own_alliance(buildings=list(buffs.buildings))
 
     def _handle_aee(self, data: Any) -> None:
         """Client: ``AEECommand`` (bundle line 121450); see :class:`AllianceCrestChangedResponse`.
@@ -130,16 +106,13 @@ class AllianceState(StateBase):
         changed = read_section(AllianceCrestChangedResponse, data, "the alliance's crest")
         if changed is None or changed.crests is None:
             return
-        crest = changed.crests.crest.model_dump(by_alias=True) if changed.crests.crest is not None else None
         fallback = changed.fallback_crest if changed.fallback_crest is not None else changed.crests.fallback_crest
-        self._patch_own_alliance(
-            {"aee": {"ACCA": crest, "ACFB": fallback.model_dump(by_alias=True) if fallback is not None else None}}
-        )
+        self._patch_own_alliance(crests=AllianceCrests(crest=changed.crests.crest, fallback_crest=fallback))
 
     def _handle_sll(self, data: Any) -> None:
         """Client: ``CastleAllianceData.parseSLL`` (split.js line 61793) replaces your alliance's laboratories."""
         if (listed := read_section(AllianceLaboratoriesResponse, data, "the alliance's laboratories")) is not None:
-            self._patch_own_alliance({"ALA": listed.laboratories})
+            self._patch_own_alliance(laboratories=list(listed.laboratories))
 
     def _handle_gap(self, data: Any) -> None:
         """Keep your cargo points and your alliance's.
@@ -151,8 +124,8 @@ class AllianceState(StateBase):
         if points is None:
             return
         self.cargo_points = points.player_points
-        if "A" in data:
-            self._patch_own_alliance({"AP": points.alliance_points})
+        if "alliance_points" in points.model_fields_set:
+            self._patch_own_alliance(cargo_points=points.alliance_points)
 
     def _handle_sii(self, data: Any) -> None:
         """Keep your and your alliance's Storm Islands standing, and your cargo points.
@@ -199,7 +172,6 @@ class AllianceState(StateBase):
             self._handle_gbd({"gal": data["gal"], "ain": {"A": data["A"]}})
 
     def _forget_own_alliance(self) -> None:
-        self._own_alliance_raw = None
         self._alliance_field_order = {}
         self._alliance_reply_order = {}
         self.own_alliance = None
@@ -231,27 +203,30 @@ class AllianceState(StateBase):
     def apply_membership_response(self, data: dict[str, Any], *, membership_revision: int) -> None:
         """Apply only an accepted service reply, while its membership context is still current.
 
-        Client: ``JOACommand`` / ``AAICommand`` (bundle lines 121934 / 121203)
-        apply gal before A, ``AASCommand`` (bundle line 121272) gal before gam. The service scopes
-        these replies so rejected or late replies cannot replace a newer authoritative GAL or a new session.
+        The service scopes these replies so rejected or late replies cannot replace a newer
+        authoritative ``gal`` or a new session.
+
+        Client: ``JOACommand`` / ``AAICommand`` (split.js lines 624892 / 622475) apply gal before A,
+        ``AASCommand`` (split.js line 622569) gal before a truthy gam; see :class:`AllianceMembershipChange`
         """
-        sections = {}
-        gal = data.get("gal")
-        alliance = data.get("A")
-        if isinstance(gal, dict):
-            sections["gal"] = gal
-        if isinstance(alliance, dict) and alliance.get("AID") is not None:
-            sections["ain"] = {"A": alliance}
+        change = read_section(AllianceMembershipChange, data, "a membership reply")
+        if change is None:
+            return
+        sections: dict[str, Any] = {}
+        if change.membership is not None:
+            sections["gal"] = data["gal"]
+        if change.alliance is not None:
+            sections["ain"] = {"A": data["A"]}
         if not sections:
             return
         with self._lock:
             if self.membership_revision != membership_revision:
-                expected = js_int(gal.get("AID")) if isinstance(gal, dict) else -1
+                expected = change.membership.alliance_id if change.membership is not None else -1
                 current = self.local_player.AID if self.local_player is not None else None
                 raise ReplyMismatchError(expected, current if current is not None else -1)
             self._handle_gbd(sections)
-            if isinstance(movements := data.get("gam"), dict):
-                self._handle_gam(movements)
+            if "gam" in data and isinstance(data["gam"], dict):
+                self._handle_gam(data["gam"])
 
     @contextmanager
     def alliance_info_read(self, alliance_id: int) -> Iterator[None]:
@@ -290,7 +265,7 @@ class AllianceState(StateBase):
             receipt = self._alliance_reply_order.get("ain")
             if payload is not None and receipt is not None and receipt[0] is payload:
                 sequence = receipt[1]
-            if self._alliance_field_order.get("ABL", 0) > sequence:
+            if self._alliance_field_order.get("buildings", 0) > sequence:
                 raise ValueError("alliance buffs changed during the upgrade preflight; request the upgrade again")
             return sequence
 
@@ -313,19 +288,15 @@ class AllianceState(StateBase):
                 sequence = receipt[1]
             else:
                 sequence = self._packet_sequence
-            block = alliance_of_ain(data)
-            if block is None:
+            reply = read_section(GetAllianceInfoResponse, data, "an alliance settings reply")
+            alliance = reply.alliance if reply is not None else None
+            if alliance is None or not self._is_own_alliance(alliance):
                 return
-            previous = self._own_alliance_raw or {}
-            raw = {**previous, **block}
-            changed_keys = set(block)
-            for key, order in self._alliance_field_order.items():
-                if order > sequence:
-                    changed_keys.discard(key)
-                    raw.pop(key, None)
-                    if key in previous:
-                        raw[key] = previous[key]
-            self._parse_own_alliance({"ain": {"A": raw}}, changed_keys=changed_keys)
+            if self.own_alliance is None:
+                self._store_own_alliance(alliance)
+                return
+            superseded = {name for name, order in self._alliance_field_order.items() if order > sequence}
+            self._patch_own_alliance(**{name: getattr(alliance, name) for name in alliance.read_fields - superseded})
 
     def _require_membership_revision(self, revision: int, alliance_id: int) -> None:
         current = self.local_player.AID if self.local_player is not None else None
@@ -434,11 +405,8 @@ class AllianceState(StateBase):
         activity to ``ONLINESTATE_ONLINE`` when the player id is 0 or more, and changes nothing else
         about the members (``AllianceInfoVO.getOnlineUserList``, bundle line 25980)
         """
-        block = data.get("CM") if isinstance(data, dict) else None
-        if not isinstance(block, dict):
-            return
-        message = read_or_none(ChatMessageData.model_validate, block, warn=logger, what="an alliance chat message")
-        if message is None:
+        pushed = read_section(AllianceChatMessageResponse, data, "an alliance chat message")
+        if pushed is None or (message := pushed.chat_message) is None:
             return
         self.alliance_chat = (*self.alliance_chat, message)
         alliance = self.own_alliance

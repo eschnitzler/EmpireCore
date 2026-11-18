@@ -617,8 +617,8 @@ class GameState(
     def _handle_gbd(self, data: dict[str, Any]) -> set[str]:
         """Apply the login data, or the one section a push wraps in the same shape.
 
-        Each section is read once, through :class:`LoginDataResponse`. ``ain`` and ``kpi``'s ``fki`` are
-        still applied from their bodies.
+        Each section is read once, through :class:`LoginDataResponse`. Only ``kpi``'s ``fki`` is still
+        applied from its body.
 
         Returns the sections present but not applied, which are not stamped.
 
@@ -638,7 +638,7 @@ class GameState(
         skipped = {
             section
             for section, applied in (
-                ("ain", self._parse_own_alliance(data)),
+                ("ain", self._parse_own_alliance(login)),
                 ("acl", self._parse_chat_history(login.alliance_chat)),
                 ("ahl", self._parse_alliance_help(login)),
                 ("sne", self._parse_mailbox(login)),
@@ -748,7 +748,7 @@ class GameState(
             )
             self.kingdoms = self.kingdoms.model_copy(update={"kingdoms": kingdoms})
         self.cargo_points = 0
-        self._patch_own_alliance({"AP": 0})
+        self._patch_own_alliance(cargo_points=0)
         for movement_id, movement in list(self.movements.items()):
             areas = (movement.source_area, movement.target_area)
             if movement.kingdom == Kingdom.STORM or any(
