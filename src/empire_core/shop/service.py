@@ -86,7 +86,7 @@ class ShopService(BaseService):
             CommandError: The server refused
 
         Client: ``AMerchantBuyDialog.onBtnOkClick``, ``getBuyType`` and ``getBuyTypeId`` (split.js lines
-        214956-215018); ``ModernPackageShopBuyElementBottomMenu.onClick`` (split.js line 367851) sends the
+        214956-215018); ``ModernPackageShopBuyElementBottomMenu.onOfferAccepted`` (split.js line 367863) sends the
         amount chosen; ``CastleGenericSliderBuyDialog`` (split.js line 34317) offers more than one only where
         ``mayBeBoughtInBulk``
         """

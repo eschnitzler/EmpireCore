@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from empire_core.enums import CollectableKind, Rareness
-from empire_core.gamedata import GameData, PackageId
+from empire_core.gamedata import Collectable, GameData, PackageId
 
 CURRENCIES = [{"currencyID": "28", "Name": "LegendaryToken", "JSONKey": "LT"}]
 
@@ -69,6 +69,7 @@ ITEMS = {
         },
         {"packageID": "24", "packageType": "unit", "unitID": "1", "unitAmount": "5", "stock": "3"},
         {"packageID": "23", "packageType": "hero", "specialHeroOfRarenessID": "12", "heroAmount": "1"},
+        {"packageID": "25", "packageType": "item", "specialEquipmentOfRarenessID": "2", "equipmentAmount": "5"},
     ],
     "events": [{"eventID": "42", "eventType": "Merchant", "packageIDs": "10+11+404"}],
 }
@@ -127,6 +128,13 @@ def test_random_equipment_and_gems_only_where_the_row_names_none():
     assert _kinds(14) == [(CollectableKind.GEM_RANDOM, -5, 1)]
     assert [(k, i, a) for k, i, a in _kinds(15)] == [(CollectableKind.EQUIPMENT_UNIQUE, 27, 1)]
     assert _kinds(23) == [(CollectableKind.HERO_RANDOM, Rareness.HERO_RARE, 1)]
+
+
+def test_a_random_item_reads_as_the_same_reward_from_a_packet():
+    packages = _data().packages
+
+    for package_id, key, entry, amount in ((25, "GE", 2, 5), (23, "RE", 12, 1), (14, "GLID", 5, 1)):
+        assert packages[PackageId(package_id)].rewards == (Collectable.from_entry(key, entry, amount),)
 
 
 def test_amount_columns_and_xp():

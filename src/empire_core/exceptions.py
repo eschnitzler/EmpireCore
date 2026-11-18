@@ -23,6 +23,7 @@ from typing import Any
 
 from empire_core.enums import GGEError, ProductionListId, VersionCheckStatus
 from empire_core.gamedata.lenient import EnumOrInt, known
+from empire_core.gamedata.tables import PackageId
 from empire_core.texts import cached_text
 
 
@@ -380,8 +381,8 @@ class NotEnoughSpecialCurrencyError(CommandError):
         super().__init__(command, code, payload)
         details = payload if isinstance(payload, dict) else {}
         package_id = details.get("PID")
-        self.package_id: int | None = (
-            package_id if isinstance(package_id, int) and not isinstance(package_id, bool) else None
+        self.package_id: PackageId | None = (
+            PackageId(package_id) if isinstance(package_id, int) and not isinstance(package_id, bool) else None
         )
 
 

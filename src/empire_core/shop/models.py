@@ -36,7 +36,7 @@ class BuyEventPackageRequest(BaseRequest):
     A package whose price depends on your storages (``PC2``), a private offer's and a gift's purchase are refused.
 
     Client: ``C2SBuyEventPackageVO`` (split.js line 134728), sent by ``AMerchantBuyDialog.onBtnOkClick`` and
-    ``ModernPackageShopBuyElementBottomMenu.onClick`` (split.js lines 214956, 367851), resent with ``PWR`` 1 by
+    ``ModernPackageShopBuyElementBottomMenu.onOfferAccepted`` (split.js lines 214956, 367863), resent with ``PWR`` 1 by
     ``CastleResourceWaitDialogProperties`` (split.js line 183839)
     """
 

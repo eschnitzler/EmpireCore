@@ -2065,7 +2065,10 @@ _MAX_BUY_PER_CLICK = 1000
 """``PackageConst.MAX_BUY_PER_CLICK`` (ggs.dll.js line 237, written ``1e3``)."""
 
 PACKAGE_TYPE_BUNDLE = "packageBundle"
-"""``ClientConstPackages.PACKAGE_TYPE_BUNDLE``: a package that gives the rewards of the packages it names."""
+"""A package that gives the rewards of the packages it names.
+
+Client: ``ClientConstPackages.PACKAGE_TYPE_BUNDLE`` (split.js line 27633)
+"""
 
 
 class PackageDef(_Row):

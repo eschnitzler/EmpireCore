@@ -303,7 +303,7 @@ sells, from the game data and the packages the server added, in the shop's order
 ```python
 from empire_core.gamedata import Event
 
-merchant = client.events.running[Event.TRAVELING_MERCHANT_EVENT]
+merchant = client.state.get_event(Event.TRAVELING_MERCHANT_EVENT)  # None when it is not running
 for package in merchant.packages():
     print(package.package_id, package.costs, package.rewards)
 
