@@ -31,7 +31,7 @@ RAW = {(side, command) for side, command, _ in script.raw_commands()}
 
 # Commands dead in the snapshot's release that the library still uses, each with why it stays
 DEAD_BUT_USED = {
-    "drt": "DailyResetResponse; release efded7cc has the constant but no request or handler for it",
+    "drt": "DailyResetResponse; the client reads it only as a gbd section (GBDCommand.exec, parse_DRT)",
 }
 
 
@@ -87,7 +87,6 @@ class TestCommittedCoverage:
             assert _NESTED_SECTIONS[command] == tuple(entry["sections"])
 
     def test_registered_handlers_and_raw_sends_are_live(self):
-        # #311 listed these as dead; the client registers a handler for each, and sends pin as its keepalive
         handled = {"gch", "nch", "gfl", "cmt", "vpm", "core_cps", "core_spe", "core_spl", "core_tci", "core_gpi"}
         handled |= {"core_gic", "core_sic", "gpf", "lcb", "mot", "core_nfo", "tee"}
 
@@ -100,8 +99,10 @@ class TestCommittedCoverage:
     def test_the_report_is_stable(self):
         report = script.coverage_report(TABLES, script.classify(TABLES, RULES))
 
-        assert report == script.coverage_report(TABLES, script.classify(TABLES, RULES))
-        assert f"| remaining | {len(_bucket('remaining'))} |" in report
+        counts = {bucket: len(_bucket(bucket)) for bucket in script.BUCKETS}
+
+        assert sum(counts.values()) == len(COVERAGE)
+        assert all(f"| {bucket} | {count} |" in report for bucket, count in counts.items())
         assert TABLES["bundle_release"] in report
 
 

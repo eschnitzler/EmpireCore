@@ -46,8 +46,8 @@ import json
 import re
 import sys
 import urllib.request
-from collections import defaultdict
-from collections.abc import Callable, Sequence
+from collections import ChainMap, defaultdict
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -92,8 +92,10 @@ _SENT = re.compile(r"\.sendMessage\(([A-Za-z_$][\w$]*)\.(S2C_[A-Z0-9_]+)\b")
 _REFERENCE = r"(?:[\w$]+\.)*?([\w$]+)\.((?:C2S|S2C)_[A-Z0-9_]+)\b"
 # C2SJoinCastleVO.prototype.getCmdId=function(){return a.ClientConstSF.C2S_JOIN_CASTLE}
 _REQUEST_CLASS = re.compile(r"([\w$]+)\.prototype\.getCmdId=function\(\)\{return " + _REFERENCE)
-# u.BasicModel.smartfoxClient.sendMessage(s.BasicSmartfoxConstants.C2S_LOGIN,[...])
-_DIRECT_SEND = re.compile(r"\.(?:sendMessage|sendServerMessageAndWait)\(" + _REFERENCE)
+# u.BasicModel.smartfoxClient.sendMessage(s.BasicSmartfoxConstants.C2S_LOGIN,[...]), and
+# sendMessage(ExtendedAwayFromKeyboardController.SERVER_COMMAND_ID,[...]) with its own constant name
+_DIRECT_SEND = re.compile(r"\.(?:sendMessage|sendServerMessageAndWait)\((?:[\w$]+\.)*([\w$]+)\.([A-Z][A-Z0-9_]*)\b")
+_CONSTANT = re.compile(r"([A-Za-z_$][\w$]*)\.([A-Z][A-Z0-9_]*)=\"([^\"]*)\"")
 # i.set(s.ClientConstSF.S2C_PREMIUM_FLAG_INFO,new jl.GPFCommand)
 _REGISTRATION = re.compile(r"\.set\(" + _REFERENCE + r",new (?:[\w$]+\.)*([\w$]+)\)")
 _CONSTRUCTION = re.compile(r"\bnew (?:[\w$]+\.)*([\w$]+)")
@@ -181,7 +183,7 @@ def _classes(source: str) -> dict[str, _ClientClass]:
     for match in _METHOD.finditer(source):
         name, method, params = match.groups()
         classes[name].methods[method] = (params.split(",") if params else [], _block(source, match.end() - 1))
-    return classes
+    return dict(classes)
 
 
 def _payload_used(body: str, names: set[str]) -> bool:
@@ -192,7 +194,7 @@ def _payload_used(body: str, names: set[str]) -> bool:
 
 
 def _reads_payload(
-    name: str, classes: dict[str, _ClientClass], method: str = "executeCommand", start: str | None = None
+    name: str, classes: Mapping[str, _ClientClass], method: str = "executeCommand", start: str | None = None
 ) -> bool:
     """
     Whether the handler class ``name`` reads its reply's payload, following inherited and super calls.
@@ -241,12 +243,14 @@ def usage(sources: Sequence[str]) -> dict[str, dict[str, list[str]]]:
     never reads the reply's payload, and the messages ``BasicSmartfoxClient`` handles itself
     (``handleSystemMessage``, ``onExtensionResponse``). Registrations key the
     handler, not its ``cmdId`` getter: ``GPFCommand`` is registered under ``gpf`` but returns ``gdi``.
+    A handler class is read from the file that registers it, since the bundle and dll share some
+    names (``GPICommand``, ``SMSCommand``) for different classes.
     """
     values: dict[tuple[str, str], str] = {}
     by_constant: dict[str, set[str]] = defaultdict(set)
     named = [(source, _holder_names(source)) for source in sources]
     for source, holder_name in named:
-        for match in _ASSIGNMENT.finditer(source):
+        for match in _CONSTANT.finditer(source):
             var, constant, value = match.groups()
             values[(holder_name(var, match.start()), constant)] = value
             by_constant[constant].add(value)
@@ -259,14 +263,12 @@ def usage(sources: Sequence[str]) -> dict[str, dict[str, list[str]]]:
             raise ValueError(f"cannot resolve {holder}.{constant}")
         return found
 
-    classes: dict[str, _ClientClass] = {}
+    classes = [_classes(source) for source in sources]
     constructed: set[str] = set()
     requests: dict[str, set[str]] = defaultdict(set)
-    handlers: dict[str, set[str]] = defaultdict(set)
+    handlers: dict[str, set[tuple[str, int]]] = defaultdict(set)
     request_classes: list[tuple[str, str]] = []
-    for source, holder_name in named:
-        for name, found in _classes(source).items():
-            classes.setdefault(name, found)
+    for index, (source, holder_name) in enumerate(named):
         constructed.update(_CONSTRUCTION.findall(source))
         for match in _REQUEST_CLASS.finditer(source):
             name, holder, constant = match.groups()
@@ -277,20 +279,23 @@ def usage(sources: Sequence[str]) -> dict[str, dict[str, list[str]]]:
             requests[resolve(holder, constant)].add(f"{holder}.{constant} (sent)")
         for match in _REGISTRATION.finditer(source):
             holder, constant, name = match.groups()
-            handlers[resolve(holder_name(holder, match.start()), constant)].add(name)
+            handlers[resolve(holder_name(holder, match.start()), constant)].add((name, index))
         for handler in _SYSTEM_HANDLER.finditer(source):
             for case in _SYSTEM_CASE.finditer(handler.group(0)):
-                handlers[case.group(1)].add("BasicSmartfoxClient.handleSystemMessage")
+                handlers[case.group(1)].add(("BasicSmartfoxClient.handleSystemMessage", index))
         for handler in _EXTENSION_HANDLER.finditer(source):
             for case in re.finditer(rf"case {_REFERENCE}:", handler.group(0)):
                 holder, constant = case.groups()
                 command = resolve(holder_name(holder, handler.start() + case.start()), constant)
-                handlers[command].add("BasicSmartfoxClient.onExtensionResponse")
+                handlers[command].add(("BasicSmartfoxClient.onExtensionResponse", index))
     for name, sent in request_classes:
         if name in constructed:
             requests[sent].add(name)
     marked = {
-        command: {name if _reads_payload(name, classes) else f"{name} (ack)" for name in names}
+        command: {
+            name if _reads_payload(name, ChainMap(classes[index], *classes)) else f"{name} (ack)"
+            for name, index in names
+        }
         for command, names in handlers.items()
     }
     return {

@@ -54,6 +54,7 @@
     "cmt": "S2C_COMA_TEASER handler CMTCommand; needs triage",
     "lcb": "S2C_COMEBACK_POPUP handler LCBCommand; needs triage",
     "mot": "S2C_ABG_MINE_OUT_OF_TIME handler MOTCommand; needs triage",
-    "vpm": "C2S_VERIFY_PLAYER_MAIL_EVENT; needs triage"
+    "vpm": "C2S_VERIFY_PLAYER_MAIL_EVENT; needs triage",
+    "core_afk": "C2S_USER_IS_ACTIVE_EVENT, sent by the dll's ExtendedAwayFromKeyboardController, which the client never constructs; needs triage"
   }
 }

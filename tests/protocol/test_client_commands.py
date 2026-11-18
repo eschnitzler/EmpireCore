@@ -226,11 +226,15 @@ BUNDLE = (
     "i.set(s.ClientConstSF.S2C_B,new m.BCommand);"
 )
 DLL = (
-    'BasicSmartfoxConstants.C2S_X="core_x",BasicSmartfoxConstants.C2S_Y="y";'
+    'BasicSmartfoxConstants.C2S_X="core_x",BasicSmartfoxConstants.C2S_Y="y",BasicSmartfoxConstants.S2C_Z="core_z";'
     "var f=function(e){function CoreC2SXVO(){}return i.__extends(CoreC2SXVO,e),"
     "CoreC2SXVO.prototype.getCmdId=function(){return s.BasicSmartfoxConstants.C2S_X},"
     "CoreC2SXVO}(n(124).BasicCommandVO);"
     "u.BasicModel.smartfoxClient.sendMessage(s.BasicSmartfoxConstants.C2S_Y,[]);"
+    'Afk.SERVER_COMMAND_ID="core_afk";i.BasicModel.smartfoxClient.sendMessage(Afk.SERVER_COMMAND_ID,[!0]);'
+    "var p=function(e){function ACommand(){}return i.__extends(ACommand,e),"
+    "ACommand.prototype.executeCommand=function(e,t){return r.read(t),!0},ACommand}(n(124).BasicCommand);"
+    "t.set(r.BasicSmartfoxConstants.S2C_Z,new p.ACommand);"
     "BasicSmartfoxClient.prototype.handleSystemMessage=function(e){switch(n){"
     'case"apiOK":x();break;default:z()}};'
     'BasicSmartfoxClient.S2C_ROOMLIST="rlu";'
@@ -253,6 +257,7 @@ class TestUsage:
     def test_requests_are_constructed_classes_and_direct_sends(self):
         assert script.usage((BUNDLE, DLL))["requests"] == {
             "a": ["C2SAVO"],
+            "core_afk": ["Afk.SERVER_COMMAND_ID (sent)"],
             "core_x": ["CoreC2SXVO"],
             "y": ["BasicSmartfoxConstants.C2S_Y (sent)"],
         }
@@ -262,6 +267,7 @@ class TestUsage:
             "a": ["ACommand (ack)"],
             "apiOK": ["BasicSmartfoxClient.handleSystemMessage"],
             "b": ["BCommand (ack)"],
+            "core_z": ["ACommand"],
             "gpf": ["GPFCommand"],
             "rlu": ["BasicSmartfoxClient.onExtensionResponse"],
         }
