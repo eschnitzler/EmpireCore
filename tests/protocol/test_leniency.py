@@ -233,7 +233,10 @@ class TestPositionalArrayParsers:
     def test_rows_that_name_no_castle_are_left_out_quietly(self, caplog):
         # FactionCapitalMapobjectVO has no object id; a Berimond camp of 3 fields is not on the map
         payload = {
-            "C": [{"KID": 10, "AI": [{"AI": [18, 50, 60, -600, [], -1, 40, 0, 12]}]}, {"KID": 10, "AI": [{"AI": [15, 1, 2]}]}]
+            "C": [
+                {"KID": 10, "AI": [{"AI": [18, 50, 60, -600, [], -1, 40, 0, 12]}]},
+                {"KID": 10, "AI": [{"AI": [15, 1, 2]}]},
+            ]
         }
         with caplog.at_level(logging.WARNING, logger="empire_core.castle.models.castles"):
             response = GetCastlesResponse.model_validate(payload)
