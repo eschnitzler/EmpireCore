@@ -217,13 +217,13 @@ class InventoryState(StateBase):
         if read is not None:
             self._apply_decoration_storages(read.storages)
 
-    def _apply_decoration_storages(self, read: list[DecorationStorage]) -> None:
+    def _apply_decoration_storages(self, storages: list[DecorationStorage]) -> None:
         """Keep each storage sent over the one of the same id; see :class:`CarriedDecorationStorages`."""
-        if not read:
+        if not storages:
             return
-        storages = dict(self.decoration_storages)
-        storages.update((storage.storage_id, storage) for storage in read)
-        self.decoration_storages = storages
+        held = dict(self.decoration_storages)
+        held.update((storage.storage_id, storage) for storage in storages)
+        self.decoration_storages = held
         self._packet_times["sin"] = time.time()
 
     def get_construction_items(self) -> ConstructionItemInventory | None:

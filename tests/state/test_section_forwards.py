@@ -72,8 +72,10 @@ class TestCastleLists:
         assert event is not None and event.kingdom_status is None
         assert sorted(state.get_local_player().castles) == [1, 9]
 
-    def test_a_faction_join_without_events_or_castle_lists(self, state):
-        assert stamped(state, "fjf", {"FID": 1, "kpi": {"UL": []}}) == {"fjf", "kpi"}
+    @pytest.mark.parametrize("castle_lists", [{}, {"mir": None}, {"mir": 0}])
+    def test_a_faction_join_without_events_or_castle_lists(self, state, castle_lists):
+        assert stamped(state, "fjf", {"FID": 1, "kpi": {"UL": []}, **castle_lists}) == {"fjf", "kpi"}
+        assert sorted(state.get_local_player().castles) == [1]
 
 
 class TestSpyScreen:

@@ -810,8 +810,8 @@ class GameState(
 
         Client: ``BSTCommand.executeCommand`` (split.js line 644688)
         """
-        if (skipped := read_section(SkipShadyLadyTargetResponse, data, "a Shady Lady target skip")) is not None:
-            sections = ("gcu", "sei") if skipped.currency is not None else ("sei",)
+        if (skip := read_section(SkipShadyLadyTargetResponse, data, "a Shady Lady target skip")) is not None:
+            sections = ("gcu", "sei") if skip.currency is not None else ("sei",)
             self._apply_login(LoginDataResponse.carried_by(data, sections))
 
     def _stamp_sections(self, sections: AbstractSet[str], skipped: AbstractSet[str] = frozenset()) -> None:
