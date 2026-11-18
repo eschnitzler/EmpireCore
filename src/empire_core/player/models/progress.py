@@ -6,7 +6,7 @@ Commands:
 - glu: a level-up
 - gho: honor and ranking points
 - rei: research
-- boi: boosters, the premium account and production slots (bfs: the festival)
+- boi: boosters, the premium account and production slots (bfs: the festival), on request too
 - gmu: might points
 - ufa: glory points
 - ufp: gallantry points
@@ -131,6 +131,21 @@ class Festival(TimedPayload):
     def is_active(self, now: float | None = None) -> bool:
         """Whether the festival still runs."""
         return self.remaining_seconds(now) > 0
+
+
+class GetBoostersRequest(BaseRequest):
+    """
+    Request your boosters, premium account, production slots and festival.
+
+    Command: boi
+    Payload: {}
+
+    Client: ``C2SBoosterInfoVO`` (bundle line 149206), sent by ``CastlePremiumBoostData.executeUpdate`` (bundle
+    line 81493) when a booster runs out, ``CastleRecruitDialogUnits.onBoostUpdate`` (bundle line 123352) and
+    ``CastleVIPData.executeUpdate`` (bundle line 245782) when VIP time ends
+    """
+
+    command = "boi"
 
 
 class BoosterInfoResponse(TimedResponse):
@@ -764,6 +779,7 @@ __all__ = [
     "GallantryPointsResponse",
     "Festival",
     "GetAchievementsRequest",
+    "GetBoostersRequest",
     "GetTitleRanksRequest",
     "GloryPointsResponse",
     "GloryTitleResetResponse",

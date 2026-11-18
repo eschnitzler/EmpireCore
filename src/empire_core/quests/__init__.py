@@ -7,6 +7,10 @@ from empire_core.enums import PopupType, QuestConditionType
 from empire_core.utils.lazy import lazy_exports
 
 from .models import (
+    BuyCampaignQuestRequest,
+    BuyCampaignQuestResponse,
+    BuyCampaignRewardRequest,
+    BuyCampaignRewardResponse,
     CampaignQuestStatusResponse,
     DailyQuest,
     DailyQuests,
@@ -50,6 +54,10 @@ __all__ = [
     "QuestDonateResourcesRequest",
     "QuestDonateResourcesResponse",
     "QuestStarterClickRequest",
+    "BuyCampaignQuestRequest",
+    "BuyCampaignQuestResponse",
+    "BuyCampaignRewardRequest",
+    "BuyCampaignRewardResponse",
     "QuestsService",
     "CurrencyId",
     "DailyQuestId",

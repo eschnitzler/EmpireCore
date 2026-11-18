@@ -93,6 +93,17 @@ RUBY_REQUESTS = {
     "RerollTrainingProgramsRequest": "rtp, P 1 is the ruby reroll (hardRerollCosts, bundle line 85714)",
     "UnlockEventRequest": "ule, SC 1 pays the missing resource in rubies (bundle lines 37628, 67853)",
     "SelectEventDifficultyRequest": "sede, C2U 1 rents a locked difficulty for its rentC2Cost (bundle line 145390)",
+    "HireInstructorRequest": "bis, the booster's finalCostsC2 (BuyBoosterCommand.execute, bundle line 459673)",
+    "HireMarauderRequest": "bms, the booster's finalCostsC2 (BuyBoosterCommand.execute, bundle line 459673)",
+    "HireOverseerRequest": "ovs, the booster's finalCostsC2 (BuyBoosterCommand.execute, bundle line 459673)",
+    "HireCaravanOverloaderRequest": "bcs, the booster's finalCostsC2 (BuyBoosterCommand.execute, bundle line 459673)",
+    "UnlockProductionSlotRequest": "ups, getFinalCostsC2(UnitProductionConst.UNLOCK_C2) (bundle line 261012)",
+    "FinishResearchRequest": "rfi, ResearchConst.getFastCompleteCostC2 (getSkipCost, bundle line 413787)",
+    "BuyLevelRequest": "blv, buyLevelData.getLevelUpCost in C2 (ButtonBuyLevelComponent.onClickButton, 548838)",
+    "BuyPremiumFlagRequest": "gbp, PlayerConst.PREMIUM_FLAG_COST_C2 (CastleBuyPremiumFlagDialog, bundle line 396588)",
+    "BuyCampaignQuestRequest": "bcq, CastleQuestVO.buyCost, its c2Cost less reductions (bundle line 269537)",
+    "BuyCampaignRewardRequest": "bcr, TimeLimitedCampaignConst.calculateEndRewardPurchaseCost (bundle 607691)",
+    "BuyReturnSpeedBoosterRequest": "brs, returnSpeedBoosterVO.finalCostsC2 (bundle line 463040)",
 }
 
 SENT_WITHOUT_CONSENT = {
@@ -127,6 +138,7 @@ NOT_CONSENT = {
     "ruby_payment": "picks the resource an unlock pays in rubies; the rubies it costs need spend_rubies",
     "unlock_with_rubies": "picks a locked difficulty's ruby rent; the rubies it costs need spend_rubies",
     "food_boost": "the hunter's food production setting, not a purchase",
+    "booster": "picks the booster to hire; the rubies it costs need spend_rubies",
 }
 
 

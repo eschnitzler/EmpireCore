@@ -247,6 +247,8 @@ from empire_core.army.models.production import (
     SetRecruitmentModeResponse,
     SkipProductionSlotRequest,
     SkipProductionSlotResponse,
+    UnlockProductionSlotRequest,
+    UnlockProductionSlotResponse,
 )
 from empire_core.army.models.recruitment_loop import (
     CancelRecruitmentLoopResponse,
@@ -586,6 +588,8 @@ from empire_core.castle.models.landmarks import (
 )
 from empire_core.castle.models.mercenaries import MercenaryMissionsResponse, MercenaryPackageRequest
 from empire_core.castle.models.research import (
+    FinishResearchRequest,
+    FinishResearchResponse,
     ResearchInfoResponse,
     SkipResearchRequest,
     SkipResearchResponse,
@@ -982,6 +986,10 @@ from empire_core.player.models.account import (
     ActivateGlobalEffectBoostRequest,
     ActivateGlobalEffectBoostResponse,
     BoostedGlobalEffectsResponse,
+    BuyLevelRequest,
+    BuyLevelResponse,
+    BuyPremiumFlagRequest,
+    BuyPremiumFlagResponse,
     DailyResetResponse,
     FoodProductionStatus,
     PlayerGiftsResponse,
@@ -991,6 +999,19 @@ from empire_core.player.models.account import (
     VipStatusResponse,
 )
 from empire_core.player.models.aqua import CargoPointsResponse, GetCargoPointsRequest
+from empire_core.player.models.boosters import (
+    BuyReturnSpeedBoosterRequest,
+    BuyReturnSpeedBoosterResponse,
+    HireCaravanOverloaderRequest,
+    HireCaravanOverloaderResponse,
+    HireInstructorRequest,
+    HireInstructorResponse,
+    HireMarauderRequest,
+    HireMarauderResponse,
+    HireOverseerRequest,
+    HireOverseerResponse,
+    HireResponse,
+)
 from empire_core.player.models.coat_of_arms import (
     ChangeCoatOfArmsRequest,
     ChangeCoatOfArmsResponse,
@@ -1061,6 +1082,7 @@ from empire_core.player.models.progress import (
     ExperienceResponse,
     GallantryPointsResponse,
     GetAchievementsRequest,
+    GetBoostersRequest,
     GetTitleRanksRequest,
     GloryPointsResponse,
     GloryTitleResetResponse,
@@ -1114,6 +1136,10 @@ from empire_core.protocol.base import (
     parse_response,
 )
 from empire_core.quests.models import (
+    BuyCampaignQuestRequest,
+    BuyCampaignQuestResponse,
+    BuyCampaignRewardRequest,
+    BuyCampaignRewardResponse,
     CampaignQuestStatusResponse,
     DailyQuests,
     FinishQuestConditionRequest,
@@ -1206,6 +1232,10 @@ from empire_core.state.login_data import LoginDataResponse
 
 __all__ = [
     "ActivateGlobalEffectBoostRequest",
+    "BuyLevelRequest",
+    "BuyLevelResponse",
+    "BuyPremiumFlagRequest",
+    "BuyPremiumFlagResponse",
     "ActivateGlobalEffectBoostResponse",
     "UnlockSymbolRequest",
     "UnlockSymbolResponse",
@@ -1625,6 +1655,10 @@ __all__ = [
     "QuestsStartedResponse",
     "FinishQuestConditionRequest",
     "QuestStarterClickRequest",
+    "BuyCampaignQuestRequest",
+    "BuyCampaignQuestResponse",
+    "BuyCampaignRewardRequest",
+    "BuyCampaignRewardResponse",
     "QuestDonateCurrencyRequest",
     "QuestDonateCurrencyResponse",
     "QuestDonateResourcesRequest",
@@ -1695,6 +1729,18 @@ __all__ = [
     "AssignTitleRequest",
     "AssignTitleResponse",
     "BoosterInfoResponse",
+    "BuyReturnSpeedBoosterRequest",
+    "BuyReturnSpeedBoosterResponse",
+    "HireCaravanOverloaderRequest",
+    "HireCaravanOverloaderResponse",
+    "HireInstructorRequest",
+    "HireInstructorResponse",
+    "HireMarauderRequest",
+    "HireMarauderResponse",
+    "HireOverseerRequest",
+    "HireOverseerResponse",
+    "HireResponse",
+    "GetBoostersRequest",
     "GallantryPointsResponse",
     "GetAchievementsRequest",
     "GetTitleRanksRequest",
@@ -1707,6 +1753,8 @@ __all__ = [
     "SelectTitleResponse",
     "TitleInfoResponse",
     "TitleRanksResponse",
+    "FinishResearchRequest",
+    "FinishResearchResponse",
     "SkipResearchRequest",
     "SkipResearchResponse",
     "StartResearchRequest",
@@ -1893,6 +1941,8 @@ __all__ = [
     "UpdateRecruitmentLoopResponse",
     "SkipProductionSlotRequest",
     "SkipProductionSlotResponse",
+    "UnlockProductionSlotRequest",
+    "UnlockProductionSlotResponse",
     "GetCampUnitCapacityRequest",
     "GetCampUnitCapacityResponse",
     "ProduceUnitsRequest",

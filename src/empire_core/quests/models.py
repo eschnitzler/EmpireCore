@@ -1,7 +1,8 @@
 """
 Your quests as ``client.state`` keeps them: the active quests (``qli``), the quest book's main
 quests, and the daily quests (``dql``); and the requests that donate for a quest (``qdr``, ``qdc``)
-and finish a condition the client counts itself (``fcq``) or a quest starter (``qsc``).
+and finish a condition the client counts itself (``fcq``) or a quest starter (``qsc``); and the ruby
+purchases of a time-limited campaign's quest (``bcq``) and end reward (``bcr``).
 
 The state has no game data, so a quest is its id (a ``QuestId`` or ``DailyQuestId``) and the
 progress the server sent; its conditions, rewards and texts are in the items' ``quests`` and
@@ -17,7 +18,7 @@ from pydantic import ConfigDict, Field, ValidationInfo, field_validator, model_v
 
 from empire_core.enums import PopupType, QuestConditionType
 from empire_core.gamedata import Collectable, CollectableRows, CurrencyId, EnumOrInt, RewardId
-from empire_core.protocol.base import BaseRequest, BaseResponse, EmpireModel
+from empire_core.protocol.base import BaseRequest, BaseResponse, CurrencyBlock, EmpireModel
 from empire_core.protocol.js import js_int, js_loose_equals, js_truthy
 
 if TYPE_CHECKING:
@@ -547,3 +548,59 @@ class QuestStarterClickRequest(BaseRequest):
     command = "qsc"
 
     quest_id: EnumOrInt["QuestId"] = Field(validation_alias="QID", description="The quest the starter introduces")
+
+
+class BuyCampaignQuestRequest(BaseRequest):
+    """
+    Buy a time-limited campaign's quest done, with rubies.
+
+    Command: bcq
+    Payload: {"CQID": campaign_quest_id}
+
+    Client: ``C2SBuyCampaignQuestVO`` (bundle line 458364), sent by ``CastleQuestBuyRewardDialog.onClick``
+    (bundle line 270612) with the quest's ``campaignQuestID``
+    """
+
+    command = "bcq"
+
+    campaign_quest_id: int = Field(validation_alias="CQID", description="The quest's place in the campaign")
+
+
+class BuyCampaignQuestResponse(BaseResponse):
+    """
+    The acknowledgement of a ``bcq``; it carries nothing.
+
+    Command: bcq
+
+    Client: ``BCQCommand.exec`` (bundle line 640412)
+    """
+
+    command = "bcq"
+
+
+class BuyCampaignRewardRequest(BaseRequest):
+    """
+    Buy a time-limited campaign's end reward, with rubies.
+
+    Command: bcr
+    Payload: {}
+
+    Client: ``C2SBuyCampaignRewardVO`` (bundle line 458390), sent by ``CastleQuestBuyRewardDialog.onClick``
+    (bundle line 270612) when it shows no quest
+    """
+
+    command = "bcr"
+
+
+class BuyCampaignRewardResponse(BaseResponse):
+    """
+    Your coins and rubies after buying a campaign's end reward.
+
+    Command: bcr
+
+    Client: ``BCRCommand.exec`` (bundle line 640456) hands ``gcu`` to ``parseGCU``
+    """
+
+    command = "bcr"
+
+    currencies: CurrencyBlock = Field(validation_alias="gcu", default=None, description="Coins and rubies after")

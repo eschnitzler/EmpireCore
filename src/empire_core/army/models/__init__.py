@@ -18,6 +18,7 @@ from .hospital import (
     WoundedUnits,
 )
 from .production import (
+    UNLOCK_SLOT_RUBIES,
     AddedUnit,
     CancelProductionRequest,
     CancelProductionResponse,
@@ -37,6 +38,8 @@ from .production import (
     SetRecruitmentModeResponse,
     SkipProductionSlotRequest,
     SkipProductionSlotResponse,
+    UnlockProductionSlotRequest,
+    UnlockProductionSlotResponse,
 )
 from .recruitment_loop import (
     CancelRecruitmentLoopResponse,
@@ -128,6 +131,9 @@ __all__ = [
     "UpdateRecruitmentLoopResponse",
     "SkipProductionSlotRequest",
     "SkipProductionSlotResponse",
+    "UnlockProductionSlotRequest",
+    "UnlockProductionSlotResponse",
+    "UNLOCK_SLOT_RUBIES",
     "GetCampUnitCapacityRequest",
     "GetCampUnitCapacityResponse",
 ]
