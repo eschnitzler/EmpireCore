@@ -80,7 +80,7 @@ class TestCastleResources:
         assert stock(state)[:3] == (0, 0, 0)
         assert state.get_castle_last_updated(1) is None
 
-    def test_a_refused_crm_still_reaches_the_movement_handler(self, state):
+    def test_a_refused_crm_is_stamped_but_not_applied(self, state):
         login(state)
         state.update_from_packet("crm", {}, error_code=21)
         assert state.get_last_packet_time("crm") is not None
