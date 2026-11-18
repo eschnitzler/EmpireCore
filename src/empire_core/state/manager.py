@@ -74,7 +74,7 @@ _PLAYER_SECTIONS = frozenset({"gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "
 
 # Pushes whose payload is the body of the gbd section of the same name, applied only on success:
 # GPICommand, GXPCommand, GCUCommand, GALCommand, GCLCommand, GHOCommand, UAPCommand, GPCCommand, GMSCommand
-# (split.js lines 652152, 652270, 651580, 651059, 651531, 651753, 652788, 628980, 619878); VIPCommand below
+# (split.js lines 652152, 652270, 651581, 651059, 651531, 651753, 652788, 628980, 619878); VIPCommand below
 _SECTION_PUSHES = frozenset({"gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap", "gpc", "gms"})
 
 # Replies and pushes whose payload is the body of a gbd section, applied only on success:
