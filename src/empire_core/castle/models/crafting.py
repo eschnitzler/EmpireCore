@@ -276,6 +276,34 @@ class GetCraftingInfoRequest(BaseRequest):
     command = "crin"
 
 
+class CraftingQueues(BasePayload):
+    """
+    Every castle's crafting queues, listed by area: a ``crin`` that has ``CAI``, or a join's ``crai``.
+
+    Payload: {"CAI": [{"CE": [...], "CBI": [queue, ...]}, ...]}, ``CAI`` an area or a list of areas
+
+    The ``CE`` crafting effects are not read.
+
+    Client: ``CastleCraftingData.parseAllQueueData`` and ``parseAreaQueueData`` (split.js lines 574193, 574205)
+    """
+
+    queues: tuple[CraftingQueue, ...] = Field(default=(), description="The queues sent")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _areas(cls, value: Any) -> Any:
+        if not isinstance(value, dict) or "queues" in value:
+            return value
+        areas = value.get("CAI")
+        rows = [
+            row
+            for area in (areas if isinstance(areas, list) else [areas])
+            if js_truthy(area) and isinstance(area, dict)
+            for row in area.get("CBI") or []
+        ]
+        return {"queues": rows}
+
+
 class CraftingInfoResponse(BaseResponse):
     """
     Crafting queues: every castle's, or one building's.
@@ -283,11 +311,8 @@ class CraftingInfoResponse(BaseResponse):
     Command: crin
     Payload: {"CAI": [{"CE": [...], "CBI": [queue, ...]}, ...]}, or one queue
 
-    The ``CE`` crafting effects are not read.
-
-    Client: ``CRINCommand.executeCommand`` (bundle line 123443) reads ``CAI``, an area or a list of areas,
-    with ``CastleCraftingData.parseAllQueueData`` and ``parseAreaQueueData`` (bundle lines 111397-111404),
-    else the payload as one queue
+    Client: ``CRINCommand.executeCommand`` (split.js line 630082) reads a truthy ``CAI`` as
+    :class:`CraftingQueues`, else the payload as one queue
     """
 
     command = "crin"
@@ -299,16 +324,9 @@ class CraftingInfoResponse(BaseResponse):
     def _queues(cls, value: Any) -> Any:
         if not isinstance(value, dict) or "queues" in value:
             return value
-        areas = value.get("CAI")
-        if not js_truthy(areas):
+        if not js_truthy(value.get("CAI")):
             return {"queues": [value]}
-        rows = [
-            row
-            for area in (areas if isinstance(areas, list) else [areas])
-            if js_truthy(area) and isinstance(area, dict)
-            for row in area.get("CBI") or []
-        ]
-        return {"queues": rows}
+        return {"queues": CraftingQueues.model_validate(value).queues}
 
 
 class _CraftingQueueReply(CraftingQueue, BaseResponse):
@@ -609,6 +627,7 @@ __all__ = [
     "CraftConstructionItemRequest",
     "CraftConstructionItemResponse",
     "CraftingInfoResponse",
+    "CraftingQueues",
     "CraftingQueue",
     "CraftingSlot",
     "GetConstructionCraftingRequest",

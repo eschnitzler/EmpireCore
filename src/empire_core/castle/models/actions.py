@@ -13,22 +13,29 @@ Commands:
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
-from pydantic import Field, field_serializer, field_validator
+from pydantic import Field, field_serializer, field_validator, model_validator
 
 from empire_core.enums import Kingdom, MapItemType
-from empire_core.protocol.base import BaseRequest, BaseResponse, enum_or_none
-from empire_core.protocol.js import js_int, js_same_number, row_is_at
+from empire_core.map.models.areas import MapObject
+from empire_core.protocol.base import BaseRequest, BaseResponse, enum_or_none, read_or_none
+from empire_core.protocol.js import js_int, js_same_number, js_truthy, row_is_at
 from empire_core.protocol.text import encode_json_text
 
 from .brewery import BreweryProductionResponse
+from .castles import PlayerCastle
 from .collect import MineStatusList, ResourceCartInfo
+from .crafting import CraftingQueues
 from .details import CastleProductionArea
+from .hunter import HunterInfo
 from .objects import CastleBuildings, block_or_none
 from .resources import CastleResources
 from .storage import DecorationStorages
 from .updates import AreaBooster, SlumLevel
+
+logger = logging.getLogger(__name__)
 
 # =============================================================================
 # JCA - Jump to Castle / Select Castle
@@ -128,18 +135,24 @@ class SelectCastleResponse(BaseResponse):
 
     Command: jaa, the answer to both ``jca`` and a ``jaa`` by position; the
     client reads both with the same code.
-    Payload: {"KID": kingdom_id, "T": area_type, "gca": {...}, "grc": {...}, "gpa": {...}, ...}
+    Payload: {"KID": kingdom, "T": area_type, "gca": {...}, "grc": {...}, "gpa": {...}, ...}
 
     A block that cannot be read is None, so it does not cost the rest. The
-    other blocks (``spl0`` to ``spl3``, ``gui``, ``uap``, ``hin``, ``crai``) are kept as sent.
+    other blocks (``spl0`` to ``spl3``, ``gui``, ``uap``) are kept as sent.
 
-    Client: ``JAACommand.executeCommand`` (bundle line 130190),
-    ``AreaDataUpdater.parseJAA`` (bundle line 131496)
+    Client: ``JAACommand.executeCommand`` (split.js line 654202),
+    ``AreaFactory.parseAreaInfo`` (split.js line 654365), which reads the ``gca`` block's ``A`` as a
+    world map row and a truthy ``O`` as its owner, ``AreaDataUpdater.parseJAA`` (split.js line 658985),
+    ``CastleCraftingData.parseAllQueueData`` (split.js line 574193) for a truthy ``crai``
     """
 
     command = "jaa"
 
-    kingdom_id: int = Field(validation_alias="KID", default=0, description="The joined area's kingdom")
+    kingdom: Kingdom | None = Field(
+        validation_alias="KID",
+        default=Kingdom.GREEN,
+        description="The joined area's kingdom; None for one Kingdom lacks",
+    )
     area_type: MapItemType | None = Field(
         validation_alias="T",
         default=None,
@@ -188,6 +201,43 @@ class SelectCastleResponse(BaseResponse):
     storages: DecorationStorages = Field(
         validation_alias="sin", default_factory=list, description="The decoration storages the reply names"
     )
+    crafting_queues: CraftingQueues | None = Field(
+        validation_alias="crai",
+        default=None,
+        description="Every castle's crafting queues; None when the reply has no crafting areas",
+    )
+    hunter: HunterInfo | None = Field(
+        validation_alias="hin", default=None, description="The hunter's values; None when the reply has none"
+    )
+    area: PlayerCastle | None = Field(
+        default=None,
+        description="The joined area's map row, the gca block's A; None when the reply has none or it cannot be read",
+    )
+    owner: MapObject | None = Field(
+        default=None,
+        description=(
+            "The joined area's owner, the gca block's O, without an id when it cannot be read; "
+            "None when the reply has none"
+        ),
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _area_info(cls, data: Any) -> Any:
+        if not isinstance(data, dict) or not isinstance(info := data.get("gca"), dict):
+            return data
+        values = dict(data)
+        if (row := info.get("A")) is not None and "area" not in data:
+            kingdom = enum_or_none(Kingdom, js_int(data.get("KID")))
+            try:
+                values["area"] = PlayerCastle.from_list(row, Kingdom.GREEN if kingdom is None else kingdom)
+            except (ValueError, TypeError) as error:
+                logger.warning("Could not read the joined area map row: %s", error)
+        if js_truthy(owner := info.get("O")) and "owner" not in data:
+            values["owner"] = (
+                read_or_none(MapObject.model_validate, owner, warn=logger, what="a joined area's owner") or MapObject()
+            )
+        return values
 
     @field_validator("area_type", mode="before")
     @classmethod
@@ -196,7 +246,10 @@ class SelectCastleResponse(BaseResponse):
             return enum_or_none(MapItemType, value)
         return None
 
-    _kingdom = field_validator("kingdom_id", mode="before")(js_int)
+    @field_validator("kingdom", mode="before")
+    @classmethod
+    def _kingdom(cls, value: Any) -> Kingdom | None:
+        return value if isinstance(value, Kingdom) else enum_or_none(Kingdom, js_int(value))
 
     @field_validator("buildings", mode="before")
     @classmethod
@@ -236,8 +289,20 @@ class SelectCastleResponse(BaseResponse):
     @field_validator("brewery", mode="before")
     @classmethod
     def _brewery(cls, value: Any) -> BreweryProductionResponse | None:
-        # JAACommand (bundle line 130249) parses the first entry
+        # JAACommand (split.js line 654261) parses the first entry
         return block_or_none(BreweryProductionResponse, value[0]) if isinstance(value, list) and value else None
+
+    @field_validator("crafting_queues", mode="before")
+    @classmethod
+    def _crafting_queues(cls, value: Any) -> CraftingQueues | None:
+        if isinstance(value, dict) and not js_truthy(value.get("CAI")):
+            return None
+        return block_or_none(CraftingQueues, value)
+
+    @field_validator("hunter", mode="before")
+    @classmethod
+    def _hunter(cls, value: Any) -> HunterInfo | None:
+        return block_or_none(HunterInfo, value)
 
 
 # =============================================================================

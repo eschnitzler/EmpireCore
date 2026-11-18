@@ -155,6 +155,36 @@ class TestCastleDetails:
         state.update_from_packet("dcl", {"C": [{"KID": 0, "AI": [{**self.ENTRY, "AC": "junk"}]}]})
         assert castle.resources.wood == 7000 and castle.market_carriages == 5
 
+    def test_the_login_data_brings_the_details(self, state):
+        # GBDCommand.exec hands n.dcl to CastleUserCastleListDetailed.parseData
+        section = {"C": [{"KID": 0, "AI": [self.ENTRY]}]}
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")]), "dcl": section})
+
+        castle = state.get_castles()[0]
+        assert castle.resources.wood == 7000 and castle.market_carriages == 5
+        assert state.get_castle_last_updated(1) is not None
+
+    @pytest.mark.parametrize("section", [[{"KID": 0}], "details", 7])
+    def test_login_details_that_are_no_object_cost_only_themselves(self, state, section, caplog):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")]), "dcl": section})
+
+        assert [castle.id for castle in state.get_castles()] == [1]
+        assert state.get_castles()[0].details is None
+        assert "castle_details" in caplog.text
+        assert state.get_last_packet_time("dcl") is None
+
+    def test_an_entry_listed_under_another_kingdom_is_not_applied(self, state):
+        # getVObyCastleID looks a castle up by its id within its kingdom
+        castle = self._castle(state, self.ENTRY)
+        state.update_from_packet("dcl", {"C": [{"KID": 2, "AI": [{**self.ENTRY, "W": 1}]}]})
+        assert castle.resources.wood == 7000
+
+    @pytest.mark.parametrize("reply", [[], "junk", {"C": "junk"}, {"C": [None, {"KID": 0, "AI": None}]}])
+    def test_an_unreadable_reply_leaves_the_details(self, state, reply):
+        castle = self._castle(state, self.ENTRY)
+        state.update_from_packet("dcl", reply)
+        assert castle.resources.wood == 7000
+
 
 class TestCastleStaleDrop:
     def test_lost_castle_is_dropped(self, state):

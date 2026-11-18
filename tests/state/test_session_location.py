@@ -67,6 +67,37 @@ def test_explicit_owner_overrides_row(state):
     assert state.is_in_spectated_castle()
 
 
+@pytest.mark.parametrize("owner", [None, 0, ""])
+def test_a_falsy_owner_block_leaves_the_row_owner(state, owner):
+    # AreaFactory.parseAreaInfo parses t.O only when it is truthy
+    login(state, 1001)
+    data = joined()
+    data["gca"]["O"] = owner
+    state.update_from_packet("jaa", data)
+    assert state.is_in_own_castle()
+
+
+def test_an_owner_block_without_an_id_claims_no_owner(state, caplog):
+    # A JS {} is truthy, so parseOwnerInfo reads it in place of the row's owner
+    login(state, 1001)
+    data = joined()
+    data["gca"]["O"] = {}
+    state.update_from_packet("jaa", data)
+    assert not state.is_in_own_castle()
+    assert state.get_joined_area().castle_id == 42
+    assert "owner id" in caplog.text
+
+
+def test_an_unreadable_map_row_keeps_the_rest_of_the_join(state, caplog):
+    login(state, 1001)
+    data = joined()
+    data["gca"]["A"] = "row"
+    state.update_from_packet("jaa", data)
+    area = state.get_joined_area()
+    assert area is not None and area.castle_id is None and area.owner_id == 1001
+    assert "map row" in caplog.text
+
+
 def test_unreadable_owner_does_not_claim_ownership(state, caplog):
     login(state, 1001)
     data = joined()

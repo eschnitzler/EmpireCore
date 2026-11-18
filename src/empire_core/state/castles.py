@@ -4,12 +4,15 @@ laboratories and villages (gkl, gml, gll, kgv) with the landmark resets (mre, lr
 
 import logging
 import time
-from typing import TYPE_CHECKING, Any
-
-from pydantic import ValidationError
+from typing import Any
 
 from empire_core.castle.models.castles import GetCastlesResponse
-from empire_core.castle.models.details import DetailedCastleInfo, ResourceProduction, SafeAmount, StorageCapacity
+from empire_core.castle.models.details import (
+    GetDetailedCastleResponse,
+    ResourceProduction,
+    SafeAmount,
+    StorageCapacity,
+)
 from empire_core.castle.models.gates import OpenGateResponse
 from empire_core.castle.models.landmarks import (
     LaboratoryListResponse,
@@ -19,18 +22,13 @@ from empire_core.castle.models.landmarks import (
     RoyalTowerListResponse,
 )
 from empire_core.castle.models.permanent import PermanentCastle, PermanentCastleDataResponse
-from empire_core.castle.models.resources import CastleResources
 from empire_core.castle.models.updates import NewDay, UnitsReceived
 from empire_core.castle.models.villages import VillageListResponse
 from empire_core.enums import Kingdom, Weekday
 from empire_core.protocol.base import enum_or_none, read_or_none
-from empire_core.protocol.js import js_truthy
-from empire_core.state.base import StateBase
+from empire_core.state.base import StateBase, read_section
 from empire_core.state.login_data import LoginDataResponse
 from empire_core.state.models import Castle, Resources
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 
@@ -155,59 +153,49 @@ class CastleState(StateBase):
         player.castles = dict(owned)
         logger.debug(f"Parsed {len(owned)} castles")
 
-    def _handle_dcl(self, data: dict[str, Any]) -> None:
-        """Handle 'Detailed Castle List' response.
+    def _handle_dcl(self, data: Any) -> None:
+        """Apply a ``dcl`` reply: the details of every castle it lists.
 
-        Each entry is parsed with the protocol model, then the castle's
-        resources, units and details are replaced whole: get_castles() hands
-        out live Castle objects, so editing them in place would let readers see
-        a half-updated castle.
-
-        Client: ``DetailedCastleVO.parseData``.
+        Client: ``DCLCommand.executeCommand`` (split.js line 650927)
         """
-        for k_data in data.get("C", []):
-            if not isinstance(k_data, dict):
-                continue
-            kid = enum_or_none(Kingdom, k_data.get("KID", 0))
-            if kid is None:
-                continue
-            for castle_data in k_data.get("AI", []):
-                if not isinstance(castle_data, dict):
-                    continue
-                aid = castle_data.get("AID")
-                castle = self.castles.get(aid) if isinstance(aid, int) else None
-                if castle is None or castle.kingdom_id != kid:
-                    continue
-                try:
-                    info = DetailedCastleInfo.model_validate({**castle_data, "KID": kid})
-                except ValidationError as e:
-                    # One malformed castle entry must not abort the rest
-                    logger.debug(f"Skipping malformed dcl entry for castle {aid}: {e}")
-                    continue
+        if (details := read_section(GetDetailedCastleResponse, data, "a dcl reply")) is not None:
+            self._apply_castle_details(details)
 
-                area = info.production_area
-                castle.resources = Resources(
-                    wood=info.wood,
-                    stone=info.stone,
-                    food=info.food,
-                    coal=info.coal,
-                    oil=info.oil,
-                    glass=info.glass,
-                    iron=info.iron,
-                    aquamarine=info.aquamarine,
-                    honey=info.honey,
-                    mead=info.mead,
-                    beef=info.beef,
-                    capacity=area.storage_capacity if area else StorageCapacity(),
-                    production=area.production if area else ResourceProduction(),
-                    safe=area.safe_amount if area else SafeAmount(),
-                )
-                if info.units:
-                    castle.units = info.units
-                castle.details = info
-                self._castle_details_at[castle.id] = time.time()
+    def _apply_castle_details(self, details: GetDetailedCastleResponse) -> None:
+        """Replace each listed castle's resources, units and details whole.
 
-    def _parse_castle_resources(self, data: dict[str, Any]) -> bool:
+        get_castles() hands out live Castle objects, so editing them in place would let readers see a
+        half-updated castle. Only a castle in the castle list, in the kingdom it is listed under, is updated.
+
+        Client: ``CastleUserCastleListDetailed.parseData`` (split.js line 700798)
+        """
+        for info in details.castles:
+            castle = self.castles.get(info.castle_id)
+            if castle is None or castle.kingdom_id != enum_or_none(Kingdom, info.kingdom_id):
+                continue
+            area = info.production_area
+            castle.resources = Resources(
+                wood=info.wood,
+                stone=info.stone,
+                food=info.food,
+                coal=info.coal,
+                oil=info.oil,
+                glass=info.glass,
+                iron=info.iron,
+                aquamarine=info.aquamarine,
+                honey=info.honey,
+                mead=info.mead,
+                beef=info.beef,
+                capacity=area.storage_capacity if area else StorageCapacity(),
+                production=area.production if area else ResourceProduction(),
+                safe=area.safe_amount if area else SafeAmount(),
+            )
+            if info.units:
+                castle.units = info.units
+            castle.details = info
+            self._castle_details_at[castle.id] = time.time()
+
+    def _parse_castle_resources(self, login: LoginDataResponse) -> bool:
         """Apply a ``grc`` block to its castle's stock; whether it was applied.
 
         Every resource is set, one the block leaves out to 0; capacity, production and the
@@ -215,16 +203,13 @@ class CastleState(StateBase):
         read from a ``dcl`` is updated; its details time (:meth:`get_castle_last_updated`) is not
         stamped, as the units are not refreshed, and ``get_last_packet_time("grc")`` dates the block.
 
-        Client: ``AreaDataUpdater.parseGRC`` (bundle lines 131501-131504) hands every block to
-        ``CastleUserCastleListDetailed.updateDetailVO`` (bundle line 140937), which finds the castle by
+        Client: ``AreaDataUpdater.parseGRC`` (split.js line 659020) hands every truthy block to
+        ``CastleUserCastleListDetailed.updateDetailVO`` (split.js line 700866), which finds the castle by
         ``AID`` and ``KID`` among those with details and sets each of ``GROUP_LIST_RESOURCES`` to the
         block's amount or 0. Only the joined area's own storage also checks ``AID`` against the joined
-        area (bundle line 131382); the library keeps no storage of its own for the joined area.
+        area; the library keeps no storage of its own for the joined area.
         """
-        grc = data.get("grc")
-        if not (js_truthy(grc) and isinstance(grc, dict)):
-            return False
-        block = read_or_none(CastleResources.model_validate, grc, warn=logger, what="castle resources")
+        block = login.castle_resources
         if block is None:
             return False
         kingdom = enum_or_none(Kingdom, block.kingdom_id)

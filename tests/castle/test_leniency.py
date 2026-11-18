@@ -48,7 +48,10 @@ class TestProductionAreaLeniency:
 
 class TestJoinLeniency:
     def test_a_bad_kingdom_reads_as_0(self):
-        assert SelectCastleResponse.model_validate({"KID": "x"}).kingdom_id == 0
+        assert SelectCastleResponse.model_validate({"KID": "x"}).kingdom is Kingdom.GREEN
+
+    def test_a_kingdom_the_enum_lacks_is_none(self):
+        assert SelectCastleResponse.model_validate({"KID": 99}).kingdom is None
 
     def test_a_gpa_with_nulls_still_joins(self):
         joined = SelectCastleResponse.model_validate({"KID": 1, "gpa": {"DFC": None, "MP": "", "RS1": None}})
@@ -58,7 +61,7 @@ class TestJoinLeniency:
         joined = SelectCastleResponse.model_validate(
             {"KID": 1, "gca": {"scl": {"OIDL": "x"}, "CI": None}, "grc": {"AID": [1, 2]}, "gpa": 5}
         )
-        assert joined.kingdom_id == 1
+        assert joined.kingdom is Kingdom.SANDS
         assert joined.production_area is None
 
     def test_join_still_answers_with_a_broken_block(self):

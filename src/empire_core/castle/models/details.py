@@ -386,13 +386,16 @@ class GetDetailedCastleResponse(BaseResponse):
     Command: dcl
     Payload: {"PID": player_id, "C": [{"KID": kingdom, "AI": [{"AID": castle_id, "W": .., "AC": [..], "gpa": {..}}]}]}
 
-    Client: ``DCLCommand.executeCommand`` (bundle line 129299)
+    Client: ``DCLCommand.executeCommand`` (split.js line 650927), ``CastleUserCastleListDetailed.parseData``
+    (split.js line 700798), which reads each ``C`` entry's ``AI`` under its ``KID``; it does not read ``PID``
     """
 
     command = "dcl"
 
-    player_id: int = Field(validation_alias="PID", default=0)
-    castles: list[DetailedCastleInfo] = Field(default_factory=list)
+    player_id: int = Field(validation_alias="PID", default=0, description="The player the details are for")
+    castles: list[DetailedCastleInfo] = Field(
+        default_factory=list, description="Every listed castle's details, each with the kingdom it is listed under"
+    )
 
     @model_validator(mode="before")
     @classmethod

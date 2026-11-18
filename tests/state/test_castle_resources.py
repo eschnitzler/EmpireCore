@@ -48,6 +48,14 @@ class TestCastleResources:
         assert state.get_castle_last_updated(1) == 0.0
         assert state.get_last_packet_time("grc") is not None
 
+    @pytest.mark.parametrize("block", [[1, 2], "stock", {"AID": {}, "KID": 0}])
+    def test_an_unreadable_block_is_not_applied_or_stamped(self, state, block):
+        login(state)
+        state.update_from_packet("res", {"rei": {"ARID": 1, "ARRT": 60, "BR": []}, "grc": block})
+
+        assert stock(state)[:3] == (100, 200, 300)
+        assert state.get_last_packet_time("grc") is None
+
     def test_the_plain_reply_is_stamped(self, state):
         login(state)
         state.update_from_packet("grc", GRC)
