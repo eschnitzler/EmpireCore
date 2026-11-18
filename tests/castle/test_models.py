@@ -10,7 +10,7 @@ from empire_core.castle.models.actions import (
 )
 from empire_core.castle.models.castles import GetCastlesRequest, GetCastlesResponse, PlayerCastle
 from empire_core.castle.models.details import CastleProductionArea, DetailedCastleInfo, GetDetailedCastleResponse
-from empire_core.castle.models.updates import ObjectUpdated
+from empire_core.castle.models.updates import BuildingChanged
 from empire_core.enums import Kingdom, MapItemType
 from empire_core.protocol.models import parse_response
 from tests.model_helpers import gdi_location_row
@@ -358,7 +358,7 @@ class TestProductionArea:
 class TestObjectUpdated:
     def test_reads_the_object_slots_and_discount(self):
         # AreaDataUpdater.parseEGO: updateObjectInfo(O), parseSCL(scl), parseGAB(gab)
-        update = ObjectUpdated.model_validate(
+        update = BuildingChanged.model_validate(
             {"O": [101, 5, 3, 4, 0], "scl": {"OIDL": [5], "SSC": 1}, "gab": {"B": 10}}
         )
 
@@ -367,6 +367,6 @@ class TestObjectUpdated:
         assert update.area_booster is not None and update.area_booster.builder_discount == 10
 
     def test_a_payload_without_them_reads_none(self):
-        update = ObjectUpdated.model_validate({"skl": {}, "scl": "bad", "gab": None})
+        update = BuildingChanged.model_validate({"skl": {}, "scl": "bad", "gab": None})
 
         assert (update.building, update.construction_list, update.area_booster) == (None, None, None)

@@ -482,7 +482,6 @@ from empire_core.castle.models import (
     MoveToDistrictResponse,
     NameCastleInvitationResponse,
     NewDay,
-    ObjectUpdated,
     PermanentCastle,
     PermanentCastleDataResponse,
     PlacedConstructionItem,
@@ -1575,7 +1574,6 @@ __all__ = [
     "SlumLevel",
     "UnitsReceived",
     "JoinedAreaMoved",
-    "ObjectUpdated",
     "NewDay",
     # Base
     "GGECommand",

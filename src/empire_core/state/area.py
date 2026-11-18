@@ -199,6 +199,7 @@ class AreaState(StateBase):
         self._placed_construction_item_sequence = self._packet_sequence
         self.placed_construction_items = None
         self.construction_list = None
+        self.buildings = None
 
     def _handle_csl(self, data: Any) -> None:
         """Apply a ``csl`` push to the joined area: its slum level.
@@ -218,7 +219,16 @@ class AreaState(StateBase):
         if isinstance(data, dict) and self.joined_area is not None:
             booster = read_or_none(AreaBooster.model_validate, data, warn=logger, what="a gab push")
             if booster is not None:
-                self.joined_area = self.joined_area.model_copy(update={"builder_discount": booster.builder_discount})
+                self._apply_area_booster(booster)
+
+    def _apply_area_booster(self, booster: AreaBooster) -> None:
+        """Set the joined area's builder discount, from a ``gab`` push or the ``gab`` an ``ego`` carries.
+
+        Client: ``AreaDataCommonInfo.parseGAB`` (split.js line 656983)
+        """
+        if self.joined_area is not None:
+            self.joined_area = self.joined_area.model_copy(update={"builder_discount": booster.builder_discount})
+            self._packet_times["gab"] = time.time()
 
     def _handle_ghw(self, data: Any) -> None:
         """Apply a ``ghw`` push: the joined area's new position.
