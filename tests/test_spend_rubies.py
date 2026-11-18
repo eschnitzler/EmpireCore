@@ -97,6 +97,7 @@ RUBY_REQUESTS = {
     "HireMarauderRequest": "bms, the booster's finalCostsC2 (BuyBoosterCommand.execute, bundle line 459673)",
     "HireOverseerRequest": "ovs, the booster's finalCostsC2 (BuyBoosterCommand.execute, bundle line 459673)",
     "HireCaravanOverloaderRequest": "bcs, the booster's finalCostsC2 (BuyBoosterCommand.execute, bundle line 459673)",
+    "UnlockProductionSlotRequest": "ups, getFinalCostsC2(UnitProductionConst.UNLOCK_C2) (bundle line 261012)",
     "BuyReturnSpeedBoosterRequest": "brs, returnSpeedBoosterVO.finalCostsC2 (bundle line 463040)",
 }
 

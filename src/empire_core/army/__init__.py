@@ -7,6 +7,7 @@ from empire_core.utils.lazy import lazy_exports
 
 from .models import (
     BUY_UNIT_PACKAGE_SK,
+    UNLOCK_SLOT_RUBIES,
     AddedUnit,
     AttackWave,
     CancelHealRequest,
@@ -62,6 +63,8 @@ from .models import (
     TakeSoldiersRequest,
     TakeSoldiersResponse,
     UnitInventory,
+    UnlockProductionSlotRequest,
+    UnlockProductionSlotResponse,
     UpdateRecruitmentLoopRequest,
     UpdateRecruitmentLoopResponse,
     WaveFlank,
@@ -132,6 +135,9 @@ __all__ = [
     "UpdateRecruitmentLoopResponse",
     "SkipProductionSlotRequest",
     "SkipProductionSlotResponse",
+    "UnlockProductionSlotRequest",
+    "UnlockProductionSlotResponse",
+    "UNLOCK_SLOT_RUBIES",
     "GetCampUnitCapacityRequest",
     "GetCampUnitCapacityResponse",
     "ProductionListId",

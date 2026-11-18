@@ -247,6 +247,8 @@ from empire_core.army.models.production import (
     SetRecruitmentModeResponse,
     SkipProductionSlotRequest,
     SkipProductionSlotResponse,
+    UnlockProductionSlotRequest,
+    UnlockProductionSlotResponse,
 )
 from empire_core.army.models.recruitment_loop import (
     CancelRecruitmentLoopResponse,
@@ -1919,6 +1921,8 @@ __all__ = [
     "UpdateRecruitmentLoopResponse",
     "SkipProductionSlotRequest",
     "SkipProductionSlotResponse",
+    "UnlockProductionSlotRequest",
+    "UnlockProductionSlotResponse",
     "GetCampUnitCapacityRequest",
     "GetCampUnitCapacityResponse",
     "ProduceUnitsRequest",

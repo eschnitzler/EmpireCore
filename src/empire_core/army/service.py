@@ -37,6 +37,8 @@ from empire_core.army.models.production import (
     SetRecruitmentModeRequest,
     SkipProductionSlotRequest,
     SkipProductionSlotResponse,
+    UnlockProductionSlotRequest,
+    UnlockProductionSlotResponse,
 )
 from empire_core.army.models.recruitment_loop import (
     DuplicateRecruitmentInfoRequest,
@@ -394,6 +396,32 @@ class ArmyService(BaseService):
         return self.request(
             request, SkipProductionSlotResponse, timeout=timeout, spend_rubies=spend_rubies
         ).production_list
+
+    def unlock_production_slot(
+        self, list_id: ProductionListId, *, spend_rubies: bool = False, timeout: float = 5.0
+    ) -> UnlockProductionSlotResponse:
+        """
+        Unlock another production slot of a list, for rubies; see "Spending rubies" in the guides.
+
+        Args:
+            list_id: The list to unlock a slot of
+            spend_rubies: Allow the rubies it costs, ``UNLOCK_SLOT_RUBIES`` before discounts; without it
+                nothing is sent
+            timeout: Timeout in seconds
+
+        Returns:
+            The joined castle's list and your coins and rubies after; the slots reach ``client.player.boosts``
+
+        Raises:
+            ValueError: ``spend_rubies`` is False
+            CommandError: The server refused
+
+        Client: ``UnitBuildListComponent.buySlot`` (bundle line 261026) after the price dialog with
+        ``getFinalCostsC2(UnitProductionConst.UNLOCK_C2)``; ``UPSCommand.executeCommand`` (bundle line 637946)
+        """
+        self._require_spend_rubies(spend_rubies, "unlocking a production slot costs rubies")
+        request = UnlockProductionSlotRequest(list_id=list_id)
+        return self.request(request, UnlockProductionSlotResponse, timeout=timeout, spend_rubies=spend_rubies)
 
     def move_production_slot(
         self,
