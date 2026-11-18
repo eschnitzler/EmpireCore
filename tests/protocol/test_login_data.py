@@ -38,11 +38,37 @@ class TestLoginData:
 
     @pytest.mark.parametrize("value", [5, "x", [1], [[1]], True, -1.5, {"bogus": [1]}, {"A": 5}])
     def test_no_section_value_fails_the_whole_login(self, value):
-        sections = {field.validation_alias for field in LoginDataResponse.model_fields.values()} - {None, "E"}
+        sections = {
+            field.validation_alias
+            for field in LoginDataResponse.model_fields.values()
+            if isinstance(field.validation_alias, str)
+        } - {"E"}
 
         login = LoginDataResponse.model_validate(dict.fromkeys(sections, value))
 
         assert login.sent_sections == sections
+
+    def test_a_falsy_gatp_is_a_training_that_runs_nothing(self):
+        # parse_GATP drops the running program before it looks at the block
+        login = LoginDataResponse.model_validate({"gatp": None})
+        assert login.officer_training is not None and not login.officer_training.is_set
+        assert login.sent_sections == {"gatp"}
+
+    def test_the_blocks_the_client_reads_by_a_key_need_it_truthy(self):
+        login = LoginDataResponse.model_validate({"bie": {"GE": 0}, "pgl": {"G": None, "RA": 2}, "mcd": {"MTC": ""}})
+        assert (login.boosted_global_effects, login.gifts, login.messages_sent_today) == (None, None, None)
+        assert login.sent_sections == {"bie", "pgl", "mcd"}
+
+    def test_a_falsy_mcd_gives_way_to_the_login_datas_counts(self):
+        login = LoginDataResponse.model_validate({"mcd": 0, "MTC": [[2, 3]]})
+        assert login.messages_sent_today is not None and login.messages_sent_today.sent == {2: 3}
+        assert LoginDataResponse.model_validate({"mcd": {"X": 1}, "MTC": [[2, 3]]}).messages_sent_today is None
+
+    def test_the_kpis_fki_is_read_but_is_no_section(self):
+        login = LoginDataResponse.model_validate({"kpi": {"UL": [], "fki": {"BCR": 1}}})
+        assert login.berimond_kingdom_status is not None and login.berimond_kingdom_status.ursidae_capital_reachable
+        assert login.sent_sections == {"kpi"}
+        assert LoginDataResponse.model_validate({"kpi": {"UL": [], "fki": 0}}).berimond_kingdom_status is None
 
     def test_the_error_code_is_no_section(self):
         login = LoginDataResponse.model_validate({"E": 0, "gcu": {"C1": 1}})

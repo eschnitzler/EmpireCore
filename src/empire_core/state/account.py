@@ -20,74 +20,61 @@ from empire_core.player.models.account import (
 from empire_core.player.models.coat_of_arms import CoatOfArmsResponse, CoatOfArmsSymbolsResponse
 from empire_core.player.models.credentials import AccountDeletion, CredentialsStatus, PlayerNameChangeInfoResponse
 from empire_core.player.models.officers_school import TrainingProgramsResponse
-from empire_core.protocol.js import js_truthy
 from empire_core.state.base import StateBase, loaded, read_section
+from empire_core.state.login_data import LoginDataResponse
 
 ACCOUNT_SECTIONS = ("drt", "gai", "gatp", "bie", "pgl", "rww", "nrf", "DTS", "gem", "gpf", "scd", "mcd")
 
 
 class AccountState(StateBase):
-    def _parse_account(self, data: dict[str, Any]) -> set[str]:
+    def _parse_account(self, login: LoginDataResponse) -> set[str]:
         """Apply the account sections of a gbd, or the one a push or reply carries; return those not applied.
 
-        Client: ``GBDCommand.exec`` (bundle line 129381) calls ``parse_DRT``, ``parse_GATP``,
-        ``parse_GIE`` (with ``bie``), ``parse_RWW`` and ``parseNRF``, and ``parse_PGL`` and the attack
-        counter's ``parseParamObject`` only when ``pgl`` and ``gai`` are truthy; ``parse_DTS`` (bundle line 9925)
-        reads ``DTS`` only when it is truthy. It reads ``gem`` with ``parse_GEM`` (bundle line 9877) only when
-        truthy, ``scd`` with ``parse_SCD`` (bundle line 9922) only when truthy, and ``mcd``, or the login data
-        itself without one, with ``parse_MCD`` (bundle line 135013) only when its ``MTC`` is set; ``gpf`` with
-        ``parse_GPF`` (bundle line 54052) only when truthy
+        Client: ``GBDCommand.exec`` (split.js line 651188) hands them to ``CastleTimerData.parse_DRT``,
+        ``AttackCounterVO.parseParamObject``, ``OfficersSchoolData.parse_GATP``, ``GlobalEffectData.parse_GIE``,
+        ``PlayerGiftData.parse_PGL``, ``CastleRubyWishingWellData.parse_RWW``, ``CastleEquipmentData.parseNRF``,
+        ``CastleUserData.parse_DTS``, ``parse_GEM``, ``parse_GPF`` and ``parse_SCD`` and
+        ``CastleMessageData.parse_MCD`` (split.js lines 579446, 339695, 715112, 711633, 582271, 110466,
+        711934, 54274, 53945, 54052, 54264, 672695)
         """
         applied: set[str] = set()
-        if js_truthy(drt := data.get("drt")):
-            if (reset := read_section(DailyResetResponse, drt, "the daily reset")) is not None:
-                self.daily_reset = reset
-                applied.add("drt")
-        if js_truthy(gai := data.get("gai")):
-            if (counter := read_section(AttackCounterResponse, gai, "the attack counter")) is not None:
-                self.attack_counter = counter
-                applied.add("gai")
-        if "gatp" in data and self._apply_officer_training(data["gatp"]):
+        if login.daily_reset is not None:
+            self.daily_reset = login.daily_reset
+            applied.add("drt")
+        if login.attack_counter is not None:
+            self.attack_counter = login.attack_counter
+            applied.add("gai")
+        if (training := login.officer_training) is not None:
+            self.officer_training = training if training.is_set else None
             applied.add("gatp")
-        bie = data.get("bie")
-        if isinstance(bie, dict) and js_truthy(bie.get("GE")):
-            if (boosted := read_section(BoostedGlobalEffectsResponse, bie, "the boosted global effects")) is not None:
-                self.boosted_global_effects = boosted
-                applied.add("bie")
-        pgl = data.get("pgl")
-        if isinstance(pgl, dict) and js_truthy(pgl.get("G")):
-            if (gifts := read_section(PlayerGiftsResponse, pgl, "the gift packages")) is not None:
-                self.player_gifts = gifts
-                applied.add("pgl")
-        if js_truthy(rww := data.get("rww")):
-            if (well := read_section(WishingWellResponse, rww, "the wishing well")) is not None:
-                self.wishing_well = well
-                applied.add("rww")
-        if "nrf" in data and (relics := read_section(NewRelicsResponse, data["nrf"], "the new relics")) is not None:
-            self.new_relics = relics
+        if login.boosted_global_effects is not None:
+            self.boosted_global_effects = login.boosted_global_effects
+            applied.add("bie")
+        if login.gifts is not None:
+            self.player_gifts = login.gifts
+            applied.add("pgl")
+        if login.wishing_well is not None:
+            self.wishing_well = login.wishing_well
+            applied.add("rww")
+        if login.new_relics is not None:
+            self.new_relics = login.new_relics
             applied.add("nrf")
-        if js_truthy(dts := data.get("DTS")):
-            if (frozen := read_section(FoodProductionStatus, dts, "the food production status")) is not None:
-                self.food_production = frozen
-                applied.add("DTS")
-        if js_truthy(gem := data.get("gem")):
-            if (coat_of_arms := read_section(CoatOfArmsResponse, gem, "your coat of arms")) is not None:
-                self.coat_of_arms = coat_of_arms
-                applied.add("gem")
-        if js_truthy(gpf := data.get("gpf")):
-            if (flag := read_section(PremiumFlagResponse, gpf, "the premium flag")) is not None:
-                self.premium_flag = flag
-                applied.add("gpf")
-        if js_truthy(scd := data.get("scd")):
-            if (status := read_section(CredentialsStatus, scd, "the credentials status")) is not None:
-                self.credentials_status = status
-                applied.add("scd")
-        counts = data["mcd"] if js_truthy(data.get("mcd")) else data
-        if isinstance(counts, dict) and js_truthy(counts.get("MTC")):
-            if (sent := read_section(MessagesSentToday, counts, "the messages sent today")) is not None:
-                self.messages_sent_today = sent
-                applied.add("mcd")
-        return {section for section in ACCOUNT_SECTIONS if section in data} - applied
+        if login.food_production is not None:
+            self.food_production = login.food_production
+            applied.add("DTS")
+        if login.coat_of_arms is not None:
+            self.coat_of_arms = login.coat_of_arms
+            applied.add("gem")
+        if login.premium_flag is not None:
+            self.premium_flag = login.premium_flag
+            applied.add("gpf")
+        if login.credentials is not None:
+            self.credentials_status = login.credentials
+            applied.add("scd")
+        if login.messages_sent_today is not None:
+            self.messages_sent_today = login.messages_sent_today
+            applied.add("mcd")
+        return (login.sent_sections & set(ACCOUNT_SECTIONS)) - applied
 
     def _handle_gus(self, data: Any) -> None:
         """Keep the premium symbols earned and unlocked.
@@ -114,20 +101,6 @@ class AccountState(StateBase):
         """
         if (deletion := read_section(AccountDeletion, data, "the account deletion")) is not None:
             self.account_deletion = deletion
-
-    def _apply_officer_training(self, body: Any) -> bool:
-        """Read a ``gatp``: any block drops the program known, and one the client takes as running sets it.
-
-        Client: ``OfficersSchoolData.parse_GATP`` (bundle line 144606)
-        """
-        if not js_truthy(body):
-            self.officer_training = None
-            return True
-        training = read_section(OfficerTraining, body, "the officers' school training")
-        if training is None:
-            return False
-        self.officer_training = training if training.is_set else None
-        return True
 
     def _handle_gtp(self, data: Any) -> None:
         """Keep the training programs, and swap the program known for ``AT``'s.

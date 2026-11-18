@@ -66,6 +66,36 @@ class TestLoginSections:
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, section: body})
         assert state.get_last_packet_time(section) is None
 
+    @pytest.mark.parametrize(
+        ("section", "body"),
+        [
+            # parse_GIE: e&&e.GE, and an empty array is truthy; parse_PGL: if(e) on G
+            ("bie", {"GE": 0}),
+            ("pgl", {"G": "", "RA": 3}),
+            # parse_MCD: e&&e.MTC
+            ("mcd", {"MTC": 0}),
+            ("mcd", {"X": [[2, 1]]}),
+        ],
+    )
+    def test_a_block_whose_key_the_client_checks_is_falsy_is_skipped(self, state, section, body):
+        state.update_from_packet(section, body)
+        assert state.get_last_packet_time(section) is None
+
+    def test_an_empty_list_of_boosted_effects_is_applied(self, state):
+        state.update_from_packet("bie", {"GE": [101]})
+        state.update_from_packet("bie", {"GE": []})
+        assert state.get_boosted_global_effects().global_effect_ids == ()
+        assert state.get_last_packet_time("bie") is not None
+
+    def test_a_truthy_mcd_without_counts_keeps_the_login_datas_own(self, state):
+        # GBDCommand.exec: parse_MCD(n.mcd ? n.mcd : n)
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "mcd": {}, "MTC": [[2, 4]]})
+        assert state.get_messages_sent_today() is None
+
+    def test_a_falsy_mcd_gives_way_to_the_login_datas_own_counts(self, state):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "mcd": None, "MTC": [[2, 4]]})
+        assert state.get_messages_sent_today().sent == {2: 4}
+
 
 class TestPushesAndReplies:
     def test_a_gai_push_replaces_the_counter(self, state):
@@ -122,6 +152,14 @@ class TestOfficerTraining:
         state.update_from_packet("gatp", {"S": 2, "E": [810, [5]], "RS": 7200})
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gatp": None})
         assert state.get_officer_training() is None
+        assert state.get_last_packet_time("gatp") is not None
+
+    def test_an_unreadable_gatp_keeps_the_program(self, state):
+        state.update_from_packet("gatp", {"S": 2, "E": [810, [5]], "RS": 7200})
+        stamped = state.get_last_packet_time("gatp")
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gatp": [1]})
+        assert state.get_officer_training().slot_id == 2
+        assert state.get_last_packet_time("gatp") == stamped
 
     def test_a_number_in_e_is_no_error_code(self, state):
         state.update_from_packet("gatp", {"S": 1, "E": 5, "RS": 100})
