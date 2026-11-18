@@ -57,3 +57,9 @@ def test_the_premium_flag_sends_gbp():
     client = make_client()
     client.player.buy_premium_flag(spend_rubies=True)
     assert conn(client).request_payloads == [("gbp", {})]
+
+
+def test_a_refused_premium_flag_raises():
+    client = make_client({"gbp": xt_packet("gbp", error_code=1)})
+    with pytest.raises(CommandError):
+        client.player.buy_premium_flag(spend_rubies=True)

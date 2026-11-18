@@ -30,9 +30,10 @@ class CampaignMixin(EventsBaseMixin):
         """
         Buy a quest of the running time-limited campaign done, with rubies; see "Spending rubies" in the guides.
 
-        The client offers it for a campaign quest that is open, not done, and failed, which counts one whose
-        time ran out; the server checks the last. Its price, the quest's ``c2Cost`` less the ``c2Reduction``
-        of each condition done, is not worked out here, so this always needs ``spend_rubies``.
+        The client offers it for a campaign quest that is open, not done, and failed. It also counts one whose
+        campaign quest event timer reads 0 as failed, but that event ends at 0 and the state drops it. Its
+        price, the quest's ``c2Cost`` less the ``c2Reduction`` of each condition done, is not worked out
+        here, so this always needs ``spend_rubies``.
 
         Args:
             quest: One of the campaign's quests, from its ``CampaignEvent.quests``
@@ -41,20 +42,25 @@ class CampaignMixin(EventsBaseMixin):
 
         Raises:
             EventNotRunningError: No time-limited campaign runs
-            ValueError: The quest is not one of the campaign's, is done or not open yet, or ``spend_rubies``
-                is False
+            ValueError: The quest is not one of the campaign's, is done, not open yet or not failed, or
+                ``spend_rubies`` is False
             CommandError: The server refused
 
         Client: ``QuestInfoComponent.showQuest`` (bundle line 458508) shows the buy button and ``onClick``
         (bundle line 458577) opens ``CastleQuestBuyRewardDialog``, priced by ``CastleQuestVO.buyCost``
-        (bundle line 269537), whose ``onClick`` (bundle line 270612) sends ``bcq``; ``BCQCommand.exec``
-        (bundle line 640412)
+        (bundle line 269537), whose ``onClick`` (bundle line 270612) sends ``bcq``; ``CastleQuestVO.isFailed`` and
+        ``remainingSeconds`` (bundle lines 269398, 269424); ``BCQCommand.exec`` (bundle line 640412)
         """
         campaign = self._require_campaign()
-        if not any(entry.campaign_quest_id == quest.campaign_quest_id for entry in campaign.quests):
+        if not any(
+            (entry.quest_id, entry.campaign_quest_id) == (quest.quest_id, quest.campaign_quest_id)
+            for entry in campaign.quests
+        ):
             raise ValueError(f"quest {quest.quest_id!r} is not one of the running campaign's")
         if quest.completed or quest.locked:
             raise ValueError(f"campaign quest {quest.quest_id!r} is done or not open yet")
+        if not quest.failed:
+            raise ValueError(f"campaign quest {quest.quest_id!r} has not failed, and only a failed one is bought")
         self._require_spend_rubies(spend_rubies, "buying a campaign quest costs rubies")
         request = BuyCampaignQuestRequest(campaign_quest_id=quest.campaign_quest_id)
         self.request(request, BuyCampaignQuestResponse, timeout=timeout, spend_rubies=spend_rubies)
