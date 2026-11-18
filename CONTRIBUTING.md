@@ -67,6 +67,14 @@ constants. A weekly workflow fails when the live client's command tables differ 
 regenerate it with `uv run python scripts/extract_client_commands.py --download`
 and commit the diff.
 
+The snapshot also records which requests the client constructs and which replies it
+registers a handler for. `--coverage` prints where every command stands (done, ack-only,
+remaining, excluded or dead) from the snapshot and the library's models, with the
+exclusions, issue owners and commands covered without a model in
+`tests/data/client_coverage.json`. When a model finishes a command, drop any exclusion
+or owner entry for it; `tests/protocol/test_client_coverage.py` fails on stale exclusions
+and on a remaining command with no owner.
+
 ### Step 2: Create Request Model
 
 Request models inherit from `BaseRequest` and define:

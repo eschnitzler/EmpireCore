@@ -1,0 +1,60 @@
+{
+  "excluded": {
+    "real-money payments, offers and shop reads (the library never spends real money)": [
+      "bep", "bso", "bsp", "core_osd", "core_poe", "core_pol", "dio", "gpp", "kbp", "lts",
+      "odc", "oop", "otoc", "par", "sie", "spp", "spr", "ssc", "upi", "upt"
+    ],
+    "UI, analytics, tutorial and social": [
+      "FTF", "atl", "ato", "brp", "ctc", "ctr", "fcs", "fte", "fwd", "ggc", "kss", "lpl", "mns",
+      "nse", "opt", "oqa", "rus", "sgi", "smd", "spo", "ssp", "sur", "usg", "vsh"
+    ]
+  },
+  "covered_without_model": {
+    "apiOK": {"raw": "server", "note": "SmartFox system message, read by the connection"},
+    "joinOK": {"raw": "server", "note": "SmartFox system message, read by the connection"},
+    "roundTripRes": {"raw": "server", "note": "SmartFox system message, read by the connection"},
+    "rlu": {"raw": "server", "note": "the room list, read by the connection"},
+    "pin": {"raw": "client", "note": "the keepalive, sent as a raw frame"},
+    "vck": {"raw": "client", "note": "the version check, sent as a raw frame"},
+    "esl": {
+      "model": "empire_core.commanders.models.inventory.InventorySpace",
+      "note": "InventorySpace, whose E is the equipment space, not an error code"
+    },
+    "gatp": {
+      "model": "empire_core.player.models.account.OfficerTraining",
+      "note": "OfficerTraining, whose E is the program's bonus, not an error code"
+    },
+    "seq": {"sections": ["gli", "gcu", "esl"], "note": "its gli, gcu and esl sections, as SEQCommand reads them"},
+    "bds": {"sections": ["gcu", "boi"], "note": "its gcu and boi sections, as BDSCommand reads them"}
+  },
+  "owners": {
+    "534": ["bfs", "bss", "ssa"]
+  },
+  "unowned": {
+    "rww": "the Ruby Wishing Well",
+    "sbp": "buying an event package",
+    "gbc": "the event package buy counts",
+    "gpf": "the premium flag push, GPFCommand",
+    "vip": "the request C2SVIPInfoEvent",
+    "mvf": "the request C2SMovementFilterOptionEvent",
+    "gbd": "the request LCACommand sends after an account is created",
+    "cif": "C2S_INVITE_FRIEND, sent from the dll only; needs triage",
+    "lgn": "C2S_LOGIN, sent from the dll's BasicLoginCommand only; needs triage",
+    "lgs": "C2S_LOGIN_SOCIAL, the social login; needs triage",
+    "rsv": "C2S_REPORT_SURVEY, sent from the dll only; needs triage",
+    "core_gic": "S2C_GENERATE_INVITE_CODE handler GICCommand; needs triage",
+    "core_gpi": "S2C_GET_PLAYER_INFO handler GPICommand; needs triage",
+    "core_sic": "C2S_SET_INVITE_CODE request CoreC2SSetInviteCodeVO; needs triage",
+    "core_spe": "C2S_SOCIAL_PLAYER_EXISTS and its handler SPECommand; needs triage",
+    "core_spl": "C2S_NEW_LOGIN_SOCIAL and its handlers SPLCommand, CastleSPLCommand; needs triage",
+    "core_tci": "C2S_TEST_CASE_INFO and its handler TCICommand; needs triage",
+    "nch": "C2S_NEW_CASH_HASH from PaymentHashRefresher and its handler NCHCommand; needs triage",
+    "gch": "S2C_CASH_HASH handler GCHCommand; needs triage",
+    "gfl": "S2C_GET_FORUM_LOGIN_DATA handler GFLCommand; needs triage",
+    "cmt": "S2C_COMA_TEASER handler CMTCommand; needs triage",
+    "lcb": "S2C_COMEBACK_POPUP handler LCBCommand; needs triage",
+    "mot": "S2C_ABG_MINE_OUT_OF_TIME handler MOTCommand; needs triage",
+    "vpm": "C2S_VERIFY_PLAYER_MAIL_EVENT; needs triage",
+    "core_afk": "C2S_USER_IS_ACTIVE_EVENT, sent by the dll's ExtendedAwayFromKeyboardController, which the client never constructs; needs triage"
+  }
+}

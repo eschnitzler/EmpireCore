@@ -19,7 +19,18 @@ on (``apiOK``, ``joinOK``, ``roundTripRes``), as server messages, and every
 constant the client passes to ``sendMessage``, as a client command, since the
 keepalive is sent under ``S2C_PING``.
 
-``--check`` exits 1 when a command table would change; a new release alone
+The ``requests`` and ``handlers`` tables record how the client uses each id
+(see :func:`usage`): the request classes it constructs and the constants it sends
+directly, and the handler classes it registers, marked `` (ack)`` when they never
+read the payload. ``--coverage`` sorts every id into done, ack-only, remaining,
+excluded or dead (:func:`classify`), with the exclusions, issue owners and the
+commands covered without a model taken from ``tests/data/client_coverage.json``;
+alone it reports on the committed snapshot, offline, and
+``tests/protocol/test_client_coverage.py`` keeps the rules file current.
+
+    uv run python scripts/extract_client_commands.py --coverage
+
+``--check`` exits 1 when a table would change; a new release alone
 only prints its hashes. Both modes also list every
 command the library registers that the fresh tables lack;
 ``tests/protocol/test_client_commands.py`` fails on those against the committed
@@ -35,13 +46,16 @@ import json
 import re
 import sys
 import urllib.request
-from collections import defaultdict
+from collections import ChainMap, defaultdict
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 SCRIPT = "scripts/extract_client_commands.py"
 BASE_URL = "https://empire-html5.goodgamestudios.com/default"
 DEFAULT_OUT = Path(__file__).resolve().parents[1] / "tests" / "data" / "client_commands.json"
+COVERAGE_RULES = Path(__file__).resolve().parents[1] / "tests" / "data" / "client_coverage.json"
 SOURCE_ROOT = Path(__file__).resolve().parents[1] / "src" / "empire_core"
 
 # Methods taking a command id, with the argument it is in and the direction of that command.
@@ -70,14 +84,34 @@ _HOLDER = re.compile(r"\b([A-Za-z_$][\w$]*)=function\(\)\{return function ([A-Za
 # BasicSmartfoxClient.handleSystemMessage=function(e){...switch(n){case"apiOK":...default:
 _SYSTEM_HANDLER = re.compile(r"\.handleSystemMessage=function\(.*?\bdefault:", re.S)
 _SYSTEM_CASE = re.compile(r"case\"([A-Za-z]+)\":")
+# BasicSmartfoxClient.onExtensionResponse=function(e,t){switch(...,e){case BasicSmartfoxClient.S2C_ROOMLIST:...default:
+_EXTENSION_HANDLER = re.compile(r"\.onExtensionResponse=function\(.*?\bdefault:", re.S)
 # t.sendMessage(BasicSmartfoxClient.S2C_PING,[""])
 _SENT = re.compile(r"\.sendMessage\(([A-Za-z_$][\w$]*)\.(S2C_[A-Z0-9_]+)\b")
+# A command constant as code reads it: a.ClientConstSF.C2S_JOIN_CASTLE, f.S2C_PING
+_REFERENCE = r"(?:[\w$]+\.)*?([\w$]+)\.((?:C2S|S2C)_[A-Z0-9_]+)\b"
+# C2SJoinCastleVO.prototype.getCmdId=function(){return a.ClientConstSF.C2S_JOIN_CASTLE}
+_REQUEST_CLASS = re.compile(r"([\w$]+)\.prototype\.getCmdId=function\(\)\{return " + _REFERENCE)
+# u.BasicModel.smartfoxClient.sendMessage(s.BasicSmartfoxConstants.C2S_LOGIN,[...]), and
+# sendMessage(ExtendedAwayFromKeyboardController.SERVER_COMMAND_ID,[...]) with its own constant name
+_DIRECT_SEND = re.compile(r"\.(?:sendMessage|sendServerMessageAndWait)\((?:[\w$]+\.)*([\w$]+)\.([A-Z][A-Z0-9_]*)\b")
+_CONSTANT = re.compile(r"([A-Za-z_$][\w$]*)\.([A-Z][A-Z0-9_]*)=\"([^\"]*)\"")
+# i.set(s.ClientConstSF.S2C_PREMIUM_FLAG_INFO,new jl.GPFCommand)
+_REGISTRATION = re.compile(r"\.set\(" + _REFERENCE + r",new (?:[\w$]+\.)*([\w$]+)\)")
+_CONSTRUCTION = re.compile(r"\bnew (?:[\w$]+\.)*([\w$]+)")
+_CLASS = re.compile(r"\.__extends\(([\w$]+),")
+# ...},GPFCommand}(l.CastleCommand) closes the class's module function, passing its parent
+_PARENT = r"\b{}\}}\((?:[\w$]+(?:\([^()]*\))?\.)*([\w$]+)\)"
+_METHOD = re.compile(r"([\w$]+)\.prototype\.(executeCommand|exec)=function\(([\w$,]*)\)\{")
+_ERROR_DIALOG = r"\.showErrorDialog\([\w$]+,{}\)"
+# The snapshot's tables: the constants on each side, then what the client sends and handles
+_TABLES = ("client", "server", "requests", "handlers")
 _BUNDLE_NAME = re.compile(r"Game\.bundle\.([0-9a-f]+)\.js")
 _DLL_NAME = re.compile(r"ggs\.dll\.([0-9a-f]+)\.js")
 
 
-def extract(source: str) -> dict[str, dict[str, list[str]]]:
-    """Every ``C2S_``/``S2C_`` constant in ``source``, as ``{"client"|"server": {id: ["Holder.NAME", ...]}}``."""
+def _holder_names(source: str) -> Callable[[str, int], str]:
+    """The constant class a (possibly minified) variable names at a position in ``source``."""
     holders: dict[str, list[tuple[int, str]]] = defaultdict(list)
     for match in _HOLDER.finditer(source):
         holders[match.group(1)].append((match.start(), match.group(2)))
@@ -86,6 +120,12 @@ def extract(source: str) -> dict[str, dict[str, list[str]]]:
         names = [name for start, name in holders.get(var, []) if start < position]
         return names[-1] if names else var
 
+    return holder_name
+
+
+def extract(source: str) -> dict[str, dict[str, list[str]]]:
+    """Every ``C2S_``/``S2C_`` constant in ``source``, as ``{"client"|"server": {id: ["Holder.NAME", ...]}}``."""
+    holder_name = _holder_names(source)
     tables: dict[str, dict[str, set[str]]] = {"client": defaultdict(set), "server": defaultdict(set)}
     values: dict[tuple[str, str], str] = {}
     for match in _ASSIGNMENT.finditer(source):
@@ -105,6 +145,165 @@ def extract(source: str) -> dict[str, dict[str, list[str]]]:
     }
 
 
+@dataclass
+class _ClientClass:
+    parent: str | None = None
+    methods: dict[str, tuple[list[str], str]] = field(default_factory=dict)
+
+
+def _block(source: str, start: int) -> str:
+    """The body of the ``{`` block at ``start``, skipping braces inside string literals."""
+    depth, quote, index = 0, "", start
+    while index < len(source):
+        char = source[index]
+        if quote:
+            if char == "\\":
+                index += 1
+            elif char == quote:
+                quote = ""
+        elif char in "\"'`":
+            quote = char
+        elif char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return source[start + 1 : index]
+        index += 1
+    raise ValueError(f"unclosed block at {start}")
+
+
+def _classes(source: str) -> dict[str, _ClientClass]:
+    """Each ``__extends`` class in ``source`` with its parent and its ``executeCommand``/``exec`` methods."""
+    classes: dict[str, _ClientClass] = defaultdict(_ClientClass)
+    for match in _CLASS.finditer(source):
+        name = match.group(1)
+        end = re.compile(_PARENT.format(re.escape(name))).search(source, match.end())
+        classes[name].parent = end.group(1) if end else None
+    for match in _METHOD.finditer(source):
+        name, method, params = match.groups()
+        classes[name].methods[method] = (params.split(",") if params else [], _block(source, match.end() - 1))
+    return dict(classes)
+
+
+def _payload_used(body: str, names: set[str]) -> bool:
+    """Whether ``body`` uses any of ``names`` other than to show the server's error dialog."""
+    for name in names:
+        body = re.sub(_ERROR_DIALOG.format(re.escape(name)), "", body)
+    return any(re.search(rf"(?<![\w$.]){re.escape(name)}(?![\w$])", body) for name in names)
+
+
+def _reads_payload(
+    name: str, classes: Mapping[str, _ClientClass], method: str = "executeCommand", start: str | None = None
+) -> bool:
+    """
+    Whether the handler class ``name`` reads its reply's payload, following inherited and super calls.
+
+    ``executeCommand(code, params)`` gets the payload as ``params``; ``CastleCommand`` hands
+    ``[code, params]`` to ``exec``, which is looked up from ``name`` again. ``start`` is the
+    class to look ``method`` up from, for a super call. Anything not followed counts as read.
+    """
+    owner: str | None = start or name
+    while owner is not None and method not in classes.get(owner, _ClientClass()).methods:
+        owner = classes.get(owner, _ClientClass()).parent
+    if owner is None:
+        return True
+    params, body = classes[owner].methods[method]
+    parent = classes[owner].parent
+    if method == "executeCommand":
+        if len(params) < 2:
+            return "arguments" in body
+        payload = {params[1]}
+        if re.search(r"\bthis\.exec\(", body):
+            return _reads_payload(name, classes, "exec")
+    else:
+        if not params:
+            return "arguments" in body
+        row = re.escape(params[0])
+        body = re.sub(rf"(?<![\w$.]){row}\[1\]", "__payload__", body)
+        payload = {"__payload__", *re.findall(r"([\w$]+)=__payload__\b", body)}
+        body = re.sub(r"[\w$]+=__payload__\b", "", body)
+        if re.search(rf"(?<![\w$.]){row}(?!\[0\])(?![\w$])", body):
+            return True
+    super_call = re.compile(rf"[\w$]+\.prototype\.{method}\.call\(this,{','.join(map(re.escape, params))}\)")
+    if super_call.search(body):
+        body = super_call.sub("", body)
+        if parent is None or _reads_payload(name, classes, method, parent):
+            return True
+    return _payload_used(body, payload)
+
+
+def usage(sources: Sequence[str]) -> dict[str, dict[str, list[str]]]:
+    """
+    Which commands the client sends and handles, as ``{"requests"|"handlers": {id: [...]}}``.
+
+    A request is a ``getCmdId`` class the client constructs, or a constant it passes straight to
+    ``sendMessage``/``sendServerMessageAndWait`` (``"Holder.NAME (sent)"``). A handler is a class
+    the client registers under a constant with ``commandDict.set``, marked `` (ack)`` when it
+    never reads the reply's payload, and the messages ``BasicSmartfoxClient`` handles itself
+    (``handleSystemMessage``, ``onExtensionResponse``). Registrations key the
+    handler, not its ``cmdId`` getter: ``GPFCommand`` is registered under ``gpf`` but returns ``gdi``.
+    A handler class is read from the file that registers it, since the bundle and dll share some
+    names (``GPICommand``, ``SMSCommand``) for different classes.
+    """
+    values: dict[tuple[str, str], str] = {}
+    by_constant: dict[str, set[str]] = defaultdict(set)
+    named = [(source, _holder_names(source)) for source in sources]
+    for source, holder_name in named:
+        for match in _CONSTANT.finditer(source):
+            var, constant, value = match.groups()
+            values[(holder_name(var, match.start()), constant)] = value
+            by_constant[constant].add(value)
+
+    def resolve(holder: str, constant: str) -> str:
+        found = values.get((holder, constant))
+        if found is None and len(by_constant[constant]) == 1:
+            found = next(iter(by_constant[constant]))
+        if found is None:
+            raise ValueError(f"cannot resolve {holder}.{constant}")
+        return found
+
+    classes = [_classes(source) for source in sources]
+    constructed: set[str] = set()
+    requests: dict[str, set[str]] = defaultdict(set)
+    handlers: dict[str, set[tuple[str, int]]] = defaultdict(set)
+    request_classes: list[tuple[str, str]] = []
+    for index, (source, holder_name) in enumerate(named):
+        constructed.update(_CONSTRUCTION.findall(source))
+        for match in _REQUEST_CLASS.finditer(source):
+            name, holder, constant = match.groups()
+            request_classes.append((name, resolve(holder_name(holder, match.start()), constant)))
+        for match in _DIRECT_SEND.finditer(source):
+            holder, constant = match.groups()
+            holder = holder_name(holder, match.start())
+            requests[resolve(holder, constant)].add(f"{holder}.{constant} (sent)")
+        for match in _REGISTRATION.finditer(source):
+            holder, constant, name = match.groups()
+            handlers[resolve(holder_name(holder, match.start()), constant)].add((name, index))
+        for handler in _SYSTEM_HANDLER.finditer(source):
+            for case in _SYSTEM_CASE.finditer(handler.group(0)):
+                handlers[case.group(1)].add(("BasicSmartfoxClient.handleSystemMessage", index))
+        for handler in _EXTENSION_HANDLER.finditer(source):
+            for case in re.finditer(rf"case {_REFERENCE}:", handler.group(0)):
+                holder, constant = case.groups()
+                command = resolve(holder_name(holder, handler.start() + case.start()), constant)
+                handlers[command].add(("BasicSmartfoxClient.onExtensionResponse", index))
+    for name, sent in request_classes:
+        if name in constructed:
+            requests[sent].add(name)
+    marked = {
+        command: {
+            name if _reads_payload(name, ChainMap(classes[index], *classes)) else f"{name} (ack)"
+            for name, index in names
+        }
+        for command, names in handlers.items()
+    }
+    return {
+        "requests": {command: sorted(names) for command, names in sorted(requests.items())},
+        "handlers": {command: sorted(names) for command, names in sorted(marked.items())},
+    }
+
+
 def snapshot(bundle: str, dll: str, bundle_release: str, dll_release: str) -> dict[str, Any]:
     """The committed file's content for these client sources."""
     merged: dict[str, dict[str, set[str]]] = {"client": defaultdict(set), "server": defaultdict(set)}
@@ -119,26 +318,22 @@ def snapshot(bundle: str, dll: str, bundle_release: str, dll_release: str) -> di
         **{
             side: {command: sorted(names) for command, names in sorted(table.items())} for side, table in merged.items()
         },
+        **usage((bundle, dll)),
     }
 
 
 @functools.lru_cache(maxsize=1)
-def library_commands() -> dict[str, dict[str, list[str]]]:
+def library_models() -> dict[str, dict[str, list[str]]]:
     """
-    The commands the library registers, as ``{"client"|"server"|"either": {id: [where, ...]}}``.
+    The commands the library has models for, as ``{"client"|"server": {id: [model, ...]}}``.
 
     Requests (``command``) are client commands; replies (``response_command``, and
-    every registered response model) are server commands; ``GGECommand`` values
-    are either; plain strings the code uses are those :func:`raw_commands` finds.
+    every response model, registered or not) are server commands.
     """
     import empire_core.protocol.models  # noqa: F401  imports every area's models
-    from empire_core.protocol.base import BaseRequest, BaseResponse, GGECommand
+    from empire_core.protocol.base import BaseRequest, BaseResponse
 
-    found: dict[str, dict[str, set[str]]] = {
-        "client": defaultdict(set),
-        "server": defaultdict(set),
-        "either": defaultdict(set),
-    }
+    found: dict[str, dict[str, set[str]]] = {"client": defaultdict(set), "server": defaultdict(set)}
 
     def subclasses(cls: type) -> list[type]:
         found = [sub for direct in cls.__subclasses__() for sub in (direct, *subclasses(direct))]
@@ -155,6 +350,24 @@ def library_commands() -> dict[str, dict[str, list[str]]]:
         command = response.__dict__.get("command")
         if isinstance(command, str):
             found["server"][command].add(response.__qualname__)
+    return {side: {command: sorted(names) for command, names in sorted(table.items())} for side, table in found.items()}
+
+
+@functools.lru_cache(maxsize=1)
+def library_commands() -> dict[str, dict[str, list[str]]]:
+    """
+    The commands the library registers, as ``{"client"|"server"|"either": {id: [where, ...]}}``.
+
+    The :func:`library_models`, ``GGECommand`` values (either side), and the plain
+    strings :func:`raw_commands` finds.
+    """
+    from empire_core.protocol.base import GGECommand
+
+    found: dict[str, dict[str, set[str]]] = {
+        side: defaultdict(set, {command: set(names) for command, names in table.items()})
+        for side, table in library_models().items()
+    }
+    found["either"] = defaultdict(set)
     for name, value in vars(GGECommand).items():
         if name.isupper() and isinstance(value, str):
             found["either"][value].add(f"GGECommand.{name}")
@@ -229,13 +442,106 @@ def missing_commands(tables: dict[str, Any]) -> list[tuple[str, str, list[str]]]
     ]
 
 
+BUCKETS = ("done", "ack-only", "remaining", "excluded", "dead")
+
+
+@dataclass(frozen=True)
+class Coverage:
+    """
+    Where one client command stands.
+
+    ``detail`` is what covers a command done without a model, the reason a command is
+    excluded, or the owner of a remaining one; ``missing`` is what a remaining one lacks.
+    """
+
+    command: str
+    bucket: str
+    detail: str = ""
+    missing: tuple[str, ...] = ()
+
+
+def _covered_sides(entry: dict[str, Any]) -> set[str]:
+    return {entry["raw"]} if "raw" in entry else {"server"}
+
+
+def classify(
+    tables: dict[str, Any], rules: dict[str, Any], models: dict[str, dict[str, list[str]]] | None = None
+) -> list[Coverage]:
+    """
+    Every command of the snapshot ``tables`` in one of :data:`BUCKETS`.
+
+    A command the client sends needs a request model, and one it handles needs a typed reply
+    unless every handler ignores the payload (``ack-only``). A command it neither sends nor
+    handles is ``dead``. ``rules`` (``client_coverage.json``) names what covers a command without
+    a model, what is excluded on purpose, and which issue owns each remaining command.
+    """
+    models = library_models() if models is None else models
+    excluded = {command: reason for reason, commands in rules["excluded"].items() for command in commands}
+    owners = {command: f"#{issue}" for issue, commands in rules["owners"].items() for command in commands}
+    owners.update(rules["unowned"])
+    found = []
+    for command in sorted(set(tables["client"]) | set(tables["server"])):
+        handlers = tables["handlers"].get(command, [])
+        sent = command in tables["requests"]
+        if not sent and not handlers:
+            found.append(Coverage(command, "dead"))
+            continue
+        cover = rules["covered_without_model"].get(command)
+        covered = _covered_sides(cover) if cover else set()
+        ack = all(handler.endswith(" (ack)") for handler in handlers)
+        missing = tuple(
+            part
+            for part, side, needed in (("request", "client", sent), ("reply", "server", handlers and not ack))
+            if needed and command not in models[side] and side not in covered
+        )
+        if missing:
+            if command in excluded:
+                found.append(Coverage(command, "excluded", excluded[command]))
+            else:
+                found.append(Coverage(command, "remaining", owners.get(command, ""), missing))
+        elif handlers and ack and command not in models["server"] and "server" not in covered:
+            found.append(Coverage(command, "ack-only"))
+        else:
+            found.append(Coverage(command, "done", cover["note"] if cover else ""))
+    return found
+
+
+def coverage_report(tables: dict[str, Any], coverage: list[Coverage]) -> str:
+    """``classify``'s result as Markdown, the same for the same input."""
+    buckets: dict[str, list[Coverage]] = {bucket: [] for bucket in BUCKETS}
+    for row in coverage:
+        buckets[row.bucket].append(row)
+    lines = [
+        f"# Client coverage: bundle {tables['bundle_release']}, dll {tables['dll_release']}",
+        "",
+        "| Bucket | Commands |",
+        "|---|---|",
+        *(f"| {bucket} | {len(rows)} |" for bucket, rows in buckets.items()),
+        "",
+        "## Remaining",
+        "",
+        "| Command | Missing | Owner |",
+        "|---|---|---|",
+        *(f"| `{row.command}` | {' and '.join(row.missing)} | {row.detail} |" for row in buckets["remaining"]),
+    ]
+    by_reason: dict[str, list[str]] = defaultdict(list)
+    for row in buckets["excluded"]:
+        by_reason[row.detail].append(f"`{row.command}`")
+    lines += ["", "## Excluded", ""] + [f"- {reason}: {' '.join(commands)}" for reason, commands in by_reason.items()]
+    for bucket in ("ack-only", "dead"):
+        lines += ["", f"## {bucket.capitalize()}", "", " ".join(f"`{row.command}`" for row in buckets[bucket])]
+    lines += ["", "## Done without a model", ""]
+    lines += [f"- `{row.command}`: {row.detail}" for row in buckets["done"] if row.detail]
+    return "\n".join(lines) + "\n"
+
+
 def changes(old: dict[str, Any], new: dict[str, Any]) -> list[str]:
     """What differs between two snapshots, one line each."""
     lines = [
         f"{key}: {old.get(key)} -> {new[key]}" for key in ("bundle_release", "dll_release") if old.get(key) != new[key]
     ]
-    for side in ("client", "server"):
-        before, after = old.get(side, {}), new[side]
+    for side in _TABLES:
+        before, after = old.get(side, {}), new.get(side, {})
         lines += [
             f"{side} dropped {command} ({', '.join(before[command])})" for command in sorted(set(before) - set(after))
         ]
@@ -291,14 +597,26 @@ def _release(path: Path, pattern: re.Pattern[str], given: str | None) -> str:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--download", action="store_true", help="read the live client named by index.html")
-    parser.add_argument("--bundle", type=Path, help="a Game.bundle.<hash>.js (split or not)")
-    parser.add_argument("--dll", type=Path, help="a ggs.dll.<hash>.js (split or not)")
+    parser.add_argument("--bundle", type=Path, help="a Game.bundle.<hash>.js, minified as served")
+    parser.add_argument("--dll", type=Path, help="a ggs.dll.<hash>.js, minified as served")
     parser.add_argument("--bundle-release", help="the bundle's release hash, when its file name lacks it")
     parser.add_argument("--dll-release", help="the dll's release hash, when its file name lacks it")
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT, help="snapshot file to write")
     parser.add_argument("--check", action="store_true", help="write nothing; exit 1 if a command table would change")
+    parser.add_argument(
+        "--coverage", action="store_true", help="print the coverage report; alone, for the committed snapshot"
+    )
+    parser.add_argument("--rules", type=Path, default=COVERAGE_RULES, help="the coverage rules file")
     args = parser.parse_args(argv)
 
+    def report(tables: dict[str, Any]) -> None:
+        if args.coverage:
+            rules = json.loads(args.rules.read_text(encoding="utf-8"))
+            print(coverage_report(tables, classify(tables, rules)), end="")
+
+    if args.coverage and not (args.download or args.bundle or args.dll):
+        report(json.loads(args.out.read_text(encoding="utf-8")))
+        return 0
     if args.download:
         bundle, dll, bundle_release, dll_release = download()
     elif args.bundle and args.dll:
@@ -306,7 +624,7 @@ def main(argv: list[str] | None = None) -> int:
         bundle_release = _release(args.bundle, _BUNDLE_NAME, args.bundle_release)
         dll_release = _release(args.dll, _DLL_NAME, args.dll_release)
     else:
-        parser.error("pass --download, or both --bundle and --dll")
+        parser.error("pass --download, or both --bundle and --dll, or --coverage alone")
 
     new = snapshot(bundle, dll, bundle_release, dll_release)
     if not new["client"] or not new["server"]:
@@ -319,8 +637,9 @@ def main(argv: list[str] | None = None) -> int:
     for side, command, where in missing:
         print(f"library {side} command not in the client: {command} ({', '.join(where)})", file=sys.stderr)
     print(f"{len(new['client'])} client and {len(new['server'])} server commands")
+    report(new)
     if args.check:
-        return 1 if any(old.get(side) != new[side] for side in ("client", "server")) else 0
+        return 1 if any(old.get(side) != new.get(side) for side in _TABLES) else 0
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(render(new), encoding="utf-8")
     return 0

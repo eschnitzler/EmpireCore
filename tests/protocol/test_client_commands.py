@@ -5,6 +5,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[2]
 SNAPSHOT = ROOT / "tests" / "data" / "client_commands.json"
 
@@ -194,3 +196,82 @@ class TestExtract:
             "client a: X.C2S_A -> X.C2S_B",
             "server added p (X.S2C_P)",
         ]
+
+
+BUNDLE = (
+    'ClientConstSF.C2S_A="a",ClientConstSF.S2C_A="a",ClientConstSF.C2S_B="b",ClientConstSF.S2C_B="b",'
+    'ClientConstSF.S2C_GDI="gdi",ClientConstSF.S2C_GPF="gpf";'
+    "var c=function(e){function C2SAVO(){}return n.__extends(C2SAVO,e),"
+    "C2SAVO.prototype.getCmdId=function(){return a.ClientConstSF.C2S_A},C2SAVO}(o.BasicCommandVO);"
+    "var d=function(e){function C2SBVO(){}return n.__extends(C2SBVO,e),"
+    "C2SBVO.prototype.getCmdId=function(){return a.ClientConstSF.C2S_B},C2SBVO}(o.BasicCommandVO);"
+    "x.sendCommandVO(new r.C2SAVO(1)),x.sendCommandVO(new l.CoreC2SXVO(2));"
+    "var g=function(e){function CastleCommand(){}return n.__extends(CastleCommand,e),"
+    "CastleCommand.prototype.executeCommand=function(e,t){return this.d.isDelayedCommand(this.cmdId)"
+    "?this.d.addDelayCommand(this.cmdId,this,[e,t]):this.exec([e,t]),!1},"
+    'CastleCommand.prototype.exec=function(e){throw new Error("method needs to be overriden")},'
+    "CastleCommand}(o.BasicCommand);"
+    "var h=function(e){function ACommand(){}return n.__extends(ACommand,e),"
+    "ACommand.prototype.executeCommand=function(e,t){switch(e){case a.ERROR.ALL_OK:break;"
+    "default:this.showErrorDialog(e,t)}return!1},ACommand}(l.CastleCommand);"
+    "var k=function(e){function GPFCommand(){}return n.__extends(GPFCommand,e),"
+    'Object.defineProperty(GPFCommand.prototype,"cmdId",{get:function(){return s.ClientConstSF.S2C_GDI}}),'
+    "GPFCommand.prototype.executeCommand=function(t,i){return e.prototype.executeCommand.call(this,t,i)},"
+    "GPFCommand.prototype.exec=function(e){var t=s.int(e[0]),i=e[1];switch(t){case a.ERROR.ALL_OK:"
+    "var n=JSON.parse(i[1]);r.parse_GPF(n);break;default:this.showErrorDialog(t,i)}},GPFCommand}(l.CastleCommand);"
+    "var m=function(e){function BCommand(){}return n.__extends(BCommand,e),"
+    "BCommand.prototype.exec=function(e){var t=s.int(e[0]),i=e[1];switch(t){case a.ERROR.ALL_OK:break;"
+    "default:this.showErrorDialog(t,i)}},BCommand}(l.CastleCommand);"
+    "i.set(s.ClientConstSF.S2C_A,new h.ACommand),i.set(s.ClientConstSF.S2C_GPF,new k.GPFCommand),"
+    "i.set(s.ClientConstSF.S2C_B,new m.BCommand);"
+)
+DLL = (
+    'BasicSmartfoxConstants.C2S_X="core_x",BasicSmartfoxConstants.C2S_Y="y",BasicSmartfoxConstants.S2C_Z="core_z";'
+    "var f=function(e){function CoreC2SXVO(){}return i.__extends(CoreC2SXVO,e),"
+    "CoreC2SXVO.prototype.getCmdId=function(){return s.BasicSmartfoxConstants.C2S_X},"
+    "CoreC2SXVO}(n(124).BasicCommandVO);"
+    "u.BasicModel.smartfoxClient.sendMessage(s.BasicSmartfoxConstants.C2S_Y,[]);"
+    'Afk.SERVER_COMMAND_ID="core_afk";i.BasicModel.smartfoxClient.sendMessage(Afk.SERVER_COMMAND_ID,[!0]);'
+    "var p=function(e){function ACommand(){}return i.__extends(ACommand,e),"
+    "ACommand.prototype.executeCommand=function(e,t){return r.read(t),!0},ACommand}(n(124).BasicCommand);"
+    "t.set(r.BasicSmartfoxConstants.S2C_Z,new p.ACommand);"
+    "BasicSmartfoxClient.prototype.handleSystemMessage=function(e){switch(n){"
+    'case"apiOK":x();break;default:z()}};'
+    'BasicSmartfoxClient.S2C_ROOMLIST="rlu";'
+    "BasicSmartfoxClient.prototype.onExtensionResponse=function(e,t){switch(e){"
+    "case BasicSmartfoxClient.S2C_ROOMLIST:return this.setRoomList(t);default:t.shift()}};"
+)
+
+
+class TestUsage:
+    def test_handlers_are_keyed_by_registration(self):
+        # GPFCommand's cmdId getter returns S2C_GET_DETAILPLAYERINFO; it is registered under S2C_PREMIUM_FLAG_INFO
+        assert TABLES["handlers"]["gpf"] == ["GPFCommand"]
+        assert "GPFCommand" not in TABLES["handlers"]["gdi"]
+
+    def test_requests_count_constructions_across_the_bundle_and_dll(self):
+        # CoreC2SSetInviteCodeVO is defined in the dll and constructed in the bundle
+        assert TABLES["requests"]["core_sic"] == ["CoreC2SSetInviteCodeVO"]
+        assert TABLES["requests"]["pin"] == ["BasicSmartfoxClient.S2C_PING (sent)"]
+
+    def test_requests_are_constructed_classes_and_direct_sends(self):
+        assert script.usage((BUNDLE, DLL))["requests"] == {
+            "a": ["C2SAVO"],
+            "core_afk": ["Afk.SERVER_COMMAND_ID (sent)"],
+            "core_x": ["CoreC2SXVO"],
+            "y": ["BasicSmartfoxConstants.C2S_Y (sent)"],
+        }
+
+    def test_handlers_follow_registrations_and_payload_reads(self):
+        assert script.usage((BUNDLE, DLL))["handlers"] == {
+            "a": ["ACommand (ack)"],
+            "apiOK": ["BasicSmartfoxClient.handleSystemMessage"],
+            "b": ["BCommand (ack)"],
+            "core_z": ["ACommand"],
+            "gpf": ["GPFCommand"],
+            "rlu": ["BasicSmartfoxClient.onExtensionResponse"],
+        }
+
+    def test_an_unresolvable_constant_raises(self):
+        with pytest.raises(ValueError, match="C2S_NONE"):
+            script.usage(("x.sendMessage(a.ClientConstSF.C2S_NONE,[]);",))
