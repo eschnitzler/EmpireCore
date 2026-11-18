@@ -90,7 +90,14 @@ class TestReplies:
             ("mas", {"CID": OUTPOST, "KID": 2, "AOT": 600, "CAT": 600}, 0),
             ("mac", {"CID": OUTPOST, "KID": 2}, 0),
         ],
-        ids=["refused-mas", "refused-mac", "other-castle-mas", "other-castle-mac", "other-kingdom-mas", "other-kingdom-mac"],
+        ids=[
+            "refused-mas",
+            "refused-mac",
+            "other-castle-mas",
+            "other-castle-mac",
+            "other-kingdom-mas",
+            "other-kingdom-mac",
+        ],
     )
     def test_other_replies_change_nothing(self, command, payload, error_code):
         state = logged_in_state(gcl=gcl(AOT=86000, CAT=10000))
@@ -108,7 +115,7 @@ class TestReplies:
         ends = (castle.abandon_end, castle.cancel_abandon_end)
 
         with caplog.at_level(logging.WARNING, logger="empire_core.state.castles"):
-            state.update_from_packet(command, [1, 2])
+            state.update_from_packet(command, {"KID": 0})
 
         assert (castle.abandon_end, castle.cancel_abandon_end) == ends
         assert f"an {command} reply" in caplog.text

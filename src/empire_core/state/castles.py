@@ -1,6 +1,7 @@
 """Castle tracking: the castle list (gcl), castle details (dcl), castle resources (grc), units received (rue),
-the open-gate counter reset (kik), the Open Gate (mos), abandoning a castle (mas, mac), unlocked units and horses (gpc), and your royal towers, monuments,
-laboratories and villages (gkl, gml, gll, kgv) with the landmark resets (mre, lrr)."""
+the open-gate counter reset (kik), the Open Gate (mos), abandoning a castle (mas, mac), unlocked units and horses
+(gpc), and your royal towers, monuments, laboratories and villages (gkl, gml, gll, kgv) with the landmark resets
+(mre, lrr)."""
 
 import logging
 import time
