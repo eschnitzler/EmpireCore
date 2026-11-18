@@ -49,8 +49,7 @@ class ConstructionState(StateBase):
     The joined castle's construction slots.
 
     A join's reply replaces them, and a map read or a lost session drops them. The client keeps them on its
-    active area until the next join; the library drops them deliberately, so a list is never taken for a
-    castle that is no longer open.
+    active area until the next join; the library drops them deliberately when the session leaves the castle.
     """
 
     def _apply_carried_construction_list(self, command: str, data: Any) -> None:
