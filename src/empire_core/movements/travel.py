@@ -100,7 +100,7 @@ def low_level_boost(level: int, *, on_special_server: bool = False) -> float:
     return js_int32(100 * max(0, -0.1667 * level + 4.167)) / 100
 
 
-def corrected_attack_distance(distance: float, area_type: MapItemType | int) -> float:
+def corrected_attack_distance(distance: float, area_type: MapItemType) -> float:
     """
     The distance an attack travels: clamped to 6-144 fields for a capital or trading metropolis, 50 for a portal.
 
@@ -162,7 +162,7 @@ def lowest_travel_speed(
 def attack_travel_time(
     speed: int,
     distance: float,
-    target_area_type: MapItemType | int,
+    target_area_type: MapItemType,
     *,
     player_level: int,
     horse: HorseStats | None = None,
@@ -237,7 +237,7 @@ def station_travel_time(
 def support_travel_time(
     speed: int,
     distance: float,
-    target_area_type: MapItemType | int,
+    target_area_type: MapItemType,
     *,
     horse: HorseStats | None = None,
     commander_bonus: int = 0,
