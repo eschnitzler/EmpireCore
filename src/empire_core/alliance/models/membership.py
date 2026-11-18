@@ -160,8 +160,8 @@ class AllianceMembershipChange(BasePayload):
 
     Client: ``JOACommand`` (split.js line 624892), ``AAICommand`` (split.js line 622475) and ``AJACommand``
     (split.js line 623480) read ``gal`` with ``parse_GAL``, then ``A`` with ``parseAllianceInfo``;
-    ``AFOCommand`` (split.js line 623283) reads both; ``AASCommand`` (split.js line 622569) reads ``gal``
-    and then a truthy ``gam``
+    ``AFOCommand`` (split.js line 623283) reads ``A``, then ``gal``; ``AASCommand`` (split.js line 622569)
+    reads ``gal``, then a truthy ``gam``
     """
 
     membership: AllianceMembership | None = Field(

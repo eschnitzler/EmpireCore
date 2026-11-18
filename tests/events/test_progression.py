@@ -7,6 +7,7 @@ import pytest
 
 from empire_core.enums import Kingdom
 from empire_core.events import (
+    AllianceCampInfo,
     AllianceCampInfoResponse,
     DaimyoAreasResponse,
     DaimyoContractsResponse,
@@ -20,7 +21,7 @@ from empire_core.events import (
     UnlockEventRequest,
 )
 from empire_core.exceptions import CommandError, EventNotRunningError
-from empire_core.gamedata import EventDifficultyId, PartPayPriceId
+from empire_core.gamedata import AllianceInvasionCampId, EventDifficultyId, PartPayPriceId
 from empire_core.gamedata.ids.events import Event
 from empire_core.protocol.base import parse_response
 from empire_core.state.manager import GameState
@@ -185,6 +186,12 @@ class TestAllianceCamp:
         assert push.camp is not None
         assert (push.camp.event_id, push.camp.camp_id, push.camp.alliance_rage) == (72, 11, 40)
         assert push.camp.event_id is Event.NOMAD_INVASION_72
+
+    def test_the_camp_builds_by_name_and_survives_a_dump(self):
+        camp = AllianceCampInfo(event_id=Event.NOMAD_INVASION_72, camp_id=AllianceInvasionCampId(11), alliance_rage=40)
+        assert AllianceCampInfoResponse(camp=camp).camp == camp
+        dumped = AllianceCampInfoResponse(camp=camp).model_dump(by_alias=True)
+        assert AllianceCampInfoResponse.model_validate(dumped).camp == camp
 
     def test_updates_the_nomad_invasion(self):
         state = logged_in_state()
