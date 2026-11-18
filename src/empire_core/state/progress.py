@@ -6,8 +6,8 @@ from empire_core.castle.models.research import ResearchInfoResponse
 from empire_core.player.models.progress import (
     AchievementProgress,
     AchievementsResponse,
+    ActiveFeast,
     BoosterInfoResponse,
-    Festival,
     GallantryPointsResponse,
     GloryPointsResponse,
     GloryTitleResetResponse,
@@ -61,7 +61,7 @@ class ProgressState(StateBase):
         return {section for section in _PROGRESS_SECTIONS if section in data} - applied
 
     def _apply_boosts(self, body: Any) -> bool:
-        """Read a ``boi`` over the boosters known: one it does not list keeps its values, a falsy ``bfs`` the festival.
+        """Read a ``boi`` over the boosters known: one it does not list keeps its values, a falsy ``bfs`` the feast.
 
         Client: ``CastlePremiumBoostData.parse_BOI`` and ``parse_bfs`` (bundle lines 15202, 15218)
         """
@@ -73,21 +73,21 @@ class ProgressState(StateBase):
             listed = {booster.booster_id: booster for booster in boosts.boosters}
             kept = tuple(listed.pop(booster.booster_id, booster) for booster in previous.boosters)
             update: dict[str, Any] = {"boosters": (*kept, *listed.values())}
-            if boosts.festival is None:
-                update["festival"] = previous.festival
+            if boosts.feast is None:
+                update["feast"] = previous.feast
             boosts = boosts.model_copy(update=update)
         self.boosts = boosts
         return True
 
     def _handle_bfs(self, data: Any) -> None:
-        """Handle the reply to starting a festival: its ``T`` and ``RT`` are the festival.
+        """Handle the reply to starting a feast: its ``T`` and ``RT`` are the feast.
 
         Client: ``BFSCommand`` (bundle line 122569) passes the reply to ``parse_bfs`` (bundle line 15218)
         """
-        if not js_truthy(data) or (festival := read_section(Festival, data, "the festival")) is None:
+        if not js_truthy(data) or (feast := read_section(ActiveFeast, data, "the feast")) is None:
             return
         boosts = self.boosts if self.boosts is not None else BoosterInfoResponse()
-        self.boosts = boosts.model_copy(update={"festival": festival})
+        self.boosts = boosts.model_copy(update={"feast": feast})
 
     def _handle_ufp(self, data: Any) -> None:
         """Handle a ``ufp`` push: your Berimond points.
@@ -169,7 +169,7 @@ class ProgressState(StateBase):
             return loaded(self.research, "Research")
 
     def get_boosts(self) -> BoosterInfoResponse:
-        """Your boosters, premium account, production slots and festival; the login data brings a ``boi``.
+        """Your boosters, premium account, production slots and feast; the login data brings a ``boi``.
 
         Every booster any ``boi`` listed is there, as the last one that listed it left it.
 

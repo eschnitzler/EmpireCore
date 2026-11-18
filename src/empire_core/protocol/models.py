@@ -1061,6 +1061,7 @@ from empire_core.player.models.economy import (
     OpenLootBoxResponse,
     SpecialCurrenciesResponse,
 )
+from empire_core.player.models.feasts import HoldFeastRequest, HoldFeastResponse
 from empire_core.player.models.hero import (
     HeroDecisionRequest,
     HeroDecisionResponse,
@@ -1759,6 +1760,8 @@ __all__ = [
     "HireInstructorResponse",
     "HireMarauderRequest",
     "HireMarauderResponse",
+    "HoldFeastRequest",
+    "HoldFeastResponse",
     "HireOverseerRequest",
     "HireOverseerResponse",
     "HireResponse",

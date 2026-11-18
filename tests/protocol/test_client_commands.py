@@ -81,9 +81,8 @@ def test_a_new_release_alone_passes_the_check(tmp_path):
     assert _check(tmp_path, 'ClientConstSF.C2S_B="a";', out) == 1
 
 
-# Server messages the library reads without a response model: the SmartFox system messages, and
-# the booster festival (bfs), which #534 types with the ruby spending
-RAW_SERVER_COMMANDS = {"apiOK", "joinOK", "roundTripRes", "rlu", "bfs"}
+# Server messages the library reads without a response model: the SmartFox system messages
+RAW_SERVER_COMMANDS = {"apiOK", "joinOK", "roundTripRes", "rlu"}
 
 
 def test_every_server_command_the_state_reads_has_a_response_model():

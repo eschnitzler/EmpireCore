@@ -29,6 +29,10 @@ trying again.
 
 ::: empire_core.player.models.economy
 
+## `player.models.feasts`
+
+::: empire_core.player.models.feasts
+
 ## `player.models.info`
 
 ::: empire_core.player.models.info

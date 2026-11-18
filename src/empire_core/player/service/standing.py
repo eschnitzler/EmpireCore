@@ -129,7 +129,7 @@ class StandingMixin(ServiceMixin):
 
     @property
     def boosts(self) -> BoosterInfoResponse:
-        """Your boosters, premium account, production slots and festival.
+        """Your boosters, premium account, production slots and feast.
 
         Raises:
             StateNotLoadedError: No login has brought it

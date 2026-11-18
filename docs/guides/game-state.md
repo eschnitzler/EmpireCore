@@ -34,7 +34,7 @@ skills = client.player.skills                   # Legendary and sceat skills
 alliance = client.alliance.own_alliance         # your alliance's details and members
 chat = client.alliance.chat                     # the alliance chat history, oldest first
 research = client.castle.research               # finished and running research
-boosts = client.player.boosts                   # boosters, premium account, slots, festival
+boosts = client.player.boosts                   # boosters, premium account, slots, feast
 might = client.player.might
 glory = client.player.glory_points
 berimond = client.player.gallantry_points
@@ -111,7 +111,7 @@ every value is as old as the last packet that carried it:
 | Alliance chat history | `acl`, `acm` (pushed) | none |
 | Research | `rei` (pushed), the `res` and `msr` replies | log in again |
 | Boosters, premium account, production slots | `boi` (pushed), the booster replies (`ovs`, `bds`, ...); a `boi` updates only the boosters it lists | log in again |
-| Festival | `boi`, the `bfs` reply | log in again |
+| Feast | `boi`, the `bfs` reply | log in again |
 | Might points | `gmu` (pushed) | log in again |
 | Glory points | `ufa` (pushed) | log in again |
 | Berimond points | `ufp` (pushed; the login data's copy is ignored, as the game ignores it) | none |
