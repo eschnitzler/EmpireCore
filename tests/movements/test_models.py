@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from empire_core.enums import AutoSkipCooldownType, CollectableKind, Kingdom, MapItemType, MovementType, SpyType
+from empire_core.enums import AttackType, AutoSkipCooldownType, CollectableKind, Kingdom, MapItemType, MovementType, SpyType
 from empire_core.gamedata import Horse, Title, Tool, Unit
 from empire_core.protocol.base import Position, parse_response
 from empire_core.protocol.models import (
@@ -95,6 +95,16 @@ class TestMalformedMovementBatch:
     def test_a_kingdom_the_library_lacks_reads_as_green(self):
         record = GetMovementsResponse.model_validate({"M": [{"M": {"MID": 3, "KID": 99}}]}).movements[0].movement
         assert record.kingdom_id is Kingdom.GREEN
+
+    @pytest.mark.parametrize(
+        ("sent", "attack_type", "flag"),
+        [({"ATT": "3x", "SM": "0", "FC": [0]}, AttackType.CAPITAL_CONQUER, True), ({"ATT": "x", "SM": "", "FC": 0}, None, False)],
+    )
+    def test_the_attack_type_and_flags_read_as_the_client_does(self, sent, attack_type, flag):
+        # ArmyAttackMapmovementVO.loadFromParamObject: parseInt(t.ATT), Boolean(t.SM), !!t.FC
+        wrapper = GetMovementsResponse.model_validate({"M": [{**GOOD_MOVEMENT, **sent}]}).movements[0]
+        assert wrapper.attack_type == attack_type
+        assert (wrapper.is_shadow, wrapper.force_cancelable) == (flag, flag)
 
     def test_owner_records_without_an_id_are_skipped(self):
         response = GetMovementsResponse.model_validate({"O": [{"OID": 5, "N": "a"}, {}, {"OID": 0}, "junk", None]})
