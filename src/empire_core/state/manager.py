@@ -271,6 +271,8 @@ _SUCCESS_ONLY = frozenset(
     | {"skr"}
     # GAMCommand, ABRCommand, ASRCommand, MCMCommand (split.js lines 638976, 638456, 638501, 639021)
     | {"gam", "abr", "asr", "mcm"}
+    # GMPCommand, GLPCommand (split.js lines 654067, 654016)
+    | {"gmp", "glp"}
 )
 
 
@@ -387,6 +389,7 @@ class GameState(
                                          replies
     royal towers, monuments, labs        ``gkl``/``gml``/``gll``,     re-login
                                          ``mir`` (pushed)
+    monument and laboratory levels       ``gmp``/``glp``              ``client.castle.get_landmark_progress()``
     monument and laboratory resets       ``mre``/``lrr`` (pushed)     re-login
     villages                             ``kgv``                      ``client.castle.get_villages()``
     Storm Islands standing               ``sii``, ``ikr`` (pushed)    ``client.player.get_storm_islands_info()``
@@ -512,6 +515,8 @@ class GameState(
         "mos": "_handle_mos",
         "mas": "_handle_mas",
         "mac": "_handle_mac",
+        "gmp": "_handle_gmp",
+        "glp": "_handle_glp",
         "jaa": "_handle_jaa",
         "ghw": "_handle_ghw",
         "nfo": "_handle_nfo",
@@ -850,8 +855,9 @@ class GameState(
         daimyo's "gda", "gdc" and "gdw", the coat of arms symbols' "gus", the player name change's "gnci", the
         account deletion's "psd" and the skill reset's "skr" (each only a successful one),
         the officers' school's "gtp" (only a successful one), the quest pushes "qli", "qst", "qpg", "qfi", "msp" and the
-        campaign's "cqs", the castle pushes "rue", "kik", the Open Gate reply "mos" and the abandon replies "mas"
-        and "mac" (each only a successful one), the gem push "gec", the Berimond protection reply "ffp", the
+        campaign's "cqs", the castle pushes "rue", "kik", the Open Gate reply "mos", the abandon replies "mas" and
+        "mac" and the landmark progress replies "gmp" and "glp" (each only a successful one), the gem push "gec", the
+        Berimond protection reply "ffp", the
         rage points push "rpr", the alien reroll counts push "rce", the server kind "tse", the special server castles
         "tcc", the joined area's "jaa", "cmr", "rcc", "ghw", the events shutting down "sde", the map read "gaa" (refused
         too), the spy screen "ssi" (only a successful one) — and the login sections "gpi", "gxp", "gcu", "vip", "gal",

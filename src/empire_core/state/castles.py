@@ -1,11 +1,12 @@
 """Castle tracking: the castle list (gcl), castle details (dcl), castle resources (grc), units received (rue),
 the open-gate counter reset (kik), the Open Gate (mos), abandoning a castle (mas, mac), unlocked units and horses
 (gpc), and your royal towers, monuments, laboratories and villages (gkl, gml, gll, kgv) with the landmark resets
-(mre, lrr)."""
+(mre, lrr) and levels (gmp, glp)."""
 
 import logging
 import time
-from typing import Any
+from collections.abc import Callable
+from typing import Any, TypeVar
 
 from empire_core.castle.models.actions import AbandonCastleResponse, CancelAbandonCastleResponse
 from empire_core.castle.models.castles import GetCastlesResponse
@@ -18,15 +19,20 @@ from empire_core.castle.models.details import (
 from empire_core.castle.models.gates import OpenGateResponse
 from empire_core.castle.models.landmarks import (
     LaboratoryListResponse,
+    LaboratoryProgressResponse,
     LaboratoryResetResponse,
+    LandmarkProgress,
     MonumentListResponse,
+    MonumentProgressResponse,
     MonumentResetResponse,
+    OwnArea,
     RoyalTowerListResponse,
 )
 from empire_core.castle.models.permanent import PermanentCastle, PermanentCastleDataResponse
 from empire_core.castle.models.updates import NewDay, UnitsReceived
 from empire_core.castle.models.villages import VillageListResponse
 from empire_core.enums import Kingdom, Weekday
+from empire_core.gamedata import GameData, LaboratoryLevelDef, MonumentLevelDef
 from empire_core.protocol.base import enum_or_none, read_or_none
 from empire_core.state.base import StateBase, read_section
 from empire_core.state.login_data import LoginDataResponse
@@ -39,6 +45,36 @@ _STOCK = ("wood", "stone", "food", "coal", "oil", "glass", "iron", "aquamarine",
 
 
 AREA_LIST_SECTIONS = ("gkl", "gml", "gll", "kgv", "mre", "lrr")
+
+_Landmark = TypeVar("_Landmark", bound=OwnArea)
+
+
+def _with_progress(
+    landmarks: list[_Landmark],
+    progress: LandmarkProgress,
+    level_of: Callable[[GameData, _Landmark], MonumentLevelDef | LaboratoryLevelDef | None],
+) -> list[_Landmark] | None:
+    """``landmarks`` with the first one ``progress`` names at the level its points reach; None to keep them.
+
+    Client: ``UpgradableLandmarkData.updateLandmark`` (split.js line 239196) looks ``OID`` up with
+    ``UpgradableLandmarkList.getVOByID`` (split.js line 240306), and ``UpgradableLandmarkMapobjectVO.updateProgress``
+    (split.js line 221000) sets its level from ``getLevelInfoByPointsAchieved``, throwing when no level is reached
+    """
+    index = next((i for i, own in enumerate(landmarks) if own.location.location_id == progress.object_id), None)
+    # Without CP the client compares undefined, reaches no level and throws
+    if index is None or "points" not in progress.model_fields_set:
+        return None
+    game_data = GameData.loaded()
+    if game_data is None:
+        logger.warning(f"Landmark {progress.object_id}: no game data loaded to read its level from its points")
+        return None
+    landmark = landmarks[index]
+    level = level_of(game_data, landmark)
+    if level is None:
+        logger.warning(f"Landmark {progress.object_id}: {progress.points} points reach no level, its level is kept")
+        return None
+    location = landmark.location.model_copy(update={"landmark_level": level.level})
+    return [*landmarks[:index], landmark.model_copy(update={"location": location}), *landmarks[index + 1 :]]
 
 
 def _ends_at(now: float, seconds: int) -> float | None:
@@ -81,13 +117,45 @@ class CastleState(StateBase):
                 applied.add("lrr")
         return (login.sent_sections & set(AREA_LIST_SECTIONS)) - applied
 
+    def _handle_gmp(self, data: Any) -> None:
+        """Set the level of the monument of yours a gmp reply names from its points.
+
+        Client: ``GMPCommand.executeCommand`` (split.js line 654067) hands the reply to
+        ``CastleMonumentData.updateLandmark``, whose list is ``userData.monumentList`` (split.js line 239133)
+        """
+        progress = read_section(MonumentProgressResponse, data, "a gmp reply")
+        if progress is None or self.monuments is None:
+            return
+        monuments = _with_progress(
+            self.monuments.monuments, progress, lambda game_data, _: game_data.monument_level(progress.points)
+        )
+        if monuments is not None:
+            self.monuments = self.monuments.model_copy(update={"monuments": monuments})
+
+    def _handle_glp(self, data: Any) -> None:
+        """Set the level of the laboratory of yours a glp reply names from its points, in its kingdom.
+
+        Client: ``GLPCommand.executeCommand`` (split.js line 654016) hands the reply to
+        ``CastleLaboratoryData.updateLandmark``, whose list is ``userData.laboratoryList`` (split.js line 672255)
+        """
+        progress = read_section(LaboratoryProgressResponse, data, "a glp reply")
+        if progress is None or self.laboratories is None:
+            return
+        laboratories = _with_progress(
+            self.laboratories.laboratories,
+            progress,
+            lambda game_data, own: game_data.laboratory_level(progress.points, own.location.kingdom),
+        )
+        if laboratories is not None:
+            self.laboratories = self.laboratories.model_copy(update={"laboratories": laboratories})
+
     def get_royal_towers(self) -> RoyalTowerListResponse | None:
         """Your royal towers, from the last ``gkl``; None until one arrived."""
         with self._lock:
             return self.royal_towers
 
     def get_monuments(self) -> MonumentListResponse | None:
-        """Your monuments, from the last ``gml``; None until one arrived."""
+        """Your monuments, from the last ``gml``, with levels from later ``gmp`` replies; None until one arrived."""
         with self._lock:
             return self.monuments
 
@@ -102,7 +170,7 @@ class CastleState(StateBase):
             return self.villages
 
     def get_laboratories(self) -> LaboratoryListResponse | None:
-        """Your laboratories, from the last ``gll``; None until one arrived."""
+        """Your laboratories, from the last ``gll``, with levels from later ``glp`` replies; None until one arrived."""
         with self._lock:
             return self.laboratories
 
