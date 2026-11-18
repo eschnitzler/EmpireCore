@@ -49,9 +49,11 @@ from empire_core.events.models import (
     ImperialPatronageEvent,
     KingdomsLeagueEvent,
     MaraudersContestEvent,
+    MercenaryShopEvent,
     NobilityContestEvent,
     NomadInvasionEvent,
     OuterRealmsEvent,
+    PackageShopEvent,
     RiftRaidEvent,
     SamuraiInvasionEvent,
     SeasonEvent,
@@ -75,12 +77,14 @@ from empire_core.events.progression_models import (
 )
 from empire_core.events.special_server_models import CurrentServer, SpecialServerCastles
 from empire_core.events.status_models import GrandTournamentQuestStatus, GrandTournamentQuestUpdate, RiftRaidStatus
+from empire_core.gamedata import PackageId
 from empire_core.gamedata.ids.events import Event
 from empire_core.map.models.areas import KingdomProtection
 from empire_core.player.models.protection import StartBerimondProtectionResponse
 from empire_core.protocol.base import read_or_none
 from empire_core.protocol.js import js_truthy
 from empire_core.quests.models import CampaignQuestStatusResponse
+from empire_core.shop.models import BuyEventPackageResponse, PackageBuyCountsResponse
 from empire_core.state.base import StateBase, read_section
 from empire_core.utils import callbacks
 
@@ -542,6 +546,32 @@ class EventState(StateBase):
         if isinstance(event, OuterRealmsEvent):
             self._replace_event(event.model_copy(update={"castle_bought": castles.outer_realms_castle_bought}))
 
+    def _handle_sbp(self, data: Any) -> None:
+        """Keep how often you have bought the package a purchase names.
+
+        Client: ``SBPCommand.executeCommand`` (split.js line 647153), ``CastleEventPackageData.parseBoughtCount``
+        (split.js line 670404)
+        """
+        bought = read_section(BuyEventPackageResponse, data, "the package bought")
+        if bought is not None and bought.package_id is not None:
+            self.package_buy_counts = {**(self.package_buy_counts or {}), bought.package_id: bought.bought_count}
+
+    def _handle_gbc(self, data: Any) -> None:
+        """Keep how often you bought each package, forgetting the counts the list leaves out.
+
+        Client: ``GBCCommand.executeCommand`` (split.js line 651107), ``CastleEventPackageData.parseGBC``
+        (split.js line 670387)
+        """
+        counts = read_section(PackageBuyCountsResponse, data, "the package buy counts")
+        if counts is not None and counts.counts is not None:
+            self.package_buy_counts = {count.package_id: count.bought_count for count in counts.counts}
+
+    def get_package_buy_counts(self) -> dict[PackageId, int] | None:
+        """How often you bought each package, by package id, from the last ``gbc`` and the ``sbp`` since; None
+        until one came."""
+        with self._lock:
+            return None if self.package_buy_counts is None else dict(self.package_buy_counts)
+
     def get_current_server(self) -> CurrentServer | None:
         """The kind of server this session is on, from the last ``tse``; None until one came."""
         with self._lock:
@@ -802,6 +832,37 @@ class EventState(StateBase):
     def get_event(self, event: Literal[Event.TIME_LIMITED_CAMPAIGN_EVENT]) -> CampaignEvent | None: ...
     @overload
     def get_event(self, event: Literal[Event.TIME_LIMITED_CAMPAIGN_QUEST_EVENT]) -> CampaignQuestEvent | None: ...
+    @overload
+    def get_event(
+        self,
+        event: Literal[
+            Event.TRAVELING_MERCHANT,
+            Event.TRAVELING_MERCHANT_EVENT,
+            Event.NOMAD_HUNTER,
+            Event.DAIMYO_SHOP,
+            Event.SAMURAI_ARMORER,
+            Event.ARMORER,
+            Event.GIFT_PEDDLER,
+            Event.EQUIPMENT_TRADER,
+            Event.PLAGUE_DOCTORS,
+            Event.APPRENTICE_SMITH,
+            Event.APPRENTICE_TOKEN_VENDOR,
+            Event.WISHING_WELL_COIN_VENDOR,
+            Event.RAIDBOSS_SHOP_EVENT,
+        ],
+    ) -> PackageShopEvent | None: ...
+    @overload
+    def get_event(
+        self,
+        event: Literal[
+            Event.MERCENARY_THORN_KING,
+            Event.MERCENARY_BLADE_COAST,
+            Event.MERCENARY_UNDERWORLD,
+            Event.MERCENARY_STORM_ISLANDS,
+            Event.BERIMOND_ARMORER_76,
+            Event.BERIMOND_ARMORER_86,
+        ],
+    ) -> MercenaryShopEvent | None: ...
     @overload
     def get_event(self, event: Event | int) -> SpecialEvent | None: ...
 

@@ -125,6 +125,7 @@ every value is as old as the last packet that carried it:
 | Boosted global effects | `bie` (pushed) | log in again |
 | Gift packages | `pgl` | log in again |
 | Ruby wishing well | `rww` | `client.castle.get_wishing_well()` |
+| Event packages bought | `gbc`, `sbp` | `client.shop.get_package_buy_counts(castle_id)` |
 | New relics flag | `nrf` (pushed) | log in again |
 | Gems and relic gems | `ggm`, `gec` (pushed; adds or takes gems away) | log in again |
 | Loot boxes, key progress | `gls` (pushed, also before the login data); a `gls` updates only the key progress it lists | log in again |

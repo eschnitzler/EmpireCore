@@ -292,6 +292,31 @@ The minigame calls update the event they play, as the game does:
 A free gacha chest (`cfc`) and an artifact piece found (`saf`) come as pushes and
 update their event.
 
+## Event shops
+
+The traveling merchants, the armorers, the mercenary camps and the other shop
+events sell packages for a fixed price in coins, rubies or an event currency.
+Their running event is a `PackageShopEvent`; `packages()` lists what its shop
+sells, from the game data and the packages the server added, in the shop's order.
+`client.shop` buys one:
+
+```python
+from empire_core.gamedata import Event
+
+merchant = client.events.running[Event.TRAVELING_MERCHANT_EVENT]
+for package in merchant.packages():
+    print(package.package_id, package.costs, package.rewards)
+
+client.shop.get_package_buy_counts(castle_id)   # how often you bought each one with a stock
+client.shop.buy_event_package(merchant, package, castle_id, amount=1)
+```
+
+A building goes to `castle_id`; the purchase is made in that castle's kingdom.
+A price in rubies needs `spend_rubies=True`, which also lets the server take
+rubies for the costs you lack, as the game's resource dialog offers. A package priced by your storages (the
+fill-up packages) is refused, and so is more than its stock leaves; a refusal
+for lack of an event currency raises `NotEnoughSpecialCurrencyError`.
+
 ## When an event is not running
 
 An event runs from the `sei` packet that names it until a `see` push ends it or
