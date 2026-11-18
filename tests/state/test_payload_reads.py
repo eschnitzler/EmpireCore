@@ -9,15 +9,12 @@ STATE = Path(empire_core.state.__file__).parent
 
 # Still read from the payload, each being converted to its models (#519)
 NOT_YET_TYPED = {
-    "account.py",
-    "area.py",
-    "castles.py",
-    "inventory.py",
     "manager.py",
     "movements.py",
-    "player.py",
-    "quests.py",
 }
+
+# Models, whose validators are where the wire is read
+MODELS = {"login_data.py"}
 
 _PAYLOAD_TYPES = {"Any", "dict", "dict[str, Any]"}
 
@@ -65,7 +62,7 @@ def test_state_reads_no_payload_with_get():
     found = {
         path.name: lines
         for path in sorted(STATE.glob("*.py"))
-        if path.name not in NOT_YET_TYPED and (lines := payload_gets(path))
+        if path.name not in NOT_YET_TYPED | MODELS and (lines := payload_gets(path))
     }
     assert found == {}, "read these payloads through their response models"
 
