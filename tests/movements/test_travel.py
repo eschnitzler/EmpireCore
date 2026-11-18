@@ -112,7 +112,7 @@ def test_attack_travel_time_matches_the_client():
         time = attack_travel_time(
             20,
             distance,
-            area_type,
+            MapItemType(area_type),
             player_level=level,
             horse=_horse(unit_boost=horse),
             commander_bonus=commander,
@@ -141,7 +141,9 @@ def test_station_travel_time_matches_the_client():
 
 def test_support_travel_time_matches_the_client():
     for distance, area_type, horse, commander, expected in CLIENT["support"]:
-        time = support_travel_time(12, distance, area_type, horse=_horse(unit_boost=horse), commander_bonus=commander)
+        time = support_travel_time(
+            12, distance, MapItemType(area_type), horse=_horse(unit_boost=horse), commander_bonus=commander
+        )
         assert time == expected
 
 

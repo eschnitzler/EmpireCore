@@ -379,13 +379,13 @@ from empire_core.enums import BoosterId, MapItemType
 from empire_core.gamedata import Horse, Unit
 from empire_core.movements import attack_travel_time, lowest_travel_speed, resources_per_carriage
 
-data = client.game_data
-speed = lowest_travel_speed([data.units[Unit.SWORDMAN], data.units[Unit.BOWMAN]])
+data = client.load_game_data()
+speed = lowest_travel_speed([data.get_unit(Unit.SWORDMAN), data.get_unit(Unit.BOWMAN)])
 horse = data.get_horse(Horse.WARHORSE_STABLE1)
 seconds = attack_travel_time(speed, 42.5, MapItemType.CASTLE, player_level=70, horse=horse)
 
-overloader = next(b for b in client.player.boosts.boosters if b.booster_id == BoosterId.CARAVAN_OVERLOADER)
-per_carriage = resources_per_carriage(overloader.level)
+overloader = client.player.boosts.booster(BoosterId.CARAVAN_OVERLOADER)
+per_carriage = resources_per_carriage(overloader.level if overloader else 0)
 ```
 
 `station_travel_time`, `support_travel_time`, `trade_travel_time` and
