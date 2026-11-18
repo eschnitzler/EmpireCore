@@ -434,7 +434,7 @@ class TestRelocatingCastles:
     def test_the_row_layout_is_kept_without_the_raw_row(self):
         moving = MapAreaItem.from_list([1, 5, 6, 4242])
         rebuilt = MapAreaItem.model_validate(moving.model_dump(exclude={"raw_data"}))
-        assert (rebuilt.raw_data, rebuilt.is_plot_row, rebuilt.is_relocating) == ([], True, True)
+        assert (rebuilt.raw_data, rebuilt.is_plot_row, rebuilt.is_relocating) == (None, True, True)
         built = MapAreaItem(item_type=MapItemType.CASTLE, occupier_id=4242)
         assert (built.is_plot_row, built.is_relocating) == (False, False)
 

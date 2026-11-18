@@ -171,6 +171,7 @@ class MapScanner:
         request_timeout: float,
         include_unowned_types: set[MapItemType] | None = None,
         cancel: threading.Event | None = None,
+        keep_raw_data: bool = False,
     ) -> _ChunkResult:
         """
         Request a single chunk and process the response.
@@ -277,7 +278,7 @@ class MapScanner:
             # Free plots and NPC-owned rows are skipped unless their type is explicitly included,
             # decided before the row is built where its ids allow: a chunk holds hundreds of them
             try:
-                values = MapAreaItem.row_values(raw_item, kingdom)
+                values = MapAreaItem.row_values(raw_item, kingdom, keep_raw_data=keep_raw_data)
                 unowned_wanted = include_unowned_types is not None and values["item_type"] in include_unowned_types
                 no_player = _has_no_player(values.get("is_plot_row"), values.get("occupier_id"), values.get("owner_id"))
                 if no_player and not unowned_wanted:
@@ -319,6 +320,7 @@ class MapScanner:
         include_unowned_types: set[MapItemType] | None = None,
         cancel: threading.Event | None = None,
         on_chunk: ChunkHandler | None = None,
+        keep_raw_data: bool = False,
         timeout: float = 300.0,
     ) -> ScanResult:
         """
@@ -379,6 +381,10 @@ class MapScanner:
         is not passed on; it is in ``failed_chunks`` as usual. An exception
         raised by ``on_chunk`` ends the scan. The client decides nothing
         here: it reads each chunk into its world map as it arrives.
+
+        Each item's ``raw_data``, its row as sent, is None unless ``keep_raw_data``
+        is set: a scan reads thousands of rows and seldom needs them. An attack
+        fill given such an item reads the target's row itself.
         """
         return _Scan(
             [self],
@@ -390,6 +396,7 @@ class MapScanner:
             chunk_delay=chunk_delay,
             cancel=cancel,
             on_chunk=on_chunk,
+            keep_raw_data=keep_raw_data,
         ).run()
 
     def scan_chunks(
@@ -403,6 +410,7 @@ class MapScanner:
         include_unowned_types: set[MapItemType] | None = None,
         cancel: threading.Event | None = None,
         on_chunk: ChunkHandler | None = None,
+        keep_raw_data: bool = False,
         timeout: float = 300.0,
     ) -> ScanResult:
         """
@@ -424,8 +432,8 @@ class MapScanner:
         Chunks are deduplicated and those off the kingdom's map skipped.
         Unscanned chunks left over when ``timeout`` hits or ``cancel`` is set
         are reported in ``failed_chunks``; ``cancel`` is looked at between
-        chunks, and ``on_chunk`` takes each chunk in place of the result, as
-        in scan_kingdom().
+        chunks, ``on_chunk`` takes each chunk in place of the result, and
+        ``keep_raw_data`` keeps each row as sent, as in scan_kingdom().
         """
         return _Scan(
             [self],
@@ -437,6 +445,7 @@ class MapScanner:
             chunk_delay=chunk_delay,
             cancel=cancel,
             on_chunk=on_chunk,
+            keep_raw_data=keep_raw_data,
         ).run(chunks=chunks)
 
     def chunk_for_position(self, x: int, y: int) -> tuple[int, int]:
@@ -456,6 +465,7 @@ def scan_kingdom_with(
     chunks: Iterable[tuple[int, int]] | None = None,
     cancel: threading.Event | None = None,
     on_chunk: ChunkHandler | None = None,
+    keep_raw_data: bool = False,
 ) -> ScanResult:
     """
     Scan one kingdom with several logged-in clients at once, each on its own thread.
@@ -508,6 +518,7 @@ def scan_kingdom_with(
         chunk_delay=chunk_delay,
         cancel=cancel,
         on_chunk=on_chunk,
+        keep_raw_data=keep_raw_data,
     )
     return scan.run(chunks=chunks)
 
@@ -548,6 +559,7 @@ class _Scan:
         chunk_delay: float,
         cancel: threading.Event | None,
         on_chunk: ChunkHandler | None,
+        keep_raw_data: bool,
     ) -> None:
         self.scanners = scanners
         self.kingdom = kingdom
@@ -557,6 +569,7 @@ class _Scan:
         self.chunk_delay = chunk_delay
         self.cancel = cancel
         self.on_chunk = on_chunk
+        self.keep_raw_data = keep_raw_data
         self.deadline = time.monotonic() + timeout
         width, height = scanners[0].client.map.map_size(kingdom)
         # The last chunk on each axis that holds a tile of the map
@@ -668,6 +681,7 @@ class _Scan:
                     self.request_timeout,
                     include_unowned_types=self.include_unowned_types,
                     cancel=self.cancel,
+                    keep_raw_data=self.keep_raw_data,
                 )
                 if result.ok and self.on_chunk is not None:
                     with self.hook_lock:

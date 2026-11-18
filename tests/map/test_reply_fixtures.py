@@ -84,7 +84,7 @@ def test_parses_as_v0_45_did(payload):
 
 @pytest.mark.parametrize("scan", SCANS)
 def test_a_live_shaped_chunk_scans_as_v0_45_did(chunk, scan):
-    assert _scan_digest(_scan(chunk, **SCANS[scan])) == V0_45_SCAN_DIGESTS[scan]
+    assert _scan_digest(_scan(chunk, keep_raw_data=True, **SCANS[scan])) == V0_45_SCAN_DIGESTS[scan]
 
 
 def test_a_scan_builds_only_the_rows_it_keeps_and_those_it_cannot_judge_unbuilt(chunk, monkeypatch):
@@ -92,7 +92,7 @@ def test_a_scan_builds_only_the_rows_it_keeps_and_those_it_cannot_judge_unbuilt(
     init = MapAreaItem.__init__
 
     def counting(self: MapAreaItem, **values: Any) -> None:
-        built.append((values["raw_data"][1], values["raw_data"][2]))
+        built.append((values["x"], values["y"]))
         init(self, **values)
 
     monkeypatch.setattr(MapAreaItem, "__init__", counting)

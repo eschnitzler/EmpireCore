@@ -174,6 +174,9 @@ result = client.map.scan_kingdom(Kingdom.GREEN, on_chunk=keep_castles)
 chunks are still in `failed_chunks`, and `content_chunks` is filled as usual.
 An exception raised by `on_chunk` ends the scan.
 
+A scanned item's `raw_data`, its row as the server sent it, is `None`: pass
+`keep_raw_data=True` to keep it.
+
 ## Cancelling a scan
 
 Pass a `threading.Event` as `cancel` to `scan_kingdom()` or `scan_chunks()`.
