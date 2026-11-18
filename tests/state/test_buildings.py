@@ -226,16 +226,23 @@ class TestRefusedReplies:
 
 
 class TestResets:
-    @pytest.mark.parametrize("command", ["gaa", "gtwara", "rst"])
-    def test_a_map_read_forgets_them(self, command):
+    @pytest.mark.parametrize("command", ["gtwara", "rst"])
+    def test_leaving_the_area_forgets_them(self, command):
         state = joined()
         state.update_from_packet(command, {})
 
         assert state.get_buildings() is None
 
-    def test_rows_after_a_map_read_are_dropped_until_a_join(self):
+    def test_a_map_read_keeps_them(self):
         state = joined()
-        state.update_from_packet("gaa", {})
+        before = state.get_buildings()
+        state.update_from_packet("gaa", {"KID": 0, "AI": [], "OI": []})
+
+        assert state.get_buildings() == before
+
+    def test_rows_after_losing_the_area_are_dropped_until_a_join(self):
+        state = joined()
+        state.update_from_packet("gtwara", {})
         state.update_from_packet("gcb", {"B": [WOODCUTTER]})
         assert state.get_buildings() is None
 

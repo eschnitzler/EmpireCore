@@ -231,7 +231,7 @@ _SUCCESS_ONLY = frozenset(
     | {"aja", "sll", "gap"}
     # GBDCommand.exec (bundle line 129376) reads the login data only on ALL_OK
     | {"gbd"}
-    | (set(_NESTED_SECTIONS) - _MOVEMENT_REPLIES - {"gaa"})
+    | (set(_NESTED_SECTIONS) - _MOVEMENT_REPLIES)
     | {"rue", "kik", "gsm", "rci", "cmr", "rcc", "jaa", "csl", "gab", "gec", "ghw"}
     # MASCommand, MACCommand (split.js lines 635734, 635691)
     | {"mas", "mac"}
@@ -540,11 +540,9 @@ class GameState(
         "gab": "_handle_gab",
         "gca": "_handle_gca",
         "sin": "_handle_sin",
-        # Any map read leaves the joined castle, refused or not, and so does losing the joined area
-        "gaa": "_handle_gaa",
         "ssi": "_handle_ssi",
-        "gtwara": "_handle_gaa",
-        "rst": "_handle_gaa",
+        "gtwara": "_handle_gtwara",
+        "rst": "_handle_rst",
         "sii": "_handle_sii",
         "ikr": "_handle_ikr",
         "gec": "_handle_gec",
@@ -875,8 +873,9 @@ class GameState(
         "mac" and the landmark progress replies "gmp" and "glp" (each only a successful one), the gem push "gec", the
         Berimond protection reply "ffp", the
         rage points push "rpr", the alien reroll counts push "rce", the server kind "tse", the special server castles
-        "tcc", the joined area's "jaa", "cmr", "rcc", "ghw", the events shutting down "sde", the map read "gaa" (refused
-        too), the spy screen "ssi" (only a successful one) — and the login sections "gpi", "gxp", "gcu", "vip", "gal",
+        "tcc", the joined area's "jaa", "cmr", "rcc", "ghw", the events shutting down "sde", the joined area's loss
+        "gtwara" and the relocation "rst" (each only a successful one), the spy screen "ssi" (only a successful
+        one) — and the login sections "gpi", "gxp", "gcu", "vip", "gal",
         "gcl", "gho", "uap", "gpc", "gms", "sei", "tei", "gli", "skl", "ain", "acl", "rei", "boi", "gmu", "ufa", "uar",
         "vli", "gri", "cpi", "dql", "gai", "gatp", "bie", "pgl", "rww", "nrf", "DTS", "gem", "gpf", "scd", "mcd", "ggm",
         "gls", "esl", "kpi", "mpe", "txi", "nec", "irc", "grc", "gll", "lrr", "tmp" and "thi", stamped whether they

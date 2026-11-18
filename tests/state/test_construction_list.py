@@ -118,13 +118,20 @@ class TestCarriers:
 
 
 class TestReset:
-    @pytest.mark.parametrize("command", ["gaa", "gtwara", "rst"])
-    def test_leaving_the_castle_drops_them(self, state, command):
+    @pytest.mark.parametrize("command", ["gtwara", "rst"])
+    def test_leaving_the_area_drops_them(self, state, command):
         joined(state)
 
         state.update_from_packet(command, {})
 
         assert state.get_construction_list() is None
+
+    def test_a_map_read_keeps_them(self, state):
+        joined(state)
+
+        state.update_from_packet("gaa", {"KID": 0, "AI": [], "OI": []})
+
+        assert state.get_construction_list() == ConstructionList.model_validate(JOINED)
 
     def test_a_session_reset_drops_them(self, state):
         joined(state)

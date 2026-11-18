@@ -177,7 +177,7 @@ def test_refresh_failure_keeps_successful_placement_and_invalidates_inventory(ac
     assert "inventory" in caplog.text.lower()
 
 
-@pytest.mark.parametrize("switch", ["other_castle", "rejoin", "map"])
+@pytest.mark.parametrize("switch", ["other_castle", "rejoin", "lost"])
 def test_concurrent_area_change_rejects_untagged_action_response(action_client, switch):
     from empire_core.exceptions import ReplyMismatchError
 
@@ -186,8 +186,8 @@ def test_concurrent_area_change_rejects_untagged_action_response(action_client, 
 
     def change_area(packet):
         if packet.command_id == "rpc":
-            if switch == "map":
-                client.state.update_from_packet("gaa", {})
+            if switch == "lost":
+                client.state.update_from_packet("gtwara", {})
             else:
                 joined = JOIN if switch == "rejoin" else {**JOIN, "gca": {**JOIN["gca"], "A": [1, 11, 21, 2002, 1001]}}
                 client.state.update_from_packet("jaa", joined)
@@ -196,7 +196,7 @@ def test_concurrent_area_change_rejects_untagged_action_response(action_client, 
     conn(client).on_packet = change_area
     with pytest.raises(ReplyMismatchError):
         client.castle.equip_construction_item(2001, 55, 99999999, 0)
-    if switch == "map":
+    if switch == "lost":
         assert client.castle.placed_construction_items is None
     else:
         assert client.castle.placed_construction_items[0].items[0].construction_item_id == 1
@@ -665,7 +665,7 @@ def test_queue_move_rejects_malformed_queue_read(action_client, stage):
     assert ("mci" in conn(action_client).requested) == (stage == "after")
 
 
-@pytest.mark.parametrize("switch", ["other_castle", "rejoin", "map"])
+@pytest.mark.parametrize("switch", ["other_castle", "rejoin", "lost"])
 def test_booster_reply_cannot_overwrite_a_changed_castle_context(action_client, switch):
     from empire_core.enums import CurrencyId
     from empire_core.exceptions import ReplyMismatchError
@@ -675,8 +675,8 @@ def test_booster_reply_cannot_overwrite_a_changed_castle_context(action_client, 
 
     def change_area(packet):
         if packet.command_id == "ubc":
-            if switch == "map":
-                normal(xt_packet("gaa", {}))
+            if switch == "lost":
+                normal(xt_packet("gtwara", {}))
             else:
                 joined = JOIN if switch == "rejoin" else {**JOIN, "gca": {**JOIN["gca"], "A": [1, 11, 21, 2002, 1001]}}
                 normal(xt_packet("jaa", joined))
@@ -685,7 +685,7 @@ def test_booster_reply_cannot_overwrite_a_changed_castle_context(action_client, 
     conn(action_client).on_packet = change_area
     with pytest.raises(ReplyMismatchError):
         action_client.castle.boost_construction_item(2001, 55, 1, 0, consumable=CurrencyId(2000))
-    if switch == "map":
+    if switch == "lost":
         assert action_client.castle.placed_construction_items is None
     else:
         assert action_client.castle.placed_construction_items[0].items[0].construction_item_id == 1

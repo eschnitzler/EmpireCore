@@ -178,10 +178,12 @@ units, so `get_last_packet_time("grc")` dates it.
 Logging in joins no castle; `client.castle.join(castle_id)` does, and its reply
 fills `get_joined_area()` (the castle's kingdom, id and position, slum level and
 builder discount) and, when the server sends them, the mines and resource carts. Their
-pushes keep them current while you stay. A map read (`gaa`, as every
-[scan](map-scanning.md) sends) drops the mines, as the game drops them on the
-world map; `get_joined_area()` and the resource carts stay, as the game keeps
-them, even though the session is no longer in the castle. Mines and carts are
+pushes keep them current while you stay. A [scan](map-scanning.md)
+moves the session to the world map but keeps `get_joined_area()` and the resource
+carts, as the game keeps its active area, and the mines, which the game drops on
+its switch to the world map but the library keeps, since a scan is no such
+switch. A map read the server pushes (`gaa`, as when an attack lands) moves
+nothing. Losing the area (`gtwara`) drops the mines. Mines and carts are
 read-only. A mine's `next_collect_seconds` and a
 cart's `remaining_seconds` count down from when they arrived, as in the game:
 
