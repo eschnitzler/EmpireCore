@@ -245,8 +245,7 @@ class SkillsMixin(PlayerBaseMixin):
         The dialog offers a system once you hold one of its titles (``held_titles``). The reply's
         systems replace those of :attr:`title_ranks`.
 
-        Client: ``CastleTitleSelectDialog.confirmSelection`` (bundle line 45050),
-        ``CastleTitleData.parseSTE`` (bundle line 21041)
+        Client: ``CastleTitleSelectDialog.confirmSelection`` (bundle line 45050)
 
         Args:
             prefix: The system shown before your name
@@ -261,8 +260,6 @@ class SkillsMixin(PlayerBaseMixin):
                 ``TITLE_ON_COOLDOWN``
             EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
         """
-        selected = self.request(
+        return self.request(
             SelectTitleRequest(prefix=prefix, suffix=suffix or ""), SelectTitleResponse, timeout=timeout
         )
-        self.client.state.select_title_systems(selected)
-        return selected
