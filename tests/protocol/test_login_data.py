@@ -1,5 +1,7 @@
 """The login data (gbd) as one typed payload, and the faction join reply (fjf)."""
 
+import logging
+
 from empire_core.events.models import BerimondFactionJoinedResponse
 from empire_core.protocol.models import parse_response
 from empire_core.state.login_data import LoginDataResponse
@@ -23,6 +25,22 @@ class TestLoginData:
         login = LoginDataResponse.model_validate({"gpi": {"PID": 7}, "gli": {"C": "bad"}, "gcu": "bad"})
         assert login.identity is not None and login.currencies is None
         assert "currencies login section" in caplog.text
+
+    def test_a_falsy_section_is_none_quietly_but_counts_as_sent(self, caplog):
+        # GBDCommand.exec's parsers skip a falsy section
+        with caplog.at_level(logging.WARNING):
+            login = LoginDataResponse.model_validate({"gal": None, "gkl": 0, "tmp": "", "skl": False})
+
+        assert (login.alliance, login.royal_towers, login.treasure_maps, login.skills) == (None, None, None, None)
+        assert login.sent_sections == {"gal", "gkl", "tmp", "skl"}
+        assert caplog.text == ""
+
+    def test_the_live_login_reads_without_a_warning(self, caplog):
+        with caplog.at_level(logging.WARNING):
+            login = LoginDataResponse.model_validate(LIVE_LOGIN)
+
+        assert login.sent_sections == set(LIVE_LOGIN)
+        assert caplog.text == ""
 
     def test_sections_without_a_model_stay_extras(self):
         login = LoginDataResponse.model_validate({"nsm": 1, "atl": {"X": 1}})

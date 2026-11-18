@@ -1,5 +1,6 @@
 """GameState local player tracking: player sections, alliance, special currencies and freshness."""
 
+import logging
 import time
 from unittest.mock import patch
 
@@ -331,6 +332,14 @@ class TestPlayerPushes:
         assert (player.honor, player.ranking) == (0, 93)
         assert player.beginner_protection == {0: False}
         assert state.get_last_packet_time("gho") is not None
+
+    def test_falsy_login_sections_are_skipped_quietly(self, state, caplog):
+        with caplog.at_level(logging.WARNING):
+            state.update_from_packet("gbd", {**LIVE_LOGIN, "gkl": 0, "tmp": None, "skl": 0, "rei": 0, "gli": ""})
+
+        assert caplog.text == ""
+        assert [state.get_last_packet_time(key) for key in ("gkl", "tmp", "skl", "rei", "gli")] == [None] * 5
+        assert state.get_last_packet_time("gcu") is not None
 
     def test_gcu_push(self, state):
         state.update_from_packet("gbd", LIVE_LOGIN)

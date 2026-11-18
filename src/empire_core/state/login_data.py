@@ -30,9 +30,10 @@ from empire_core.castle.models.upkeep import ConstructionItemExpiryResponse
 from empire_core.castle.models.villages import VillageListResponse
 from empire_core.castle.models.wishing_well import WishingWellResponse
 from empire_core.commanders.models.inventory import GemInventoryResponse, InventorySpace, NewRelicsResponse
-from empire_core.commanders.models.roster import GetCommandersResponse
-from empire_core.commanders.models.skills import GetSkillsResponse
+from empire_core.commanders.models.roster import CommanderRoster
+from empire_core.commanders.models.skills import SkillList
 from empire_core.events.models import SpecialEventsResponse, TriggerEventsResponse
+from empire_core.map.models.areas import KingdomProtection
 from empire_core.map.models.treasure_maps import TreasureHuntInfoResponse, TreasureMapsResponse
 from empire_core.messages.models.mailbox import MessagesSentToday, SystemNotificationEvent
 from empire_core.movements.models.movement import MovementFilterResponse
@@ -59,8 +60,8 @@ from empire_core.player.models.progress import (
     RelocationInfoResponse,
     TitleRanksResponse,
 )
-from empire_core.player.models.protection import ProtectionResponse
 from empire_core.protocol.base import BaseResponse, read_or_none
+from empire_core.protocol.js import js_truthy
 from empire_core.quests.models import DailyQuests
 from empire_core.spy.models import MaxSpiesResponse, PlagueDoctorInfoResponse
 
@@ -71,14 +72,16 @@ class LoginDataResponse(BaseResponse):
     """
     The login data: every section the client reads after logging in, each through its section's model.
 
-    A section that is not sent, or that its model cannot read, is None; the rest of the login data still
-    reads. Sections the library has no model for yet stay as extras. The client reads ``mcd`` from the
-    whole payload when the section is missing, and ``nsm`` as a negated flag; neither is modelled here.
+    A section that is not sent, is falsy, or that its model cannot read, is None; the rest of the login
+    data still reads, and which sections were sent is in ``model_fields_set``. Sections the library has
+    no model for yet stay as extras. The client reads ``mcd`` from the whole payload when the section is
+    missing, and ``nsm`` as a negated flag; neither is modelled here.
 
-    Command: gbd, pushed after a login; ``client.state`` applies each section as it comes.
+    Command: gbd, pushed after a login; ``client.state`` applies each section as it comes, and a section
+    pushed on its own as a login data of that one section.
 
-    Client: ``GBDCommand.exec`` (bundle line 129425), which hands each section to its parser in the order
-    the fields here follow (bundle line 129430)
+    Client: ``GBDCommand.exec`` (split.js line 651188), which hands each section to its parser in the
+    order the fields here follow; the parsers skip a falsy section
     """
 
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
@@ -147,12 +150,12 @@ class LoginDataResponse(BaseResponse):
     villages: VillageListResponse | None = Field(
         validation_alias="kgv", default=None, description="Your villages; None when not sent or unreadable"
     )
-    protection: ProtectionResponse | None = Field(
+    protection: KingdomProtection | None = Field(
         validation_alias="uap",
         default=None,
         description="Your protection in a kingdom; None when not sent or unreadable",
     )
-    second_protection: ProtectionResponse | None = Field(
+    second_protection: KingdomProtection | None = Field(
         validation_alias="gac",
         default=None,
         description="A second protection block, read as a uap; None when not sent or unreadable",
@@ -232,7 +235,7 @@ class LoginDataResponse(BaseResponse):
     plague_doctors: PlagueDoctorInfoResponse | None = Field(
         validation_alias="cpi", default=None, description="Your plague doctors; None when not sent or unreadable"
     )
-    commanders: GetCommandersResponse | None = Field(
+    commanders: CommanderRoster | None = Field(
         validation_alias="gli",
         default=None,
         description="Your commanders and castellans; None when not sent or unreadable",
@@ -282,7 +285,7 @@ class LoginDataResponse(BaseResponse):
     gifts: PlayerGiftsResponse | None = Field(
         validation_alias="pgl", default=None, description="Your gifts; None when not sent or unreadable"
     )
-    skills: GetSkillsResponse | None = Field(
+    skills: SkillList | None = Field(
         validation_alias="skl", default=None, description="Your Legendary skills; None when not sent or unreadable"
     )
     construction_item_expiry: ConstructionItemExpiryResponse | None = Field(
@@ -293,6 +296,11 @@ class LoginDataResponse(BaseResponse):
     attack_counter: AttackCounterResponse | None = Field(
         validation_alias="gai", default=None, description="Your attack counter; None when not sent or unreadable"
     )
+
+    @property
+    def sent_sections(self) -> set[str]:
+        """The wire keys of the sections sent, falsy and unreadable ones too."""
+        return {_WIRE_KEYS[name] for name in self.model_fields_set if name in _WIRE_KEYS}
 
     @field_validator(
         "honor",
@@ -357,6 +365,13 @@ class LoginDataResponse(BaseResponse):
     )
     @classmethod
     def _section(cls, value: Any, handler: ValidatorFunctionWrapHandler, info: ValidationInfo) -> Any:
-        if value is None:
+        if not js_truthy(value):
             return None
         return read_or_none(handler, value, warn=logger, what=f"the {info.field_name} login section")
+
+
+_WIRE_KEYS = {
+    name: field.validation_alias
+    for name, field in LoginDataResponse.model_fields.items()
+    if isinstance(field.validation_alias, str)
+}

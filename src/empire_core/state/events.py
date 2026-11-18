@@ -79,7 +79,7 @@ from empire_core.gamedata.ids.events import Event
 from empire_core.map.models.areas import KingdomProtection
 from empire_core.player.models.protection import StartBerimondProtectionResponse
 from empire_core.protocol.base import read_or_none
-from empire_core.protocol.js import js_int, js_truthy
+from empire_core.protocol.js import js_truthy
 from empire_core.quests.models import CampaignQuestStatusResponse
 from empire_core.state.base import StateBase, read_section
 from empire_core.utils import callbacks
@@ -176,7 +176,9 @@ class EventState(StateBase):
         Client: ``CastleSpecialEventData.parse_SEI`` (bundle line 139849), which reads ``int(a.EID)``,
         and ``parseServerEventData`` (bundle line 139860); a falsy payload still refreshes every event
         """
-        events = read_section(SpecialEventsResponse, data, "a sei")
+        self._apply_events(read_section(SpecialEventsResponse, data, "a sei"))
+
+    def _apply_events(self, events: SpecialEventsResponse | None) -> None:
         self._apply_event_entries(events.entries if events is not None else ())
 
     def _apply_sei(self, data: dict[str, Any]) -> None:
@@ -195,7 +197,9 @@ class EventState(StateBase):
         (bundle line 139954), which reads ``int(a.TRID)`` and does nothing for an empty ``TE``;
         ``ATriggerEventVO.parseBasicsFromParamObject`` (bundle line 39815)
         """
-        events = read_section(TriggerEventsResponse, data, "a tei")
+        self._apply_trigger_events(read_section(TriggerEventsResponse, data, "a tei"))
+
+    def _apply_trigger_events(self, events: TriggerEventsResponse | None) -> None:
         if events is not None and events.entries:
             self._apply_event_entries(events.entries)
         else:

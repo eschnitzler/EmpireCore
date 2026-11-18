@@ -6,6 +6,7 @@ import time
 from collections.abc import Set as AbstractSet
 from typing import Any
 
+from empire_core.alliance.models.chat import AllianceChatLogResponse
 from empire_core.castle.models.castles import NameCastleInvitationResponse
 from empire_core.enums import Kingdom
 from empire_core.events.models import BerimondFactionJoinedResponse
@@ -22,6 +23,7 @@ from empire_core.state.commanders import CommanderState
 from empire_core.state.crafting import CRAFTING_QUEUE_REPLIES, CraftingState
 from empire_core.state.events import EventCallback, EventsCallback, EventState
 from empire_core.state.inventory import INVENTORY_SECTIONS, InventoryState
+from empire_core.state.login_data import LoginDataResponse
 from empire_core.state.messages import MailboxState
 from empire_core.state.movements import MOVEMENT_PARSE_WARN_INTERVAL, MovementState
 from empire_core.state.player import PlayerState
@@ -573,7 +575,8 @@ class GameState(
                 if isinstance(payload, dict) and "raw" not in payload and not stale_alliance_read:
                     section = _WHOLE_SECTIONS[cmd_id]
                     if cmd_id == "acl":
-                        if self._parse_chat_history({"acl": payload}, replace=True):
+                        log = read_section(AllianceChatLogResponse, payload, "the alliance chat log")
+                        if self._parse_chat_history(log, replace=True):
                             self._packet_times["acl"] = time.time()
                     elif section not in self._handle_gbd({section: payload}):
                         self._packet_times[cmd_id] = time.time()
@@ -595,52 +598,61 @@ class GameState(
     def _handle_gbd(self, data: dict[str, Any]) -> set[str]:
         """Apply the login data, or the one section a push wraps in the same shape.
 
+        Each section is read once, through :class:`LoginDataResponse`. The account and inventory
+        sections, ``ain``, ``dql``, ``dcl``, ``gms``, ``kpi``'s ``fki`` and the sections a gbd never
+        carries (``grc``, ``crai``) are still applied from their bodies.
+
         Returns the sections present but not applied, which are not stamped.
 
-        Client: ``GBDCommand.exec``; the pushes are ``GPICommand``, ``GXPCommand``,
-        ``GCUCommand``, ``VIPCommand``, ``GALCommand``, ``GCLCommand``,
-        ``GHOCommand``, ``UAPCommand``, ``GPCCommand`` and ``GMSCommand`` (bundle line 120555);
-        ``GBDCommand.exec`` (bundle line 129381) applies ``gal`` before ``ain`` and ``tei`` before ``sei``.
+        Client: ``GBDCommand.exec`` (split.js line 651188); the pushes are ``GPICommand``, ``GXPCommand``,
+        ``GCUCommand``, ``VIPCommand``, ``GALCommand``, ``GCLCommand``, ``GHOCommand``, ``UAPCommand``,
+        ``GPCCommand`` and ``GMSCommand`` (bundle line 120555); ``GBDCommand.exec`` applies ``gal``
+        before ``ain`` and ``tei`` before ``sei``.
         """
-        self._apply_faction_protection(self._parse_player_sections(data))
-        self._parse_special_currencies(data)
+        login = LoginDataResponse.model_validate(data)
+        self._apply_faction_protection(self._parse_player_sections(login))
+        self._parse_special_currencies(login)
         previous_alliance_id = self.local_player.AID if self.local_player is not None else None
-        membership = self._parse_alliance_info(data)
-        self._apply_gal_reset(membership, present="gal" in data, previous_alliance_id=previous_alliance_id)
+        membership = self._parse_alliance_info(login)
+        self._apply_gal_reset(
+            membership, present="alliance" in login.model_fields_set, previous_alliance_id=previous_alliance_id
+        )
         skipped = {
             section
             for section, applied in (
                 ("ain", self._parse_own_alliance(data)),
-                ("acl", self._parse_chat_history(data)),
-                ("ahl", self._parse_alliance_help(data)),
-                ("sne", self._parse_mailbox(data)),
-                ("gli", self._parse_commanders(data)),
-                ("skl", self._parse_skills(data)),
+                ("acl", self._parse_chat_history(login.alliance_chat)),
+                ("ahl", self._parse_alliance_help(login)),
+                ("sne", self._parse_mailbox(login)),
+                ("gli", self._parse_commanders(login)),
+                ("skl", self._parse_skills(login)),
                 ("dql", self._parse_daily_quests(data)),
                 ("grc", self._parse_castle_resources(data)),
                 # CastleVIPData.parse_VIP (bundle line 47527) ignores a vip that is not set
-                ("vip", isinstance(data.get("vip"), dict)),
+                ("vip", login.vip is not None),
             )
             if not applied
         }
-        skipped |= self._parse_progress(data)
+        skipped |= self._parse_progress(login)
         skipped |= self._parse_account(data)
         skipped |= self._parse_inventory(data)
-        skipped |= self._parse_treasure_maps(data)
-        skipped |= self._parse_area_lists(data)
-        self._parse_castles(data)
-        self._parse_permanent_castles(data)
+        skipped |= self._parse_treasure_maps(login)
+        skipped |= self._parse_area_lists(login)
+        if login.castles is not None:
+            self._parse_castles(login.castles)
+        if login.permanent_castles is not None:
+            self._parse_permanent_castles(login.permanent_castles)
         self._parse_max_spies(data)
-        # GBDCommand.exec hands mvf to CastleSettingsData.parse_MVF as it comes (bundle line 129430)
-        self._handle_mvf(data.get("mvf"))
+        if login.movement_filter is not None:
+            self.movement_filter = login.movement_filter
         if isinstance(crai := data.get("crai"), dict) and js_truthy(crai.get("CAI")):
             self._handle_crin(crai)
         if dcl := data.get("dcl"):
             self._handle_dcl(dcl)
-        if "tei" in data:
-            self._handle_tei(data["tei"])
-        if "sei" in data:
-            self._handle_sei(data["sei"])
+        if "trigger_events" in login.model_fields_set:
+            self._apply_trigger_events(login.trigger_events)
+        if "events" in login.model_fields_set:
+            self._apply_events(login.events)
         if "kpi" not in skipped and isinstance(kpi := data.get("kpi"), dict) and "fki" in kpi:
             # GBDCommand.exec parses the kpi after the sei (bundle line 129425), so its fki finds the event
             self._handle_fki(kpi["fki"])
