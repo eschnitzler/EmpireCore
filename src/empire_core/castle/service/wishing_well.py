@@ -39,7 +39,8 @@ class WishingWellMixin(ServiceMixin):
 
     def finish_wishing_well(self, *, spend_rubies: bool = False, timeout: float = 5.0) -> WishingWellResponse:
         """
-        Finish the running wishing well now, for rubies; see "Spending rubies" in the guides. Collect it after.
+        Finish the running wishing well now, for rubies; see "Spending rubies" in the guides. Whether the
+        rubies still need :meth:`collect_wishing_well` after is the server's to say; read the reply.
 
         Args:
             spend_rubies: Allow the rubies it costs, :func:`wishing_well_skip_rubies` of the time left; without
