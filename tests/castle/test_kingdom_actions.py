@@ -172,7 +172,7 @@ def test_leave_area_sends_laa_without_waiting():
     assert LeaveAreaRequest().to_payload() == {}
 
 
-def test_losing_the_joined_area_drops_its_mines_as_a_map_read_does():
+def test_losing_the_joined_area_drops_its_mines():
     state = GameState()
     state.mines = {1: object()}  # type: ignore[dict-item]
     revision = state.area_revision

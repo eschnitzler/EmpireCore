@@ -185,17 +185,29 @@ class AreaState(StateBase):
         self.resource_carts = list(carts.carts[:_CART_COUNT])
         self._packet_times["rci"] = time.time()
 
-    def _handle_gaa(self, data: Any) -> None:
-        """A map read: forget the joined castle's mines, as the client does on the world map.
+    def _handle_gtwara(self, data: Any) -> None:
+        """The joined area was removed: the session is on the world map, without its mines.
 
-        The client asks for map areas only on the world map (``CastleWorldmapData.updateAreaRange``,
-        bundle line 19006), and switching there drops the mines (``SwitchToWorldmapCommand.execute``,
-        bundle line 100945). It keeps its active area, which ``csl`` and ``gab`` still update, and
-        the resource carts, so state keeps ``joined_area`` and the carts too. It drops the construction slots,
-        which the client keeps (see :class:`ConstructionState`).
+        The library also drops the construction slots and buildings, which the client keeps
+        (see :class:`ConstructionState`).
+
+        Client: ``GTWARACommand.executeCommand`` (split.js line 643221) runs ``SwitchToWorldmapCommand``, which
+        destroys the mines (split.js line 519126, ``CastleMineData.destroy``, split.js line 258561)
         """
-        self.session_location = SessionLocation.WORLDMAP
         self.mines = {}
+        self._leave_castle()
+
+    def _handle_rst(self, data: Any) -> None:
+        """A relocation started: the session is on the world map; the mines stay, as the client keeps them.
+
+        The library drops the construction slots and buildings, which the client keeps (see :class:`ConstructionState`).
+
+        Client: ``RSTCommand.executeCommand`` (split.js line 641672) sets ``STATE_WORLDMAP`` on ALL_OK
+        """
+        self._leave_castle()
+
+    def _leave_castle(self) -> None:
+        self.session_location = SessionLocation.WORLDMAP
         self.area_revision += 1
         self._placed_construction_item_sequence = self._packet_sequence
         self.placed_construction_items = None
@@ -291,20 +303,20 @@ class AreaState(StateBase):
     def get_joined_area(self) -> JoinedArea | None:
         """The area joined, with its slum level and builder discount; ``None`` before any join.
 
-        ``client.castle.join`` joins one. Login joins the main castle. A map read (``gaa``) moves the session
-        off the castle but keeps this, as the client keeps its active area; join again before
-        anything castle-scoped.
+        ``client.castle.join`` joins one. Login joins the main castle. The library's own map read, leaving the area
+        (``laa``), a relocation and losing the area move the session off the castle but keep this, as the client
+        keeps its active area; join again before anything castle-scoped.
         """
         with self._lock:
             return self.joined_area
 
-    def _area_left(self, expected_revision: int) -> None:
-        """Apply a sent laa only if no newer area transition or reset superseded it."""
+    def _session_moved(self, expected_revision: int, location: SessionLocation) -> None:
+        """Apply a sent ``laa`` or ``gaa`` only if no newer area transition or reset superseded it."""
         with self._lock:
             if self.area_revision != expected_revision:
                 return
             self.area_revision += 1
-            self.session_location = SessionLocation.KINGDOM_MAP
+            self.session_location = location
 
     def get_session_location(self) -> SessionLocation | None:
         """The last server-visible layout state; None before a join or map transition."""
@@ -364,8 +376,8 @@ class AreaState(StateBase):
         """The joined castle's mines by object id, as the last ``gsm`` sent them.
 
         ``next_collect_seconds`` counted from :meth:`get_last_packet_time` ``("gsm")``:
-        the client counts it down from then. Empty before any ``gsm`` and after a map read
-        (``gaa``); refreshed by ``client.castle.join`` and ``client.castle.collect_mine``.
+        the client counts it down from then. Empty before any ``gsm`` and after the joined area is lost
+        (``gtwara``); refreshed by ``client.castle.join`` and ``client.castle.collect_mine``.
         """
         with self._lock:
             return dict(self.mines)
@@ -374,7 +386,7 @@ class AreaState(StateBase):
         """The joined castle's resource carts, wood, stone and food, as the last ``rci`` sent them.
 
         ``remaining_seconds`` counts from :meth:`get_last_packet_time` ``("rci")``. Empty
-        before any ``rci``; a map read keeps them, as the client does; refreshed by ``client.castle.join`` and
+        before any ``rci``; refreshed by ``client.castle.join`` and
         ``client.castle.collect_resource_cart``.
         """
         with self._lock:

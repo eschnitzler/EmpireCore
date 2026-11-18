@@ -321,9 +321,14 @@ class StubState:
         self.boosts: Any = BoosterInfoResponse.model_validate(LOGIN_SECTIONS["boi"])
         self.commanders: CommanderRoster | None = None
         self.membership_revision = 0
+        self.area_revision = 0
+        self.session_moves: list[object] = []
 
     def update_from_packet(self, cmd_id: str, payload: object, error_code: int = 0) -> None:
         self.updates.append((cmd_id, payload))
+
+    def _session_moved(self, expected_revision: int, location: object) -> None:
+        self.session_moves.append(location)
 
     def get_local_player(self) -> StubPlayer:
         if self.local_player is None:

@@ -341,9 +341,10 @@ class GetMapAreaResponse(BaseResponse):
     Response format: {"KID": 0, "AI": [[type, x, y, ...], ...], "OI": [{...}, ...],
     "uap": {"KID": .., "NS": .., "PMS": .., "PMT": ..}}
 
-    Each row is read in the reply's kingdom (see :class:`MapAreaItem`). A scan
-    moves the session off the castle it had joined, so castle-scoped reads
-    after it must join the castle again (``client.army`` methods do).
+    Each row is read in the reply's kingdom (see :class:`MapAreaItem`). Sending
+    one moves the session off the castle it had joined, so castle-scoped reads
+    after it must join the castle again (``client.army`` methods do); one the
+    server pushes moves nothing.
 
     Client: ``GAACommand.executeCommand`` (bundle line 130112) reads ``uap``
     with ``parse_UAP``, ``OI`` with ``parseOwnerInfoArray`` and ``AI`` with

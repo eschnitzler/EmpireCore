@@ -61,7 +61,7 @@ class ConstructionItemsMixin(CastlesMixin):
 
     @property
     def placed_construction_items(self) -> tuple[BuildingConstructionItems, ...] | None:
-        """Items on the joined castle's buildings; None before joining or after a map read."""
+        """Items on the joined castle's buildings; None before joining or after the area is lost or relocated."""
         return self.client.state.get_placed_construction_items()
 
     def _refresh_construction_items(self, timeout: float) -> None:

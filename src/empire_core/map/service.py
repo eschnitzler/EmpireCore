@@ -1,10 +1,11 @@
 """
 Map areas, kingdom scans, ruins, treasure maps and finding map objects, enemy castles and Berimond towers.
 
-Reading the map moves the session off the castle it had joined: a
-castle-scoped read after a scan fails with NOT_IN_OWNED_CASTLE until the
-castle is joined again. ``client.army`` methods join it themselves; anything
-else castle-scoped needs ``client.castle.select`` first.
+Reading the map moves the session off the castle it had joined, as the
+game only reads the map from the world map: a castle-scoped read after a
+scan fails with NOT_IN_OWNED_CASTLE until the castle is joined again.
+``client.army`` methods join it themselves; anything else castle-scoped
+needs ``client.castle.select`` first.
 """
 
 from __future__ import annotations

@@ -11,7 +11,8 @@ import asyncio
 import logging
 import threading
 import time
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from types import TracebackType
 from typing import Any, TypeVar, cast, overload
@@ -29,7 +30,7 @@ from empire_core.client.stream import Args, EventStream, callback_sources
 from empire_core.commanders.service import CommandersService, EquipmentService
 from empire_core.config import EmpireConfig, NetworkInstance, default_config, generate_session_id
 from empire_core.defense.service import DefenseService
-from empire_core.enums import GGEError, ServerType
+from empire_core.enums import GGEError, ServerType, SessionLocation
 from empire_core.events.service import EventsService
 from empire_core.exceptions import CommandError, EmpireError, EmpireTimeoutError, PacketError
 from empire_core.gamedata import GameData
@@ -66,6 +67,10 @@ _SPECIAL_SERVER_NAMES = {
     ServerType.OUTER_REALMS: "event_title_106",
     ServerType.HORIZON: "event_title_113",
 }
+
+# Where the client's screen is when it sends these: CastleKingdomOverviewScreen.show sends laa (split.js line
+# 558902) and CastleWorldmapData.updateAreaRange sends gaa only on the world map (split.js line 101660).
+_SESSION_MOVES = {"laa": SessionLocation.KINGDOM_MAP, "gaa": SessionLocation.WORLDMAP}
 
 T = TypeVar("T", bound=BaseResponse)
 
@@ -772,7 +777,8 @@ class EmpireClient:
         With ``spend_rubies=True``, confirms a server ruby challenge once,
         using the same timeout budget; otherwise returns that error packet unchanged.
         """
-        return self._request_with_confirmation(request, response_command, timeout, spend_rubies)
+        with self._moves_session(request.get_command()):
+            return self._request_with_confirmation(request, response_command, timeout, spend_rubies)
 
     def _request_with_confirmation(
         self, request: BaseRequest, response_command: str, timeout: float, spend_rubies: bool
@@ -875,16 +881,15 @@ class EmpireClient:
             raise ValueError("Ruby confirmation requires wait=True")
         packet = self.frame(request)
 
+        command = request.get_command()
         if not wait:
-            if request.get_command() == "laa":
-                self._send_leave_area(packet)
-            else:
+            with self._moves_session(command):
                 self.connection.send(packet)
             return None
 
-        command = request.get_command()
         response_command = request.get_response_command()
-        response_packet = self._request_with_confirmation(request, response_command, timeout, spend_rubies)
+        with self._moves_session(command):
+            response_packet = self._request_with_confirmation(request, response_command, timeout, spend_rubies)
 
         if response_packet.error_code != 0:
             # Reported under the command sent, which is what the caller asked for.
@@ -900,19 +905,26 @@ class EmpireClient:
 
         return None
 
-    def _send_leave_area(self, packet: str) -> None:
-        """A send listener or another thread can close, reconnect, or join before send returns."""
+    @contextmanager
+    def _moves_session(self, command: str) -> Iterator[None]:
+        """Move the session where the client's screen is when it sends ``command``, once the block went through.
+
+        A send listener or another thread can close, reconnect, or join before the block ends.
+        """
+        location = _SESSION_MOVES.get(command)
+        if location is None:
+            yield
+            return
         connection = self.connection
         generation = connection.generation
-        with self.state._lock:
-            revision = self.state.area_revision
-        connection.send(packet)
+        revision = self.state.area_revision
+        yield
 
-        def left() -> None:
+        def moved() -> None:
             if connection.connected:
-                self.state._area_left(revision)
+                self.state._session_moved(revision, location)
 
-        connection.run_if_current(generation, left)
+        connection.run_if_current(generation, moved)
 
     def request(
         self, request: BaseRequest, response_type: type[T], timeout: float = 5.0, *, spend_rubies: bool = False
