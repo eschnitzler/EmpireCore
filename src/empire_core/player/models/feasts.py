@@ -29,13 +29,14 @@ class HoldFeastRequest(BaseRequest):
     Payload: {"T": feast, "CID": castle, "KID": kingdom, "PO": offer_id, "PWR": 0 or 1}
 
     The feast dialogs send PO -1 and PWR 0; after a refusal for missing food, the resource dialog sends it
-    again with the private offer and PWR 1, paying the missing food with rubies.
+    again with PWR 1, paying the missing food with rubies, and as PO the resource merchant's private offer, -1 when
+    none runs.
 
     Client: ``C2SFestivalStartVO`` (split.js line 169260), sent by ``CastleFestivalDialog.onClick`` (split.js line
     334522), ``CastleExtendFestivalDialog.onClick`` (split.js line 334119) and
     ``CastleResourceWaitDialogProperties.getResourceSkipCommand`` (split.js line 183792), which
     ``CastleHandleServerErrorCommand.handleGameSpecificServerError`` (split.js line 616535) opens on
-    ``NOT_ENOUGH_RESOURCES``
+    ``NOT_ENOUGH_RESOURCES``; ``CastlePrivateOfferData.getPrivateOfferMerchantID`` (split.js line 660957)
     """
 
     command = "bfs"
@@ -44,7 +45,7 @@ class HoldFeastRequest(BaseRequest):
     castle_id: int = Field(validation_alias="CID", description="The castle's object id")
     kingdom: Kingdom = Field(validation_alias="KID", description="The castle's kingdom")
     private_offer_id: int = Field(
-        validation_alias="PO", default=-1, description="The private offer the feast uses, -1 for none"
+        validation_alias="PO", default=-1, description="The resource merchant's private offer, -1 for none"
     )
     pay_with_rubies: bool = Field(validation_alias="PWR", default=False, description="Pay the missing food with rubies")
 

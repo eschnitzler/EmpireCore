@@ -114,7 +114,8 @@ class BoostersMixin(ServiceMixin):
             feast: The feast, a ``Feast`` member
             castle_id: The castle that pays the food, a ``Castle.id`` from ``client.state.get_castles()``
             spend_rubies: Allow a ruby feast's price, and pay missing food with rubies
-            private_offer_id: The private offer the feast uses, -1 for none
+            private_offer_id: The resource merchant's private offer, which the client sends with the paid
+                food, -1 for none
             timeout: Timeout in seconds
 
         Returns:
@@ -133,7 +134,7 @@ class BoostersMixin(ServiceMixin):
         (``CastleExtendFestivalDialog.onClick``, split.js line 334119), and else ``CastleFestivalDialog``, which
         lists ``getFestivalItemsByLevel(userLevel)`` (split.js line 334547) and castles outside
         ``FactionConst.KINGDOM_ID`` (split.js line 334400); ``PremiumFestivalItemVO.hasC2Costs`` (split.js line
-        333252)
+        333252); ``CastlePrivateOfferData.getPrivateOfferMerchantID`` (split.js line 660957)
         """
         row = self._require_game_data().feasts.get(feast)
         if row is None:
