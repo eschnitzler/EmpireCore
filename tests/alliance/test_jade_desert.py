@@ -16,7 +16,7 @@ from empire_core.exceptions import CommandError, PremiumCommanderCostError
 from empire_core.gamedata import Building, Effect, Horse, OasisSettlementId, OasisTradeId, WodAmount
 from empire_core.protocol.base import parse_response
 from empire_core.state.manager import GameState
-from tests.service_helpers import conn, make_client, xt_packet
+from tests.service_helpers import RUBY_HORSE, conn, make_client, with_horses, xt_packet
 
 CITADEL = {"X": 30, "Y": "40", "CR": 15, "L": 2, "ASJ": "25000", "RSJ": 120, "CD": 3600}
 SETTLEMENT = {"X": 50, "Y": 60, "TCI": "101", "L": 2, "TCR": 48000, "CD": 0, "AE": [[1, [10], "x"]]}
@@ -226,6 +226,21 @@ class TestOasisSettlements:
         )
         payload = conn(client).request_payloads[0][1]
         assert (payload["HBW"], payload["PTT"]) == (-1, 1)
+
+    def test_a_ruby_horse_needs_consent(self):
+        # CastlePostTradeHorseDialog.getBoostCostC2: a horse costs rubies unless paid with feathers
+        client = with_horses(make_client({"jtr": xt_packet("jtr", TRADE_REPLY)}))
+        with pytest.raises(ValueError, match="spend_rubies=True"):
+            client.alliance.send_oasis_trade(
+                1, 2, 50, 60, {620: 1}, {OasisTradeId(10): 1}, 5, horse_booster_id=RUBY_HORSE
+            )
+        assert conn(client).request_payloads == []
+
+        client.alliance.send_oasis_trade(
+            1, 2, 50, 60, {620: 1}, {OasisTradeId(10): 1}, 5, horse_booster_id=RUBY_HORSE, spend_rubies=True
+        )
+        payload = conn(client).request_payloads[0][1]
+        assert (payload["HBW"], payload["PTT"]) == (int(RUBY_HORSE), 0)
 
     def test_no_trade_is_not_sent(self):
         client = make_client()
