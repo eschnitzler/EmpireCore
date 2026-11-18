@@ -1,11 +1,12 @@
 """Castle tracking: the castle list (gcl), castle details (dcl), castle resources (grc), units received (rue),
-the open-gate counter reset (kik), unlocked units and horses (gpc), and your royal towers, monuments,
+the open-gate counter reset (kik), the Open Gate (mos), abandoning a castle (mas, mac), unlocked units and horses (gpc), and your royal towers, monuments,
 laboratories and villages (gkl, gml, gll, kgv) with the landmark resets (mre, lrr)."""
 
 import logging
 import time
 from typing import Any
 
+from empire_core.castle.models.actions import AbandonCastleResponse, CancelAbandonCastleResponse
 from empire_core.castle.models.castles import GetCastlesResponse
 from empire_core.castle.models.details import (
     GetDetailedCastleResponse,
@@ -37,6 +38,10 @@ _STOCK = ("wood", "stone", "food", "coal", "oil", "glass", "iron", "aquamarine",
 
 
 AREA_LIST_SECTIONS = ("gkl", "gml", "gll", "kgv", "mre", "lrr")
+
+
+def _ends_at(now: float, seconds: int) -> float | None:
+    return now + seconds if seconds > 0 else None
 
 
 class CastleState(StateBase):
@@ -135,7 +140,10 @@ class CastleState(StateBase):
                 "y": row.y,
                 "castle_type": row.castle_type,
                 "open_gate_counter": row.open_gate_counter,
-                "open_gate_end": now + row.open_gate_seconds if row.open_gate_seconds > 0 else None,
+                "open_gate_end": _ends_at(now, row.open_gate_seconds),
+                "abandon_end": _ends_at(now, row.abandon_outpost_seconds),
+                "cancel_abandon_end": _ends_at(now, row.cancel_abandon_seconds),
+                "no_abandon_end": _ends_at(now, row.no_abandon_seconds),
             }
             existing = self.castles.get(row.castle_id)
             if existing is not None:
@@ -275,9 +283,45 @@ class CastleState(StateBase):
             return
         opened = reply.open_seconds > 0
         fields = {
-            "open_gate_end": time.monotonic() + reply.open_seconds if opened else None,
+            "open_gate_end": _ends_at(time.monotonic(), reply.open_seconds),
             "open_gate_counter": castle.open_gate_counter + 1 if opened else castle.open_gate_counter,
         }
+        self._swap_model_fields(castle, {**castle.__dict__, **fields}, set(fields))
+
+    def _handle_mas(self, data: Any) -> None:
+        """Start an own castle's abandon timers from a successful ``mas`` reply.
+
+        Client: ``MASCommand.executeCommand`` (split.js line 635734) on ``ALL_OK`` hands it to
+        ``CastleUserData.parse_MAS`` (split.js line 54139), which sets the castle's ``AOT`` and ``CAT``
+        """
+        reply = read_or_none(AbandonCastleResponse.model_validate, data, warn=logger, what="an mas reply")
+        if reply is None:
+            return
+        now = time.monotonic()
+        self._set_abandon_ends(
+            reply.castle_id,
+            reply.kingdom_id,
+            abandon_end=_ends_at(now, reply.abandon_seconds),
+            cancel_abandon_end=_ends_at(now, reply.cancel_seconds),
+        )
+
+    def _handle_mac(self, data: Any) -> None:
+        """Clear an own castle's abandon timers on a successful ``mac`` reply.
+
+        Client: ``MACCommand.executeCommand`` (split.js line 635691) on ``ALL_OK`` hands it to
+        ``CastleUserData.parse_MAC`` (split.js line 54146), which sets ``AOT`` and ``CAT`` to -1
+        """
+        reply = read_or_none(CancelAbandonCastleResponse.model_validate, data, warn=logger, what="an mac reply")
+        if reply is not None:
+            self._set_abandon_ends(reply.castle_id, reply.kingdom_id, abandon_end=None, cancel_abandon_end=None)
+
+    def _set_abandon_ends(
+        self, castle_id: int, kingdom: Kingdom, *, abandon_end: float | None, cancel_abandon_end: float | None
+    ) -> None:
+        castle = self.castles.get(castle_id)
+        if castle is None or castle.kingdom_id != kingdom:
+            return
+        fields = {"abandon_end": abandon_end, "cancel_abandon_end": cancel_abandon_end}
         self._swap_model_fields(castle, {**castle.__dict__, **fields}, set(fields))
 
     def _parse_permanent_castles(self, listed: PermanentCastleDataResponse) -> None:
