@@ -672,8 +672,8 @@ class GetHorizonEntryConditionsRequest(BaseRequest):
     Payload: {}
 
     Client: ``C2SAllianceBattleGroundEntryConditionsVO`` (split.js line 716195), sent by
-    ``CastleAllianceBattleGroundData.requestEntryConditions`` (split.js line 716008) when the Jade Desert's event
-    dialog opens
+    ``CastleAllianceBattleGroundData.requestEntryConditions`` (split.js line 716008) whenever the Jade Desert
+    event dialog's overview opens
     """
 
     command = "bgc"
@@ -780,7 +780,8 @@ class JadePhase(EmpireModel):
     The client starts from the event's own data, which is not read here, so a phase no push has named is None.
 
     Client: ``AllianceBattleGroundEventVO.parseJadePhaseInfo`` (split.js line 585444), also run by its
-    ``parseParamObject``; it turns to phase 2 once the phase 2 time passes (``onJadePhaseTimer``)
+    ``parseParamObject``. Each push stops the phase 2 timer and only one naming ``JPT`` while the phase is not 2
+    starts it again; ``onJadePhaseTimer`` (split.js line 585466) then turns the phase to 2 once that time passes
     """
 
     model_config = ConfigDict(frozen=True)
@@ -794,27 +795,37 @@ class JadePhase(EmpireModel):
     phase_2_condition_percent: int | None = Field(
         default=None, description="Percent of the condition that starts phase 2 early that is met; None for none"
     )
+    phase_2_timer_running: bool = Field(
+        default=False,
+        description="Whether the phase turns to 2 at phase_2_starts_at: the last push named it before phase 2",
+    )
 
     def updated(self, push: JadePhaseResponse, received_at: float) -> JadePhase:
         """This phase with ``push`` applied, received at ``received_at`` epoch seconds."""
+        phase = self.current_phase(received_at) if push.phase is None else push.phase
+        if push.seconds_until_phase_2 is None:
+            starts_at, timer_running = self.phase_2_starts_at, False
+        else:
+            starts_at = received_at + push.seconds_until_phase_2
+            timer_running = phase != JadeScoringPhase.PHASE_2
         return JadePhase(
-            phase=self.phase if push.phase is None else push.phase,
-            phase_2_starts_at=(
-                self.phase_2_starts_at
-                if push.seconds_until_phase_2 is None
-                else received_at + push.seconds_until_phase_2
-            ),
+            phase=phase,
+            phase_2_starts_at=starts_at,
             phase_2_condition_percent=push.phase_2_condition_percent,
+            phase_2_timer_running=timer_running,
         )
 
     def current_phase(self, now: float) -> EnumOrInt[JadeScoringPhase] | None:
-        """The phase at ``now`` epoch seconds: phase 2 once its start has passed; None while unknown."""
-        if self.phase_2_starts_at is not None and now >= self.phase_2_starts_at:
+        """The phase at ``now`` epoch seconds: phase 2 once a running timer's start has passed; None while unknown."""
+        if self.phase_2_timer_running and self.phase_2_starts_at is not None and now >= self.phase_2_starts_at:
             return JadeScoringPhase.PHASE_2
         return self.phase
 
     def seconds_until_phase_2(self, now: float) -> float:
-        """Seconds from ``now`` until phase 2 starts; 0 once it has, or when no push named it."""
+        """Seconds from ``now`` until phase 2 starts; 0 once it has, or when no push named it.
+
+        Client: ``AllianceBattleGroundEventVO.remainingTimeInSecondsUntilJadePhase2`` (split.js line 585649)
+        """
         return max(0.0, self.phase_2_starts_at - now) if self.phase_2_starts_at is not None else 0.0
 
 

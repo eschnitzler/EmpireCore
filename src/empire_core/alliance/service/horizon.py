@@ -252,12 +252,12 @@ class HorizonMixin(OwnAllianceMixin):
         """
         The conditions for entering Beyond the Horizon that you do not meet yet; none when you may enter.
 
-        Sent on your main server, as the client does when the Jade Desert's event dialog opens.
-
         Raises:
             CommandError: The server refused
 
-        Client: ``CastleAllianceBattleGroundData.requestEntryConditions`` (split.js line 716008)
+        Client: ``CastleAllianceBattleGroundData.requestEntryConditions`` (split.js line 716008), sent whenever the
+        Jade Desert event dialog's overview opens
+        (``CastleAllianceBattlegroundEventJadeDialogOverview.requestJoinRequirements``, split.js line 474622)
         """
         return self.request(GetHorizonEntryConditionsRequest(), HorizonEntryConditionsResponse, timeout=timeout)
 

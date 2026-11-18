@@ -774,13 +774,11 @@ class GameState(
 
         Accepts the wire ids this manager tracks — "gbd", "gam", "dcl", "abr", "asr", the send replies ("cra", "cam",
         "abgcam", "cds", "csm", "cat", "crm", "css", "tde", "cdd", "cpm", "jtr", "thm", "ldt"), "mcm", "mrm", "mfc",
-        "glu",
-        "mir", "fjf", "bst", "sce", "see", "tee", "pep", "acm", "aqi", "acn", "cal", "ufp", "uht", "apt", "car", "bfs",
-        the event minigames' "lws", "lwj", "lwc", "lwm", "dge", "cfc", "saf", "sap", "gdti", "ddi" and "vwc",
+        "glu", "mir", "fjf", "bst", "sce", "see", "tee", "pep", "acm", "aqi", "acn", "cal", "ufp", "uht", "apt", "car",
+        "bfs", the event minigames' "lws", "lwj", "lwc", "lwm", "dge", "cfc", "saf", "sap", "gdti", "ddi" and "vwc",
         the hunter's "hin", the judgement's "sjc" and "jjc", the hero's "hdc", the alliance camp push "aic", the
-        Jade Desert phase push "abgi", the
-        daimyo's "gda", "gdc" and "gdw", the coat of arms symbols' "gus", the player name change's "gnci" and the
-        account deletion's "psd" (each only a successful one),
+        Jade Desert phase push "abgi", the daimyo's "gda", "gdc" and "gdw", the coat of arms symbols' "gus", the
+        player name change's "gnci" and the account deletion's "psd" (each only a successful one),
         the officers' school's "gtp" (only a successful one), the quest pushes "qli", "qst", "qpg", "qfi", "msp" and the
         campaign's "cqs", the castle pushes "rue", "kik", the Open Gate reply "mos" (only a successful one), the gem
         push "gec", the Berimond protection reply "ffp", the
