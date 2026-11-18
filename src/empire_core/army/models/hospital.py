@@ -23,7 +23,7 @@ from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, Cu
 from empire_core.protocol.js import js_same_number, js_truthy
 
 from .production import ProductionListBlock
-from .units import RawBlock, UnitInventoryBlock
+from .units import ProductionAreaBlock, UnitInventoryBlock
 
 if TYPE_CHECKING:
     from empire_core.gamedata import Unit
@@ -233,7 +233,8 @@ class HealAllResponse(BaseResponse):
 
     Command: hra
 
-    Client: ``HRACommand.executeCommand`` (bundle line 124513)
+    Client: ``HRACommand.executeCommand`` (bundle line 633575): ``gcu`` to ``CurrencyData.parseGCU``,
+    ``gui`` to ``parse_GUI``, ``gpa`` to ``AreaDataUpdater.parseGPA``
     """
 
     command = "hra"
@@ -241,11 +242,13 @@ class HealAllResponse(BaseResponse):
     currencies: CurrencyBlock = Field(
         validation_alias="gcu", default=None, description="Coins and rubies after the change"
     )
-    unit_inventory: UnitInventoryBlock = Field(validation_alias="gui", default=None)
-    production_area: RawBlock = Field(
+    unit_inventory: UnitInventoryBlock = Field(
+        validation_alias="gui", default=None, description="The units after; None when the reply has none"
+    )
+    production_area: ProductionAreaBlock = Field(
         validation_alias="gpa",
         default=None,
-        description="The castle's production and storage figures, as a raw block",
+        description="The castle's production area after; None when the reply has none",
     )
 
 
