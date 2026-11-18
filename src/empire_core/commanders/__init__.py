@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING
 
-from empire_core.enums import EquipmentSlot, EquipmentType, PackageBuyType, Rareness, WearerType
+from empire_core.enums import EquipmentSlot, EquipmentType, PackageBuyType, Rareness, SceatSkillTab, WearerType
 from empire_core.utils.lazy import lazy_exports
 
 from .models import (
@@ -28,6 +28,8 @@ from .models import (
     BoughtGemsResponse,
     BoughtRelic,
     BoughtRelicsResponse,
+    BuySceatSkillRequest,
+    BuySceatSkillResponse,
     Castellan,
     ClearGeneralFlagsRequest,
     Commander,
@@ -88,6 +90,8 @@ from .models import (
     SetAutoSellGemsRequest,
     SetGeneralAbilitiesRequest,
     SkillList,
+    SkipSceatSkillActivationRequest,
+    SkipSceatSkillActivationResponse,
     SpinGeneralsHubRequest,
     SpinGeneralsHubResponse,
     UnlockGeneralRequest,
@@ -193,10 +197,15 @@ __all__ = [
     "ActivatingSceatSkill",
     "AddSkillPointRequest",
     "AddSkillPointResponse",
+    "BuySceatSkillRequest",
+    "BuySceatSkillResponse",
+    "SkipSceatSkillActivationRequest",
+    "SkipSceatSkillActivationResponse",
     "ResetSkillsRequest",
     "ObjectUpdateEvent",
     "EquipmentSlot",
     "WearerType",
+    "SceatSkillTab",
     "EquipmentType",
     "Rareness",
     "PackageBuyType",

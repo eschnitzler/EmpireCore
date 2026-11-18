@@ -16,6 +16,7 @@ from empire_core.enums import (
     QuestConditionType,
     RelicEffectType,
     RewardGrantType,
+    SceatSkillTab,
     TitleDisplayType,
     TitleSystem,
     TreasureMapType,
@@ -563,3 +564,51 @@ def test_berimond_invasion_camp_rows_name_their_faction():
     red = data.berimond_invasion_camp(3, BerimondFaction.GERBRANDT)
     assert blue is not None and blue.faction_id is BerimondFaction.URSIDAE and blue.wall_bonus == 10
     assert red is not None and red.faction_id is BerimondFaction.GERBRANDT and red.wall_bonus == 20
+
+
+class TestFeastsAndSceatSkillTrees:
+    ITEMS = {
+        "feasts": [
+            {
+                "feastID": "0",
+                "productionBoost": "80",
+                "duration": "3600",
+                "costFood": "4000",
+                "minLevel": 10,
+                "maxLevel": "69",
+                "type": "small",
+                "sortOrder": "1",
+            },
+            {"feastID": "4", "productionBoost": "500", "costC2": "1750", "type": "ruby", "sortOrder": "2"},
+        ],
+        "sceatSkillTrees": [{"skillTreeID": "3", "tabID": "1"}, {"skillTreeID": "4", "tabID": "2"}, {"tabID": "1"}],
+    }
+
+    def test_a_feast_reads_its_price_bonus_and_levels(self):
+        data = GameData.parse("790.02", self.ITEMS)
+
+        food = data.feasts[ids.Feast.COUNTRY_FEAST]
+        assert (food.cost_food, food.cost_rubies, food.is_ruby_priced) == (4000, 0, False)
+        assert (food.recruitment_speed_bonus, food.duration_seconds, food.sort_order) == (80, 3600, 0)
+        assert food.offered_at(10) and food.offered_at(69) and not food.offered_at(70)
+        assert food.text_id == "dialog_festival_smallEvent" == ids.Feast.COUNTRY_FEAST.text_id
+        ruby = data.feasts[ids.Feast.IMPERIAL_BANQUET]
+        assert (ruby.cost_rubies, ruby.is_ruby_priced, ruby.sort_order) == (1750, True, 1)
+
+    def test_sceat_skill_trees_name_their_tab_and_a_row_without_a_tree_is_left_out(self):
+        data = GameData.parse("790.02", self.ITEMS)
+
+        assert {tree: row.tab_id for tree, row in data.sceat_skill_trees.items()} == {
+            3: SceatSkillTab.BUILDINGS,
+            4: SceatSkillTab.UNITS,
+        }
+
+    def test_they_survive_the_cache(self, tmp_path):
+        GameData.parse("790.02", self.ITEMS)._write_cache(tmp_path / "cache.json")
+
+        again = GameData._read_cache(tmp_path / "cache.json", "790.02")
+
+        assert again is not None
+        banquet = again.feasts[ids.Feast.IMPERIAL_BANQUET]
+        assert (banquet.cost_rubies, banquet.sort_order) == (1750, 1)
+        assert again.sceat_skill_trees[4].tab_id is SceatSkillTab.UNITS

@@ -20,7 +20,7 @@ member, e.g. ``game_data.units[Unit.MEAD_RANGER_L6]``.
 Enums whose rows the game names by a text (units, tools, currencies,
 researches, generals, Legendary and sceat skills, events, gems, achievements,
 titles, crest layouts, main quests, prebuilt castles, private villages,
-fusion forges, judgements, treasure maps, league types) have ``display_name(lang="en")``, the
+fusion forges, judgements, treasure maps, league types, feasts) have ``display_name(lang="en")``, the
 name the game shows: ``Unit.MEAD_RANGER_L6.display_name("de")``. It reads the
 language file, fetched on first use and cached (:mod:`empire_core.texts`).
 
@@ -61,6 +61,7 @@ if TYPE_CHECKING:
     from .equipment_effects import EquipmentEffect
     from .equipment_groups import EquipmentGroup
     from .events import Event
+    from .feasts import Feast
     from .fusion_forges import FusionForgeId
     from .gem_colors import GemColor
     from .gems import Gem
@@ -111,6 +112,7 @@ _MODULES = {
     "EquipmentEffect": "equipment_effects",
     "EquipmentGroup": "equipment_groups",
     "Event": "events",
+    "Feast": "feasts",
     "FusionForgeId": "fusion_forges",
     "Gem": "gems",
     "GemColor": "gem_colors",
@@ -182,6 +184,7 @@ __all__ = [
     "EquipmentEffect",
     "EquipmentGroup",
     "Event",
+    "Feast",
     "FusionForgeId",
     "Gem",
     "GemColor",

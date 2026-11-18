@@ -1,4 +1,4 @@
-"""Legendary skills, opening loot boxes and choosing titles."""
+"""Legendary and sceat skills, opening loot boxes and choosing titles."""
 
 from __future__ import annotations
 
@@ -7,17 +7,21 @@ from typing import TYPE_CHECKING
 from empire_core.commanders.models.skills import (
     AddSkillPointRequest,
     AddSkillPointResponse,
+    BuySceatSkillRequest,
+    BuySceatSkillResponse,
     GetSkillsRequest,
     GetSkillsResponse,
     ResetSkillsRequest,
+    SkipSceatSkillActivationRequest,
+    SkipSceatSkillActivationResponse,
 )
-from empire_core.enums import MysteryBoxKey, TitleSystem
+from empire_core.enums import MysteryBoxKey, SceatSkillTab, TitleSystem
 from empire_core.player.models.economy import LootBoxKeys, OpenLootBoxRequest, OpenLootBoxResponse
 from empire_core.player.models.progress import SelectTitleRequest, SelectTitleResponse
 from empire_core.player.service.base import PlayerBaseMixin
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import LegendarySkill, LootBox
+    from empire_core.gamedata import LegendarySkill, LootBox, SceatSkill
 
 # LegendSkillConst.BASE_COST, EXPONENT, BASE_SKILL_POINTS, POINTS_FACTOR (dll line 19477)
 _RESET_BASE_RUBIES = 20
@@ -74,6 +78,71 @@ class SkillsMixin(PlayerBaseMixin):
             {bought: row.previous_skill_id if (row := skills.get(bought)) else None for bought in response.skill_ids}
         )
         return response
+
+    def buy_sceat_skill(self, skill: SceatSkill, *, timeout: float = 5.0) -> None:
+        """
+        Buy a sceat skill level with sceat tokens or imperial ducats, as its row prices it; no rubies are spent.
+
+        The client offers the next level of a skill you hold, or the first of one you don't, when its tier
+        and node are unlocked, you can afford it and no sceat skill is being activated in its Hall of Legends
+        tab. The reply carries nothing; the client buys nothing more until the next skill list (``skl``)
+        arrives, which :attr:`skills` then holds.
+
+        Args:
+            skill: The level to buy, a ``SceatSkill`` member
+            timeout: Timeout in seconds
+
+        Raises:
+            CommandError: The server refused
+            EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+
+        Client: ``CastleLegendSkillItem.onClick`` and ``canBuy`` (split.js lines 186511, 186593) with
+        ``CastleLegendSkillData.isAnyOtherSkillInProgress`` (split.js line 576996),
+        ``CastleSceatSkillVO.costCurrencyID`` (split.js line 121552); ``CastleLegendSkillData.parse_SKL``
+        (split.js line 576615) ends the client's wait
+        """
+        self.request(BuySceatSkillRequest(skill=skill), BuySceatSkillResponse, timeout=timeout)
+
+    def skip_sceat_skill_activation(
+        self, skill: SceatSkill, *, spend_rubies: bool = False, timeout: float = 5.0
+    ) -> None:
+        """
+        Finish a sceat skill's activation now, for rubies; see "Spending rubies" in the guides.
+
+        The game skips by Hall of Legends tab, the one ``skill``'s tree is in, so a fresh skill list is read
+        first and nothing is sent unless ``skill`` is being activated. The price follows the time left and
+        your level and is not worked out here, so this always needs ``spend_rubies``.
+
+        Args:
+            skill: The sceat skill being activated, as :attr:`skills` lists it in ``activating``
+            spend_rubies: Allow the rubies it costs; without it nothing is sent
+            timeout: Timeout in seconds, for each request
+
+        Raises:
+            ValueError: ``spend_rubies`` is False, the game data has no tab for the skill, or the skill is
+                not being activated
+            GameDataNotLoadedError: The game data cannot be loaded
+            CommandError: The server refused
+
+        Client: ``CastleLegendSkillSceatBottomMenu.update`` and ``onClick`` (split.js lines 409704, 409833)
+        offer the skip only for the skill in progress among the tab's trees, ``sceatTreeTabMap`` (split.js
+        line 576540); ``SceatSkillConst.getFastCompleteCostC2`` (dll) prices it
+        """
+        game_data = self._require_game_data()
+        row = game_data.sceat_skills.get(skill)
+        tree = game_data.sceat_skill_trees.get(row.skill_tree_id) if row is not None else None
+        if row is None or tree is None or not isinstance(tree.tab_id, SceatSkillTab):
+            raise ValueError(f"the game data has no Hall of Legends tab for {skill!r}")
+        self._require_spend_rubies(spend_rubies, "finishing a sceat skill's activation costs rubies")
+        activating = self.get_skills(timeout=timeout).activating
+        if all(entry.skill_id != row.skill_id for entry in activating):
+            raise ValueError(f"{skill!r} is not being activated")
+        self.request(
+            SkipSceatSkillActivationRequest(tab=tree.tab_id),
+            SkipSceatSkillActivationResponse,
+            timeout=timeout,
+            spend_rubies=spend_rubies,
+        )
 
     def reset_skills(self, *, spend_rubies: bool = False, timeout: float = 5.0) -> GetSkillsResponse:
         """

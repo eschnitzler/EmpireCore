@@ -299,6 +299,11 @@ GEM_NAME = DisplayName(
 SCEAT_SKILL_NAME = DisplayName(
     "dialog_legendTemple_sceat_{skill_group_id}_name", "``CastleSceatSkillVO.nameTextID`` (bundle line 23110)"
 )
+FEAST_NAME = DisplayName(
+    "{text_id}",
+    "``PremiumFestivalItemVO.nameTextID`` (split.js line 333269)",
+    shown="dialog_festival_<type>Event",
+)
 ACHIEVEMENT_NAME = DisplayName("achievementName_{series_id}", "``AchievementSerieVO.nameString`` (bundle line 92822)")
 TITLE_NAME = DisplayName("playerTitle_{value}", "``TitleVO.textID`` (bundle line 62756)")
 CREST_LAYOUT_NAME = DisplayName(
@@ -510,6 +515,15 @@ def gem_color_rows(data: GameData, texts: Texts | None) -> list[Row]:
         text = texts.get(f"gemColor_{color_id}_tt") if texts is not None else None
         name = re.split(r"\s+gem\b", text, maxsplit=1)[0] if text else None
         rows.append(Row(name or f"GEM_COLOR_{color_id}", color_id, id_text(color_id)))
+    return rows
+
+
+def feast_rows(data: GameData, texts: Texts | None) -> list[Row]:
+    """``dialog_festival_<type>Event``: ``Country feast`` -> ``COUNTRY_FEAST``."""
+    rows = []
+    for row in data.feasts.values():
+        feast_id = int(row.feast_id)
+        rows.append(Row(named(texts, row.text_id) or f"FEAST_{feast_id}", feast_id, id_text(feast_id), (row.text_id,)))
     return rows
 
 
@@ -1196,6 +1210,17 @@ def tables(data: GameData, texts: Texts | None = None) -> list[Table]:
             display=SCEAT_SKILL_NAME,
         ),
         Table(
+            "feasts",
+            "Feast",
+            "F",
+            "Feast ids from the ``feasts`` table, named from the game's English name.",
+            "``CastlePremiumMarketCollectionData.parseXML`` (split.js line 34586); names from "
+            "``PremiumFestivalItemVO.nameTextID`` (split.js line 333269)",
+            feast_rows(data, texts),
+            (TEXT_ID,),
+            display=FEAST_NAME,
+        ),
+        Table(
             "achievements",
             "Achievement",
             "A",
@@ -1586,7 +1611,7 @@ member, e.g. ``game_data.units[Unit.MEAD_RANGER_L6]``.
 Enums whose rows the game names by a text (units, tools, currencies,
 researches, generals, Legendary and sceat skills, events, gems, achievements,
 titles, crest layouts, main quests, prebuilt castles, private villages,
-fusion forges, judgements, treasure maps, league types) have ``display_name(lang="en")``, the
+fusion forges, judgements, treasure maps, league types, feasts) have ``display_name(lang="en")``, the
 name the game shows: ``Unit.MEAD_RANGER_L6.display_name("de")``. It reads the
 language file, fetched on first use and cached (:mod:`empire_core.texts`).
 

@@ -26,6 +26,7 @@ from empire_core.enums import (
     MapItemType,
     PlayerRelation,
     RelicEffectType,
+    SceatSkillTab,
     ToolCategory,
     ToolSide,
     UnitRole,
@@ -1074,6 +1075,30 @@ class SceatSkillDef(EffectSpecRow):
     tier: int = 0
 
 
+class SceatSkillTreeDef(_Row):
+    """
+    A Hall of Legends sceat skill tree and the tab it shows in.
+
+    Client: ``CastleLegendSkillData.parseXML`` (split.js line 576514) skips a row without a ``skillTreeID`` and files
+    the tree under its ``tabID`` in ``sceatTreeTabMap``
+    """
+
+    skill_tree_id: int = Field(validation_alias="skillTreeID", description="The tree, a SceatSkill.skill_tree_id")
+    tab_id: GameDataId[SceatSkillTab] = Field(
+        validation_alias="tabID", default=-1, description="The tab it shows in; -1 for none"
+    )
+
+    @field_validator("skill_tree_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return _parse_int_or_default(value, -1)
+
+    @field_validator("tab_id", mode="before")
+    @classmethod
+    def _tab(cls, value: object) -> int:
+        return _parse_int_or_default(value, -1)
+
+
 class GeneralSkillDef(EffectSpecRow):
     """One level of a general's skill."""
 
@@ -1860,6 +1885,7 @@ __all__ = [
     "NpcCampDefence",
     "RelicEffectDef",
     "SceatSkillDef",
+    "SceatSkillTreeDef",
     "ToolCategoryDef",
     "ToolStats",
     "UnitStats",

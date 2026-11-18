@@ -55,6 +55,7 @@ if TYPE_CHECKING:
         Effect,
         EquipmentGroup,
         Event,
+        Feast,
         FusionForgeId,
         GemColor,
         GeneralRarity,
@@ -2743,6 +2744,70 @@ class HorizonSettingDef(_Row):
         return _int_list(value)
 
 
+class FeastDef(_Row):
+    """
+    A feast you can hold for faster recruitment in every castle: its price, bonus, duration and the levels it is
+    offered at.
+
+    Client: ``CastlePremiumMarketCollectionData.parseXML`` (split.js line 34586) reads the ``feasts`` rows into
+    ``PremiumFestivalItemVO`` (split.js line 333225); ``getFestivalItemsByLevel`` (split.js line 34651) offers those
+    from ``minLevel`` to ``maxLevel``
+    """
+
+    feast_id: GameDataId["Feast"] = Field(validation_alias="feastID", description="The feast")
+    min_level: int = Field(validation_alias="minLevel", default=0, description="The lowest level it is offered at")
+    max_level: int = Field(validation_alias="maxLevel", default=0, description="The highest level it is offered at")
+    duration_seconds: int = Field(validation_alias="duration", default=0, description="Seconds it lasts")
+    recruitment_speed_bonus: int = Field(
+        validation_alias="productionBoost", default=0, description="Recruitment speed bonus in percent"
+    )
+    cost_food: int = Field(
+        validation_alias="costFood",
+        default=0,
+        description="Food it costs before the feast cost reduction; 0 for a ruby feast",
+    )
+    cost_rubies: int = Field(validation_alias="costC2", default=0, description="Rubies it costs; 0 for a food feast")
+    feast_type: str = Field(validation_alias="type", default="", description="The kind its name is built from")
+    sort_order: int = Field(validation_alias="sortOrder", default=-1, description="Its place in the feast list")
+
+    @field_validator("feast_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator(
+        "min_level", "max_level", "duration_seconds", "recruitment_speed_bonus", "cost_food", "cost_rubies",
+        mode="before",
+    )  # fmt: skip
+    @classmethod
+    def _int_column(cls, value: object) -> int:
+        return _parse_int_or_default(value, 0)
+
+    @field_validator("feast_type", mode="before")
+    @classmethod
+    def _text_column(cls, value: object) -> str:
+        return _text(value)
+
+    @field_validator("sort_order", mode="before")
+    @classmethod
+    def _sort_order(cls, value: object) -> int:
+        return _parse_int_or_default(value, 0) - 1
+
+    @property
+    def is_ruby_priced(self) -> bool:
+        """Whether it costs rubies rather than food (``hasC2Costs``)."""
+        return self.cost_rubies > 0
+
+    @property
+    def text_id(self) -> str:
+        """The text id of its name, ``dialog_festival_<type>Event`` (``nameTextID``, split.js line 333269)."""
+        return f"dialog_festival_{self.feast_type}Event"
+
+    def offered_at(self, level: int) -> bool:
+        """Whether the feast dialog offers it at your ``level``."""
+        return self.min_level <= level <= self.max_level
+
+
 class AllianceTowerEffectDef(_Row):
     """
     An alliance tower effect of Beyond the Horizon: the bonus it gives, and how its price and strength grow per level.
@@ -3244,6 +3309,7 @@ __all__ = [
     "AllianceInvasionCampDef",
     "AllianceInvasionCampId",
     "AllianceTowerEffectDef",
+    "FeastDef",
     "CitadelLevelDef",
     "CitadelLevelId",
     "DaimyoContractId",

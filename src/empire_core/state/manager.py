@@ -318,7 +318,7 @@ class GameState(
                                          ..., ``acm`` (online)
     alliance chat history                ``acl``, ``acm`` (pushed)    --
     research                             ``rei``, ``res``, ``msr``    re-login
-    boosters, premium, slots, festival   ``boi``, booster replies,    re-login
+    boosters, premium, slots, feast      ``boi``, booster replies,    re-login
                                          ``bfs``
     might points                         ``gmu`` (pushed)             re-login
     glory points                         ``ufa`` (pushed)             re-login

@@ -68,6 +68,7 @@ from .models import (
     RaidBossDef,
     RelicEffectDef,
     SceatSkillDef,
+    SceatSkillTreeDef,
     ToolCategoryDef,
     ToolStats,
     UnitStats,
@@ -107,6 +108,7 @@ from .tables import (
     EventDef,
     EventDifficultyDef,
     EventDifficultyId,
+    FeastDef,
     FusionForgeDef,
     FusionSystemDef,
     GachaDef,
@@ -181,6 +183,7 @@ if TYPE_CHECKING:
         EquipmentEffect,
         EquipmentGroup,
         Event,
+        Feast,
         FusionForgeId,
         Gem,
         GemColor,
@@ -229,6 +232,7 @@ _CACHED_MODELS = (
     AllianceBuffDef,
     GlobalEffectDef,
     SceatSkillDef,
+    SceatSkillTreeDef,
     GeneralSkillDef,
     NpcCampDefence,
     DungeonDefence,
@@ -287,6 +291,7 @@ _CACHED_MODELS = (
     OuterRealmsSettingDef,
     HorizonSettingDef,
     AllianceTowerEffectDef,
+    FeastDef,
     OasisSettlementDef,
     OasisTradeDef,
     CitadelLevelDef,
@@ -487,6 +492,8 @@ _TABLES: dict[str, _TableSource] = {
     "gems": _TableSource("gems", GemDef, "gem_id"),
     "gem_colors": _TableSource("gemColors", GemColorDef, "color_id"),
     "sceat_skills": _TableSource("sceatSkills", SceatSkillDef, "skill_id"),
+    "sceat_skill_trees": _TableSource("sceatSkillTrees", SceatSkillTreeDef, "skill_tree_id"),
+    "feasts": _TableSource("feasts", FeastDef, "feast_id"),
     "horses": _TableSource("horses", HorseStats, "wod_id"),
     "achievements": _TableSource("achievements", AchievementDef, "achievement_id"),
     "alliance_crest_colors": _TableSource("allianceCoatColors", AllianceCrestColorDef, "color_id"),
@@ -801,6 +808,16 @@ class GameData(EmpireModel):
     def sceat_skills(self) -> Table[GameDataId["SceatSkill"], SceatSkillDef]:
         """Sceat skill levels by ``SceatSkill``."""
         return self._table("sceat_skills")
+
+    @cached_property
+    def sceat_skill_trees(self) -> Table[int, SceatSkillTreeDef]:
+        """Sceat skill trees by their ``SceatSkill.skill_tree_id``, with the Hall of Legends tab each shows in."""
+        return self._table("sceat_skill_trees")
+
+    @cached_property
+    def feasts(self) -> Table[GameDataId["Feast"], FeastDef]:
+        """Feasts by ``Feast``: their price, recruitment speed bonus, duration and levels."""
+        return self._table("feasts")
 
     @cached_property
     def horses(self) -> Table[GameDataId["Horse"], HorseStats]:

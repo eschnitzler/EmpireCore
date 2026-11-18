@@ -686,6 +686,8 @@ from empire_core.commanders.models.skills import (
     AddSkillPointResponse,
     AssignGeneralRequest,
     AssignGeneralResponse,
+    BuySceatSkillRequest,
+    BuySceatSkillResponse,
     GetGeneralsRequest,
     GetGeneralsResponse,
     GetSkillsRequest,
@@ -696,6 +698,8 @@ from empire_core.commanders.models.skills import (
     ResetSkillsRequest,
     SetGeneralAbilitiesRequest,
     SkillList,
+    SkipSceatSkillActivationRequest,
+    SkipSceatSkillActivationResponse,
     UnlockGeneralSkillRequest,
 )
 from empire_core.defense.models import (
@@ -1061,6 +1065,7 @@ from empire_core.player.models.economy import (
     OpenLootBoxResponse,
     SpecialCurrenciesResponse,
 )
+from empire_core.player.models.feasts import HoldFeastRequest, HoldFeastResponse
 from empire_core.player.models.hero import (
     HeroDecisionRequest,
     HeroDecisionResponse,
@@ -1759,6 +1764,8 @@ __all__ = [
     "HireInstructorResponse",
     "HireMarauderRequest",
     "HireMarauderResponse",
+    "HoldFeastRequest",
+    "HoldFeastResponse",
     "HireOverseerRequest",
     "HireOverseerResponse",
     "HireResponse",
@@ -2025,6 +2032,10 @@ __all__ = [
     "ActivatingSceatSkill",
     "AddSkillPointRequest",
     "AddSkillPointResponse",
+    "BuySceatSkillRequest",
+    "BuySceatSkillResponse",
+    "SkipSceatSkillActivationRequest",
+    "SkipSceatSkillActivationResponse",
     "ResetSkillsRequest",
     "ObjectUpdateEvent",
     "GetCommandersResponse",

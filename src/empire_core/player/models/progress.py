@@ -6,7 +6,7 @@ Commands:
 - glu: a level-up
 - gho: honor and ranking points
 - rei: research
-- boi: boosters, the premium account and production slots (bfs: the festival), on request too
+- boi: boosters, the premium account and production slots (bfs: the feast), on request too
 - gmu: might points
 - ufa: glory points
 - ufp: gallantry points
@@ -45,7 +45,7 @@ from empire_core.protocol.base import (
 from empire_core.protocol.js import ClientInt, ClientNumber, js_int, js_loose_equals, js_parse_int
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import Achievement, Title
+    from empire_core.gamedata import Achievement, Feast, Title
 
 PERMANENT_BOOSTER_DURATION = 2147483647
 """``BoosterConst.PERMANENT_BOOSTER_DURATION`` (dll): a booster's ``RT`` when it never runs out"""
@@ -112,14 +112,16 @@ class Booster(TimedPayload):
         return self.level > 0 if self.is_permanent else self.remaining_seconds(now) >= 0
 
 
-class Festival(TimedPayload):
+class ActiveFeast(TimedPayload):
     """
-    The running festival: a ``boi``'s ``bfs``, or a ``bfs`` reply.
+    The feast you hold, for faster recruitment in every castle: a ``boi``'s ``bfs``, or a ``bfs`` reply.
 
-    Client: ``FestivalVO.fillFromParamObject`` and ``parseDuration`` (bundle lines 90214-90215)
+    Client: ``FestivalVO.fillFromParamObject``, ``parseDuration`` and ``isActive`` (split.js lines 459800-459826)
     """
 
-    festival_type: ClientInt = Field(validation_alias="T", default=0, description="The festival's id, -1 for none")
+    feast_id: Annotated[EnumOrInt["Feast"], BeforeValidator(js_int)] = Field(
+        validation_alias="T", default=0, description="The feast"
+    )
     seconds: ClientNumber = Field(
         validation_alias="RT", default=0, description="Seconds left when the values were read"
     )
@@ -129,13 +131,13 @@ class Festival(TimedPayload):
         return max(0.0, self.seconds - self._elapsed(now))
 
     def is_active(self, now: float | None = None) -> bool:
-        """Whether the festival still runs."""
+        """Whether the feast still runs."""
         return self.remaining_seconds(now) > 0
 
 
 class GetBoostersRequest(BaseRequest):
     """
-    Request your boosters, premium account, production slots and festival.
+    Request your boosters, premium account, production slots and feast.
 
     Command: boi
     Payload: {}
@@ -150,7 +152,7 @@ class GetBoostersRequest(BaseRequest):
 
 class BoosterInfoResponse(TimedResponse):
     """
-    Your boosters, premium account, production slots and festival.
+    Your boosters, premium account, production slots and feast.
 
     A ``boi`` lists only some boosters; the client keeps the others as they were, and
     ``client.state.get_boosts()`` does the same.
@@ -188,8 +190,8 @@ class BoosterInfoResponse(TimedResponse):
         default=(),
         description="Tool production slots: above 0 bought, below 0 permanent",
     )
-    festival: Festival | None = Field(
-        validation_alias="bfs", default=None, description="The festival; None when not sent"
+    feast: ActiveFeast | None = Field(
+        validation_alias="bfs", default=None, description="The feast you hold; None when not sent"
     )
 
     @field_validator("boosters", mode="before")
@@ -197,9 +199,9 @@ class BoosterInfoResponse(TimedResponse):
     def _boosters(cls, value: Any) -> Any:
         return tuple(readable_list(Booster, value, accept=lambda entry: isinstance(entry, dict)))
 
-    @field_validator("festival", mode="before")
+    @field_validator("feast", mode="before")
     @classmethod
-    def _festival(cls, value: Any) -> Any:
+    def _feast(cls, value: Any) -> Any:
         return object_or_none(value)
 
     @field_validator("premium_type", mode="before")
@@ -777,7 +779,7 @@ __all__ = [
     "Booster",
     "BoosterInfoResponse",
     "GallantryPointsResponse",
-    "Festival",
+    "ActiveFeast",
     "GetAchievementsRequest",
     "GetBoostersRequest",
     "GetTitleRanksRequest",
