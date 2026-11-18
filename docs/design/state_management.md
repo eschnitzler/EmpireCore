@@ -131,8 +131,9 @@ the container.
 Login waits for `gbd`, then joins the main castle (`jca`, `CID=-1`, `KID=0`)
 and waits for `jaa`. A failed join fails the login and closes the connection.
 `client.castle.session_location` is `SessionLocation.ISO` after a join,
-`WORLDMAP` after sending `gaa` (the client reads the map only on the world
-map, `CastleWorldmapData.updateAreaRange`), after `gtwara` or a successful
+`WORLDMAP` once a `gaa` the library sent is answered, refused or not (the
+client reads the map only on the world map,
+`CastleWorldmapData.updateAreaRange`), after `gtwara` or a successful
 relocation (`rst`), and `KINGDOM_MAP` after sending `laa`. A `gaa` the server
 pushes, as when an attack lands, moves nothing and clears nothing: the
 client's `GAACommand` only applies its map rows. Reset clears it to `None`.
