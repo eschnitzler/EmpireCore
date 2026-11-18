@@ -1,6 +1,6 @@
 """Account sections: the daily reset, attack counter, officers' school, boosted global effects, gifts,
-wishing well, new relics, frozen food production, your coat of arms, credentials and message counts; and the
-coat of arms symbols, name change info and account deletion."""
+wishing well, new relics, frozen food production, your coat of arms, premium flag, credentials and message counts;
+and the coat of arms symbols, name change info and account deletion."""
 
 import time
 from typing import Any
@@ -15,6 +15,7 @@ from empire_core.player.models.account import (
     FoodProductionStatus,
     OfficerTraining,
     PlayerGiftsResponse,
+    PremiumFlagResponse,
 )
 from empire_core.player.models.coat_of_arms import CoatOfArmsResponse, CoatOfArmsSymbolsResponse
 from empire_core.player.models.credentials import AccountDeletion, CredentialsStatus, PlayerNameChangeInfoResponse
@@ -22,7 +23,7 @@ from empire_core.player.models.officers_school import TrainingProgramsResponse
 from empire_core.protocol.js import js_truthy
 from empire_core.state.base import StateBase, loaded, read_section
 
-ACCOUNT_SECTIONS = ("drt", "gai", "gatp", "bie", "pgl", "rww", "nrf", "DTS", "gem", "scd", "mcd")
+ACCOUNT_SECTIONS = ("drt", "gai", "gatp", "bie", "pgl", "rww", "nrf", "DTS", "gem", "gpf", "scd", "mcd")
 
 
 class AccountState(StateBase):
@@ -34,7 +35,8 @@ class AccountState(StateBase):
         counter's ``parseParamObject`` only when ``pgl`` and ``gai`` are truthy; ``parse_DTS`` (bundle line 9925)
         reads ``DTS`` only when it is truthy. It reads ``gem`` with ``parse_GEM`` (bundle line 9877) only when
         truthy, ``scd`` with ``parse_SCD`` (bundle line 9922) only when truthy, and ``mcd``, or the login data
-        itself without one, with ``parse_MCD`` (bundle line 135013) only when its ``MTC`` is set
+        itself without one, with ``parse_MCD`` (bundle line 135013) only when its ``MTC`` is set; ``gpf`` with
+        ``parse_GPF`` (bundle line 54052) only when truthy
         """
         applied: set[str] = set()
         if js_truthy(drt := data.get("drt")):
@@ -72,6 +74,10 @@ class AccountState(StateBase):
             if (coat_of_arms := read_section(CoatOfArmsResponse, gem, "your coat of arms")) is not None:
                 self.coat_of_arms = coat_of_arms
                 applied.add("gem")
+        if js_truthy(gpf := data.get("gpf")):
+            if (flag := read_section(PremiumFlagResponse, gpf, "the premium flag")) is not None:
+                self.premium_flag = flag
+                applied.add("gpf")
         if js_truthy(scd := data.get("scd")):
             if (status := read_section(CredentialsStatus, scd, "the credentials status")) is not None:
                 self.credentials_status = status
@@ -198,6 +204,11 @@ class AccountState(StateBase):
         """Your coat of arms, from the login data's ``gem`` and the ``gem`` and ``cem`` since; None before one."""
         with self._lock:
             return self.coat_of_arms
+
+    def get_premium_flag(self) -> PremiumFlagResponse | None:
+        """Whether you own the premium flag, from the login data's ``gpf`` or the last push; None before one."""
+        with self._lock:
+            return self.premium_flag
 
     def get_coat_of_arms_symbols(self) -> CoatOfArmsSymbolsResponse | None:
         """The premium symbols earned and unlocked, from the last ``gus``; None until one arrived."""

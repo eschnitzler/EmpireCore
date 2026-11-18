@@ -7,7 +7,12 @@ from typing import TYPE_CHECKING
 from pydantic import SecretStr
 
 from empire_core.enums import QuestConditionType, VerificationLink
-from empire_core.player.models.account import PREMIUM_FLAG_RUBIES, BuyPremiumFlagRequest, BuyPremiumFlagResponse
+from empire_core.player.models.account import (
+    PREMIUM_FLAG_RUBIES,
+    BuyPremiumFlagRequest,
+    BuyPremiumFlagResponse,
+    PremiumFlagResponse,
+)
 from empire_core.player.models.coat_of_arms import (
     ChangeCoatOfArmsRequest,
     ChangeCoatOfArmsResponse,
@@ -129,9 +134,16 @@ class AccountMixin(ServiceMixin):
         )
         self.execute(UnlockSymbolRequest(symbol_id=symbol_id), timeout=timeout, spend_rubies=spend_rubies)
 
+    @property
+    def premium_flag(self) -> PremiumFlagResponse | None:
+        """Whether you own the premium flag, from the login data's ``gpf`` or the last push; None before one."""
+        return self.client.state.get_premium_flag()
+
     def buy_premium_flag(self, *, spend_rubies: bool = False, timeout: float = 5.0) -> None:
         """
         Buy the premium flag your castles fly on the map, with rubies; see "Spending rubies" in the guides.
+
+        As in the premium shop, it is not offered while :attr:`premium_flag` says you own it.
 
         Args:
             spend_rubies: Allow the rubies it costs, ``PREMIUM_FLAG_RUBIES`` before discounts; without it nothing
@@ -139,12 +151,14 @@ class AccountMixin(ServiceMixin):
             timeout: Timeout in seconds
 
         Raises:
-            ValueError: ``spend_rubies`` is False
+            ValueError: You own the premium flag, or ``spend_rubies`` is False
             CommandError: The server refused
 
-        Client: ``CastleBuyPremiumFlagDialog.onClick`` (bundle line 396605); ``GBPCommand.executeCommand``
-        (bundle line 651488)
+        Client: ``CastleFlagPremiumShopVO.canBeBought`` (bundle line 396457), ``CastleBuyPremiumFlagDialog.onClick``
+        (bundle line 396605); ``GBPCommand.executeCommand`` (bundle line 651488)
         """
+        if (flag := self.premium_flag) is not None and flag.has_premium_flag:
+            raise ValueError("you own the premium flag already")
         self._require_spend_rubies(
             spend_rubies, f"the premium flag costs {PREMIUM_FLAG_RUBIES} rubies before discounts"
         )

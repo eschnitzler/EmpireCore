@@ -978,7 +978,6 @@ from empire_core.movements.models import (
     MovementArea,
     MovementArmy,
     MovementFilterResponse,
-    SetMovementFilterRequest,
     MovementForceCancelableResponse,
     MovementMarket,
     MovementOwner,
@@ -996,6 +995,7 @@ from empire_core.movements.models import (
     SendTroopsRequest,
     SendTroopsResponse,
     SentMovementResponse,
+    SetMovementFilterRequest,
     SiegeMovementResponse,
 )
 from empire_core.player.models.account import (
@@ -1010,6 +1010,7 @@ from empire_core.player.models.account import (
     FoodProductionStatus,
     PlayerGiftsResponse,
     PlayerIdentityResponse,
+    PremiumFlagResponse,
     SendGiftPackagesRequest,
     SendGiftPackagesResponse,
     VipStatusRequest,
@@ -1254,6 +1255,7 @@ __all__ = [
     "BuyLevelResponse",
     "BuyPremiumFlagRequest",
     "BuyPremiumFlagResponse",
+    "PremiumFlagResponse",
     "ActivateGlobalEffectBoostResponse",
     "UnlockSymbolRequest",
     "UnlockSymbolResponse",
