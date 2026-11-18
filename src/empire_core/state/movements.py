@@ -377,7 +377,7 @@ class MovementState(StateBase):
 
         The owner records (``O``) are kept for the session, so a movement whose
         owner came in an earlier packet still finds it, as the client's owner list
-        does (``CastleOtherPlayerData.getOwnerInfoVO``, bundle line 138994).
+        does (``CastleOtherPlayerData.getOwnerInfoVO``, split.js line 693146).
 
         Client: ``CastleArmyData.parseMapMovementArray`` (split.js line 667169).
         """
