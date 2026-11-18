@@ -259,6 +259,8 @@ _SUCCESS_ONLY = frozenset(
     | {"gus", "gnci", "psd"}
     # VIPCommand.exec, MVFCommand.executeCommand (split.js lines 653087, 652365)
     | {"vip", "mvf"}
+    # SKRCommand.executeCommand (split.js line 652567)
+    | {"skr"}
 )
 
 
@@ -553,6 +555,7 @@ class GameState(
         "gus": "_handle_gus",
         "gnci": "_handle_gnci",
         "psd": "_handle_psd",
+        "skr": "_handle_skr",
     }
 
     def update_from_packet(self, cmd_id: str, payload: dict[str, Any], error_code: int = 0) -> None:
@@ -813,8 +816,8 @@ class GameState(
         the event minigames' "lws", "lwj", "lwc", "lwm", "dge", "cfc", "saf", "sap", "gdti", "ddi" and "vwc",
         the hunter's "hin", the judgement's "sjc" and "jjc", the hero's "hdc", the alliance camp push "aic", the
         Jade Desert phase push "abgi", the
-        daimyo's "gda", "gdc" and "gdw", the coat of arms symbols' "gus", the player name change's "gnci" and the
-        account deletion's "psd" (each only a successful one),
+        daimyo's "gda", "gdc" and "gdw", the coat of arms symbols' "gus", the player name change's "gnci", the
+        account deletion's "psd" and the skill reset's "skr" (each only a successful one),
         the officers' school's "gtp" (only a successful one), the quest pushes "qli", "qst", "qpg", "qfi", "msp" and the
         campaign's "cqs", the castle pushes "rue", "kik", the Open Gate reply "mos" (only a successful one), the gem
         push "gec", the Berimond protection reply "ffp", the

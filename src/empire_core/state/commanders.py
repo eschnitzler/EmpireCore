@@ -40,6 +40,15 @@ class CommanderState(StateBase):
         self.skills = login.skills
         return True
 
+    def _handle_skr(self, data: object) -> None:
+        """Handle a skill reset: no Legendary or sceat skill is held until the next skill list.
+
+        Client: ``SKRCommand.executeCommand`` (split.js line 652567), ``CastleLegendSkillData.resetSkills``
+        (split.js line 576751)
+        """
+        if self.skills is not None:
+            self.skills = self.skills.model_copy(update={"legendary_skill_ids": (), "sceat_skill_ids": ()})
+
     def add_legendary_skills(self, bought: Mapping[LegendarySkill | int, LegendarySkill | int | None]) -> None:
         """Apply the Legendary skill levels a ``skp`` reply bought, each with the level it replaces.
 
