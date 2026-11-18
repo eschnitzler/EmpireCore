@@ -22,7 +22,13 @@ keepalive is sent under ``S2C_PING``.
 The ``requests`` and ``handlers`` tables record how the client uses each id
 (see :func:`usage`): the request classes it constructs and the constants it sends
 directly, and the handler classes it registers, marked `` (ack)`` when they never
-read the payload.
+read the payload. ``--coverage`` sorts every id into done, ack-only, remaining,
+excluded or dead (:func:`classify`), with the exclusions, issue owners and the
+commands covered without a model taken from ``tests/data/client_coverage.json``;
+alone it reports on the committed snapshot, offline, and
+``tests/protocol/test_client_coverage.py`` keeps the rules file current.
+
+    uv run python scripts/extract_client_commands.py --coverage
 
 ``--check`` exits 1 when a table would change; a new release alone
 only prints its hashes. Both modes also list every
@@ -49,6 +55,7 @@ from typing import Any
 SCRIPT = "scripts/extract_client_commands.py"
 BASE_URL = "https://empire-html5.goodgamestudios.com/default"
 DEFAULT_OUT = Path(__file__).resolve().parents[1] / "tests" / "data" / "client_commands.json"
+COVERAGE_RULES = Path(__file__).resolve().parents[1] / "tests" / "data" / "client_coverage.json"
 SOURCE_ROOT = Path(__file__).resolve().parents[1] / "src" / "empire_core"
 
 # Methods taking a command id, with the argument it is in and the direction of that command.
@@ -303,22 +310,17 @@ def snapshot(bundle: str, dll: str, bundle_release: str, dll_release: str) -> di
 
 
 @functools.lru_cache(maxsize=1)
-def library_commands() -> dict[str, dict[str, list[str]]]:
+def library_models() -> dict[str, dict[str, list[str]]]:
     """
-    The commands the library registers, as ``{"client"|"server"|"either": {id: [where, ...]}}``.
+    The commands the library has models for, as ``{"client"|"server": {id: [model, ...]}}``.
 
     Requests (``command``) are client commands; replies (``response_command``, and
-    every registered response model) are server commands; ``GGECommand`` values
-    are either; plain strings the code uses are those :func:`raw_commands` finds.
+    every response model, registered or not) are server commands.
     """
     import empire_core.protocol.models  # noqa: F401  imports every area's models
-    from empire_core.protocol.base import BaseRequest, BaseResponse, GGECommand
+    from empire_core.protocol.base import BaseRequest, BaseResponse
 
-    found: dict[str, dict[str, set[str]]] = {
-        "client": defaultdict(set),
-        "server": defaultdict(set),
-        "either": defaultdict(set),
-    }
+    found: dict[str, dict[str, set[str]]] = {"client": defaultdict(set), "server": defaultdict(set)}
 
     def subclasses(cls: type) -> list[type]:
         found = [sub for direct in cls.__subclasses__() for sub in (direct, *subclasses(direct))]
@@ -335,6 +337,24 @@ def library_commands() -> dict[str, dict[str, list[str]]]:
         command = response.__dict__.get("command")
         if isinstance(command, str):
             found["server"][command].add(response.__qualname__)
+    return {side: {command: sorted(names) for command, names in sorted(table.items())} for side, table in found.items()}
+
+
+@functools.lru_cache(maxsize=1)
+def library_commands() -> dict[str, dict[str, list[str]]]:
+    """
+    The commands the library registers, as ``{"client"|"server"|"either": {id: [where, ...]}}``.
+
+    The :func:`library_models`, ``GGECommand`` values (either side), and the plain
+    strings :func:`raw_commands` finds.
+    """
+    from empire_core.protocol.base import GGECommand
+
+    found: dict[str, dict[str, set[str]]] = {
+        side: defaultdict(set, {command: set(names) for command, names in table.items()})
+        for side, table in library_models().items()
+    }
+    found["either"] = defaultdict(set)
     for name, value in vars(GGECommand).items():
         if name.isupper() and isinstance(value, str):
             found["either"][value].add(f"GGECommand.{name}")
@@ -409,6 +429,99 @@ def missing_commands(tables: dict[str, Any]) -> list[tuple[str, str, list[str]]]
     ]
 
 
+BUCKETS = ("done", "ack-only", "remaining", "excluded", "dead")
+
+
+@dataclass(frozen=True)
+class Coverage:
+    """
+    Where one client command stands.
+
+    ``detail`` is what covers a command done without a model, the reason a command is
+    excluded, or the owner of a remaining one; ``missing`` is what a remaining one lacks.
+    """
+
+    command: str
+    bucket: str
+    detail: str = ""
+    missing: tuple[str, ...] = ()
+
+
+def _covered_sides(entry: dict[str, Any]) -> set[str]:
+    return {entry["raw"]} if "raw" in entry else {"server"}
+
+
+def classify(
+    tables: dict[str, Any], rules: dict[str, Any], models: dict[str, dict[str, list[str]]] | None = None
+) -> list[Coverage]:
+    """
+    Every command of the snapshot ``tables`` in one of :data:`BUCKETS`.
+
+    A command the client sends needs a request model, and one it handles needs a typed reply
+    unless every handler ignores the payload (``ack-only``). A command it neither sends nor
+    handles is ``dead``. ``rules`` (``client_coverage.json``) names what covers a command without
+    a model, what is excluded on purpose, and which issue owns each remaining command.
+    """
+    models = library_models() if models is None else models
+    excluded = {command: reason for reason, commands in rules["excluded"].items() for command in commands}
+    owners = {command: f"#{issue}" for issue, commands in rules["owners"].items() for command in commands}
+    owners.update(rules["unowned"])
+    found = []
+    for command in sorted(set(tables["client"]) | set(tables["server"])):
+        handlers = tables["handlers"].get(command, [])
+        sent = command in tables["requests"]
+        if not sent and not handlers:
+            found.append(Coverage(command, "dead"))
+            continue
+        cover = rules["covered_without_model"].get(command)
+        covered = _covered_sides(cover) if cover else set()
+        ack = all(handler.endswith(" (ack)") for handler in handlers)
+        missing = tuple(
+            part
+            for part, side, needed in (("request", "client", sent), ("reply", "server", handlers and not ack))
+            if needed and command not in models[side] and side not in covered
+        )
+        if missing:
+            if command in excluded:
+                found.append(Coverage(command, "excluded", excluded[command]))
+            else:
+                found.append(Coverage(command, "remaining", owners.get(command, ""), missing))
+        elif handlers and ack and command not in models["server"] and "server" not in covered:
+            found.append(Coverage(command, "ack-only"))
+        else:
+            found.append(Coverage(command, "done", cover["note"] if cover else ""))
+    return found
+
+
+def coverage_report(tables: dict[str, Any], coverage: list[Coverage]) -> str:
+    """``classify``'s result as Markdown, the same for the same input."""
+    buckets: dict[str, list[Coverage]] = {bucket: [] for bucket in BUCKETS}
+    for row in coverage:
+        buckets[row.bucket].append(row)
+    lines = [
+        f"# Client coverage: bundle {tables['bundle_release']}, dll {tables['dll_release']}",
+        "",
+        "| Bucket | Commands |",
+        "|---|---|",
+        *(f"| {bucket} | {len(rows)} |" for bucket, rows in buckets.items()),
+        "",
+        "## Remaining",
+        "",
+        "| Command | Missing | Owner |",
+        "|---|---|---|",
+        *(f"| `{row.command}` | {' and '.join(row.missing)} | {row.detail} |" for row in buckets["remaining"]),
+    ]
+    by_reason: dict[str, list[str]] = defaultdict(list)
+    for row in buckets["excluded"]:
+        by_reason[row.detail].append(f"`{row.command}`")
+    lines += ["", "## Excluded", ""] + [f"- {reason}: {' '.join(commands)}" for reason, commands in by_reason.items()]
+    for bucket in ("ack-only", "dead"):
+        lines += ["", f"## {bucket.capitalize()}", "", " ".join(f"`{row.command}`" for row in buckets[bucket])]
+    lines += ["", "## Done without a model", ""]
+    lines += [f"- `{row.command}`: {row.detail}" for row in buckets["done"] if row.detail]
+    return "\n".join(lines) + "\n"
+
+
 def changes(old: dict[str, Any], new: dict[str, Any]) -> list[str]:
     """What differs between two snapshots, one line each."""
     lines = [
@@ -477,8 +590,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dll-release", help="the dll's release hash, when its file name lacks it")
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT, help="snapshot file to write")
     parser.add_argument("--check", action="store_true", help="write nothing; exit 1 if a command table would change")
+    parser.add_argument(
+        "--coverage", action="store_true", help="print the coverage report; alone, for the committed snapshot"
+    )
+    parser.add_argument("--rules", type=Path, default=COVERAGE_RULES, help="the coverage rules file")
     args = parser.parse_args(argv)
 
+    def report(tables: dict[str, Any]) -> None:
+        if args.coverage:
+            rules = json.loads(args.rules.read_text(encoding="utf-8"))
+            print(coverage_report(tables, classify(tables, rules)), end="")
+
+    if args.coverage and not (args.download or args.bundle or args.dll):
+        report(json.loads(args.out.read_text(encoding="utf-8")))
+        return 0
     if args.download:
         bundle, dll, bundle_release, dll_release = download()
     elif args.bundle and args.dll:
@@ -486,7 +611,7 @@ def main(argv: list[str] | None = None) -> int:
         bundle_release = _release(args.bundle, _BUNDLE_NAME, args.bundle_release)
         dll_release = _release(args.dll, _DLL_NAME, args.dll_release)
     else:
-        parser.error("pass --download, or both --bundle and --dll")
+        parser.error("pass --download, or both --bundle and --dll, or --coverage alone")
 
     new = snapshot(bundle, dll, bundle_release, dll_release)
     if not new["client"] or not new["server"]:
@@ -499,6 +624,7 @@ def main(argv: list[str] | None = None) -> int:
     for side, command, where in missing:
         print(f"library {side} command not in the client: {command} ({', '.join(where)})", file=sys.stderr)
     print(f"{len(new['client'])} client and {len(new['server'])} server commands")
+    report(new)
     if args.check:
         return 1 if any(old.get(side) != new.get(side) for side in _TABLES) else 0
     args.out.parent.mkdir(parents=True, exist_ok=True)
