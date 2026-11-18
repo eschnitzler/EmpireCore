@@ -127,8 +127,6 @@ class Castle(EmpireModel):
         default=None, description="The castle's latest details; None until they arrive"
     )
 
-    raw_data: dict[str, Any] = Field(default_factory=dict, exclude=True)
-
     def open_gate_seconds(self, now: float | None = None) -> float:
         """Seconds until the open gate closes, 0 while it is closed.
 
