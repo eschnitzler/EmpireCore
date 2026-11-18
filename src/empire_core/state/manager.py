@@ -124,7 +124,7 @@ _WHOLE_SECTIONS = {
 # EBUCommand, EUPCommand, EUDCommand, RBUCommand, EBECommand through the area updater (bundle lines 122761,
 # 122861, 122846, 123163, 122744), JAACommand (bundle line 130194), RCCCommand (bundle lines 123182,
 # 28797), BUPCommand, CRMCommand, VFICommand, GDRCommand, CCDCommand, CDECommand (bundle lines 125531,
-# 125982, 121164, 123053, 127640, 127658), gdr also its sce; a refused crm still reaches the movement handler.
+# 125982, 121164, 123053, 127640, 127658), gdr also its sce.
 # VFICommand also parses its gcu, and SOUCommand (bundle line 125699) its gcu beside the spl the state does not keep.
 # The protection (uap) of a map read and a joined area: GAACommand, JAACommand (bundle lines 130164, 130243)
 # JAACommand also brings its crai crafting queues (bundle line 130249)
@@ -178,12 +178,20 @@ _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
 # 128358, 130249, 131787), each through DecoStorageData.parseSIN (bundle line 141430)
 _DECORATION_STORAGE_REPLIES = frozenset({"ebe", "ebu", "pio", "sob", "sbp", "jaa", "sds"})
 
+# Movement replies and pushes stamped whatever their status, their coins, owners and movement applied only on
+# success: CRACommand, CAMCommand, ABGCAMCommand, CDSCommand, CSMCommand, CATCommand, CRMCommand, CSSCommand,
+# TDECommand, CDDCommand, CPMCommand, JTRCommand, THMCommand, LDTCommand (split.js lines 638736, 638553, 638368,
+# 638687, 638881, 638641, 638832, 638930, 639153, 646877, 647842, 643584, 639199, 647055)
+_MOVEMENT_REPLIES = frozenset(
+    {"cra", "cam", "abgcam", "cds", "csm", "cat", "crm", "css", "tde", "cdd", "cpm", "jtr", "thm", "ldt"}
+)
+
 # Commands whose state the client applies only from a successful reply: SEICommand, SEECommand,
 # TEICommand, TEECommand, PEPCommand, FJFCommand, BSTCommand (bundle lines 128379, 128364,
 # 128409, 128394, 128214, 127782, 127608), ACMCommand, AQICommand, UFPCommand, BFSCommand (bundle
 # lines 121317, 121557, 121010, 122569), GTPCommand (bundle line 126146), UHTCommand, APTCommand,
 # CARCommand (bundle lines 129926, 123623, 125277), the section replies above;
-# a cpm error reply still reaches the movement handler, its cpi only a successful one. Also the castle
+# a refused cpm or crm is still stamped (see _MOVEMENT_REPLIES). Also the castle
 # pushes and replies:
 # RUECommand, KIKCommand, GSMCommand, RCICommand, CMRCommand, RCCCommand, JAACommand, CSLCommand and
 # GABCommand (bundle lines 125647, 123114, 125752, 123196, 125737, 123181, 130190, 122715, 122923); GECCommand
@@ -594,7 +602,8 @@ class GameState(
                     self._packet_times[cmd_id] = time.time()
             elif handler_name:
                 self._packet_times[cmd_id] = time.time()
-                getattr(self, handler_name)(payload)
+                if ok or cmd_id not in _MOVEMENT_REPLIES:
+                    getattr(self, handler_name)(payload)
             if ok and cmd_id in _DECORATION_STORAGE_REPLIES and isinstance(payload, dict) and "sin" in payload:
                 self._handle_sin(payload["sin"])
             if ok and cmd_id in _NESTED_SECTIONS and isinstance(payload, dict):
@@ -697,10 +706,7 @@ class GameState(
         self._apply_movement_wrappers([data], [])
 
     def _apply_sent_movement(self, data: dict[str, Any], wrapper: Any) -> None:
-        """Apply a send reply's coins and rubies (``gcu``), then store its movement with the owner records (``O``).
-
-        An error reply carries no movement, so it stores nothing.
-        """
+        """Apply a send reply's coins and rubies (``gcu``), then store its movement with the owner records (``O``)."""
         if isinstance(gcu := data.get("gcu"), dict):
             self._handle_gbd({"gcu": gcu})
         self._apply_movement_wrappers([wrapper], readable_list(MovementOwner, data.get("O")))
