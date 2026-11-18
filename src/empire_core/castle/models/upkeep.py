@@ -8,13 +8,17 @@ Commands:
 
 from __future__ import annotations
 
+import logging
 from typing import Any, ClassVar
 
 from pydantic import ConfigDict, Field, field_validator
 
+from empire_core.castle.models.objects import BuildingConstructionItems
 from empire_core.gamedata import CollectableRows
-from empire_core.protocol.base import BaseRequest, BaseResponse, TimedResponse
+from empire_core.protocol.base import BaseRequest, BaseResponse, TimedResponse, readable_list
 from empire_core.protocol.js import ClientNumber, js_truthy
+
+logger = logging.getLogger(__name__)
 
 
 class GetConstructionItemExpiryRequest(BaseRequest):
@@ -33,14 +37,14 @@ class GetConstructionItemExpiryRequest(BaseRequest):
 
 class ConstructionItemExpiryResponse(TimedResponse):
     """
-    When the next of your construction items expires, and when one last expired.
-
-    The push's ``CI`` (the joined castle's construction items) is not read here.
+    When the next of your construction items expires and when one last expired, and the construction
+    items on the joined castle's buildings when a push lists them.
 
     Command: nec, as a login section of ``gbd`` and a push.
 
-    Client: ``NECCommand`` (bundle line 123294), ``ConstructionItemData.parse_NEC`` and
-    ``hasNewExpiredItems`` (bundle lines 22976, 22992)
+    Client: ``NECCommand.executeCommand`` (split.js line 629754), which hands a truthy ``CI`` to the joined
+    area's ``parseConstructionItems``; ``ConstructionItemData.parse_NEC`` (split.js line 120941) and
+    ``hasNewExpiredItems`` (bundle line 22992)
     """
 
     command = "nec"
@@ -55,6 +59,18 @@ class ConstructionItemExpiryResponse(TimedResponse):
         default=-1,
         description="When a construction item last expired, the server's timestamp; -1 none",
     )
+    placed_items: tuple[BuildingConstructionItems, ...] | None = Field(
+        validation_alias="CI",
+        default=None,
+        description="The construction items on each of the joined castle's buildings; None when not sent",
+    )
+
+    @field_validator("placed_items", mode="before")
+    @classmethod
+    def _placed(cls, value: Any) -> Any:
+        if not js_truthy(value) or not isinstance(value, list):
+            return None
+        return tuple(readable_list(BuildingConstructionItems, value, warn=logger, what="placed construction items"))
 
     def remaining_seconds(self, now: float | None = None) -> float | None:
         """Seconds until the next construction item expires, 0 at least; None when none will."""

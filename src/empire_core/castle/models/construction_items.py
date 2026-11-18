@@ -6,18 +6,25 @@ import logging
 import math
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from pydantic import ConfigDict, Field, field_validator, model_validator
+from pydantic import ConfigDict, Field, ModelWrapValidatorHandler, field_validator, model_validator
 
 from empire_core.castle.models.objects import BuildingConstructionItems, PlacedConstructionItem
 from empire_core.enums import ConstructionItemMode, CurrencyId, Kingdom
 from empire_core.gamedata import Collectable, EnumOrInt, RewardId
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, read_or_none, readable_list
-from empire_core.protocol.js import js_number_or_none, js_parse_int
+from empire_core.protocol.js import js_int, js_number, js_number_or_none, js_parse_int, js_string
 
 if TYPE_CHECKING:
     from empire_core.gamedata import Building, ConstructionItem
 
 logger = logging.getLogger(__name__)
+
+INVENTORY_SOFTCAP = 5000
+"""How many construction items fit in storage before it counts as full.
+
+Client: ``ConstructionItemConst.INVENTORY_SOFTCAP`` (dll, ``5e3``), read by ``ConstructionItemData.updateInventory``
+(split.js line 120812)
+"""
 
 
 class ConstructionItemStack(BasePayload):
@@ -63,8 +70,8 @@ class GetConstructionItemsRequest(BaseRequest):
 class ConstructionItemInventory(BaseResponse):
     """The construction items in storage, replaced in full by each inventory reply.
 
-    Client: ``GIICommand.executeCommand`` (bundle line 123270),
-    ``ConstructionItemData.updateInventory`` (bundle lines 22947-22952).
+    Client: ``GIICommand.executeCommand`` (split.js line 629668), ``ConstructionItemData.updateInventory``
+    (split.js line 120812), which counts the space left as ``INVENTORY_SOFTCAP`` less the amounts as sent
     """
 
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
@@ -72,6 +79,32 @@ class ConstructionItemInventory(BaseResponse):
     command = "gii"
 
     items: tuple[ConstructionItemStack, ...] = Field(validation_alias="CI", description="The items in storage")
+    space_left: int | None = Field(
+        default=None,
+        description="How many more construction items fit in storage; None when an item does not read",
+    )
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def _space_left(cls, data: Any, handler: ModelWrapValidatorHandler[ConstructionItemInventory]) -> Any:
+        inventory = handler(data)
+        rows = data.get("CI") if isinstance(data, dict) else None
+        if not isinstance(rows, list) or len(rows) != len(inventory.items):
+            return inventory
+        if not all(isinstance(row, list) and len(row) >= 2 for row in rows):
+            return inventory
+        # JavaScript's +=: a string amount turns the sum into a string
+        total: float | str = 0.0
+        for row in rows:
+            amount = row[1]
+            total = (
+                js_string(total) + js_string(amount)
+                if isinstance(total, str) or isinstance(amount, str)
+                else total + js_number(amount)
+            )
+        summed = js_number_or_none(total)
+        space = js_int(INVENTORY_SOFTCAP - summed) if summed is not None else 0
+        return inventory.model_copy(update={"space_left": space})
 
     @field_validator("items", mode="before")
     @classmethod

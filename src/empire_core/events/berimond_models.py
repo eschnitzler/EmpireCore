@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from pydantic import Field, field_serializer, field_validator
+from pydantic import Field, field_serializer, field_validator, model_validator
 
 from empire_core.enums import BerimondFaction, BerimondProtectionStatus, Kingdom
 from empire_core.gamedata import EnumOrInt
@@ -161,6 +161,12 @@ class BerimondKingdomStatus(BaseResponse):
     @classmethod
     def _one(cls, value: Any) -> bool:
         return js_loose_equals(value, 1)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _flags_of(cls, data: Any) -> Any:
+        # parse_FKI reads each flag off whatever it is handed: anything but an object sets none
+        return data if isinstance(data, dict | cls) else {}
 
 
 class FactionStanding(BasePayload):
