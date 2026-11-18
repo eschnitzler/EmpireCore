@@ -22,7 +22,7 @@ from empire_core.castle.models.buildings import (
 from empire_core.castle.models.districts import MoveToDistrictResponse, RemoveFromDistrictResponse
 from empire_core.castle.models.objects import BuildingRow, CarriedCastleBuildings, CastleBuildings
 from empire_core.castle.models.storage import PlaceStoredDecorationResponse, StoreBuildingResponse
-from empire_core.castle.models.updates import BuildingEfficiencyChanged, DamagedBuildings, BuildingChanged
+from empire_core.castle.models.updates import BuildingChanged, BuildingEfficiencyChanged, DamagedBuildings
 from empire_core.enums import GGEError
 from empire_core.state.base import StateBase, read_section
 from empire_core.state.models import PlacedBuilding
