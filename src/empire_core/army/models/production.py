@@ -19,13 +19,14 @@ from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Literal
 
 from pydantic import BeforeValidator, Field, model_validator
 
+from empire_core.castle.models.resources import CastleResources
 from empire_core.enums import Kingdom, ProductionListId, RecruitmentMode, SlotType
 from empire_core.gamedata import UnitOrTool
 from empire_core.gamedata.lenient import EnumOrInt
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, CurrencyBlock, object_or_none
 from empire_core.protocol.js import ParseInt, js_int, js_loose_equals, js_number, js_same_number, js_truthy
 
-from .units import BUY_UNIT_PACKAGE_SK, RawBlock, UnitInventoryBlock
+from .units import BUY_UNIT_PACKAGE_SK, UnitInventoryBlock
 
 if TYPE_CHECKING:
     from empire_core.gamedata import Unit
@@ -271,6 +272,7 @@ class ProductionList(BasePayload):
 
 
 ProductionListBlock = Annotated[ProductionList | None, BeforeValidator(object_or_none)]
+ResourcesBlock = Annotated[CastleResources | None, BeforeValidator(object_or_none)]
 
 
 # =============================================================================
@@ -350,24 +352,32 @@ class ProduceUnitsResponse(BaseResponse):
     Command: bup
     Payload: {"spl": {...}, "grc": {...}, "gcu": {...}, "gui": {...}, "O": {"W": wod_id, "AMT": amount}}
 
-    Client: ``BUPCommand.executeCommand`` (bundle line 125531): ``spl`` to
+    Client: ``BUPCommand.executeCommand`` (bundle line 637270): ``spl`` to
     ``parse_SPL``, ``grc`` to ``AreaDataUpdater.parseGRC``, ``gcu`` to
-    ``CurrencyData.parseGCU``, ``gui`` to ``parse_GUI``
+    ``CurrencyData.parseGCU``, ``gui`` to ``parse_GUI``, and ``O`` to ``unitInventory.addUnit`` when set and not 0
     """
 
     command = "bup"
 
-    production_list: ProductionListBlock = Field(validation_alias="spl", default=None)
-    resources: RawBlock = Field(
+    production_list: ProductionListBlock = Field(
+        validation_alias="spl", default=None, description="The production list after; None when the reply has none"
+    )
+    resources: ResourcesBlock = Field(
         validation_alias="grc",
         default=None,
-        description="The castle's resources, as a raw block",
+        description="The castle's resources after; None when the reply has none",
     )
     currencies: CurrencyBlock = Field(
         validation_alias="gcu", default=None, description="Coins and rubies after the change"
     )
-    unit_inventory: UnitInventoryBlock = Field(validation_alias="gui", default=None)
-    added_unit: Annotated[AddedUnit | None, BeforeValidator(object_or_none)] = Field(validation_alias="O", default=None)
+    unit_inventory: UnitInventoryBlock = Field(
+        validation_alias="gui", default=None, description="The units after; None when the reply has none"
+    )
+    added_unit: Annotated[AddedUnit | None, BeforeValidator(object_or_none)] = Field(
+        validation_alias="O",
+        default=None,
+        description="Units put straight into the inventory; None when there are none",
+    )
 
 
 # =============================================================================
