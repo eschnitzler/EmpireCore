@@ -274,13 +274,15 @@ class EventState(StateBase):
         the raid boss and the alliance Grand Tournament the first for you and the second for your
         alliance, the alliance tournament the first for your alliance, and ``BLPP`` the raid boss's
         level points. The library reads every value through ``int()``, where the client keeps them
-        as sent.
+        as sent. A pep without an ``EID`` names no event.
 
         Client: ``PEPCommand.exec`` (split.js line 646824) and the ``setRankAndPoints`` of each class;
         see :class:`GetEventPointsResponse`
         """
         self._events_updated_at = time.time()
         self._expire_events()
+        if not isinstance(data, dict) or "EID" not in data:
+            return
         points = read_section(GetEventPointsResponse, data, "a pep")
         event = self._sent_event(points.event_id) if points is not None else None
         if points is None or event is None:
