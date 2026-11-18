@@ -135,7 +135,7 @@ class SelectCastleResponse(BaseResponse):
 
     Command: jaa, the answer to both ``jca`` and a ``jaa`` by position; the
     client reads both with the same code.
-    Payload: {"KID": kingdom_id, "T": area_type, "gca": {...}, "grc": {...}, "gpa": {...}, ...}
+    Payload: {"KID": kingdom, "T": area_type, "gca": {...}, "grc": {...}, "gpa": {...}, ...}
 
     A block that cannot be read is None, so it does not cost the rest. The
     other blocks (``spl0`` to ``spl3``, ``gui``, ``uap``) are kept as sent.
@@ -148,7 +148,11 @@ class SelectCastleResponse(BaseResponse):
 
     command = "jaa"
 
-    kingdom_id: int = Field(validation_alias="KID", default=0, description="The joined area's kingdom")
+    kingdom: Kingdom | None = Field(
+        validation_alias="KID",
+        default=Kingdom.GREEN,
+        description="The joined area's kingdom; None for one Kingdom lacks",
+    )
     area_type: MapItemType | None = Field(
         validation_alias="T",
         default=None,
@@ -242,7 +246,10 @@ class SelectCastleResponse(BaseResponse):
             return enum_or_none(MapItemType, value)
         return None
 
-    _kingdom = field_validator("kingdom_id", mode="before")(js_int)
+    @field_validator("kingdom", mode="before")
+    @classmethod
+    def _kingdom(cls, value: Any) -> Kingdom | None:
+        return value if isinstance(value, Kingdom) else enum_or_none(Kingdom, js_int(value))
 
     @field_validator("buildings", mode="before")
     @classmethod
