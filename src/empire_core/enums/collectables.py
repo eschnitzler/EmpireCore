@@ -10,8 +10,10 @@ class CollectableKind(str, Enum):
     The kind of a collectable: the client's ``CollectableEnum`` types a server key can name.
 
     The value is the client's type name, ``server_key`` the key the server sends it under. A
-    currency (``CURRENCY``) has no key of its own: it comes under the currency's key. ``OTHER``
-    stands for a key the client has no type for; the client drops such an entry.
+    currency (``CURRENCY``) has no key of its own: it comes under the currency's key. A
+    ``RANDOM_REWARD`` has none either: only an event package's game data names one, a random item
+    of the kind its ``item`` names (split.js line 3093). ``OTHER`` stands for a key the client has
+    no type for; the client drops such an entry.
 
     Client: ``CollectableEnum.__initialize_static_members`` (bundle lines 419-551); each item
     class's ``SERVER_KEY`` and ``XML_KEY`` (e.g. ``CollectableItemUnitVO``, bundle line 15494)
@@ -19,7 +21,7 @@ class CollectableKind(str, Enum):
 
     _value_: str
     server_key: str
-    """The key the server sends this kind under; empty for ``CURRENCY`` and ``OTHER``."""
+    """The key the server sends this kind under; empty for ``CURRENCY``, ``RANDOM_REWARD`` and ``OTHER``."""
     xml_keys: tuple[str, ...]
     """The columns the items tables give this kind under, as in a ``rewards`` row; empty for none."""
 
@@ -85,6 +87,7 @@ class CollectableKind(str, Enum):
     GIFT_PACKAGE = "giftPackage", "GT", ("giftPackageIDs",)
     LOOT_BOX = "lootBox", "LB", ("lootBox",)
     ALLIANCE_CREST_LAYOUT = "allianceCrestLayout", "ACL", ("allianceCoatLayout",)
+    RANDOM_REWARD = "randomReward", ""
     OTHER = "unknown", ""
 
 
