@@ -114,7 +114,7 @@ _WHOLE_SECTIONS = {
 # TXSCommand and TXCCommand (bundle lines 128808, 128748) and BTXCommand bring their txi. The equipment and gem replies
 # BGMCommand, CEQCommand, CGECommand, FRCCommand and SEQCommand (bundle lines 123727, 123783,
 # 123798, 123955, 124019) bring their esl, and frc its ain; the kingdom replies KGTCommand, KSTCommand, KUTCommand,
-# MSKCommand and FJFCommand (bundle lines 124654, 124713, 124728, 125795, 127783) their kpi.
+# MSKCommand (bundle lines 124654, 124713, 124728, 125795) their kpi.
 # FFPCommand and IBTCommand (bundle lines 127785, 123574) bring their gcu.
 # The treasure map replies TCNCommand, TGTCommand, TUTCommand, MSMCommand, TKTCommand and TFMCommand (bundle
 # lines 129038, 129068, 129118, 125848, 129088, 129053) bring their tmp, tkt its gcu and tfm its thi.
@@ -154,7 +154,7 @@ _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
     "frc": ("ain", "esl"),
     **dict.fromkeys(("kgt", "kst"), ("gcu", "kpi", "grc")),
     "kut": ("gcu", "kpi"),
-    **dict.fromkeys(("msk", "fjf"), ("kpi",)),
+    "msk": ("kpi",),
     "rwb": ("gcu",),
     **dict.fromkeys(("ffp", "ibt", "ira", "fco", "sbd", "sds", "bou", "hru", "hra", "hss"), ("gcu",)),
     **dict.fromkeys(("ebu", "eup", "eud", "rbu", "ebe", "bup"), ("grc", "gcu")),
