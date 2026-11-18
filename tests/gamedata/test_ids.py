@@ -124,6 +124,7 @@ IDS_PAYLOAD: dict[str, Any] = {
         {"gemID": "55", "gemLevelID": "6", "wearerID": "1", "triggerChance": "30", "effects": "1&13"},
     ],
     "sceatSkills": [{"skillID": "41", "skillGroupID": "1", "level": "1", "skillTreeID": "3", "effects": "294&1942"}],
+    "feasts": [{"feastID": "4", "costC2": "1750", "minLevel": 10, "maxLevel": "69", "type": "ruby", "sortOrder": "2"}],
     "achievements": [
         {
             "achievementID": "1",
@@ -210,6 +211,7 @@ TABLE_OF: dict[str, str] = {
     "Gem": "gems",
     "GemColor": "gem_colors",
     "SceatSkill": "sceat_skills",
+    "Feast": "feasts",
     "Achievement": "achievements",
     "Horse": "horses",
     "Title": "titles",
@@ -684,6 +686,11 @@ class TestGenerator:
             "STORM_BASTION": 18,
             "THORN_KING_HARDMODE_SIMPLE_CAMP": 19,
         }
+
+    def test_feasts_are_named_from_the_feast_dialog(self, items):
+        assert self.members(items, "Feast") == {"FEAST_4": 4}
+        texts = {"dialog_festival_rubyEvent": "Imperial banquet"}
+        assert self.text_members(IDS_PAYLOAD, texts, "Feast") == {"IMPERIAL_BANQUET": 4}
 
     def test_tower_effects_are_named_from_the_tower_dialog(self):
         payload = {

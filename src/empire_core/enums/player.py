@@ -126,3 +126,16 @@ class VerificationLink(IntEnum):
 
     ACCOUNT_VERIFICATION = 0
     EMAIL_CHANGE = 1
+
+
+class SceatSkillTab(IntEnum):
+    """
+    A Hall of Legends sceat skill tab, the ``tabID`` of the items ``sceatSkillTrees`` rows and the ``TID`` of ``ssa``.
+
+    Client: ``CastleLegendSkillData`` keys ``sceatTreeTabMap`` by ``tabID + 1`` (split.js line 576550), the
+    dialog's ``SUBLAYER_BUILDINGS`` and ``SUBLAYER_UNITS`` (split.js lines 89563-89564), titled
+    ``dialog_legendTemple_title_building`` and ``_units`` (split.js line 409505)
+    """
+
+    BUILDINGS = 1
+    UNITS = 2

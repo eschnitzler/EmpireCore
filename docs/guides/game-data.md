@@ -37,8 +37,9 @@ taking its `len()` validates every row once. Besides the ones above, these are
 `general_abilities`, `general_skills`, `legendary_skills`, `raid_bosses`,
 `global_effects`, `construction_items`, `loot_boxes`, `loot_box_types`,
 `equipment_groups`, `difficulty_types`, `titles`, `gems`, `sceat_skills`,
-`horses`, `achievements`, `alliance_crest_layouts` and `alliance_crest_colors`.
-`scaling_camps` is a `Table` keyed by plain id, and so are
+`feasts`, `horses`, `achievements`, `alliance_crest_layouts` and `alliance_crest_colors`.
+`scaling_camps` is a `Table` keyed by plain id, and so are `sceat_skill_trees`
+(by `SceatSkill.skill_tree_id`, each with its Hall of Legends tab),
 `daimyo_castle_contracts` and `daimyo_township_contracts`, the daimyo event's
 alliance contracts (`DaimyoContractDef`) in the items' order.
 
