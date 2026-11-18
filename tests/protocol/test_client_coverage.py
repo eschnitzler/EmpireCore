@@ -43,10 +43,10 @@ class TestCommittedCoverage:
 
         assert unowned == [], "give these an issue in client_coverage.json owners, or an unowned note"
 
-    def test_owned_commands_are_live_and_not_excluded(self):
+    def test_every_owned_command_is_remaining(self):
         owned = {command for commands in RULES["owners"].values() for command in commands} | set(RULES["unowned"])
 
-        assert sorted(owned & (_bucket("dead") | _bucket("excluded"))) == []
+        assert sorted(owned - _bucket("remaining")) == [], "these are done, ack-only, excluded or dead; drop them"
 
     def test_the_library_uses_no_dead_command(self):
         models = script.library_models()
