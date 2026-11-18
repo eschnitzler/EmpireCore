@@ -4,20 +4,27 @@ from __future__ import annotations
 
 import logging
 import math
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar
 
-from pydantic import ConfigDict, Field, field_validator, model_validator
+from pydantic import BeforeValidator, ConfigDict, Field, field_validator, model_validator
 
 from empire_core.enums.events import RaidBossCardStatus
 from empire_core.gamedata import EnumOrInt
 from empire_core.gamedata.ids.events import Event
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, readable_list
-from empire_core.protocol.js import ClientInt, js_int, js_loose_equals, js_string, js_truthy
+from empire_core.protocol.js import ClientInt, js_int, js_loose_equals, js_map_key, js_string, js_truthy
 
 if TYPE_CHECKING:
     from empire_core.gamedata import RaidBoss
 
 logger = logging.getLogger(__name__)
+
+SentEventId = Annotated[EnumOrInt[Event], BeforeValidator(js_map_key)]
+"""
+An event id the client looks up as sent: only a whole number names an event, ``3.0`` as 3 and ``"3"`` none.
+
+Client: ``CastleSpecialEventData.getActiveEventByEventId`` (split.js line 696557), a ``Map.get``
+"""
 
 
 class GrandTournamentQuestProgress(BasePayload):
@@ -103,7 +110,7 @@ class GrandTournamentQuestStatus(BaseResponse):
 
     command: ClassVar[str] = "aqs"
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True, populate_by_name=True, extra="ignore")
-    event_id: EnumOrInt[Event] = Field(validation_alias="EID", description="Grand Tournament event")
+    event_id: SentEventId = Field(validation_alias="EID", description="Grand Tournament event")
     participants: ClientInt | None = Field(
         default=None, validation_alias="APC", description="Participating alliance members"
     )
@@ -295,7 +302,7 @@ class GrandTournamentQuestUpdate(BasePayload):
     (bundle 127430-127503) read only nested aqs.EID and aqs.AQS.
     """
 
-    event_id: EnumOrInt[Event] = Field(validation_alias="EID", description="Grand Tournament event")
+    event_id: SentEventId = Field(validation_alias="EID", description="Grand Tournament event")
     slots: tuple[GrandTournamentQuestSlot, ...] = Field(validation_alias="AQS", description="Updated quest slots")
 
     @field_validator("slots", mode="before")

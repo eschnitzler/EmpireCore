@@ -1,9 +1,18 @@
 """The event pushes: sei and tei entries, see and tee ends."""
 
 import pytest
+from pydantic import ValidationError
 
+from empire_core.attack import RagePointsResponse
+from empire_core.events import (
+    AllianceCampInfo,
+    GachaFreeChestResponse,
+    GrandTournamentQuestStatus,
+    GrandTournamentQuestUpdate,
+)
 from empire_core.events.models import (
     EventEndedResponse,
+    GetEventPointsResponse,
     SpecialEventsResponse,
     TriggerEventEndedResponse,
     TriggerEventsResponse,
@@ -45,3 +54,21 @@ class TestEventEnds:
         # parseTEE: int(e && e.TRID ? e.TRID : -1), removed when 0 or above
         assert TriggerEventEndedResponse.model_validate({"TRID": value}).event_id == expected
         assert TriggerEventEndedResponse.model_validate({}).event_id is None
+
+    @pytest.mark.parametrize(
+        ("model", "body"),
+        [
+            (RagePointsResponse, {}),
+            (AllianceCampInfo, {"ACID": 11}),
+            (GachaFreeChestResponse, {}),
+            (GrandTournamentQuestStatus, {"AQS": []}),
+            (GrandTournamentQuestUpdate, {"AQS": []}),
+            (GetEventPointsResponse, {}),
+        ],
+    )
+    def test_a_push_names_its_event_as_sent(self, model, body):
+        # getActiveEventByEventId (split.js 696557) is a Map.get: 72.0 finds event 72, "72" finds none
+        assert model.model_validate({**body, "EID": 72.0}).event_id is Event.NOMAD_INVASION_72
+        for value in ("72", 72.5, True, None):
+            with pytest.raises(ValidationError):
+                model.model_validate({**body, "EID": value})

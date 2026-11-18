@@ -203,6 +203,13 @@ def js_whole_number(value: Any) -> int | None:
     return int(value) if value == int(value) else None
 
 
+def js_map_key(value: Any) -> int:
+    """``value`` as the int key a ``Map`` keyed by int ids finds; ValueError for a value it never finds."""
+    if (key := js_whole_number(value)) is None:
+        raise ValueError(f"no whole number: {value!r}")
+    return key
+
+
 def js_loose_equals(value: Any, number: float) -> bool:
     """
     JavaScript's ``number == value``, as the client compares a reply value with a literal.

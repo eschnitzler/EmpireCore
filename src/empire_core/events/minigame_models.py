@@ -9,6 +9,7 @@ from pydantic import BeforeValidator, Field
 
 from empire_core.enums import Kingdom
 from empire_core.enums.events import GachaRarity, WheelOfFortuneType, WorldCupVote
+from empire_core.events.status_models import SentEventId
 from empire_core.gamedata import (
     Collectable,
     CollectableRows,
@@ -263,7 +264,7 @@ class GachaFreeChestResponse(GachaUpdate):
 
     command: ClassVar[str] = "cfc"
 
-    event_id: EnumOrInt[Event] = Field(validation_alias="EID", description="The gacha event")
+    event_id: SentEventId = Field(validation_alias="EID", description="The gacha event")
 
 
 class GachaInfoResponse(BaseResponse):

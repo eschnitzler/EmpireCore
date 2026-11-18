@@ -182,8 +182,9 @@ class TestAllianceCamp:
     def test_the_push_is_read(self):
         push = parse_response("aic", {"AC": [{"EID": 72, "ACID": 11, "AR": 40}]})
         assert isinstance(push, AllianceCampInfoResponse)
-        assert [(camp.event_id, camp.camp_id, camp.alliance_rage) for camp in push.camps] == [(72, 11, 40)]
-        assert push.camps[0].event_id is Event.NOMAD_INVASION_72
+        assert push.camp is not None
+        assert (push.camp.event_id, push.camp.camp_id, push.camp.alliance_rage) == (72, 11, 40)
+        assert push.camp.event_id is Event.NOMAD_INVASION_72
 
     def test_updates_the_nomad_invasion(self):
         state = logged_in_state()
@@ -206,6 +207,21 @@ class TestAllianceCamp:
 
         event = state.get_event(Event.NOMAD_INVASION_72)
         assert isinstance(event, NomadInvasionEvent) and (event.khan_camp_id, event.alliance_rage) == (9, 5)
+        state.shutdown()
+
+    def test_only_the_first_entry_is_read(self):
+        # AICCommand (split.js 646608): n = AC[0]; if (!n) return
+        state = logged_in_state()
+        state.update_from_packet("sei", {"E": [NOMAD_ENTRY]})
+
+        state.update_from_packet("aic", {"AC": [None, {"EID": 72, "ACID": 11, "AR": 40}]})
+        state.update_from_packet("aic", {"AC": [{"EID": "72", "ACID": 11, "AR": 40}]})
+        event = state.get_event(Event.NOMAD_INVASION_72)
+        assert isinstance(event, NomadInvasionEvent) and (event.khan_camp_id, event.alliance_rage) == (9, 5)
+
+        state.update_from_packet("aic", {"AC": [{"EID": 72.0, "ACID": 11, "AR": 40}]})
+        event = state.get_event(Event.NOMAD_INVASION_72)
+        assert isinstance(event, NomadInvasionEvent) and (event.khan_camp_id, event.alliance_rage) == (11, 40)
         state.shutdown()
 
 
