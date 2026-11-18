@@ -4,7 +4,7 @@ import logging
 import math
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING, Any, TypeVar
 
@@ -55,7 +55,7 @@ from empire_core.gamedata import CraftingQueueId, PackageId
 from empire_core.map.models.treasure_maps import TreasureMap
 from empire_core.map.models.world import ServerInfoResponse
 from empire_core.messages.models import MessageInfo, MessagesSentToday
-from empire_core.movements.models import MovementFilterResponse, MovementOwner
+from empire_core.movements.models import GetMovementsResponse, MovementFilterResponse, MovementOwner
 from empire_core.movements.tracked import Movement
 from empire_core.player.models.account import (
     BoostedGlobalEffectsResponse,
@@ -326,8 +326,8 @@ class StateBase:
         """Drop the treasure map of an event that ended; :class:`TreasureMapState` implements it."""
         raise NotImplementedError
 
-    def _handle_gam(self, data: dict[str, Any]) -> None:
-        """Apply a ``gam`` block of movements; :class:`MovementState` implements it."""
+    def _apply_movement_list(self, response: GetMovementsResponse, owners: Iterable[MovementOwner]) -> None:
+        """Store a movement list with ``owners``; :class:`MovementState` implements it."""
         raise NotImplementedError
 
     def shutdown(self) -> None:
