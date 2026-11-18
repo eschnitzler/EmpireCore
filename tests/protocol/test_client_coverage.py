@@ -29,12 +29,6 @@ COVERAGE = {row.command: row for row in script.classify(TABLES, RULES)}
 RAW = {(side, command) for side, command, _ in script.raw_commands()}
 
 
-# Commands dead in the snapshot's release that the library still uses, each with why it stays
-DEAD_BUT_USED = {
-    "drt": "DailyResetResponse; the client reads it only as a gbd section (GBDCommand.exec, parse_DRT)",
-}
-
-
 def _bucket(bucket: str) -> set[str]:
     return {command for command, row in COVERAGE.items() if row.bucket == bucket}
 
@@ -49,17 +43,26 @@ class TestCommittedCoverage:
 
         assert unowned == [], "give these an issue in client_coverage.json owners, or an unowned note"
 
-    def test_owned_commands_are_live_and_not_excluded(self):
+    def test_every_owned_command_is_remaining(self):
         owned = {command for commands in RULES["owners"].values() for command in commands} | set(RULES["unowned"])
 
-        assert sorted(owned & (_bucket("dead") | _bucket("excluded"))) == []
+        assert sorted(owned - _bucket("remaining")) == [], "these are done, ack-only, excluded or dead; drop them"
 
     def test_the_library_uses_no_dead_command(self):
         models = script.library_models()
         used = set(models["client"]) | set(models["server"]) | {command for _, command in RAW}
 
-        assert sorted((used & _bucket("dead")) - set(DEAD_BUT_USED)) == []
-        assert sorted(set(DEAD_BUT_USED) - (used & _bucket("dead"))) == [], "drop these from DEAD_BUT_USED"
+        assert sorted(used & _bucket("dead")) == []
+
+    def test_login_sections_without_a_handler_are_handled_by_gbd(self):
+        # GBDCommand.exec reads n.drt (CastleTimerData.parse_DRT) and n.gac (parse_UAP)
+        assert TABLES["handlers"]["drt"] == TABLES["handlers"]["gac"] == ["GBDCommand (section)"]
+        assert COVERAGE["drt"].bucket == COVERAGE["gac"].bucket == "done"
+
+    def test_a_handler_that_drops_its_parsed_payload_is_ack_only(self):
+        # MOTCommand.executeCommand: case a.ERROR.ALL_OK:JSON.parse(t[1]);break;
+        assert TABLES["handlers"]["mot"] == ["MOTCommand (ack)"]
+        assert COVERAGE["mot"].bucket == "ack-only"
 
     def test_every_exclusion_is_still_needed(self):
         excluded = {command for commands in RULES["excluded"].values() for command in commands}
@@ -80,7 +83,10 @@ class TestCommittedCoverage:
             module, name = entry["model"].rsplit(".", 1)
             from empire_core.protocol.base import EmpireModel
 
-            assert issubclass(getattr(importlib.import_module(module), name), EmpireModel)
+            model = getattr(importlib.import_module(module), name)
+            assert issubclass(model, EmpireModel)
+            if "field" in entry:
+                assert model.model_fields[entry["field"]].validation_alias == command
         else:
             from empire_core.state.manager import _NESTED_SECTIONS
 
@@ -88,7 +94,7 @@ class TestCommittedCoverage:
 
     def test_registered_handlers_and_raw_sends_are_live(self):
         handled = {"gch", "nch", "gfl", "cmt", "vpm", "core_cps", "core_spe", "core_spl", "core_tci", "core_gpi"}
-        handled |= {"core_gic", "core_sic", "gpf", "lcb", "mot", "core_nfo", "tee"}
+        handled |= {"core_gic", "core_sic", "gpf", "lcb", "mot", "core_nfo", "tee", "drt", "gac"}
 
         assert sorted(handled & _bucket("dead")) == []
         assert COVERAGE["pin"].bucket == "done"
