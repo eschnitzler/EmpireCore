@@ -312,6 +312,14 @@ class MovementWrapper(BasePayload):
         default=(),
         description="Loot a travel movement carries (ArmyTravelMapMovementVO.loadFromParamObject, bundle line 26798)",
     )
+    traded_units: WodAmounts = Field(
+        validation_alias="TRU",
+        default_factory=dict,
+        description=(
+            "Units an Oasis Settlement trade brings back, among travel_units "
+            "(TradeMapmovementVO.loadFromParamObject, split.js line 310791)"
+        ),
+    )
     market: MovementMarket | None = Field(validation_alias="MM", default=None, description="Market transport cargo")
     spy: MovementSpy | None = Field(validation_alias="S", default=None, description="Spy mission details")
 
