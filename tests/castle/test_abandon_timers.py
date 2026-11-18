@@ -108,14 +108,15 @@ class TestReplies:
 
         assert (castle.abandon_end, castle.cancel_abandon_end) == ends
 
+    @pytest.mark.parametrize("payload", [{"KID": 0}, [1, 2], {"raw": "x"}], ids=["no-castle", "list", "raw"])
     @pytest.mark.parametrize("command", ["mas", "mac"])
-    def test_an_unreadable_reply_is_logged_and_changes_nothing(self, command, caplog):
+    def test_an_unreadable_reply_is_logged_and_changes_nothing(self, command, payload, caplog):
         state = logged_in_state(gcl=gcl(AOT=86000, CAT=10000))
         castle = outpost_of(state)
         ends = (castle.abandon_end, castle.cancel_abandon_end)
 
         with caplog.at_level(logging.WARNING, logger="empire_core.state.castles"):
-            state.update_from_packet(command, {"KID": 0})
+            state.update_from_packet(command, payload)
 
         assert (castle.abandon_end, castle.cancel_abandon_end) == ends
         assert f"an {command} reply" in caplog.text
