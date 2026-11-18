@@ -258,6 +258,7 @@ from .tax import (
 )
 from .updates import (
     AreaBooster,
+    BuildingChanged,
     BuildingEfficiencyChanged,
     BuildingFinished,
     BuildingXP,
@@ -541,4 +542,5 @@ __all__ = [
     "BribeTaxCollectorRequest",
     "BribeTaxCollectorResponse",
     "CastleBuildingsPushed",
+    "BuildingChanged",
 ]

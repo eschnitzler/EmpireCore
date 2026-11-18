@@ -11,6 +11,7 @@ Commands (all pushed by the server):
 - kik: The server's new day
 - ghw: The joined castle moved on the map
 - gca: The joined castle's buildings, whole
+- ego: A building of the joined castle changed
 """
 
 from __future__ import annotations
@@ -25,7 +26,7 @@ from empire_core.map.models.areas import MapObject
 from empire_core.protocol.base import BaseResponse, object_or_none
 from empire_core.protocol.js import ClientInt, js_number_or_none
 
-from .objects import BuildingRow, CastleBuildings, block_or_none, building_rows
+from .objects import BuildingRow, CastleBuildings, ConstructionList, block_or_none, building_or_none, building_rows
 
 
 class UnitsReceived(BaseResponse):
@@ -222,8 +223,51 @@ class CastleBuildingsPushed(BaseResponse):
         return block_or_none(CastleBuildings, value)
 
 
+class BuildingChanged(BaseResponse, register=False):
+    """
+    A building of the joined castle changed: the building, and the castle's construction slots and builder
+    discount after.
+
+    The skill list the same push may carry is read by ``ObjectUpdateEvent``, the registered ``ego`` model.
+
+    Command: ego
+    Payload: {"O": row, "scl": {..}, "gab": {..}, "skl": {..}}
+
+    Client: ``EGOCommand.executeCommand`` (split.js line 628214), ``AreaDataUpdater.parseEGO`` (split.js
+    line 659116), which hands the payload to ``IsoUpdaterData.updateObjectInfo`` (split.js line 654563),
+    whose ``IsoCommandPackageObjectUpdateInfo.getRealServerObject`` reads the row from ``O``;
+    ``AreaDataCommonInfo.parseGAB`` (split.js line 656983)
+    """
+
+    command = "ego"
+
+    building: BuildingRow | None = Field(validation_alias="O", default=None, description="The building")
+    construction_list: ConstructionList | None = Field(
+        validation_alias="scl", default=None, description="The construction slots after; None when the push has none"
+    )
+    area_booster: AreaBooster | None = Field(
+        validation_alias="gab", default=None, description="The builder discount after; None when the push has none"
+    )
+
+    @field_validator("building", mode="before")
+    @classmethod
+    def _row(cls, value: Any) -> BuildingRow | None:
+        return building_or_none(value)
+
+    @field_validator("construction_list", mode="before")
+    @classmethod
+    def _construction_list(cls, value: Any) -> ConstructionList | None:
+        return block_or_none(ConstructionList, value)
+
+    @field_validator("area_booster", mode="before")
+    @classmethod
+    def _area_booster(cls, value: Any) -> AreaBooster | None:
+        return block_or_none(AreaBooster, value)
+
+
 __all__ = [
     "AreaBooster",
+    "BuildingChanged",
     "BuildingEfficiencyChanged",
     "BuildingFinished",
     "BuildingXP",
