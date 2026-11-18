@@ -15,11 +15,17 @@ packed with castles, outposts, villages and camps and the owner records they
 name. The chunk one is shaped like a live chunk: mostly three-field rows, a few
 hundred castle rows naming no player (free plots and NPC castles), which a
 scan drops, and a few dozen player castles.
+
+Then it counts the gc-tracked objects one scan chunk of every type allocates (net
+of those freed while it runs, as the collector counts them) and keeps, on the
+dense reply padded to 1,500 rows and 250 owner records of 27 castles and 3
+villages each: the shape of a dense chunk in a crowded kingdom.
 """
 
 from __future__ import annotations
 
 import argparse
+import gc
 import json
 import math
 import statistics
@@ -82,6 +88,44 @@ def benchmarks(dense: dict[str, Any], chunk: dict[str, Any]) -> dict[str, Callab
     }
 
 
+def crowded(dense: dict[str, Any]) -> dict[str, Any]:
+    """The dense reply padded to 1,500 rows and 250 owner records of 27 castles and 3 villages each."""
+    rows = [row for row in dense["AI"] if len(row) >= 4]
+    owners = []
+    for index in range(250):
+        record = dict(dense["OI"][index % len(dense["OI"])], OID=2_000_000 + index)
+        record["AP"] = [[index % 4, 1_000_000 + 30 * index + n, n, index, 1] for n in range(27)]
+        record["VP"] = [[0, 2_000_000 + 30 * index + n, n, index] for n in range(3)]
+        owners.append(record)
+    return {"KID": 0, "AI": [rows[n % len(rows)] for n in range(1500)], "OI": owners}
+
+
+def chunk_objects(payload: dict[str, Any]) -> tuple[int, int]:
+    """
+    The gc-tracked objects scanning one chunk of ``payload`` (every type) allocates net of those it frees, and keeps.
+
+    The reply is decoded afresh before the count, as each chunk of a scan is, so rows a
+    result keeps count as kept, while decoding it does not count as allocated.
+    """
+    text = json.dumps(payload)
+    MapScanner(_OneReply(json.loads(text)))._process_chunk(*CHUNK, Kingdom.GREEN, None, 5.0)  # type: ignore[arg-type]
+    gc.collect()
+    before = len(gc.get_objects())
+    scanner = MapScanner(_OneReply(json.loads(text)))  # type: ignore[arg-type]
+    gc.disable()
+    try:
+        pending = gc.get_count()[0]
+        result = scanner._process_chunk(*CHUNK, Kingdom.GREEN, None, 5.0)
+        allocated = gc.get_count()[0] - pending
+    finally:
+        gc.enable()
+    del scanner
+    gc.collect()
+    kept = len(gc.get_objects()) - before
+    del result
+    return allocated, kept
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--dense", type=Path, default=DENSE_REPLY, help="A dense gaa reply payload as JSON")
@@ -93,6 +137,8 @@ def main() -> None:
     print(f"median of {args.runs}:")
     for name, run in benchmarks(dense, chunk).items():
         print(f"  {name:<9} {median_seconds(run, args.runs) * 1000:7.2f} ms")
+    allocated, kept = chunk_objects(crowded(dense))
+    print(f"crowded chunk: {allocated} gc-tracked objects allocated (net), {kept} kept")
 
 
 if __name__ == "__main__":

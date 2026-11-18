@@ -876,6 +876,7 @@ from empire_core.map.models.owners import (
     OwnerCastlePosition,
     OwnerCrest,
     OwnerFaction,
+    OwnerPositions,
 )
 from empire_core.map.models.ruins import RememberRuinRequest, RuinInfoRequest, RuinInfoResponse
 from empire_core.map.models.treasure_maps import (
@@ -1672,6 +1673,7 @@ __all__ = [
     "OwnerCastlePosition",
     "OwnerCrest",
     "OwnerFaction",
+    "OwnerPositions",
     "FindNextMapObjectRequest",
     "FindNextMapObjectResponse",
     "MAX_FINDABLE_ENEMY_INDEX",

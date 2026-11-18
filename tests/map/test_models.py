@@ -147,10 +147,36 @@ class TestGoldenMapArea:
 
     def test_positions_given_by_field_name_are_kept(self):
         from empire_core.map.models.areas import MapObject
-        from empire_core.map.models.owners import OwnerCastlePosition
+        from empire_core.map.models.owners import OwnerCastlePosition, OwnerPositions
 
         position = OwnerCastlePosition(kingdom_id=0, area_id=1, x=2, y=3, area_type=1)
-        assert MapObject(owner_id=5, castle_positions=[position]).castle_positions == [position]
+        assert MapObject(owner_id=5, castle_positions=OwnerPositions([position])).castle_positions == [position]
+
+    def test_positions_read_as_a_sequence_of_named_positions(self):
+        from empire_core.map.models.owners import OwnerCastlePosition, OwnerPositions
+
+        rows = [[0, 1, 2, 3, 1], [2, 9, 8, 7], [10, 4, 5, 6, 12]]
+        positions = GetMapAreaResponse.model_validate({"OI": [{"OID": 5, "AP": rows}]}).owners[0].castle_positions
+        assert isinstance(positions, OwnerPositions)
+        assert len(positions) == 3
+        assert positions[1] == OwnerCastlePosition(2, 9, 8, 7, None)
+        assert positions[-1].area_type == 12
+        assert positions[1:] == [(2, 9, 8, 7, None), (10, 4, 5, 6, 12)]
+        assert [position.x for position in positions] == [2, 8, 5]
+        assert positions == OwnerPositions.from_rows(rows)
+        assert positions != [(0, 1, 2, 3, 1)]
+        with pytest.raises(IndexError):
+            positions[3]
+
+    def test_positions_keep_no_object_per_position_for_the_garbage_collector(self):
+        import gc
+
+        from empire_core.map.models.owners import OwnerPositions
+
+        positions = OwnerPositions.from_rows([[0, n, n, n, 1] for n in range(1000)])
+        gc.collect()
+        assert not gc.is_tracked(positions._packed)
+        assert [ref for ref in gc.get_referents(positions) if not isinstance(ref, type)] == [positions._packed]
 
     def test_short_rows_are_read_as_the_client_reads_them(self):
         response = GetMapAreaResponse.model_validate({"KID": 0, "AI": [[31, 2, 3], [43, 4, 5], CASTLE_ROW]})
