@@ -209,6 +209,8 @@ from .objects import (
 )
 from .permanent import CastleUnitUnlocks, PermanentCastle, PermanentCastleDataResponse
 from .research import (
+    FinishResearchRequest,
+    FinishResearchResponse,
     ResearchInfoRequest,
     ResearchInfoResponse,
     SkipResearchRequest,
@@ -362,6 +364,8 @@ __all__ = [
     "BoostConstructionItemRequest",
     "BoostConstructionItemResponse",
     "ResearchInfoResponse",
+    "FinishResearchRequest",
+    "FinishResearchResponse",
     "SkipResearchRequest",
     "SkipResearchResponse",
     "StartResearchRequest",

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from empire_core.castle.models.research import (
+    FinishResearchRequest,
+    FinishResearchResponse,
     ResearchInfoRequest,
     ResearchInfoResponse,
     SkipResearchRequest,
@@ -80,3 +82,24 @@ class ResearchMixin(ServiceMixin):
         """
         self._require_minute_skip(minute_skip)
         self.execute(SkipResearchRequest(minute_skip=minute_skip), timeout=timeout)
+
+    def finish_research(self, *, spend_rubies: bool = False, timeout: float = 5.0) -> None:
+        """
+        Finish the running research now, for rubies; see "Spending rubies" in the guides.
+
+        The price follows the time left and is not worked out here, so this always needs ``spend_rubies``.
+
+        Args:
+            spend_rubies: Allow the rubies it costs; without it nothing is sent
+            timeout: Timeout in seconds
+
+        Raises:
+            ValueError: ``spend_rubies`` is False
+            CommandError: The server refused, ``NOTHING_TO_SKIP`` included, which the client takes without a dialog
+
+        Client: ``ResearchProgressInfo.buyResearchInstant`` (bundle line 413633), priced by
+        ``ResearchConst.getFastCompleteCostC2`` (``ResearchMinuteSkipProperties.getSkipCost``, bundle line
+        413787); ``RFICommand.executeCommand`` (bundle line 641922)
+        """
+        self._require_spend_rubies(spend_rubies, "finishing a research costs rubies")
+        self.request(FinishResearchRequest(), FinishResearchResponse, timeout=timeout, spend_rubies=spend_rubies)

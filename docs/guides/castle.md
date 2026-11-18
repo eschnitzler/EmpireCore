@@ -288,10 +288,10 @@ up in the game data (loaded on first use): some
 researches cost rubies themselves (`ResearchDef.cost_rubies`, `costs`), and
 it raises `ValueError` for those unless you pass `spend_rubies=True`. Their
 other costs, legendary tokens included, are paid as the game charges them. It
-never pays missing resources with rubies, and finishing a research at once for
-rubies is left out. `skip_research` raises `ValueError` for a currency that is
+never pays missing resources with rubies. `skip_research` raises `ValueError` for a currency that is
 no minute skip, or one you hold none of. Each reply's research reaches
-`client.castle.research`.
+`client.castle.research`. `finish_research(spend_rubies=True)` finishes the running
+research at once for rubies; a `NOTHING_TO_SKIP` refusal raises `CommandError` too.
 
 ## Mercenary camp
 

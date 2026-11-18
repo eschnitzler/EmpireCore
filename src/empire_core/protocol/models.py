@@ -588,6 +588,8 @@ from empire_core.castle.models.landmarks import (
 )
 from empire_core.castle.models.mercenaries import MercenaryMissionsResponse, MercenaryPackageRequest
 from empire_core.castle.models.research import (
+    FinishResearchRequest,
+    FinishResearchResponse,
     ResearchInfoResponse,
     SkipResearchRequest,
     SkipResearchResponse,
@@ -1735,6 +1737,8 @@ __all__ = [
     "SelectTitleResponse",
     "TitleInfoResponse",
     "TitleRanksResponse",
+    "FinishResearchRequest",
+    "FinishResearchResponse",
     "SkipResearchRequest",
     "SkipResearchResponse",
     "StartResearchRequest",
