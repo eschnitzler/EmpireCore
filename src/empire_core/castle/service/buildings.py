@@ -43,6 +43,7 @@ from empire_core.castle.models.objects import (
 )
 from empire_core.castle.models.upkeep import CollectResourceCitizenRequest, ResourcePoolResponse
 from empire_core.castle.service.castles import CastlesMixin
+from empire_core.castle.service.wishing_well import WishingWellMixin
 from empire_core.enums import BuildingState, ExpansionType, ResourceCartType
 from empire_core.gamedata import BuildingDef, Currency
 
@@ -53,9 +54,11 @@ if TYPE_CHECKING:
 _FREE_SKIP_SECONDS = 240
 _BUILDING = (BuildingState.BUILD_STOPPED, BuildingState.BUILD_IN_PROGRESS)
 _UPGRADING = (BuildingState.UPGRADE_STOPPED, BuildingState.UPGRADE_IN_PROGRESS)
+# CastleRubyWishingWellData.MIN_WOD_ID, MAX_WOD_ID (split.js line 110521)
+_WISHING_WELL_WOD_IDS = range(601, 612)
 
 
-class BuildingsMixin(CastlesMixin):
+class BuildingsMixin(CastlesMixin, WishingWellMixin):
     # =========================================================================
     # Buildings
     # =========================================================================
@@ -206,6 +209,8 @@ class BuildingsMixin(CastlesMixin):
         needs ``spend_rubies`` when it has a ruby price; see "Spending rubies" in the guides.
         ``spend_rubies`` also pays missing resources with rubies.
 
+        A ruby wishing well is upgraded as :meth:`upgrade_wishing_well` does, without ``private_offer_id``.
+
         Args:
             castle_id: One of your castles, a ``Castle.id`` from ``client.state.get_castles()``
             object_id: The building's object id
@@ -220,11 +225,19 @@ class BuildingsMixin(CastlesMixin):
             UnknownCastleError / CommandError: see :meth:`join`
 
         Client: ``RingMenuButtonUpgradeBuilding.onClick`` (bundle line 50092),
-        ``IsoServerCommands.upgradeBuilding`` (bundle line 63774); the price is the next level's
+        ``IsoServerCommands.upgradeBuilding`` (split.js line 328747), which sends ``rww`` for a wishing
+        well; the price is the next level's
         ``costC2``, ``BuildingCostHelper.getUpgradeCostList`` (bundle lines 41106-41116) through
         ``AShopVO.getCost`` (bundle line 31766) and ``ABasicBuildingVO.costC2`` (bundle lines 17950-17953)
         """
-        self._join_and_price_upgrade(castle_id, object_id, spend_rubies, timeout)
+        if not spend_rubies:
+            self._require_game_data()
+        row = self._castle_object(castle_id, object_id, timeout)
+        if row is not None and row.wod_id in _WISHING_WELL_WOD_IDS:
+            self.upgrade_wishing_well(spend_rubies=spend_rubies, timeout=timeout)
+            return
+        if not spend_rubies:
+            self._require_spend_rubies(spend_rubies, self._upgrade_ruby_cost(row, object_id))
         request = UpgradeBuildingRequest(
             object_id=object_id, pay_with_rubies=spend_rubies, private_offer_id=private_offer_id
         )
