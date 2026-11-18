@@ -425,6 +425,14 @@ class TestPlayerPushes:
         assert state.get_last_packet_time("glu") is not None
         assert state.get_last_packet_time("gxp") is not None
 
+    def test_a_refused_glu_changes_nothing(self, state):
+        state.update_from_packet("gbd", LIVE_LOGIN)
+        before = state.get_local_player()
+        state.update_from_packet("glu", {"gcu": {"C1": 1, "C2": 1}, "gxp": {"LVL": 99, "XP": 1}, "L": 99}, error_code=1)
+        player = state.get_local_player()
+        assert (player.level, player.xp, player.coins) == (before.level, before.xp, before.coins)
+        assert state.get_last_packet_time("glu") is None
+
     def test_mir_applies_its_castle_list(self, state):
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcl": gcl_payload([(1, "Main")])})
         state.update_from_packet("mir", {"gcl": gcl_payload([(1, "Main"), (3, "Taken")]), "CID": 3, "KID": 0})
