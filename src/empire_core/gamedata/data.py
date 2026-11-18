@@ -61,9 +61,11 @@ from .models import (
     GeneralSkillDef,
     GlobalEffectDef,
     HorseStats,
+    LaboratoryLevelDef,
     LeagueBracketDef,
     LegendarySkillDef,
     LevelBoosterDef,
+    MonumentLevelDef,
     NpcCampDefence,
     RaidBossDef,
     RelicEffectDef,
@@ -250,6 +252,8 @@ _CACHED_MODELS = (
     RaidBossDef,
     VipLevelDef,
     LevelBoosterDef,
+    MonumentLevelDef,
+    LaboratoryLevelDef,
     BuildingDef,
     ResearchDef,
     EventDef,
@@ -625,6 +629,17 @@ def _single(what: str, matches: list[R], id_of: Callable[[R], int]) -> R | None:
     return matches[0] if matches else None
 
 
+L = TypeVar("L", MonumentLevelDef, LaboratoryLevelDef)
+
+
+def _level_reached(points: int, levels: Mapping[int, L]) -> L | None:
+    """The client's walk up a landmark's levels; an unreadable required points stops it, as NaN does."""
+    level = 1
+    while (row := levels.get(level)) is not None and row.required_points is not None and points >= row.required_points:
+        level += 1
+    return levels.get(level - 1)
+
+
 class GameData(EmpireModel):
     """
     The combat-relevant tables for one items version.
@@ -663,6 +678,10 @@ class GameData(EmpireModel):
     vip_levels: dict[int, VipLevelDef] = Field(default_factory=dict)
     level_boosters: list[LevelBoosterDef] = Field(default_factory=list)
     """The King's Market boosters bought in levels, a row per booster and level, in the order listed."""
+    monument_levels: dict[int, MonumentLevelDef] = Field(default_factory=dict)
+    """The monument levels by level; of two rows for one level, the last."""
+    laboratory_levels: list[LaboratoryLevelDef] = Field(default_factory=list)
+    """The laboratory levels of every kingdom, in the order listed."""
     dungeons: list[DungeonDefence] = Field(default_factory=list)
     camps: dict[str, list[NpcCampDefence]] = Field(default_factory=dict)
     league_brackets: list[LeagueBracketDef] = Field(default_factory=list)
@@ -1275,6 +1294,25 @@ class GameData(EmpireModel):
             return levels[-1]
         return found
 
+    def monument_level(self, points: int) -> MonumentLevelDef | None:
+        """
+        The level a monument with ``points`` upgrade points stands at: counting up from level 1, the last whose
+        required points it holds, up to the first level missing from the table. None when it holds none of them.
+
+        Client: ``CastleMonumentData.getLevelInfoByPointsAchieved`` (split.js line 239099), which ignores the kingdom
+        """
+        return _level_reached(points, self.monument_levels)
+
+    def laboratory_level(self, points: int, kingdom: Kingdom) -> LaboratoryLevelDef | None:
+        """
+        The level a laboratory in ``kingdom`` with ``points`` upgrade points stands at, counted as
+        :meth:`monument_level` counts among that kingdom's levels.
+
+        Client: ``CastleLaboratoryData.getLevelInfoByPointsAchieved`` (split.js line 672219)
+        """
+        levels = {row.level: row for row in self.laboratory_levels if row.kingdom == kingdom}
+        return _level_reached(points, levels)
+
     def booster_levels(self, booster: BoosterId) -> dict[int, LevelBoosterDef]:
         """
         A King's Market booster's rows by level; of two rows for one level, the last.
@@ -1587,6 +1625,8 @@ class GameData(EmpireModel):
             default_commanders=default_commanders,
             vip_levels={r.vip_level_id: r for r in _rows(items_data.get("viplevels"), VipLevelDef)},
             level_boosters=_rows(items_data.get("levelBoosters"), LevelBoosterDef),
+            monument_levels={r.level: r for r in _rows(items_data.get("monuments"), MonumentLevelDef)},
+            laboratory_levels=_rows(items_data.get("laboratories"), LaboratoryLevelDef),
             dungeons=_rows(
                 items_data.get("dungeons"), DungeonDefence, context={"default_commanders": default_commanders}
             ),

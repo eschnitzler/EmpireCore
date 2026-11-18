@@ -72,6 +72,7 @@ ALLOWED: dict[str, str] = {
         "a unit names its category by text (BasicUnitVO.toolCategory, bundle line 19343), typed as ToolCategory"
     ),
     "gamedata.data.GameData.vip_levels": "keyed by VIP level number, 1 and up; not ids",
+    "gamedata.data.GameData.monument_levels": "keyed by monument level, 1 and up; the table has no ids",
     "gamedata.models.ToolStats.slot_types": "attack-screen slot types: the client names none of them",
     "gamedata.tables.GeneralRarityDef.upgrade_costs": "shard costs, one per star level; not ids",
     "gamedata.tables.GeneralRarityDef.xp_requirements": "xp totals, one per level; not ids",

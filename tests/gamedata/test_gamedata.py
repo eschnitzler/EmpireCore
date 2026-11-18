@@ -1564,3 +1564,96 @@ class TestLevelBoosters:
         cached = GameData._read_cache(cache_file, "790.02")
 
         assert cached is not None and cached.level_boosters == data.level_boosters
+
+
+MONUMENT_ROWS = [
+    {"level": "1", "fameBoost": "2", "requiredPoints": "0"},
+    {"level": "2", "fameBoost": "3", "requiredPoints": "100"},
+    {"level": "3", "fameBoost": "4", "requiredPoints": "250"},
+    {"level": "x", "fameBoost": "9", "requiredPoints": "1"},
+    {"level": "5", "fameBoost": "6", "requiredPoints": "1000"},
+]
+
+LABORATORY_ROWS = [
+    {"level": "1", "requiredPoints": "0", "ironAllianceBoost": "10", "kID": "0"},
+    {"level": "2", "requiredPoints": "30", "ironAllianceBoost": "20", "kID": "0"},
+    {"level": "3", "requiredPoints": "120", "ironAllianceBoost": "30", "kID": "0"},
+    {"level": "1", "charcoalAllianceBoost": "10", "kID": "2"},
+    {"level": "2", "requiredPoints": "12", "charcoalAllianceBoost": "20", "kID": "2"},
+    {"level": "1", "requiredPoints": "50", "glassAllianceBoost": "10", "kID": "1"},
+]
+
+
+class TestLandmarkLevels:
+    """
+    The ``monuments`` and ``laboratories`` level tables and the level a landmark's points reach.
+
+    Every expected level is what the client's ``getLevelInfoByPointsAchieved`` (split.js lines 239099, 672219)
+    returns for these rows, run in node.
+    """
+
+    @pytest.fixture
+    def data(self) -> GameData:
+        return GameData.parse("790.02", {"monuments": MONUMENT_ROWS, "laboratories": LABORATORY_ROWS})
+
+    def test_rows_are_read_as_the_client_parses_them(self, data):
+        assert sorted(data.monument_levels) == [1, 2, 3, 5]
+        assert (data.monument_levels[2].glory_bonus, data.monument_levels[2].required_points) == (3, 100)
+        charcoal = data.laboratory_levels[3]
+        assert (charcoal.kingdom, charcoal.level, charcoal.required_points) == (Kingdom.ICE, 1, 0)
+        assert (charcoal.charcoal_bonus, charcoal.production_bonus) == (10, 10)
+
+    @pytest.mark.parametrize(
+        ("points", "level"), [(0, 1), (99, 1), (100, 2), (249, 2), (250, 3), (10**9, 3), (-1, None)]
+    )
+    def test_a_monument_stops_at_the_first_missing_level(self, data, points, level):
+        found = data.monument_level(points)
+
+        assert (found.level if found else None) == level
+
+    def test_a_monument_level_without_required_points_is_never_reached(self):
+        rows = [{"level": "1", "requiredPoints": "0"}, {"level": "2"}, {"level": "3", "requiredPoints": "10"}]
+        data = GameData.parse("790.02", {"monuments": rows})
+
+        assert data.monument_levels[2].required_points is None
+        assert [data.monument_level(points) for points in (0, 10**6)] == [data.monument_levels[1]] * 2
+
+    @pytest.mark.parametrize(
+        ("points", "kingdom", "level"),
+        [
+            (0, Kingdom.GREEN, 1),
+            (29, Kingdom.GREEN, 1),
+            (30, Kingdom.GREEN, 2),
+            (10**9, Kingdom.GREEN, 3),
+            (0, Kingdom.ICE, 1),
+            (11, Kingdom.ICE, 1),
+            (12, Kingdom.ICE, 2),
+            (10, Kingdom.SANDS, None),
+            (50, Kingdom.SANDS, 1),
+            (0, Kingdom.FIRE, None),
+        ],
+    )
+    def test_a_laboratory_counts_its_own_kingdom_levels(self, data, points, kingdom, level):
+        found = data.laboratory_level(points, kingdom)
+
+        assert (found.level if found else None) == level
+
+    def test_rows_survive_the_cache(self, data, tmp_path):
+        cache_file = tmp_path / "items_v790.02.trimmed.json"
+        data._write_cache(cache_file)
+
+        cached = GameData._read_cache(cache_file, "790.02")
+
+        assert cached is not None
+        assert (cached.monument_levels, cached.laboratory_levels) == (data.monument_levels, data.laboratory_levels)
+
+    def test_an_unreadable_required_points_survives_the_cache(self, tmp_path):
+        rows = [{"level": "1", "requiredPoints": "0", "kID": "0"}, {"level": "2", "requiredPoints": "x", "kID": "0"}]
+        data = GameData.parse("790.02", {"laboratories": rows})
+        cache_file = tmp_path / "items_v790.02.trimmed.json"
+        data._write_cache(cache_file)
+
+        cached = GameData._read_cache(cache_file, "790.02")
+
+        assert cached is not None and cached.laboratory_levels[1].required_points is None
+        assert cached.laboratory_level(10**9, Kingdom.GREEN) == cached.laboratory_levels[0]
