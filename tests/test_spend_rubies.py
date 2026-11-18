@@ -106,7 +106,7 @@ RUBY_REQUESTS = {
     "BuyCampaignRewardRequest": "bcr, TimeLimitedCampaignConst.calculateEndRewardPurchaseCost (bundle 607691)",
     "BuyReturnSpeedBoosterRequest": "brs, returnSpeedBoosterVO.finalCostsC2 (bundle line 463040)",
     "SkipSceatSkillActivationRequest": "ssa, SceatSkillConst.getFastCompleteCostC2 (getSkipCosts, split.js 121688)",
-    "HoldFeastRequest": "bfs, a ruby feast's costC2 (hasC2Costs, split.js 333252) and PWR 1 (split.js 183812)",
+    "HoldFeastRequest": "bfs, a ruby feast's costC2 (hasC2Costs, split.js 333252) and PWR 1 (split.js 183813)",
 }
 
 SENT_WITHOUT_CONSENT = {

@@ -63,7 +63,7 @@ class ProgressState(StateBase):
     def _apply_boosts(self, body: Any) -> bool:
         """Read a ``boi`` over the boosters known: one it does not list keeps its values, a falsy ``bfs`` the feast.
 
-        Client: ``CastlePremiumBoostData.parse_BOI`` and ``parse_bfs`` (bundle lines 15202, 15218)
+        Client: ``CastlePremiumBoostData.parse_BOI`` and ``parse_bfs`` (split.js lines 81536, 81585)
         """
         boosts = read_section(BoosterInfoResponse, body, "the boosters")
         if boosts is None:
@@ -82,7 +82,8 @@ class ProgressState(StateBase):
     def _handle_bfs(self, data: Any) -> None:
         """Handle the reply to starting a feast: its ``T`` and ``RT`` are the feast.
 
-        Client: ``BFSCommand`` (bundle line 122569) passes the reply to ``parse_bfs`` (bundle line 15218)
+        Client: ``BFSCommand.executeCommand`` (split.js line 627488) passes the reply to ``parse_bfs`` (split.js
+        line 81585)
         """
         if not js_truthy(data) or (feast := read_section(ActiveFeast, data, "the feast")) is None:
             return
