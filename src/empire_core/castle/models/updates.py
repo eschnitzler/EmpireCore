@@ -23,7 +23,7 @@ from pydantic import Field, field_validator
 from empire_core.enums import Weekday
 from empire_core.gamedata import EnumOrInt, UnitOrTool
 from empire_core.map.models.areas import MapObject
-from empire_core.protocol.base import BaseResponse, object_or_none
+from empire_core.protocol.base import BasePayload, BaseResponse, object_or_none
 from empire_core.protocol.js import ClientInt, js_number_or_none
 
 from .objects import BuildingRow, CastleBuildings, ConstructionList, block_or_none, building_or_none, building_rows
@@ -275,6 +275,7 @@ __all__ = [
     "DamagedBuildings",
     "JoinedAreaMoved",
     "NewDay",
+    "ObjectUpdated",
     "SlumLevel",
     "UnitsReceived",
 ]
