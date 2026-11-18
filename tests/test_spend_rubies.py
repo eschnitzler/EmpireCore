@@ -99,6 +99,8 @@ RUBY_REQUESTS = {
     "HireCaravanOverloaderRequest": "bcs, the booster's finalCostsC2 (BuyBoosterCommand.execute, bundle line 459673)",
     "UnlockProductionSlotRequest": "ups, getFinalCostsC2(UnitProductionConst.UNLOCK_C2) (bundle line 261012)",
     "FinishResearchRequest": "rfi, ResearchConst.getFastCompleteCostC2 (getSkipCost, bundle line 413787)",
+    "BuyLevelRequest": "blv, buyLevelData.getLevelUpCost in C2 (ButtonBuyLevelComponent.onClickButton, 548838)",
+    "BuyPremiumFlagRequest": "gbp, PlayerConst.PREMIUM_FLAG_COST_C2 (CastleBuyPremiumFlagDialog, bundle line 396588)",
     "BuyReturnSpeedBoosterRequest": "brs, returnSpeedBoosterVO.finalCostsC2 (bundle line 463040)",
 }
 

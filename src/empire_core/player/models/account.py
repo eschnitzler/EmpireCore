@@ -10,6 +10,8 @@ Commands:
 - pgl: your gift packages and how many you may still send
 - gpg: send another player a gift package
 - DTS: whether your food production is frozen
+- blv: buy the next level with rubies
+- gbp: buy the premium flag with rubies
 
 The timed models count from ``received_at``, as the client counts from its timer.
 """
@@ -133,6 +135,76 @@ class ActivateGlobalEffectBoostResponse(BaseResponse):
     """
 
     command = "agb"
+
+
+BUY_LEVEL_RANGE = range(10, 70)
+"""The levels the client offers to buy the next level from.
+
+Client: ``SplitRunConst.MIN_LEVEL_TO_BUY_LEVEL`` and ``MAX_LEVEL_TO_BUY_LEVEL`` (dll), read by
+``ButtonBuyLevelComponent.updateButtonVisibility`` (bundle line 548864)
+"""
+
+PREMIUM_FLAG_RUBIES = 4900
+"""What the premium flag costs before ruby discounts.
+
+Client: ``PlayerConst.PREMIUM_FLAG_COST_C2`` (dll), priced by ``getFinalCostsC2`` in
+``CastleBuyPremiumFlagDialog.showLoaded`` (bundle line 396588)
+"""
+
+
+class BuyLevelRequest(BaseRequest):
+    """
+    Buy the next level with rubies.
+
+    Command: blv
+    Payload: {"NL": level}
+
+    Client: ``C2SBuyLevelVO`` (bundle line 548892), sent by ``ButtonBuyLevelComponent.onConfirm``
+    (bundle line 548859) with ``CastleUserData.level + 1`` (``userLevel + userLegendLevel``, bundle line 55080)
+    """
+
+    command = "blv"
+
+    new_level: int = Field(validation_alias="NL", description="The level bought, one above yours")
+
+
+class BuyLevelResponse(BaseResponse):
+    """
+    The acknowledgement of a ``blv``; it carries nothing.
+
+    Command: blv
+
+    Client: ``BLVCommand.executeCommand`` (bundle line 650885)
+    """
+
+    command = "blv"
+
+
+class BuyPremiumFlagRequest(BaseRequest):
+    """
+    Buy the premium flag your castles fly on the map, with rubies.
+
+    Command: gbp
+    Payload: {}
+
+    Client: ``C2SBuyPremiumFlagVO`` (bundle line 396664), sent by ``CastleBuyPremiumFlagDialog.onClick``
+    (bundle line 396605); the premium shop offers it while ``CastleUserData.hasPremiumFlag`` is false
+    (``CastleFlagPremiumShopVO.canBeBought``, bundle line 396457)
+    """
+
+    command = "gbp"
+
+
+class BuyPremiumFlagResponse(BaseResponse):
+    """
+    The acknowledgement of a ``gbp``; it carries nothing.
+
+    Command: gbp
+
+    Client: ``GBPCommand.executeCommand`` (bundle line 651488)
+    """
+
+    command = "gbp"
 
 
 class BoostedGlobalEffectsResponse(BaseResponse):
@@ -266,6 +338,12 @@ class FoodProductionStatus(BaseResponse):
 
 
 __all__ = [
+    "BUY_LEVEL_RANGE",
+    "PREMIUM_FLAG_RUBIES",
+    "BuyLevelRequest",
+    "BuyLevelResponse",
+    "BuyPremiumFlagRequest",
+    "BuyPremiumFlagResponse",
     "BoostedGlobalEffectsResponse",
     "ActivateGlobalEffectBoostRequest",
     "ActivateGlobalEffectBoostResponse",
