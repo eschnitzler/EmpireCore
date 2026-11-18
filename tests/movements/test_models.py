@@ -5,7 +5,15 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from empire_core.enums import AttackType, AutoSkipCooldownType, CollectableKind, Kingdom, MapItemType, MovementType, SpyType
+from empire_core.enums import (
+    AttackType,
+    AutoSkipCooldownType,
+    CollectableKind,
+    Kingdom,
+    MapItemType,
+    MovementType,
+    SpyType,
+)
 from empire_core.gamedata import Horse, Title, Tool, Unit
 from empire_core.protocol.base import Position, parse_response
 from empire_core.protocol.models import (
@@ -98,7 +106,10 @@ class TestMalformedMovementBatch:
 
     @pytest.mark.parametrize(
         ("sent", "attack_type", "flag"),
-        [({"ATT": "3x", "SM": "0", "FC": [0]}, AttackType.CAPITAL_CONQUER, True), ({"ATT": "x", "SM": "", "FC": 0}, None, False)],
+        [
+            ({"ATT": "3x", "SM": "0", "FC": [0]}, AttackType.CAPITAL_CONQUER, True),
+            ({"ATT": "x", "SM": "", "FC": 0}, None, False),
+        ],
     )
     def test_the_attack_type_and_flags_read_as_the_client_does(self, sent, attack_type, flag):
         # ArmyAttackMapmovementVO.loadFromParamObject: parseInt(t.ATT), Boolean(t.SM), !!t.FC
