@@ -403,7 +403,7 @@ class AbandonCastleRequest(BaseRequest):
     def accepts_reply(self, payload: Any) -> bool:
         """Whether a mas reply is about this castle: its ``CID``, and its ``KID`` when sent.
 
-        Client: ``CastleUserData.parse_MAS`` (bundle line 9893) looks the castle up by ``CID`` and ``KID``.
+        Client: ``CastleUserData.parse_MAS`` (split.js line 54139) looks the castle up by ``CID`` and ``KID``.
         """
         if not isinstance(payload, dict) or not js_same_number(payload.get("CID"), self.castle_id):
             return False
@@ -455,7 +455,7 @@ class CancelAbandonCastleRequest(BaseRequest):
     def accepts_reply(self, payload: Any) -> bool:
         """Whether a mac reply is about this castle: its ``CID``, and its ``KID`` when sent.
 
-        Client: ``CastleUserData.parse_MAC`` (bundle line 9896) looks the castle up by ``CID`` and ``KID``.
+        Client: ``CastleUserData.parse_MAC`` (split.js line 54146) looks the castle up by ``CID`` and ``KID``.
         """
         if not isinstance(payload, dict) or not js_same_number(payload.get("CID"), self.castle_id):
             return False

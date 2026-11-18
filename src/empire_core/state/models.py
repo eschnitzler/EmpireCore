@@ -101,7 +101,7 @@ class Castle(EmpireModel):
 
     Client: ``CastleListVO.parseCastleList`` (split.js line 73142),
     ``DetailedCastleVO.parseData``, ``CastleUserCastleListDetailed.parse_rue``
-    (bundle line 140918), ``CastleListVO.resetOpenGateCounter`` (split.js line 73201),
+    (split.js line 700821), ``CastleListVO.resetOpenGateCounter`` (split.js line 73201),
     ``CastleUserData.parse_MOS``, ``parse_MAS`` and ``parse_MAC`` (split.js lines 54119, 54139, 54146);
     ``InteractiveMapobjectVO.remainingAbandonOutpostTime``, ``remainingCancelAbandonOutpostTime`` and
     ``remainingCooldownAbandonOutpostTime`` (split.js lines 20171, 20193, 20361) count down from when
@@ -157,7 +157,7 @@ class Castle(EmpireModel):
     def open_gate_seconds(self, now: float | None = None) -> float:
         """Seconds until the open gate closes, 0 while it is closed.
 
-        Client: ``InteractiveMapobjectVO.remainingOpenGateTime`` (bundle line 3645) counts down from when it was set
+        Client: ``InteractiveMapobjectVO.remainingOpenGateTime`` (split.js line 20135) counts down from when it was set
         """
         return _seconds_until(self.open_gate_end, now)
 
