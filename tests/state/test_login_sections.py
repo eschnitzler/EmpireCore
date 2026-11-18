@@ -113,6 +113,16 @@ class TestSkills:
         state.update_from_packet("gbd", {"skl": 0})
         assert state.get_skills().total_points == 550
 
+    def test_a_reset_drops_the_skills_held(self, state):
+        # CastleLegendSkillData.resetSkills empties the Legendary and sceat skills, nothing else
+        state.update_from_packet("gbd", {**PLAYER, "skl": SKILLS})
+        state.update_from_packet("skr", {}, error_code=1)
+        assert state.get_skills().legendary_skill_ids == (251, 221)
+
+        state.update_from_packet("skr", {})
+        skills = state.get_skills()
+        assert (skills.legendary_skill_ids, skills.sceat_skill_ids, skills.total_points) == ((), (), 550)
+
 
 class TestOwnAlliance:
     def test_login_section_is_your_alliance(self, state):

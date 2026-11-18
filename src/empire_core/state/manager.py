@@ -72,7 +72,9 @@ _TRACKED_SECTIONS = (
 
 _PLAYER_SECTIONS = frozenset({"gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap", "gac", "sce"})
 
-# Pushes whose payload is the body of the gbd section of the same name.
+# Pushes whose payload is the body of the gbd section of the same name, applied only on success:
+# GPICommand, GXPCommand, GCUCommand, GALCommand, GCLCommand, GHOCommand, UAPCommand, GPCCommand, GMSCommand
+# (split.js lines 652152, 652270, 651581, 651059, 651531, 651753, 652788, 628980, 619878); VIPCommand below
 _SECTION_PUSHES = frozenset({"gpi", "gxp", "gcu", "vip", "gal", "gcl", "gho", "uap", "gpc", "gms"})
 
 # Replies and pushes whose payload is the body of a gbd section, applied only on success:
@@ -122,7 +124,7 @@ _WHOLE_SECTIONS = {
 # EBUCommand, EUPCommand, EUDCommand, RBUCommand, EBECommand through the area updater (bundle lines 122761,
 # 122861, 122846, 123163, 122744), JAACommand (bundle line 130194), RCCCommand (bundle lines 123182,
 # 28797), BUPCommand, CRMCommand, VFICommand, GDRCommand, CCDCommand, CDECommand (bundle lines 125531,
-# 125982, 121164, 123053, 127640, 127658), gdr also its sce; a refused crm still reaches the movement handler.
+# 125982, 121164, 123053, 127640, 127658), gdr also its sce.
 # VFICommand also parses its gcu, and SOUCommand (bundle line 125699) its gcu beside the spl the state does not keep.
 # The protection (uap) of a map read and a joined area: GAACommand, JAACommand (bundle lines 130164, 130243)
 # JAACommand also brings its crai crafting queues (bundle line 130249)
@@ -176,12 +178,20 @@ _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
 # 128358, 130249, 131787), each through DecoStorageData.parseSIN (bundle line 141430)
 _DECORATION_STORAGE_REPLIES = frozenset({"ebe", "ebu", "pio", "sob", "sbp", "jaa", "sds"})
 
+# Movement replies and pushes stamped whatever their status, their coins, owners and movement applied only on
+# success: CRACommand, CAMCommand, ABGCAMCommand, CDSCommand, CSMCommand, CATCommand, CRMCommand, CSSCommand,
+# TDECommand, CDDCommand, CPMCommand, JTRCommand, THMCommand, LDTCommand (split.js lines 638736, 638553, 638368,
+# 638687, 638881, 638641, 638832, 638930, 639153, 646877, 647842, 643584, 639199, 647055)
+_MOVEMENT_REPLIES = frozenset(
+    {"cra", "cam", "abgcam", "cds", "csm", "cat", "crm", "css", "tde", "cdd", "cpm", "jtr", "thm", "ldt"}
+)
+
 # Commands whose state the client applies only from a successful reply: SEICommand, SEECommand,
 # TEICommand, TEECommand, PEPCommand, FJFCommand, BSTCommand (bundle lines 128379, 128364,
 # 128409, 128394, 128214, 127782, 127608), ACMCommand, AQICommand, UFPCommand, BFSCommand (bundle
 # lines 121317, 121557, 121010, 122569), GTPCommand (bundle line 126146), UHTCommand, APTCommand,
 # CARCommand (bundle lines 129926, 123623, 125277), the section replies above;
-# a cpm error reply still reaches the movement handler, its cpi only a successful one. Also the castle
+# a refused cpm or crm is still stamped (see _MOVEMENT_REPLIES). Also the castle
 # pushes and replies:
 # RUECommand, KIKCommand, GSMCommand, RCICommand, CMRCommand, RCCCommand, JAACommand, CSLCommand and
 # GABCommand (bundle lines 125647, 123114, 125752, 123196, 125737, 123181, 130190, 122715, 122923); GECCommand
@@ -206,6 +216,7 @@ _SUCCESS_ONLY = frozenset(
         "bfs",
         "gtp",
         *_WHOLE_SECTIONS,
+        *_SECTION_PUSHES,
     }
     | {"agr", "afa", "abl", "aee", "ahl", "ahh", "ahd", "sne", "dms", "ams", "uac", "pre"}
     # AJACommand, SLLCommand, GAPCommand (bundle lines 121532, 122063, 122976)
@@ -248,6 +259,8 @@ _SUCCESS_ONLY = frozenset(
     | {"gus", "gnci", "psd"}
     # VIPCommand.exec, MVFCommand.executeCommand (split.js lines 653087, 652365)
     | {"vip", "mvf"}
+    # SKRCommand.executeCommand (split.js line 652567)
+    | {"skr"}
 )
 
 
@@ -319,7 +332,7 @@ class GameState(
     spies owned, before boosts           ``gms`` (pushed)             re-login
     commanders and castellans            ``gli``, the replies that    ``client.commanders.get_all()``
                                          carry one (``arl``, ...)
-    Legendary and sceat skills              ``skl``, ``ego``             ``client.player.get_skills()``
+    Legendary and sceat skills              ``skl``, ``ego``, ``skr``    ``client.player.get_skills()``
     your alliance's details, members     ``ain``, ``acn``, ``akm``,   ``client.alliance.get_alliance_info(id)``
                                          ..., ``acm`` (online)
     alliance chat history                ``acl``, ``acm`` (pushed)    --
@@ -542,6 +555,7 @@ class GameState(
         "gus": "_handle_gus",
         "gnci": "_handle_gnci",
         "psd": "_handle_psd",
+        "skr": "_handle_skr",
     }
 
     def update_from_packet(self, cmd_id: str, payload: dict[str, Any], error_code: int = 0) -> None:
@@ -565,7 +579,7 @@ class GameState(
             if not ok and cmd_id in _SUCCESS_ONLY:
                 pass
             elif cmd_id in _SECTION_PUSHES:
-                # An unreadable frame arrives as {"raw": ...}; the client applies a push only on success
+                # An unreadable frame arrives as {"raw": ...}
                 if isinstance(payload, dict) and "raw" not in payload:
                     self._packet_times[cmd_id] = time.time()
                     self._handle_gbd({cmd_id: payload})
@@ -591,7 +605,8 @@ class GameState(
                     self._packet_times[cmd_id] = time.time()
             elif handler_name:
                 self._packet_times[cmd_id] = time.time()
-                getattr(self, handler_name)(payload)
+                if ok or cmd_id not in _MOVEMENT_REPLIES:
+                    getattr(self, handler_name)(payload)
             if ok and cmd_id in _DECORATION_STORAGE_REPLIES and isinstance(payload, dict) and "sin" in payload:
                 self._handle_sin(payload["sin"])
             if ok and cmd_id in _NESTED_SECTIONS and isinstance(payload, dict):
@@ -694,10 +709,7 @@ class GameState(
         self._apply_movement_wrappers([data], [])
 
     def _apply_sent_movement(self, data: dict[str, Any], wrapper: Any) -> None:
-        """Apply a send reply's coins and rubies (``gcu``), then store its movement with the owner records (``O``).
-
-        An error reply carries no movement, so it stores nothing.
-        """
+        """Apply a send reply's coins and rubies (``gcu``), then store its movement with the owner records (``O``)."""
         if isinstance(gcu := data.get("gcu"), dict):
             self._handle_gbd({"gcu": gcu})
         self._apply_movement_wrappers([wrapper], readable_list(MovementOwner, data.get("O")))
@@ -804,8 +816,8 @@ class GameState(
         the event minigames' "lws", "lwj", "lwc", "lwm", "dge", "cfc", "saf", "sap", "gdti", "ddi" and "vwc",
         the hunter's "hin", the judgement's "sjc" and "jjc", the hero's "hdc", the alliance camp push "aic", the
         Jade Desert phase push "abgi", the
-        daimyo's "gda", "gdc" and "gdw", the coat of arms symbols' "gus", the player name change's "gnci" and the
-        account deletion's "psd" (each only a successful one),
+        daimyo's "gda", "gdc" and "gdw", the coat of arms symbols' "gus", the player name change's "gnci", the
+        account deletion's "psd" and the skill reset's "skr" (each only a successful one),
         the officers' school's "gtp" (only a successful one), the quest pushes "qli", "qst", "qpg", "qfi", "msp" and the
         campaign's "cqs", the castle pushes "rue", "kik", the Open Gate reply "mos" (only a successful one), the gem
         push "gec", the Berimond protection reply "ffp", the

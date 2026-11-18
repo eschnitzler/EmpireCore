@@ -559,6 +559,19 @@ class ResetSkillsRequest(BaseRequest):
     command = "skr"
 
 
+class ResetSkillsResponse(BaseResponse):
+    """
+    The acknowledgement of an ``skr``; it carries nothing.
+
+    Command: skr
+
+    Client: ``SKRCommand.executeCommand`` (split.js line 652567), which then calls
+    ``CastleLegendSkillData.resetSkills`` (split.js line 576751)
+    """
+
+    command = "skr"
+
+
 class ObjectUpdateEvent(BaseResponse):
     """
     An object update pushed by the server.
@@ -607,5 +620,6 @@ __all__ = [
     "SkipSceatSkillActivationRequest",
     "SkipSceatSkillActivationResponse",
     "ResetSkillsRequest",
+    "ResetSkillsResponse",
     "ObjectUpdateEvent",
 ]
