@@ -26,7 +26,7 @@ from empire_core.castle.models.updates import (
 from empire_core.enums import Kingdom, MapItemType, ResourceCartType, SessionLocation
 from empire_core.gamedata import Judgement
 from empire_core.map.models.world import MapSize, ServerInfoResponse
-from empire_core.protocol.base import enum_or_none, read_or_none
+from empire_core.protocol.base import read_or_none
 from empire_core.state.base import StateBase, loaded, read_section
 from empire_core.state.models import JoinedArea
 
@@ -43,8 +43,8 @@ class AreaState(StateBase):
         A reply without ``gsm`` or ``rci`` leaves the mines or carts as they were, as the client does. It
         drops the resource citizen's goods (``CastleResourcePoolData.reset``).
 
-        Client: ``JAACommand.executeCommand`` (bundle line 130190), ``AreaFactory.parseAreaInfo``
-        (bundle line 130226), ``AreaDataUpdater.parseJAA`` (bundle line 131496)
+        Client: ``JAACommand.executeCommand`` (split.js line 654202), ``AreaFactory.parseAreaInfo``
+        (split.js line 654365), ``AreaDataUpdater.parseJAA`` (split.js line 658985)
         """
         if not isinstance(data, dict):
             return
@@ -55,7 +55,7 @@ class AreaState(StateBase):
         self._placed_construction_item_sequence = self._packet_sequence
         self.placed_construction_items = reply.buildings.construction_items if reply.buildings is not None else None
         self.resource_pool = None
-        kingdom = enum_or_none(Kingdom, reply.kingdom_id)
+        kingdom = reply.kingdom
         castle_id = x = y = owner_id = occupier_id = None
         area_type = reply.area_type
         if (parsed := reply.area) is not None:
@@ -98,9 +98,10 @@ class AreaState(StateBase):
             self._apply_crafting_queues(reply.crafting_queues.queues)
 
     def _handle_hin(self, data: Any) -> None:
-        """Keep the hunter's values, from a ``hin`` reply or a join's ``hin``.
+        """Keep the hunter's values from a ``hin`` reply.
 
-        Client: ``HINCommand.executeCommand`` (bundle line 124591), ``CastleHunterData.parse_HIN`` (bundle line 25211)
+        Client: ``HINCommand.executeCommand`` (split.js line 633713), ``CastleHunterData.parse_HIN``
+        (split.js line 133370)
         """
         if (hunter := read_section(HunterInfo, data, "the hunter")) is not None:
             self.hunter = hunter

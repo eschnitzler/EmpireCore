@@ -209,7 +209,7 @@ class TestJoinCastle:
     def test_jaa_carries_buildings_resources_and_production(self):
         joined = parse_response("jaa", JAA)
         assert isinstance(joined, SelectCastleResponse)
-        assert (joined.kingdom_id, joined.area_type) == (2, MapItemType.CASTLE)
+        assert (joined.kingdom, joined.area_type) == (Kingdom.ICE, MapItemType.CASTLE)
         assert joined.buildings is not None and [b.object_id for b in joined.buildings.buildings] == [5, 6]
         assert joined.resources is not None and (joined.resources.castle_id, joined.resources.wood) == (555, 100)
         assert joined.production_area is not None and joined.production_area.faction_buff == 0.4
@@ -262,7 +262,7 @@ class TestJoinArea:
         joined = client.castle.join_area(512, 256)
 
         assert conn(client).request_payloads == [("jaa", {"PX": 512, "PY": 256, "KID": 0})]
-        assert (joined.kingdom_id, joined.area_type) == (0, MapItemType.OUTPOST)
+        assert (joined.kingdom, joined.area_type) == (Kingdom.GREEN, MapItemType.OUTPOST)
         assert joined.buildings is not None and [b.object_id for b in joined.buildings.buildings] == [5, 6]
         assert joined.resources is not None and (joined.resources.castle_id, joined.resources.food) == (2002, 1500)
         assert joined.production_area is not None and joined.production_area.population == 40
@@ -275,7 +275,7 @@ class TestJoinArea:
         joined = client.castle.join_area(510, 257, Kingdom.SANDS)
 
         assert conn(client).request_payloads == [("jaa", {"PX": 510, "PY": 257, "KID": 1})]
-        assert (joined.kingdom_id, joined.area_type) == (1, MapItemType.KINGDOM_CASTLE)
+        assert (joined.kingdom, joined.area_type) == (Kingdom.SANDS, MapItemType.KINGDOM_CASTLE)
 
     def test_an_object_the_client_never_joins_raises(self):
         client = make_client({"jaa": xt_packet("jaa", error_code=6)})
