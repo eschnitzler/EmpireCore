@@ -7,10 +7,26 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Annotated, Any, Literal
 
-from pydantic import Field, ValidatorFunctionWrapHandler, field_serializer, field_validator, model_validator
+from pydantic import (
+    Field,
+    ValidationError,
+    ValidationInfo,
+    ValidatorFunctionWrapHandler,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
 
 from empire_core.commanders.models.roster import Commander
-from empire_core.enums import AttackAdvisorType, AutoSkipCooldownType, Kingdom, MovementFilter, SpyType
+from empire_core.enums import (
+    AttackAdvisorType,
+    AttackType,
+    AutoSkipCooldownType,
+    Kingdom,
+    MovementFilter,
+    MovementType,
+    SpyType,
+)
 from empire_core.gamedata import CollectableRows, EnumOrInt, SupportToolSlots, WodAmounts
 from empire_core.map.models.items import MapAreaItem
 from empire_core.map.models.owners import OwnerCrest, OwnerFaction, OwnerPositions
@@ -21,6 +37,7 @@ from empire_core.protocol.base import (
     CurrencyBlock,
     Position,
     enum_or_none,
+    list_or_empty,
     object_or_none,
     read_or_none,
     readable_list,
@@ -123,33 +140,44 @@ class MovementArea(BasePayload):
 class MovementRecord(BasePayload):
     """The movement itself: the ``M`` inside each ``gam`` wrapper.
 
-    Client: ``BasicMapmovementVO.loadFromParamObject``.
+    Client: ``MapmovementFactory.parseMapMovement`` (split.js line 667779) reads ``T`` with ``int()``;
+    ``BasicMapmovementVO.loadFromParamObject`` (split.js line 87574) keeps ``MID`` as sent, reads the
+    other numbers with ``int()`` and the areas with ``WorldmapObjectFactory.parseWorldMapArea``
+    (split.js line 30594), which gives no area for a falsy row
     """
 
     movement_id: int = Field(validation_alias="MID", description="Movement id")
-    movement_type: int = Field(validation_alias="T", default=0, description="MovementType value")
-    progress_time: int = Field(
+    movement_type: EnumOrInt[MovementType] = Field(
+        validation_alias="T", default=MovementType.ATTACK, description="The movement's type"
+    )
+    progress_time: ClientInt = Field(
         validation_alias="PT",
         default=0,
         description="Seconds travelled when the reply was sent",
     )
-    total_time: int = Field(validation_alias="TT", default=0, description="Seconds the trip takes")
-    direction: int = Field(
+    total_time: ClientInt = Field(validation_alias="TT", default=0, description="Seconds the trip takes")
+    direction: ClientInt = Field(
         validation_alias="D",
         default=0,
         description="1 = returning home, 0 = heading to the target",
     )
-    target_id: int = Field(validation_alias="TID", default=-1, description="Player id owning the target area")
-    kingdom_id: int = Field(validation_alias="KID", default=0, description="Kingdom id")
-    source_id: int = Field(validation_alias="SID", default=-1, description="Player id owning the source area")
-    owner_id: int = Field(validation_alias="OID", default=-1, description="Player id owning the movement")
+    target_id: ClientInt = Field(validation_alias="TID", default=-1, description="Player id owning the target area")
+    kingdom_id: Kingdom = Field(
+        validation_alias="KID", default=Kingdom.GREEN, description="The kingdom the movement is in"
+    )
+    source_id: ClientInt = Field(validation_alias="SID", default=-1, description="Player id owning the source area")
+    owner_id: ClientInt = Field(validation_alias="OID", default=-1, description="Player id owning the movement")
     horse_booster: EnumOrInt["Horse"] | None = Field(
         validation_alias="HBW",
         default=None,
         description="The horse booster; None for none or when paid with feathers",
     )
-    target_area: MovementArea | None = Field(validation_alias="TA", default=None, description="Target area")
-    source_area: MovementArea | None = Field(validation_alias="SA", default=None, description="Source area")
+    target_area: MovementArea | None = Field(
+        validation_alias="TA", default=None, description="Target area; None when there is none or it cannot be read"
+    )
+    source_area: MovementArea | None = Field(
+        validation_alias="SA", default=None, description="Source area; None when there is none or it cannot be read"
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -159,9 +187,25 @@ class MovementRecord(BasePayload):
         rows = {
             key: {"row": data[key], "kingdom": data.get("KID")}
             for key in ("TA", "SA")
-            if isinstance(data.get(key), list)
+            if isinstance(data.get(key), list) and data[key]
         }
         return {**data, **rows}
+
+    @field_validator("movement_type", mode="before")
+    @classmethod
+    def _type(cls, value: Any) -> Any:
+        return js_int(value)
+
+    @field_validator("kingdom_id", mode="before")
+    @classmethod
+    def _kingdom(cls, value: Any) -> Any:
+        # A kingdom Kingdom lacks reads as green, as the movement's areas do (see MovementArea)
+        return enum_or_none(Kingdom, js_int(value)) or Kingdom.GREEN
+
+    @field_validator("target_area", "source_area", mode="wrap")
+    @classmethod
+    def _readable_area(cls, value: Any, handler: ValidatorFunctionWrapHandler) -> Any:
+        return read_or_none(handler, value) if value else None
 
     @field_validator("horse_booster", mode="before")
     @classmethod
@@ -261,15 +305,37 @@ class MovementSpy(BasePayload):
         return self.spy_type == SpyType.SABOTAGE
 
 
+_WRAPPER_BLOCKS = (
+    "full_army",
+    "army",
+    "army_size",
+    "unit_info",
+    "attack_type",
+    "is_shadow",
+    "force_cancelable",
+    "support_tools",
+    "auto_skip_cooldown_type",
+    "travel_units",
+    "travel_goods",
+    "traded_units",
+    "market",
+    "spy",
+)
+
+
 class MovementWrapper(BasePayload):
     """One entry of ``gam``'s ``M`` list, and the ``A`` of an ``abr``/``asr`` push or an ``mcm`` reply.
 
     Which of the optional blocks are present depends on the movement type and
-    on what the receiving player may see. Keys this model does not name are
-    kept, as on every payload.
+    on what the receiving player may see. A block that cannot be read reads as
+    not sent, so it costs only itself. Keys this model does not name are kept,
+    as on every payload.
 
-    Client: ``MapmovementFactory.parseMapMovement`` and the ``loadFromParamObject``
-    of each movement class.
+    Client: ``MapmovementFactory.parseMapMovement`` (split.js line 667779) and the
+    ``loadFromParamObject`` of each movement class: ``ArmyAttackMapmovementVO`` (split.js line
+    77036), ``ArmyTravelMapMovementVO`` (split.js line 114881), ``TradeMapmovementVO`` (split.js
+    line 310791), ``MarketMapmovementVO`` (split.js line 225968) and ``SpyMapmovementVO`` (split.js
+    line 226172)
     """
 
     movement: MovementRecord = Field(validation_alias="M", description="The movement record")
@@ -277,7 +343,7 @@ class MovementWrapper(BasePayload):
         validation_alias="FA", default=None, description="The full army, preferred over army"
     )
     army: MovementArmy | None = Field(validation_alias="GA", default=None, description="Army")
-    army_size: int | None = Field(
+    army_size: ClientInt | None = Field(
         validation_alias="GS",
         default=None,
         description="Estimated army size when the army is hidden",
@@ -285,7 +351,9 @@ class MovementWrapper(BasePayload):
     unit_info: MovementUnitInfo | None = Field(
         validation_alias="UM", default=None, description="Commander and wait details"
     )
-    attack_type: int | None = Field(validation_alias="ATT", default=None, description="AttackType value of an attack")
+    attack_type: EnumOrInt[AttackType] | None = Field(
+        validation_alias="ATT", default=None, description="The kind of attack; None for no attack"
+    )
     is_shadow: bool = Field(validation_alias="SM", default=False, description="Shadow movement")
     force_cancelable: bool = Field(
         validation_alias="FC",
@@ -308,17 +376,12 @@ class MovementWrapper(BasePayload):
         description="Units and tools of a travel movement",
     )
     travel_goods: CollectableRows = Field(
-        validation_alias="G",
-        default=(),
-        description="Loot a travel movement carries (ArmyTravelMapMovementVO.loadFromParamObject, bundle line 26798)",
+        validation_alias="G", default=(), description="Loot a travel movement carries"
     )
     traded_units: WodAmounts = Field(
         validation_alias="TRU",
         default_factory=dict,
-        description=(
-            "Units an Oasis Settlement trade brings back, among travel_units "
-            "(TradeMapmovementVO.loadFromParamObject, split.js line 310791)"
-        ),
+        description="Units an Oasis Settlement trade brings back, among travel_units",
     )
     market: MovementMarket | None = Field(validation_alias="MM", default=None, description="Market transport cargo")
     spy: MovementSpy | None = Field(validation_alias="S", default=None, description="Spy mission details")
@@ -334,10 +397,39 @@ class MovementWrapper(BasePayload):
         # Client: t.ASCT&&(this._autoSkipCooldownType=t.ASCT), 0 otherwise (ArmyAttackMapmovementVO, bundle line 14369)
         return js_parse_int(value) or AutoSkipCooldownType.OFF
 
+    @field_validator("attack_type", mode="before")
+    @classmethod
+    def _parsed_attack_type(cls, value: Any) -> Any:
+        return js_parse_int(value)
+
+    @field_validator("is_shadow", "force_cancelable", mode="before")
+    @classmethod
+    def _truthy_flag(cls, value: Any) -> bool:
+        return js_truthy(value)
+
+    @field_validator(*_WRAPPER_BLOCKS, mode="wrap")
+    @classmethod
+    def _block_on_its_own(cls, value: Any, handler: ValidatorFunctionWrapHandler, info: ValidationInfo) -> Any:
+        try:
+            return handler(value)
+        except ValidationError:
+            return cls.model_fields[str(info.field_name)].get_default(call_default_factory=True)
+
     @property
     def visible_army(self) -> MovementArmy | None:
         """``FA`` if sent, else ``GA``, as the client picks."""
         return self.full_army or self.army
+
+
+def names_a_movement(value: Any) -> bool:
+    """Whether a movement slot holds one: a wrapper whose ``M`` is an object with an ``MID``.
+
+    Anything else names no movement and is skipped without a warning.
+    """
+    if isinstance(value, MovementWrapper):
+        return True
+    record = value.get("M") if isinstance(value, dict) else None
+    return isinstance(record, MovementRecord) or (isinstance(record, dict) and record.get("MID") is not None)
 
 
 class MovementOwner(BasePayload):
@@ -420,6 +512,10 @@ class MovementOwner(BasePayload):
         return js_parse_int_or_zero(value) != 0
 
 
+def _names_an_owner(record: Any) -> bool:
+    return isinstance(record, MovementOwner) or (isinstance(record, dict) and js_truthy(record.get("OID")))
+
+
 class GetMovementsResponse(BaseResponse):
     """
     Response containing active movements.
@@ -427,7 +523,14 @@ class GetMovementsResponse(BaseResponse):
     Command: gam
     Payload: {"M": [wrapper, ...], "O": [owner record, ...]}
 
-    Client: ``CastleArmyData.parse_GAM``.
+    Each entry is read on its own: one that names no movement (see :func:`names_a_movement`) is
+    skipped, and one that cannot be read is left out and its reason kept in ``unreadable_movements``.
+    An owner record without an ``OID`` is skipped, as the client skips it.
+
+    Client: ``GAMCommand.executeCommand`` (split.js line 638976) hands ``O`` to
+    ``CastleOtherPlayerData.parseOwnerInfoArray`` (split.js line 693182), whose ``parseOwnerInfo``
+    (split.js line 693159) reads nothing without an ``OID``, then the reply to ``CastleArmyData.parse_GAM``
+    (split.js line 667215), which hands ``M`` to ``parseMapMovementArray`` (split.js line 667169)
     """
 
     command = "gam"
@@ -440,6 +543,30 @@ class GetMovementsResponse(BaseResponse):
         default_factory=list,
         description="Owner records for every player the movements name",
     )
+    unreadable_movements: tuple[str, ...] = Field(
+        default=(), description="Why each movement left out of movements could not be read"
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _movements_one_by_one(cls, data: Any) -> Any:
+        if not isinstance(data, dict) or "M" not in data:
+            return data
+        movements: list[MovementWrapper] = []
+        unreadable: list[str] = []
+        for entry in list_or_empty(data["M"]):
+            if not names_a_movement(entry):
+                continue
+            try:
+                movements.append(MovementWrapper.model_validate(entry))
+            except ValidationError as error:
+                unreadable.append(str(error))
+        return {**data, "M": movements, "unreadable_movements": tuple(unreadable)}
+
+    @field_validator("owners", mode="before")
+    @classmethod
+    def _readable_owners(cls, value: Any) -> list[MovementOwner]:
+        return readable_list(MovementOwner, value, keep=_names_an_owner, warn=logger, what="owner records in a gam")
 
 
 class MovementRemovedResponse(BaseResponse):
@@ -497,31 +624,34 @@ class ArmyRadiusPush(BaseResponse):
 
     The base of the ``abr`` and ``asr`` pushes, which read the same keys.
 
-    Client: ``ABRCommand.executeCommand`` (bundle line 125907) and ``ASRCommand.executeCommand``
-    (bundle line 125922) hand ``O`` to ``CastleOtherPlayerData.parseOwnerInfo`` (bundle line 139045),
-    which reads nothing without an object carrying an ``OID``, then ``[A]`` to
-    ``CastleArmyData.parseMapMovementArray`` (bundle line 133675). For your own record the client
-    also reads its ``AR`` as your alliance rank, which the library leaves to ``gal``
+    Client: ``ABRCommand.executeCommand`` (split.js line 638456) and ``ASRCommand.executeCommand``
+    (split.js line 638501) hand ``O`` to ``CastleOtherPlayerData.parseOwnerInfo`` (split.js line 693159),
+    which reads nothing without an object carrying an ``OID``, then the push to ``CastleArmyData.parse_ABR``
+    or ``parse_ASR`` (split.js lines 667221, 667218), which hand ``[A]`` to ``parseMapMovementArray``
+    (split.js line 667169). For your own record the client also reads its ``AR`` as your alliance rank,
+    which the library leaves to ``gal``
     """
 
     owner: MovementOwner | None = Field(
         validation_alias="O",
         default=None,
-        description="The record of the army's owner; None without an object carrying an OID",
+        description="The record of the army's owner; None without an object carrying an OID, or when it cannot be read",
     )
     movement: MovementWrapper | None = Field(
-        validation_alias="A", default=None, description="The movement; None when it is no object"
+        validation_alias="A", default=None, description="The movement; None when the push names none"
     )
 
-    @field_validator("owner", mode="before")
+    @field_validator("owner", mode="wrap")
     @classmethod
-    def _owner_with_id(cls, value: Any) -> Any:
-        return value if isinstance(value, dict) and js_truthy(value.get("OID")) else None
+    def _owner_with_id(cls, value: Any, handler: ValidatorFunctionWrapHandler) -> MovementOwner | None:
+        if not _names_an_owner(value):
+            return None
+        return read_or_none(handler, value, warn=logger, what="an army push's owner")
 
     @field_validator("movement", mode="before")
     @classmethod
     def _wrapper(cls, value: Any) -> Any:
-        return object_or_none(value)
+        return value if names_a_movement(value) else None
 
 
 class ArmyInBigRadiusResponse(ArmyRadiusPush):
@@ -723,7 +853,7 @@ class SentMovementResponse(BaseResponse):
     @field_validator("movement", mode="wrap")
     @classmethod
     def _movement_or_none(cls, value: object, handler: ValidatorFunctionWrapHandler) -> MovementWrapper | None:
-        if not value:
+        if not names_a_movement(value):
             return None
         return read_or_none(handler, value, warn=logger, what=f"the movement in a {cls.__name__}")
 
@@ -760,4 +890,5 @@ __all__ = [
     "MovementWrapper",
     "SentMovementResponse",
     "SetMovementFilterRequest",
+    "names_a_movement",
 ]
