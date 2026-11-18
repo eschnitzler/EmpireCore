@@ -609,5 +609,11 @@ class TestFeastsAndSceatSkillTrees:
         again = GameData._read_cache(tmp_path / "cache.json", "790.02")
 
         assert again is not None
-        assert again.feasts[ids.Feast.IMPERIAL_BANQUET].cost_rubies == 1750
+        assert (
+            again.feasts[ids.Feast.IMPERIAL_BANQUET].cost_rubies,
+            again.feasts[ids.Feast.IMPERIAL_BANQUET].sort_order,
+        ) == (
+            1750,
+            1,
+        )
         assert again.sceat_skill_trees[4].tab_id is SceatSkillTab.UNITS

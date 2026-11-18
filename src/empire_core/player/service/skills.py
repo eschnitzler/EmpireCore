@@ -109,30 +109,34 @@ class SkillsMixin(PlayerBaseMixin):
         """
         Finish a sceat skill's activation now, for rubies; see "Spending rubies" in the guides.
 
-        The game skips by Hall of Legends tab, so this finishes whichever skill is being activated in
-        ``skill``'s tab. The price follows the time left and your level and is not worked out here, so this
-        always needs ``spend_rubies``.
+        The game skips by Hall of Legends tab, the one ``skill``'s tree is in, so a fresh skill list is read
+        first and nothing is sent unless ``skill`` is being activated. The price follows the time left and
+        your level and is not worked out here, so this always needs ``spend_rubies``.
 
         Args:
             skill: The sceat skill being activated, as :attr:`skills` lists it in ``activating``
             spend_rubies: Allow the rubies it costs; without it nothing is sent
-            timeout: Timeout in seconds
+            timeout: Timeout in seconds, for each request
 
         Raises:
-            ValueError: ``spend_rubies`` is False, or the game data has no tab for the skill
+            ValueError: ``spend_rubies`` is False, the game data has no tab for the skill, or the skill is
+                not being activated
             GameDataNotLoadedError: The game data cannot be loaded
             CommandError: The server refused
 
         Client: ``CastleLegendSkillSceatBottomMenu.update`` and ``onClick`` (split.js lines 409704, 409833)
-        skip the skill in progress among the tab's trees, ``sceatTreeTabMap`` (split.js line 576540);
-        ``SceatSkillConst.getFastCompleteCostC2`` (dll) prices it
+        offer the skip only for the skill in progress among the tab's trees, ``sceatTreeTabMap`` (split.js
+        line 576540); ``SceatSkillConst.getFastCompleteCostC2`` (dll) prices it
         """
         game_data = self._require_game_data()
         row = game_data.sceat_skills.get(skill)
         tree = game_data.sceat_skill_trees.get(row.skill_tree_id) if row is not None else None
-        if tree is None or not isinstance(tree.tab_id, SceatSkillTab):
+        if row is None or tree is None or not isinstance(tree.tab_id, SceatSkillTab):
             raise ValueError(f"the game data has no Hall of Legends tab for {skill!r}")
         self._require_spend_rubies(spend_rubies, "finishing a sceat skill's activation costs rubies")
+        activating = self.get_skills(timeout=timeout).activating
+        if all(entry.skill_id != row.skill_id for entry in activating):
+            raise ValueError(f"{skill!r} is not being activated")
         self.request(
             SkipSceatSkillActivationRequest(tab=tree.tab_id),
             SkipSceatSkillActivationResponse,
