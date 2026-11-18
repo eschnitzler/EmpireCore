@@ -209,16 +209,20 @@ class InventoryState(StateBase):
     def _handle_sin(self, data: Any) -> None:
         """Apply a ``sin`` block: each storage it names replaces the one of the same id.
 
-        Client: ``DecoStorageData.parseSIN`` (bundle line 141430), from ``SINCommand`` and the replies
-        that carry a ``sin`` (``_DECORATION_STORAGE_REPLIES`` in ``state/manager.py``)
+        Client: ``SINCommand.exec`` (split.js line 633846), ``DecoStorageData.parseSIN`` (split.js line 702425)
         """
         read = read_or_none(
             DecorationStorageResponse.model_validate, data, warn=logging.getLogger(__name__), what="a sin block"
         )
-        if read is None or not read.storages:
+        if read is not None:
+            self._apply_decoration_storages(read.storages)
+
+    def _apply_decoration_storages(self, read: list[DecorationStorage]) -> None:
+        """Keep each storage sent over the one of the same id; see :class:`CarriedDecorationStorages`."""
+        if not read:
             return
         storages = dict(self.decoration_storages)
-        storages.update((storage.storage_id, storage) for storage in read.storages)
+        storages.update((storage.storage_id, storage) for storage in read)
         self.decoration_storages = storages
         self._packet_times["sin"] = time.time()
 

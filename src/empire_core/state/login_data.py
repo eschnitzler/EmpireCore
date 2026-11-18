@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 from typing import Any, ClassVar
 
 from pydantic import (
     AliasPath,
     ConfigDict,
     Field,
+    ModelWrapValidatorHandler,
+    PrivateAttr,
     ValidationInfo,
     ValidatorFunctionWrapHandler,
     field_validator,
@@ -106,6 +109,9 @@ class LoginDataResponse(BaseResponse):
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     command = "gbd"
+
+    _sent: frozenset[str] = PrivateAttr(default=frozenset())
+    _unread: frozenset[str] = PrivateAttr(default=frozenset())
 
     honor: HonorResponse | None = Field(
         validation_alias="gho",
@@ -346,10 +352,22 @@ class LoginDataResponse(BaseResponse):
         description="A castle's resources, sent in replies, never at login; None when not sent or unreadable",
     )
 
+    @classmethod
+    def carried_by(cls, reply: Any, sections: Iterable[str]) -> LoginDataResponse:
+        """The login sections, by wire key, that a reply carries under their own keys."""
+        if not isinstance(reply, dict):
+            return cls()
+        return cls.model_validate({key: reply[key] for key in sections if key in reply})
+
     @property
     def sent_sections(self) -> set[str]:
         """The wire keys of the sections sent, falsy and unreadable ones too."""
-        return {_WIRE_KEYS[name] for name in self.model_fields_set if name in _WIRE_KEYS}
+        return set(self._sent)
+
+    @property
+    def unread_sections(self) -> set[str]:
+        """The wire keys of the sections sent as something truthy that their model could not read."""
+        return set(self._unread)
 
     @field_validator(
         "honor",
@@ -419,8 +437,7 @@ class LoginDataResponse(BaseResponse):
     )
     @classmethod
     def _section(cls, value: Any, handler: ValidatorFunctionWrapHandler, info: ValidationInfo) -> Any:
-        gate = _GATES.get(info.field_name)
-        if not js_truthy(value) or (gate is not None and not (isinstance(value, dict) and js_truthy(value.get(gate)))):
+        if not js_truthy(value) or not _gate_passes(info.field_name, value):
             return None
         return read_or_none(handler, value, warn=logger, what=f"the {info.field_name} login section")
 
@@ -439,12 +456,31 @@ class LoginDataResponse(BaseResponse):
             return {**data, "mcd": {"MTC": data["MTC"]}}
         return data
 
+    @model_validator(mode="wrap")
+    @classmethod
+    def _record_sections(cls, data: Any, handler: ModelWrapValidatorHandler[LoginDataResponse]) -> LoginDataResponse:
+        login = handler(data)
+        if not isinstance(data, dict):
+            return login
+        for key, value in data.items():
+            if (name := _NAMES.get(key, key)) in _WIRE_KEYS:
+                login._sent |= {_WIRE_KEYS[name]}
+                if getattr(login, name) is None and js_truthy(value) and _gate_passes(name, value):
+                    login._unread |= {_WIRE_KEYS[name]}
+        return login
+
 
 _GATES: dict[str | None, str] = {"boosted_global_effects": "GE", "gifts": "G", "messages_sent_today": "MTC"}
 
 
-_WIRE_KEYS = {
-    name: field.validation_alias
+def _gate_passes(name: str | None, value: Any) -> bool:
+    gate = _GATES.get(name)
+    return gate is None or (isinstance(value, dict) and js_truthy(value.get(gate)))
+
+
+_WIRE_KEYS: dict[str, str] = {
+    name: alias
     for name, field in LoginDataResponse.model_fields.items()
-    if name not in BaseResponse.model_fields and isinstance(field.validation_alias, str)
+    if name not in BaseResponse.model_fields and isinstance(alias := field.validation_alias, str)
 }
+_NAMES = {wire: name for name, wire in _WIRE_KEYS.items()}

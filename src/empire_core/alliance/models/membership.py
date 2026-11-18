@@ -137,12 +137,12 @@ class JoinOpenAllianceResponse(BaseResponse):
 
 
 class AutoJoinedAllianceResponse(BaseResponse):
-    """You were put in an alliance, pushed. Client: ``AJACommand.executeCommand`` (bundle lines 121532-121534),
+    """You were put in an alliance, pushed. Client: ``AJACommand.executeCommand`` (split.js line 623480),
     which applies ``gal`` before ``A``; the client never sends an aja.
     """
 
     command = "aja"
-    membership: AllianceMembership = Field(validation_alias="gal", description="Your new membership")
+    membership: AllianceMembershipResponse = Field(validation_alias="gal", description="Your new membership")
     alliance: AllianceInfo = Field(validation_alias="A", description="The alliance you are in now")
 
     @field_validator("alliance", mode="before")
@@ -166,7 +166,7 @@ class AllianceMembershipChange(BasePayload):
     reads its movements and not its owner records
     """
 
-    membership: AllianceMembership | None = Field(
+    membership: AllianceMembershipResponse | None = Field(
         validation_alias="gal", default=None, description="Your membership; None when not sent"
     )
     alliance: AllianceInfo | None = Field(
@@ -179,7 +179,7 @@ class AllianceMembershipChange(BasePayload):
     @field_validator("membership", mode="before")
     @classmethod
     def _membership(cls, value: Any) -> Any:
-        return value if isinstance(value, (dict, AllianceMembership)) else None
+        return value if isinstance(value, (dict, AllianceMembershipResponse)) else None
 
     @field_validator("alliance", mode="before")
     @classmethod
