@@ -42,6 +42,7 @@ from empire_core.player.models.account import (
     FoodProductionStatus,
     PlayerGiftsResponse,
     PlayerIdentityResponse,
+    PremiumFlagResponse,
     VipStatusResponse,
 )
 from empire_core.player.models.coat_of_arms import CoatOfArmsResponse
@@ -113,6 +114,11 @@ class LoginDataResponse(BaseResponse):
     )
     coat_of_arms: CoatOfArmsResponse | None = Field(
         validation_alias="gem", default=None, description="Your coat of arms; None when not sent or unreadable"
+    )
+    premium_flag: PremiumFlagResponse | None = Field(
+        validation_alias="gpf",
+        default=None,
+        description="Whether you own the premium flag; None when not sent or unreadable",
     )
     currencies: CurrencyResponse | None = Field(
         validation_alias="gcu", default=None, description="Your coins and rubies; None when not sent or unreadable"
@@ -297,6 +303,7 @@ class LoginDataResponse(BaseResponse):
         "credentials",
         "special_currencies",
         "coat_of_arms",
+        "premium_flag",
         "currencies",
         "experience",
         "castles",

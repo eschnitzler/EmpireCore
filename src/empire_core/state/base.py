@@ -63,6 +63,7 @@ from empire_core.player.models.account import (
     FoodProductionStatus,
     OfficerTraining,
     PlayerGiftsResponse,
+    PremiumFlagResponse,
 )
 from empire_core.player.models.aqua import StormIslandsInfo
 from empire_core.player.models.coat_of_arms import CoatOfArmsResponse, CoatOfArmsSymbolsResponse
@@ -214,8 +215,9 @@ class StateBase:
         self.judgement_id: Judgement | int | None = None
         self.hero: HeroDecisionResponse | None = None
 
-        # Your coat of arms and its symbols, credentials, name change, account deletion, message counts; each replaced
+        # Your coat of arms, premium flag, symbols, credentials, name change, deletion, message counts; each replaced
         self.coat_of_arms: CoatOfArmsResponse | None = None
+        self.premium_flag: PremiumFlagResponse | None = None
         self.coat_of_arms_symbols: CoatOfArmsSymbolsResponse | None = None
         self.credentials_status: CredentialsStatus | None = None
         self.player_name_change_info: PlayerNameChangeInfoResponse | None = None

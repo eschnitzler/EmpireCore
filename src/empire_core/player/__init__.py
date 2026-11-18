@@ -115,6 +115,7 @@ from .models import (
     PlayerNameChangeInfoResponse,
     PlayerOwnerInfo,
     PlayerProfileBase,
+    PremiumFlagResponse,
     ProlongTrainingProgramRequest,
     ProlongTrainingProgramResponse,
     ProtectionResponse,
@@ -149,6 +150,7 @@ from .models import (
     TrainingProgramsResponse,
     UnlockSymbolRequest,
     UnlockSymbolResponse,
+    VipStatusRequest,
     VipStatusResponse,
 )
 from .service import PlayerDetailsBulkResult, PlayerService
@@ -176,6 +178,7 @@ __all__ = [
     "BuyLevelResponse",
     "BuyPremiumFlagRequest",
     "BuyPremiumFlagResponse",
+    "PremiumFlagResponse",
     "BUY_LEVEL_RANGE",
     "PREMIUM_FLAG_RUBIES",
     "ActivateGlobalEffectBoostResponse",
@@ -241,6 +244,7 @@ __all__ = [
     "LevelUpResponse",
     "PlayerIdentityResponse",
     "SpecialCurrenciesResponse",
+    "VipStatusRequest",
     "VipStatusResponse",
     "StartBerimondProtectionRequest",
     "StartBerimondProtectionResponse",

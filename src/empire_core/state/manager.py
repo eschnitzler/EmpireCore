@@ -242,6 +242,8 @@ _SUCCESS_ONLY = frozenset(
     | {"hin", "sjc", "jjc", "hdc", "aic", "gda", "gdc", "gdw"}
     # GUSCommand, GNCICommand, PSDCommand (bundle lines 125060, 120604, 131797)
     | {"gus", "gnci", "psd"}
+    # VIPCommand.exec, MVFCommand.executeCommand (split.js lines 653087, 652365)
+    | {"vip", "mvf"}
 )
 
 
@@ -307,7 +309,7 @@ class GameState(
     joined castle's resource carts       ``rci`` (pushed), ``jaa``,   ``client.castle.join(id)``
                                          ``rcc``
     player identity/level/XP             ``gpi``/``gxp``/``glu``      re-login
-    player coins/rubies, VIP, alliance    ``gcu``/``vip``/``gal``      re-login
+    player coins/rubies, VIP, alliance    ``gcu``/``vip``/``gal``      ``client.player.get_vip_status()`` (VIP)
     honor, protection                    ``gho``/``uap``              ``client.player.get_protection()``
     special currencies                   ``sce`` (pushed)             --
     spies owned, before boosts           ``gms`` (pushed)             re-login
@@ -341,6 +343,7 @@ class GameState(
     new relics flag                      ``nrf`` (pushed)             re-login
     frozen food production               ``DTS`` (pushed)             re-login
     your coat of arms                    ``gem`` (pushed), ``cem``    re-login
+    premium flag owned                   ``gpf`` (pushed)             re-login
     symbols earned and unlocked          ``gus`` (pushed)             --
     temporary name, password, email      ``scd``                      re-login
     messages sent today                  ``mcd`` (pushed)             re-login
@@ -793,7 +796,7 @@ class GameState(
         "tcc", the joined area's "jaa", "cmr", "rcc", "ghw", the events shutting down "sde", the map read "gaa" (refused
         too), the spy screen "ssi" (only a successful one) — and the login sections "gpi", "gxp", "gcu", "vip", "gal",
         "gcl", "gho", "uap", "gpc", "gms", "sei", "tei", "gli", "skl", "ain", "acl", "rei", "boi", "gmu", "ufa", "uar",
-        "vli", "gri", "cpi", "dql", "gai", "gatp", "bie", "pgl", "rww", "nrf", "DTS", "gem", "scd", "mcd", "ggm",
+        "vli", "gri", "cpi", "dql", "gai", "gatp", "bie", "pgl", "rww", "nrf", "DTS", "gem", "gpf", "scd", "mcd", "ggm",
         "gls", "esl", "kpi", "mpe", "txi", "nec", "irc", "grc", "gll", "lrr", "tmp" and "thi", stamped whether they
         came inside a gbd, as a push of their own or inside a reply that carries one ("sei" from a fjf or bst, "gli"
         from an arl, "ain" from an akm, "rei" from a res, "kpi" from a kut, "tmp" from a tcn, "gem" from a cem, ...),

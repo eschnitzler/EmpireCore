@@ -47,19 +47,27 @@ def test_a_refused_level_raises():
 
 
 def test_the_premium_flag_needs_consent():
-    client = make_client()
+    client = make_client(state=logged_in_state())
     with pytest.raises(ValueError, match="4900"):
         client.player.buy_premium_flag()
     assert conn(client).request_payloads == []
 
 
-def test_the_premium_flag_sends_gbp():
-    client = make_client()
+@pytest.mark.parametrize("gpf", [None, {"PF": 0}])
+def test_the_premium_flag_sends_gbp_unless_you_own_it(gpf):
+    client = make_client(state=logged_in_state(gpf=gpf))
     client.player.buy_premium_flag(spend_rubies=True)
     assert conn(client).request_payloads == [("gbp", {})]
 
 
+def test_an_owned_premium_flag_is_not_bought_again():
+    client = make_client(state=logged_in_state(gpf={"PF": 1}))
+    with pytest.raises(ValueError, match="own the premium flag"):
+        client.player.buy_premium_flag(spend_rubies=True)
+    assert conn(client).request_payloads == []
+
+
 def test_a_refused_premium_flag_raises():
-    client = make_client({"gbp": xt_packet("gbp", error_code=1)})
+    client = make_client({"gbp": xt_packet("gbp", error_code=1)}, state=logged_in_state())
     with pytest.raises(CommandError):
         client.player.buy_premium_flag(spend_rubies=True)

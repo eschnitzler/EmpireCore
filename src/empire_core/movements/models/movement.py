@@ -7,7 +7,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Annotated, Any, Literal
 
-from pydantic import Field, ValidatorFunctionWrapHandler, field_validator, model_validator
+from pydantic import Field, ValidatorFunctionWrapHandler, field_serializer, field_validator, model_validator
 
 from empire_core.commanders.models.roster import Commander
 from empire_core.enums import AttackAdvisorType, AutoSkipCooldownType, Kingdom, MovementFilter, SpyType
@@ -557,10 +557,10 @@ class MovementFilterResponse(BaseResponse):
     The client asks for the movement list (``gam``) again after each push, and so does
     ``EmpireClient``.
 
-    Command: mvf, as a login section of ``gbd`` and a push.
+    Command: mvf, as a login section of ``gbd``, a push and the reply to a :class:`SetMovementFilterRequest`.
 
-    Client: ``MVFCommand.executeCommand`` (bundle line 129751), ``CastleSettingsData.parse_MVF``
-    (bundle line 139750), which tests ``CommKeys.ACTIVE_FILTERS`` (``AFS``, dll) for 0, 1 and 2
+    Client: ``MVFCommand.executeCommand`` (bundle line 652365), ``CastleSettingsData.parse_MVF``
+    (bundle line 695800), which tests ``CommKeys.ACTIVE_FILTERS`` (``AFS``, dll) for 0, 1 and 2
     with ``indexOf``; the options dialog pairs them with ``toggleMapPVPAttacks``,
     ``toggleMapPvPAttacksAlliance`` and ``toggleMapMarketBarrows``
     """
@@ -582,6 +582,28 @@ class MovementFilterResponse(BaseResponse):
     def shows(self, kind: MovementFilter) -> bool:
         """Whether the map shows that kind of movement."""
         return kind in self.active_filters
+
+
+class SetMovementFilterRequest(BaseRequest):
+    """
+    Show or hide one kind of movement on the map; the server answers with the filters as an ``mvf``.
+
+    Command: mvf
+    Payload: {"FID": filter, "ACT": 0 or 1}
+
+    Client: ``C2SMovementFilterOptionEvent`` (bundle line 379381), which sends ``ACT`` as 1 or 0, built by
+    ``OptionsDialogOptions.toggleMapMarketBarrows``, ``toggleMapPVPAttacks`` and ``toggleMapPvPAttacksAlliance``
+    (bundle lines 379324-379353) with ``MovementFilterConst`` (dll)
+    """
+
+    command = "mvf"
+
+    kind: MovementFilter = Field(validation_alias="FID", description="The kind of movement")
+    show: bool = Field(validation_alias="ACT", description="Show that kind of movement, or hide it")
+
+    @field_serializer("show")
+    def _flag(self, value: bool) -> int:
+        return int(value)
 
 
 class CancelMovementRequest(BaseRequest):
@@ -737,4 +759,5 @@ __all__ = [
     "MovementUnitInfo",
     "MovementWrapper",
     "SentMovementResponse",
+    "SetMovementFilterRequest",
 ]

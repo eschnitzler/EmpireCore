@@ -12,7 +12,7 @@ import pytest
 import websocket
 
 from empire_core.client.client import EmpireClient
-from empire_core.enums import Kingdom
+from empire_core.enums import Kingdom, MovementFilter
 from empire_core.exceptions import ReceiveThreadError
 from empire_core.protocol.packet import Packet
 from tests.service_helpers import SERVER_INFO, request_payload
@@ -216,6 +216,21 @@ class TestMovementsAfterLogin:
         caller.join(timeout=2)
         assert errors == []
         assert [m.movement_id for m in client.state.get_all_movements()] == [100]
+
+    def test_the_reply_to_a_filter_change_asks_for_the_movements_once(self, client):
+        socket = new_session(client)
+        replies: list[object] = []
+        caller = threading.Thread(
+            target=lambda: replies.append(client.movements.set_map_filter(MovementFilter.MARKET_BARROWS, True))
+        )
+        caller.start()
+        assert wait_for(lambda: len(socket.sent) == 1)
+        assert request_payload(socket.sent[0]) == {"FID": 2, "ACT": 1}
+
+        arrive_packet(client, "mvf", {"AFS": [2]})
+        caller.join(timeout=2)
+        assert len(replies) == 1
+        assert sent_commands(socket) == ["mvf", "gam"]
 
     def test_a_refused_mvf_asks_for_nothing(self, client):
         socket = new_session(client)

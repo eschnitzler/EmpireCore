@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-from empire_core.enums import Kingdom, KingdomTransferType, Resource
+from empire_core.enums import Kingdom, KingdomTransferType, MovementFilter, Resource
 from empire_core.events.models import SeasonEvent
 from empire_core.events.season_models import MinuteSkipSeasonTransferRequest
 from empire_core.exceptions import CommandError, UnsendableGoodsError
@@ -37,6 +37,7 @@ from empire_core.movements.models import (
     SendTownshipSupportRequest,
     SendTownshipSupportResponse,
     SendTroopsRequest,
+    SetMovementFilterRequest,
     TreasureMapGoodsTransferRequest,
     TreasureMapTransferSkipRequest,
     TreasureMapUnitTransferRequest,
@@ -67,6 +68,31 @@ class MovementsService(BaseService):
     def map_filter(self) -> MovementFilterResponse | None:
         """The map's movement filters, from the login data or the last ``mvf`` push; None until one arrived."""
         return self.client.state.get_movement_filter()
+
+    def set_map_filter(self, kind: MovementFilter, show: bool, *, timeout: float = 5.0) -> MovementFilterResponse:
+        """
+        Show or hide one kind of movement on the map, as the options dialog's map checkboxes do.
+
+        The reply is kept in :attr:`map_filter`, and the movement list is asked for again, as after every
+        ``mvf``. Unlike the client, which drops its map movements before it sends, the movements already
+        tracked stay until they arrive.
+
+        Args:
+            kind: The kind of movement
+            show: Show it, or hide it
+            timeout: Timeout in seconds
+
+        Returns:
+            The map's movement filters after the change
+
+        Raises:
+            CommandError / EmpireTimeoutError / ConnectionClosedError: see :meth:`EmpireClient.send`
+
+        Client: ``OptionsDialogOptions.toggleMapMarketBarrows``, ``toggleMapPVPAttacks`` and
+        ``toggleMapPvPAttacksAlliance`` (bundle lines 379324-379353), ``MVFCommand.executeCommand``
+        (bundle line 652365)
+        """
+        return self.request(SetMovementFilterRequest(kind=kind, show=show), MovementFilterResponse, timeout=timeout)
 
     @property
     def tracked(self) -> list[Movement]:

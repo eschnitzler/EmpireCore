@@ -3,7 +3,7 @@ Account sections of the login data, and the pushes and replies that bring them a
 
 Commands:
 - gpi: who you are
-- vip: VIP status
+- vip: VIP status, and asking for it
 - drt: seconds until the daily reset
 - gatp: the officers' school training program running now
 - bie: the global effects a booster event boosts
@@ -12,6 +12,7 @@ Commands:
 - DTS: whether your food production is frozen
 - blv: buy the next level with rubies
 - gbp: buy the premium flag with rubies
+- gpf: whether you own the premium flag
 
 The timed models count from ``received_at``, as the client counts from its timer.
 """
@@ -207,6 +208,30 @@ class BuyPremiumFlagResponse(BaseResponse):
     command = "gbp"
 
 
+class PremiumFlagResponse(BaseResponse):
+    """
+    Whether you own the premium flag your castles fly on the map.
+
+    Command: gpf, as a login section of ``gbd`` and a push.
+
+    Client: ``GPFCommand.executeCommand`` (bundle line 652108), registered for ``S2C_PREMIUM_FLAG_INFO``
+    (``gpf``, bundle line 618029) and run by ``CastleExtensionResponseCommand.execute`` (bundle line 571757)
+    for that id, only on success; ``CastleUserData.parse_GPF`` (bundle line 54052), which skips a falsy
+    block and reads ``1 == PF``; ``GBDCommand.exec`` (bundle line 651244)
+    """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    command = "gpf"
+
+    has_premium_flag: bool = Field(validation_alias="PF", default=False, description="Whether you own the premium flag")
+
+    @field_validator("has_premium_flag", mode="before")
+    @classmethod
+    def _flag(cls, value: Any) -> bool:
+        return js_loose_equals(value, 1)
+
+
 class BoostedGlobalEffectsResponse(BaseResponse):
     """
     The global effects the running global effect booster event makes stronger.
@@ -344,6 +369,7 @@ __all__ = [
     "BuyLevelResponse",
     "BuyPremiumFlagRequest",
     "BuyPremiumFlagResponse",
+    "PremiumFlagResponse",
     "BoostedGlobalEffectsResponse",
     "ActivateGlobalEffectBoostRequest",
     "ActivateGlobalEffectBoostResponse",
@@ -355,6 +381,7 @@ __all__ = [
     "PlayerGiftsResponse",
     "SendGiftPackagesRequest",
     "SendGiftPackagesResponse",
+    "VipStatusRequest",
 ]
 
 
@@ -417,9 +444,10 @@ class VipStatusResponse(BaseResponse):
     """
     Your VIP status: the ``vip`` login section, pushed as it changes.
 
-    Command: vip, as a login section of ``gbd``, a push, and inside an ``sbp`` reply.
+    Command: vip, as a login section of ``gbd``, a push, the reply to a :class:`VipStatusRequest`, and inside
+    an ``sbp`` reply.
 
-    Client: ``VIPCommand.exec`` (bundle line 129988), ``CastleVIPData.parse_VIP`` (bundle line 47542),
+    Client: ``VIPCommand.exec`` (bundle line 653087), ``CastleVIPData.parse_VIP`` (bundle line 245599),
     which reads each key through ``int()`` and keeps no VIP time for a ``VRS`` of 0 or less
     """
 
@@ -442,3 +470,17 @@ class VipStatusResponse(BaseResponse):
     @classmethod
     def _no_vip_time(cls, value: int) -> int:
         return max(0, value)
+
+
+class VipStatusRequest(BaseRequest):
+    """
+    Ask for your VIP status; the server answers with a ``vip``.
+
+    Command: vip
+    Payload: {}
+
+    Client: ``C2SVIPInfoEvent`` (bundle line 400604), sent by ``CastleVIPData.executeUpdate`` (bundle line
+    245782) once the VIP time it knows has run out
+    """
+
+    command = "vip"
