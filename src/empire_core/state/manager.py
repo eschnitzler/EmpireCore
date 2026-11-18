@@ -127,6 +127,10 @@ _WHOLE_SECTIONS = {
 # CCDCommand and SAPCommand (bundle lines 127678, 127618) parse their gcu
 # MOSCommand (bundle line 125119) parses its gcu
 # BCRCommand (bundle line 640456) parses its gcu
+# The building, repair, decoration, production and hospital replies parse their gcu too: EBECommand, EBUCommand,
+# EUDCommand, EUPCommand, FCOCommand, IRACommand, RBUCommand, SBDCommand, SDSCommand, BOUCommand, BUPCommand,
+# HRACommand, HRUCommand, HSSCommand (split.js lines 628021, 628075, 628350, 628398, 628550, 629074, 629329,
+# 659829, 659875, 637217, 637270, 633575, 633636, 260682)
 _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
     "mos": ("gcu",),
     "bcr": ("gcu",),
@@ -149,8 +153,9 @@ _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
     "kut": ("gcu", "kpi"),
     **dict.fromkeys(("msk", "fjf"), ("kpi",)),
     "rwb": ("gcu",),
-    **dict.fromkeys(("ffp", "ibt"), ("gcu",)),
-    **dict.fromkeys(("ebu", "eup", "eud", "rbu", "ebe", "rcc", "bup", "crm", "cde"), ("grc",)),
+    **dict.fromkeys(("ffp", "ibt", "ira", "fco", "sbd", "sds", "bou", "hru", "hra", "hss"), ("gcu",)),
+    **dict.fromkeys(("ebu", "eup", "eud", "rbu", "ebe", "bup"), ("grc", "gcu")),
+    **dict.fromkeys(("rcc", "crm", "cde"), ("grc",)),
     "jaa": ("grc", "uap", "crai"),
     "gaa": ("uap",),
     "ccd": ("gcu", "grc"),
