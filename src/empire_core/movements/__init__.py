@@ -73,6 +73,21 @@ from .models import (
 )
 from .service import MovementsService
 from .tracked import Movement, MovementResources
+from .travel import (
+    attack_travel_time,
+    corrected_attack_distance,
+    low_level_boost,
+    lowest_travel_speed,
+    resources_per_carriage,
+    spy_travel_time,
+    station_travel_time,
+    support_travel_time,
+    trade_capacity,
+    trade_travel_time,
+    travel_time,
+    travel_time_with_horse,
+    troop_speed,
+)
 
 if TYPE_CHECKING:
     from empire_core.gamedata import Currency, Event, Horse, Title, Tool, TreasureMapId, Unit
@@ -151,6 +166,19 @@ __all__ = [
     "Unit",
     "Event",
     "TreasureMapId",
+    "attack_travel_time",
+    "corrected_attack_distance",
+    "low_level_boost",
+    "lowest_travel_speed",
+    "resources_per_carriage",
+    "spy_travel_time",
+    "station_travel_time",
+    "support_travel_time",
+    "trade_capacity",
+    "trade_travel_time",
+    "travel_time",
+    "travel_time_with_horse",
+    "troop_speed",
 ]
 
 

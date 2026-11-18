@@ -132,6 +132,20 @@ def js_floor(value: Any) -> int:
     return math.floor(js_number(value))
 
 
+def js_round(value: float) -> int:
+    """``Math.round``: to the nearest integer, a half up (Python's ``round()`` goes to even)."""
+    floor = math.floor(value)
+    return floor + 1 if value - floor >= 0.5 else floor
+
+
+def js_int32(value: float) -> int:
+    """``value | 0``: truncated and wrapped to a signed 32-bit integer, NaN and infinities as 0."""
+    if math.isnan(value) or math.isinf(value):
+        return 0
+    wrapped = math.trunc(value) % 2**32
+    return wrapped - 2**32 if wrapped >= 2**31 else wrapped
+
+
 def js_parse_int(value: Any) -> int | None:
     """
     JavaScript's ``parseInt(value)``: the leading integer of ``String(value)``, None where it gives NaN.
@@ -225,6 +239,7 @@ __all__ = [
     "ParseInt",
     "js_falsy",
     "js_int",
+    "js_int32",
     "js_loose_equals",
     "js_number_or_none",
     "js_same_number",
@@ -232,5 +247,6 @@ __all__ = [
     "row_is_at",
     "js_parse_int",
     "js_parse_int_or_zero",
+    "js_round",
     "js_truthy",
 ]

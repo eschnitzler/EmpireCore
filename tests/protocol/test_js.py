@@ -17,12 +17,14 @@ from empire_core.protocol.js import (
     _text,
     js_falsy,
     js_int,
+    js_int32,
     js_loose_equals,
     js_number,
     js_number_or_none,
     js_parse_float,
     js_parse_int,
     js_parse_int_or_zero,
+    js_round,
     js_truthy,
 )
 
@@ -111,6 +113,24 @@ IDS = [repr(case[0]) for case in CASES]
 @pytest.mark.parametrize(("value", "expected"), [(c[0], c[1]) for c in CASES], ids=IDS)
 def test_js_int(value, expected):
     assert js_int(value) == expected
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [(0.5, 1), (1.5, 2), (2.5, 3), (-0.5, 0), (-1.5, -1), (0.49999999999999994, 0), (-2.4999, -2)],
+)
+def test_js_round(value, expected):
+    # Math.round(value) in node
+    assert js_round(value) == expected
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [(2**31, -(2**31)), (2**32 + 5, 5), (-(2**31) - 1, 2**31 - 1), (3.9, 3), (-3.9, -3), (math.nan, 0), (math.inf, 0)],
+)
+def test_js_int32(value, expected):
+    # value | 0 in node
+    assert js_int32(value) == expected
 
 
 @pytest.mark.parametrize(("value", "expected"), [(c[0], c[2]) for c in CASES], ids=IDS)

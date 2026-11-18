@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple, TypeVar
 
 from pydantic import ConfigDict, Field, PrivateAttr
 
-from empire_core.enums import BerimondFaction, BerimondLane, BerimondSpecialCampType, Kingdom, UnitRole
+from empire_core.enums import BerimondFaction, BerimondLane, BerimondSpecialCampType, BoosterId, Kingdom, UnitRole
 from empire_core.exceptions import AmbiguousLookupError, GameDataNotLoadedError, NetworkError
 from empire_core.protocol.base import EmpireModel
 
@@ -63,6 +63,7 @@ from .models import (
     HorseStats,
     LeagueBracketDef,
     LegendarySkillDef,
+    LevelBoosterDef,
     NpcCampDefence,
     RaidBossDef,
     RelicEffectDef,
@@ -238,6 +239,7 @@ _CACHED_MODELS = (
     CurrencyDef,
     RaidBossDef,
     VipLevelDef,
+    LevelBoosterDef,
     BuildingDef,
     ResearchDef,
     EventDef,
@@ -640,6 +642,8 @@ class GameData(EmpireModel):
     tool_categories: dict[int, ToolCategoryDef] = Field(default_factory=dict)
     default_commanders: dict[int, DefaultCommanderDef] = Field(default_factory=dict)
     vip_levels: dict[int, VipLevelDef] = Field(default_factory=dict)
+    level_boosters: list[LevelBoosterDef] = Field(default_factory=list)
+    """The King's Market boosters bought in levels, a row per booster and level, in the order listed."""
     dungeons: list[DungeonDefence] = Field(default_factory=list)
     camps: dict[str, list[NpcCampDefence]] = Field(default_factory=dict)
     league_brackets: list[LeagueBracketDef] = Field(default_factory=list)
@@ -1225,6 +1229,39 @@ class GameData(EmpireModel):
             return levels[-1]
         return found
 
+    def booster_levels(self, booster: BoosterId) -> dict[int, LevelBoosterDef]:
+        """
+        A King's Market booster's rows by level; of two rows for one level, the last.
+
+        Client: ``CastlePremiumBoostData.parseXML`` (bundle line 81350)
+        """
+        return {row.level: row for row in self.level_boosters if row.booster == booster}
+
+    def returning_speed_percent(self, level: int) -> int:
+        """
+        The return speed booster's bonus in percent at ``level``: 0 past the last level.
+
+        Raises:
+            KeyError: the table has no row for a level up to its row count, where the client fails too.
+
+        Client: ``CastlePremiumBoostData.getBoostForReturningSpeedLevel`` (bundle line 81686)
+        """
+        levels = self.booster_levels(BoosterId.RETURNING_SPEED)
+        if not levels or level > len(levels):
+            return 0
+        return levels[level].boost_percent
+
+    def caravan_overloader_percent(self, level: int) -> int:
+        """
+        The caravan overloader's bonus in percent at ``level``.
+
+        Raises:
+            KeyError: the table has no row for ``level``, where the client fails too.
+
+        Client: ``CastlePremiumBoostData.getResourcesTransportablePerCarriage`` (bundle line 81705)
+        """
+        return self.booster_levels(BoosterId.CARAVAN_OVERLOADER)[level].boost_percent
+
     def scaling_camp_level(self, scaling_camp_id: ScalingCampId) -> int | None:
         """
         The level an event's difficulty scaling gives a camp.
@@ -1503,6 +1540,7 @@ class GameData(EmpireModel):
             tool_categories={r.tool_category_id: r for r in _rows(items_data.get("toolCategories"), ToolCategoryDef)},
             default_commanders=default_commanders,
             vip_levels={r.vip_level_id: r for r in _rows(items_data.get("viplevels"), VipLevelDef)},
+            level_boosters=_rows(items_data.get("levelBoosters"), LevelBoosterDef),
             dungeons=_rows(
                 items_data.get("dungeons"), DungeonDefence, context={"default_commanders": default_commanders}
             ),
