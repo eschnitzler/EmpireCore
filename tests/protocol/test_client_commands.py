@@ -233,6 +233,9 @@ DLL = (
     "u.BasicModel.smartfoxClient.sendMessage(s.BasicSmartfoxConstants.C2S_Y,[]);"
     "BasicSmartfoxClient.prototype.handleSystemMessage=function(e){switch(n){"
     'case"apiOK":x();break;default:z()}};'
+    'BasicSmartfoxClient.S2C_ROOMLIST="rlu";'
+    "BasicSmartfoxClient.prototype.onExtensionResponse=function(e,t){switch(e){"
+    "case BasicSmartfoxClient.S2C_ROOMLIST:return this.setRoomList(t);default:t.shift()}};"
 )
 
 
@@ -260,6 +263,7 @@ class TestUsage:
             "apiOK": ["BasicSmartfoxClient.handleSystemMessage"],
             "b": ["BCommand (ack)"],
             "gpf": ["GPFCommand"],
+            "rlu": ["BasicSmartfoxClient.onExtensionResponse"],
         }
 
     def test_an_unresolvable_constant_raises(self):

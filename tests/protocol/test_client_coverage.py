@@ -29,6 +29,12 @@ COVERAGE = {row.command: row for row in script.classify(TABLES, RULES)}
 RAW = {(side, command) for side, command, _ in script.raw_commands()}
 
 
+# Commands dead in the snapshot's release that the library still uses, each with why it stays
+DEAD_BUT_USED = {
+    "drt": "DailyResetResponse; release efded7cc has the constant but no request or handler for it",
+}
+
+
 def _bucket(bucket: str) -> set[str]:
     return {command for command, row in COVERAGE.items() if row.bucket == bucket}
 
@@ -47,6 +53,13 @@ class TestCommittedCoverage:
         owned = {command for commands in RULES["owners"].values() for command in commands} | set(RULES["unowned"])
 
         assert sorted(owned & (_bucket("dead") | _bucket("excluded"))) == []
+
+    def test_the_library_uses_no_dead_command(self):
+        models = script.library_models()
+        used = set(models["client"]) | set(models["server"]) | {command for _, command in RAW}
+
+        assert sorted((used & _bucket("dead")) - set(DEAD_BUT_USED)) == []
+        assert sorted(set(DEAD_BUT_USED) - (used & _bucket("dead"))) == [], "drop these from DEAD_BUT_USED"
 
     def test_every_exclusion_is_still_needed(self):
         excluded = {command for commands in RULES["excluded"].values() for command in commands}
