@@ -1,9 +1,11 @@
 """Your alliance's details after diplomacy and auto war replies.
 
 ADPCommand.executeCommand (split.js 623011) reads AS and AO with parseAllianceInfo (split.js 61810),
-which keeps only your own alliance; SAWCommand.executeCommand (split.js 625171) sets autoWarOn from AW.
+which caches every alliance and makes the one whose AID is yours your alliance;
+SAWCommand.executeCommand (split.js 625171) sets autoWarOn from AW.
 """
 
+from collections.abc import Callable
 from typing import Any
 
 import pytest
@@ -28,7 +30,7 @@ def adp_reply(own: dict[str, Any]) -> dict[str, Any]:
     return {"ODR": 0, "NDR": 1, "S": 0, "AS": own, "AO": {"AID": 55, "N": "Other", "ADL": []}}
 
 
-def wired(state: GameState, command: str, payload: Any, error_code: int = 0, then: Any = None):
+def wired(state: GameState, command: str, payload: Any, error_code: int = 0, then: Callable[[], None] | None = None):
     client = make_client({command: xt_packet(command, payload, error_code)}, state=state)
 
     def received(packet: Any) -> None:
@@ -71,6 +73,26 @@ class TestChangeDiplomacy:
         held = state.get_own_alliance()
         assert held is not None and held.alliance_id == 301
         assert statuses(state) == [(55, 0)]
+
+    @pytest.mark.parametrize("reply", [{"ODR": 0, "NDR": 1, "S": 0}, adp_reply({"ADL": NEUTRAL})])
+    def test_a_reply_without_your_alliance_changes_nothing(self, reply):
+        state = own_state()
+        client = wired(state, "adp", reply)
+
+        client.alliance.change_diplomacy(55, DiplomacyStatus.NEUTRAL)
+
+        assert statuses(state) == [(55, 0)]
+
+    def test_the_replys_own_alliance_is_kept_when_none_is_held(self):
+        state = alliance_state()
+        state.own_alliance = None
+        client = wired(state, "adp", adp_reply({"AID": 301, "N": "Mine", "ADL": NEUTRAL}))
+
+        client.alliance.change_diplomacy(55, DiplomacyStatus.NEUTRAL)
+
+        held = state.get_own_alliance()
+        assert held is not None and held.name == "Mine"
+        assert statuses(state) == [(55, 1)]
 
     def test_a_refusal_changes_nothing(self):
         state = own_state()
@@ -120,6 +142,15 @@ class TestSetAutoWar:
         held = state.get_own_alliance()
         assert held is not None and held.auto_war is enabled
         assert conn(client).request_payloads == [("saw", {"AW": aw})]
+
+    def test_a_reply_without_aw_turns_auto_war_off(self):
+        state = own_state(AW=1)
+        client = wired(state, "saw", {})
+
+        assert client.alliance.set_auto_war(True) is False
+
+        held = state.get_own_alliance()
+        assert held is not None and held.auto_war is False
 
     def test_a_refusal_changes_nothing(self):
         state = own_state(AW=0)
