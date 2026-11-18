@@ -55,7 +55,6 @@ from empire_core.protocol.js import (
     js_number,
     js_number_or_none,
     js_parse_int,
-    js_same_number,
     js_string,
     js_truthy,
     js_whole_number,
@@ -1927,11 +1926,11 @@ class GetEventPointsRequest(BaseRequest):
     def accepts_reply(self, payload: Any) -> bool:
         """Whether a pep reply is about this event: its ``EID``, when sent, is the one asked for.
 
-        Client: ``PEPCommand.exec`` (bundle line 128213) applies a reply to the event its ``EID`` names
+        Client: ``PEPCommand.exec`` (split.js line 646824) applies a reply to the event its ``EID`` names, as sent
         """
         if not isinstance(payload, dict) or "EID" not in payload:
             return True
-        return js_same_number(payload["EID"], self.event_id)
+        return js_whole_number(payload["EID"]) == self.event_id
 
 
 class GetEventPointsResponse(BaseResponse):
@@ -1950,24 +1949,26 @@ class GetEventPointsResponse(BaseResponse):
     - the Berimond invasion: blue players, red players, then your alliance, ``PT`` per part (bundle line 116056)
     - the Rift Raid: yours, then your alliance's (bundle line 9117), and ``BLPP``
 
-    Client: ``PEPCommand.exec`` (bundle lines 128213-128216), which hands the lists to the event's
-    ``setRankAndPoints``; the state applies them the same way (``client.state.get_event``)
+    Client: ``PEPCommand.exec`` (split.js line 646824), which looks the ``EID`` up as sent
+    (``CastleSpecialEventData.getActiveEventByEventId``, split.js line 696557, a ``Map.get``) and hands
+    the lists to the event's ``setRankAndPoints`` (``AScoreEventVO``, split.js line 80731, reads the first
+    of a truthy list); the state applies them the same way (``client.state.get_event``)
     """
 
     command: ClassVar[str] = GGECommand.PEP
 
     event_id: EnumOrInt[Event] = Field(validation_alias="EID", description="The event")
-    own_ranks: list[ClientInt] = Field(
+    own_ranks: list[ClientInt | None] = Field(
         default_factory=list,
         validation_alias="OR",
         description="Your ranks, one per score in the order above; -1 unranked",
     )
-    own_points: list[ClientInt] = Field(
+    own_points: list[ClientInt | None] = Field(
         default_factory=list,
         validation_alias="OP",
         description="Your points, one per score in the order above",
     )
-    max_points: list[ClientInt] | None = Field(
+    max_points: list[ClientInt | None] | None = Field(
         default=None,
         validation_alias="PT",
         description="The most points each score counts; None when not sent",
@@ -1977,6 +1978,23 @@ class GetEventPointsResponse(BaseResponse):
         validation_alias="BLPP",
         description="The points on the raid boss's current level; None for other events",
     )
+
+    @field_validator("event_id", mode="before")
+    @classmethod
+    def _as_sent(cls, value: Any) -> int:
+        if (event_id := js_whole_number(value)) is None:
+            raise ValueError(f"Not an event id: {value!r}")
+        return event_id
+
+    @field_validator("own_ranks", "own_points", mode="before")
+    @classmethod
+    def _values(cls, value: Any) -> Any:
+        return value if isinstance(value, list) else []
+
+    @field_validator("max_points", mode="before")
+    @classmethod
+    def _maxima(cls, value: Any) -> Any:
+        return value if isinstance(value, list) else None
 
 
 class ShuttingDownEvents(BaseResponse):

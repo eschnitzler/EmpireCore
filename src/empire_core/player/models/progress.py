@@ -42,7 +42,7 @@ from empire_core.protocol.base import (
     object_or_none,
     readable_list,
 )
-from empire_core.protocol.js import ClientInt, ClientNumber, js_int, js_loose_equals, js_parse_int
+from empire_core.protocol.js import ClientInt, ClientNumber, js_int, js_loose_equals, js_parse_int, js_truthy
 
 if TYPE_CHECKING:
     from empire_core.gamedata import Achievement, Feast, Title
@@ -545,9 +545,9 @@ class AssignTitleResponse(BaseResponse):
     Command: apt
     Payload: {"TI": title_id, "PN": player name}, either left out, or no body
 
-    Client: ``APTCommand.executeCommand`` (bundle line 123623): without ``PN`` the title is yours
-    (``CastleTitleData.parseAPT``, bundle line 21029, which reads a truthy ``TI``); either way it asks
-    for a ``uar``
+    Client: ``APTCommand.executeCommand`` (split.js line 630637): without a truthy ``PN`` the title is
+    yours (``CastleTitleData.parseAPT``, split.js line 109607, which reads a truthy ``TI``); either way it
+    asks for a ``uar``
     """
 
     command = "apt"
@@ -562,12 +562,16 @@ class AssignTitleResponse(BaseResponse):
     @field_validator("title_id", mode="before")
     @classmethod
     def _title(cls, value: Any) -> Any:
-        return js_int(value) if value else None
+        return js_int(value) if js_truthy(value) else None
 
     @field_validator("player_name", mode="before")
     @classmethod
     def _name(cls, value: Any) -> Any:
-        return value if isinstance(value, str) and value else None
+        if not js_truthy(value):
+            return None
+        if not isinstance(value, str):
+            raise ValueError(f"Not a player name: {value!r}")
+        return value
 
     @property
     def is_own_title(self) -> bool:

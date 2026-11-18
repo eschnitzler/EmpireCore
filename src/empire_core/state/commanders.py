@@ -4,13 +4,12 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from empire_core.commanders.models.roster import CommanderRoster
 from empire_core.commanders.models.skills import SkillList
-from empire_core.protocol.base import read_or_none
-from empire_core.protocol.js import js_truthy
 from empire_core.state.base import StateBase, loaded
+from empire_core.state.login_data import LoginDataResponse
 
 if TYPE_CHECKING:
     from empire_core.gamedata import LegendarySkill
@@ -19,34 +18,26 @@ logger = logging.getLogger(__name__)
 
 
 class CommanderState(StateBase):
-    def _parse_commanders(self, data: dict[str, Any]) -> bool:
+    def _parse_commanders(self, login: LoginDataResponse) -> bool:
         """Apply a ``gli`` section: the whole commander and castellan list; whether it was applied.
 
         Client: ``CastleLordData.parse_GLI`` (bundle line 38553), which does nothing without a block
         """
-        gli = data.get("gli")
-        if not isinstance(gli, dict):
+        if login.commanders is None:
             return False
-        roster = read_or_none(CommanderRoster.model_validate, gli, warn=logger, what="the commander list")
-        if roster is None:
-            return False
-        self.commanders = roster
+        self.commanders = login.commanders
         return True
 
-    def _parse_skills(self, data: dict[str, Any]) -> bool:
+    def _parse_skills(self, login: LoginDataResponse) -> bool:
         """Apply a ``skl`` section: the Legendary and sceat skills; whether it was applied.
 
         Client: ``CastleLegendSkillData.parse_SKL`` (bundle line 112051), from ``GBDCommand.exec``
         (bundle line 129381) and ``EGOCommand`` (bundle line 122801) when the section is truthy,
         and from ``SKLCommand`` (bundle line 129742)
         """
-        skl = data.get("skl")
-        if not (js_truthy(skl) and isinstance(skl, dict)):
+        if login.skills is None:
             return False
-        skills = read_or_none(SkillList.model_validate, skl, warn=logger, what="the skill list")
-        if skills is None:
-            return False
-        self.skills = skills
+        self.skills = login.skills
         return True
 
     def add_legendary_skills(self, bought: Mapping[LegendarySkill | int, LegendarySkill | int | None]) -> None:

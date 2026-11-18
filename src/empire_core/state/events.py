@@ -40,6 +40,7 @@ from empire_core.events.models import (
     EventEntry,
     FortuneTellerEvent,
     GachaEvent,
+    GetEventPointsResponse,
     GiftEvent,
     GlobalEffectBuffEvent,
     GlobalEffectEvent,
@@ -78,7 +79,7 @@ from empire_core.gamedata.ids.events import Event
 from empire_core.map.models.areas import KingdomProtection
 from empire_core.player.models.protection import StartBerimondProtectionResponse
 from empire_core.protocol.base import read_or_none
-from empire_core.protocol.js import js_int, js_truthy
+from empire_core.protocol.js import js_truthy
 from empire_core.quests.models import CampaignQuestStatusResponse
 from empire_core.state.base import StateBase, read_section
 from empire_core.utils import callbacks
@@ -175,7 +176,9 @@ class EventState(StateBase):
         Client: ``CastleSpecialEventData.parse_SEI`` (bundle line 139849), which reads ``int(a.EID)``,
         and ``parseServerEventData`` (bundle line 139860); a falsy payload still refreshes every event
         """
-        events = read_section(SpecialEventsResponse, data, "a sei")
+        self._apply_events(read_section(SpecialEventsResponse, data, "a sei"))
+
+    def _apply_events(self, events: SpecialEventsResponse | None) -> None:
         self._apply_event_entries(events.entries if events is not None else ())
 
     def _apply_sei(self, data: dict[str, Any]) -> None:
@@ -194,7 +197,9 @@ class EventState(StateBase):
         (bundle line 139954), which reads ``int(a.TRID)`` and does nothing for an empty ``TE``;
         ``ATriggerEventVO.parseBasicsFromParamObject`` (bundle line 39815)
         """
-        events = read_section(TriggerEventsResponse, data, "a tei")
+        self._apply_trigger_events(read_section(TriggerEventsResponse, data, "a tei"))
+
+    def _apply_trigger_events(self, events: TriggerEventsResponse | None) -> None:
         if events is not None and events.entries:
             self._apply_event_entries(events.entries)
         else:
@@ -269,19 +274,22 @@ class EventState(StateBase):
         the raid boss and the alliance Grand Tournament the first for you and the second for your
         alliance, the alliance tournament the first for your alliance, and ``BLPP`` the raid boss's
         level points. The library reads every value through ``int()``, where the client keeps them
-        as sent.
+        as sent. A pep without an ``EID`` names no event.
 
-        Client: ``PEPCommand.exec`` (bundle lines 128213-128216), which looks the ``EID`` up as sent,
-        and the ``setRankAndPoints`` of each class
+        Client: ``PEPCommand.exec`` (split.js line 646824) and the ``setRankAndPoints`` of each class;
+        see :class:`GetEventPointsResponse`
         """
         self._events_updated_at = time.time()
         self._expire_events()
-        event = self._sent_event(data.get("EID") if isinstance(data, dict) else None)
-        if event is None:
+        if not isinstance(data, dict) or "EID" not in data:
             return
-        updated = event.with_points(data.get("OR"), data.get("OP"), data.get("PT"))
-        if data.get("BLPP") is not None and "boss_level_points" in type(updated).model_fields:
-            updated = updated.model_copy(update={"boss_level_points": js_int(data["BLPP"])})
+        points = read_section(GetEventPointsResponse, data, "a pep")
+        event = self._sent_event(points.event_id) if points is not None else None
+        if points is None or event is None:
+            return
+        updated = event.with_points(points.own_ranks, points.own_points, points.max_points)
+        if points.boss_level_points is not None and "boss_level_points" in type(updated).model_fields:
+            updated = updated.model_copy(update={"boss_level_points": points.boss_level_points})
         self.events = {**self.events, event.event_id: updated}
         self._fire(self.on_events_updated, dict(self.events))
 

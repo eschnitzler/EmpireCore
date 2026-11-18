@@ -1,5 +1,6 @@
 """GameState event tracking: typed events from sei and tei, their ends, pep scores and the event callbacks."""
 
+import logging
 import math
 import threading
 from typing import Any
@@ -392,6 +393,42 @@ class TestPoints:
         state.update_from_packet("pep", {"EID": 99, "OR": [1], "OP": [2]})
 
         assert state.get_events() == before
+
+    def test_an_id_sent_as_a_whole_float_finds_its_event(self, state, clock):
+        # Map.get finds 60 under 60.0
+        state.update_from_packet("sei", {"E": [{"EID": 60, "RS": 60}]})
+
+        state.update_from_packet("pep", {"EID": 60.0, "OR": [5], "OP": [80]})
+
+        assert (state.get_event(60).own_rank, state.get_event(60).own_points) == (5, 80)
+
+    def test_a_list_not_sent_as_one_keeps_its_value(self, state, clock):
+        # setRankAndPoints reads e[0] of a truthy value: undefined for a number
+        state.update_from_packet("sei", {"E": [{"EID": 60, "RS": 60}]})
+        state.update_from_packet("pep", {"EID": 60, "OR": [12], "OP": [3400], "PT": [9000]})
+
+        state.update_from_packet("pep", {"EID": 60, "OR": 4, "OP": [3500], "PT": "x"})
+
+        point = state.get_event(60)
+        assert (point.own_rank, point.own_points, point.max_points) == (12, 3500, 9000)
+
+    def test_a_pep_without_an_id_changes_nothing_quietly(self, state, clock, caplog):
+        state.update_from_packet("sei", {"E": [{"EID": 60, "RS": 60}]})
+        before = state.get_events()
+
+        with caplog.at_level(logging.WARNING):
+            state.update_from_packet("pep", {"OR": [5], "OP": [80]})
+
+        assert state.get_events() == before
+        assert caplog.text == ""
+
+    def test_a_null_value_keeps_its_value(self, state, clock):
+        state.update_from_packet("sei", {"E": [{"EID": 60, "RS": 60}]})
+        state.update_from_packet("pep", {"EID": 60, "OR": [12], "OP": [3400]})
+
+        state.update_from_packet("pep", {"EID": 60, "OR": [None], "OP": [3500]})
+
+        assert (state.get_event(60).own_rank, state.get_event(60).own_points) == (12, 3500)
 
 
 class TestTriggerEvents:

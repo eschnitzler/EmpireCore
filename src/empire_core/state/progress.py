@@ -7,6 +7,7 @@ from empire_core.player.models.progress import (
     AchievementProgress,
     AchievementsResponse,
     ActiveFeast,
+    AssignTitleResponse,
     BoosterInfoResponse,
     GallantryPointsResponse,
     GloryPointsResponse,
@@ -17,15 +18,18 @@ from empire_core.player.models.progress import (
     StormIslandsTitle,
     TitleRanksResponse,
 )
-from empire_core.protocol.js import js_int, js_truthy
+from empire_core.protocol.js import js_truthy
 from empire_core.spy.models import PlagueDoctorInfoResponse
 from empire_core.state.base import StateBase, loaded, read_section
+from empire_core.state.login_data import LoginDataResponse
 
 _PROGRESS_SECTIONS = ("rei", "boi", "gmu", "ufa", "uar", "vli", "gri", "cpi")
+# MightData.parse_GMU (split.js line 582042) reads a gmu only with both MP and HMP
+_MIGHT_SENT = frozenset({"might_points", "highest_might_points"})
 
 
 class ProgressState(StateBase):
-    def _parse_progress(self, data: dict[str, Any]) -> set[str]:
+    def _parse_progress(self, login: LoginDataResponse) -> set[str]:
         """Apply the progress sections of a gbd, or the one a push or reply carries; return those not applied.
 
         Client: ``GBDCommand.exec`` (bundle line 129381) calls ``parseUFA``, ``parseUAR``,
@@ -33,41 +37,37 @@ class ProgressState(StateBase):
         it never reads the gbd's ``ufp``
         """
         applied: set[str] = set()
-        if "rei" in data and (research := read_section(ResearchInfoResponse, data["rei"], "the research")) is not None:
-            self.research = research
+        if login.research is not None:
+            self.research = login.research
             applied.add("rei")
-        if "boi" in data and self._apply_boosts(data["boi"]):
+        if login.boosters is not None:
+            self._apply_boosts(login.boosters)
             applied.add("boi")
-        gmu = data.get("gmu")
-        if isinstance(gmu, dict) and "MP" in gmu and "HMP" in gmu:
-            if (might := read_section(MightPointsResponse, gmu, "the might points")) is not None:
-                self.might = might
-                applied.add("gmu")
-        if "ufa" in data and (glory := read_section(GloryPointsResponse, data["ufa"], "the glory points")) is not None:
-            self.glory_points = glory
+        if (might := login.might_points) is not None and _MIGHT_SENT <= might.model_fields_set:
+            self.might = might
+            applied.add("gmu")
+        if login.glory_points is not None:
+            self.glory_points = login.glory_points
             applied.add("ufa")
-        if "uar" in data and self._apply_title_ranks(data["uar"]):
+        if login.title_ranks is not None:
+            self._apply_title_ranks(login.title_ranks)
             applied.add("uar")
-        if "vli" in data and self._apply_achievements(data["vli"]):
+        if login.achievements is not None:
+            self._apply_achievements(login.achievements)
             applied.add("vli")
-        if js_truthy(gri := data.get("gri")):
-            if (relocation := read_section(RelocationInfoResponse, gri, "the relocation info")) is not None:
-                self.relocation = relocation
-                applied.add("gri")
-        if js_truthy(cpi := data.get("cpi")):
-            if (doctors := read_section(PlagueDoctorInfoResponse, cpi, "the plague doctors")) is not None:
-                self.plague_doctors = doctors
-                applied.add("cpi")
-        return {section for section in _PROGRESS_SECTIONS if section in data} - applied
+        if login.relocation is not None:
+            self.relocation = login.relocation
+            applied.add("gri")
+        if login.plague_doctors is not None:
+            self.plague_doctors = login.plague_doctors
+            applied.add("cpi")
+        return (login.sent_sections & set(_PROGRESS_SECTIONS)) - applied
 
-    def _apply_boosts(self, body: Any) -> bool:
+    def _apply_boosts(self, boosts: BoosterInfoResponse) -> None:
         """Read a ``boi`` over the boosters known: one it does not list keeps its values, a falsy ``bfs`` the feast.
 
         Client: ``CastlePremiumBoostData.parse_BOI`` and ``parse_bfs`` (split.js lines 81536, 81585)
         """
-        boosts = read_section(BoosterInfoResponse, body, "the boosters")
-        if boosts is None:
-            return False
         previous = self.boosts
         if previous is not None:
             listed = {booster.booster_id: booster for booster in boosts.boosters}
@@ -77,7 +77,6 @@ class ProgressState(StateBase):
                 update["feast"] = previous.feast
             boosts = boosts.model_copy(update=update)
         self.boosts = boosts
-        return True
 
     def _handle_bfs(self, data: Any) -> None:
         """Handle the reply to starting a feast: its ``T`` and ``RT`` are the feast.
@@ -98,19 +97,15 @@ class ProgressState(StateBase):
         if (points := read_section(GallantryPointsResponse, data, "the Berimond points")) is not None:
             self.gallantry_points = points
 
-    def _apply_title_ranks(self, body: Any) -> bool:
+    def _apply_title_ranks(self, ranks: TitleRanksResponse) -> None:
         """Read a ``uar``; an alliance city title it does not send keeps its value.
 
         Client: ``CastleTitleData.parseUAR`` (bundle line 21022), which reads ``ATM`` only when it is sent
         """
-        ranks = read_section(TitleRanksResponse, body, "the title ranks")
-        if ranks is None:
-            return False
         previous = self.title_ranks
-        if previous is not None and isinstance(body, dict) and "ATM" not in body:
+        if previous is not None and "alliance_city_title" not in ranks.model_fields_set:
             ranks = ranks.model_copy(update={"alliance_city_title": previous.alliance_city_title})
         self.title_ranks = ranks
-        return True
 
     def _handle_uht(self, data: Any) -> None:
         """Handle a ``uht`` push: when the glory top-X titles reset, kept on the glory system of the last ``uar``.
@@ -133,22 +128,21 @@ class ProgressState(StateBase):
     def _handle_apt(self, data: Any) -> None:
         """Handle an ``apt`` without a player name: its truthy ``TI`` is your Storm Islands title now.
 
-        Client: ``APTCommand.executeCommand`` (bundle line 123623), ``CastleTitleData.parseAPT`` (bundle line 21029)
+        Client: ``APTCommand.executeCommand`` (split.js line 630637), ``CastleTitleData.parseAPT`` (split.js
+        line 109607); see :class:`AssignTitleResponse`
         """
-        if self.title_ranks is None or not isinstance(data, dict) or js_truthy(data.get("PN")):
+        if self.title_ranks is None:
             return
-        if js_truthy(title_id := data.get("TI")):
-            storm_islands_title = StormIslandsTitle(title_id=js_int(title_id))
+        assigned = read_section(AssignTitleResponse, data, "an apt")
+        if assigned is not None and assigned.player_name is None and assigned.title_id is not None:
+            storm_islands_title = StormIslandsTitle(title_id=assigned.title_id)
             self.title_ranks = self.title_ranks.model_copy(update={"storm_islands_title": storm_islands_title})
 
-    def _apply_achievements(self, body: Any) -> bool:
+    def _apply_achievements(self, achievements: AchievementsResponse) -> None:
         """Read a ``vli`` over what is known: finished achievements stay finished, unlisted progress stays.
 
         Client: ``CastleAchievementData.parse_vli``, ``parse_RA`` and ``parse_FA`` (bundle lines 29837-29842)
         """
-        achievements = read_section(AchievementsResponse, body, "the achievements")
-        if achievements is None:
-            return False
         previous = self.achievements
         if previous is not None:
             finished = dict.fromkeys((*previous.finished_achievement_ids, *achievements.finished_achievement_ids))
@@ -158,7 +152,6 @@ class ProgressState(StateBase):
                 update={"finished_achievement_ids": tuple(finished), "progress": tuple(progress.values())}
             )
         self.achievements = achievements
-        return True
 
     def get_research(self) -> ResearchInfoResponse:
         """Your finished and running research, from the last ``rei``; the login data brings one.

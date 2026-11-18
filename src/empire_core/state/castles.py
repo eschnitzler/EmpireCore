@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import ValidationError
 
-from empire_core.castle.models.castles import PlayerCastle
+from empire_core.castle.models.castles import GetCastlesResponse
 from empire_core.castle.models.details import DetailedCastleInfo, ResourceProduction, SafeAmount, StorageCapacity
 from empire_core.castle.models.gates import OpenGateResponse
 from empire_core.castle.models.landmarks import (
@@ -24,8 +24,9 @@ from empire_core.castle.models.updates import NewDay, UnitsReceived
 from empire_core.castle.models.villages import VillageListResponse
 from empire_core.enums import Kingdom, Weekday
 from empire_core.protocol.base import enum_or_none, read_or_none
-from empire_core.protocol.js import js_int, js_truthy
-from empire_core.state.base import StateBase, read_section
+from empire_core.protocol.js import js_truthy
+from empire_core.state.base import StateBase
+from empire_core.state.login_data import LoginDataResponse
 from empire_core.state.models import Castle, Resources
 
 if TYPE_CHECKING:
@@ -41,7 +42,7 @@ AREA_LIST_SECTIONS = ("gkl", "gml", "gll", "kgv", "mre", "lrr")
 
 
 class CastleState(StateBase):
-    def _parse_area_lists(self, data: dict[str, Any]) -> set[str]:
+    def _parse_area_lists(self, login: LoginDataResponse) -> set[str]:
         """Apply the royal tower, monument, laboratory and village lists and the landmark resets of a gbd,
         or the one a push, a reply or an ``mir`` carries; return those not applied.
 
@@ -52,35 +53,29 @@ class CastleState(StateBase):
         (bundle lines 46192, 134899), which ignore a time of 0 and keep the countdown only for a positive one
         """
         applied: set[str] = set()
-        if js_truthy(gkl := data.get("gkl")):
-            if (royal_towers := read_section(RoyalTowerListResponse, gkl, "your royal towers")) is not None:
-                self.royal_towers = royal_towers
-                applied.add("gkl")
-        if js_truthy(gml := data.get("gml")):
-            if (monuments := read_section(MonumentListResponse, gml, "your monuments")) is not None:
-                self.monuments = monuments
-                applied.add("gml")
-        if js_truthy(gll := data.get("gll")):
-            if (laboratories := read_section(LaboratoryListResponse, gll, "your laboratories")) is not None:
-                self.laboratories = laboratories
-                applied.add("gll")
-        if js_truthy(kgv := data.get("kgv")):
-            if (villages := read_section(VillageListResponse, kgv, "your villages")) is not None:
-                self.villages = villages
-                applied.add("kgv")
-        if js_truthy(mre := data.get("mre")):
-            if (monument_reset := read_section(MonumentResetResponse, mre, "the monument reset")) is not None:
-                if monument_reset.seconds > 0:
-                    self.monument_reset = monument_reset
-                if monument_reset.seconds != 0:
-                    applied.add("mre")
-        if js_truthy(lrr := data.get("lrr")):
-            if (reset := read_section(LaboratoryResetResponse, lrr, "the laboratory reset")) is not None:
-                if reset.seconds > 0:
-                    self.laboratory_reset = reset
-                if reset.seconds != 0:
-                    applied.add("lrr")
-        return {section for section in AREA_LIST_SECTIONS if section in data} - applied
+        if login.royal_towers is not None:
+            self.royal_towers = login.royal_towers
+            applied.add("gkl")
+        if login.monuments is not None:
+            self.monuments = login.monuments
+            applied.add("gml")
+        if login.laboratories is not None:
+            self.laboratories = login.laboratories
+            applied.add("gll")
+        if login.villages is not None:
+            self.villages = login.villages
+            applied.add("kgv")
+        if (monument_reset := login.monument_reset) is not None:
+            if monument_reset.seconds > 0:
+                self.monument_reset = monument_reset
+            if monument_reset.seconds != 0:
+                applied.add("mre")
+        if (laboratory_reset := login.laboratory_reset) is not None:
+            if laboratory_reset.seconds > 0:
+                self.laboratory_reset = laboratory_reset
+            if laboratory_reset.seconds != 0:
+                applied.add("lrr")
+        return (login.sent_sections & set(AREA_LIST_SECTIONS)) - applied
 
     def get_royal_towers(self) -> RoyalTowerListResponse | None:
         """Your royal towers, from the last ``gkl``; None until one arrived."""
@@ -112,97 +107,52 @@ class CastleState(StateBase):
         with self._lock:
             return self.laboratory_reset
 
-    def _parse_castles(self, data: dict[str, Any]) -> None:
-        """Parse castle list from gcl sub-packet.
+    def _parse_castles(self, listed: GetCastlesResponse) -> None:
+        """Keep the castles of yours a castle list names.
 
-        A gcl carrying a castle section ("C") is authoritative: castles it
-        does not list are no longer owned, even when it lists none at all
-        (the player just lost their last castle). A gcl without that section
-        says nothing about ownership and leaves the castle list alone. One
-        exception: a section whose entries were *all* skipped as malformed is
-        a payload we could not read, not evidence of ownership loss — it is
-        reported at WARNING and the existing castle list is kept.
+        A list that carries a castle section (``C``) is authoritative: castles it does not list are no
+        longer owned, even when it lists none at all (the player just lost their last castle). A list
+        without that section says nothing about ownership and leaves the castles alone, and so does
+        one none of whose rows could be read, which is logged by the model.
 
-        Castles are keyed by id, a server-wide area id. A row's own kingdom
-        field wins over the block's ``KID``.
+        Castles are keyed by id, a server-wide area id. A row's own kingdom wins over its block's ``KID``.
 
-        Client: ``CastleListVO.parseCastleList`` (bundle line 13698) keeps a
-        list per ``KID`` and reads the entry's ``OGT`` and ``OGC`` through ``int()`` when
-        they are truthy, into a new castle each time (bundle line 13713);
-        ``InteractiveMapobjectVO.parseAreaInfo`` (bundle line 3637) reads the row's kingdom from field 16
+        Client: ``CastleUserData.parse_GCL`` (split.js line 53997), ``CastleListVO.parseCastleList``
+        (split.js line 73142); see :class:`GetCastlesResponse`
         """
-        gcl = data.get("gcl")
-        if not isinstance(gcl, dict) or self.local_player is None:
+        player = self.local_player
+        if player is None or "castles" not in listed.model_fields_set:
             return
-        kingdoms = gcl.get("C")
-        if not isinstance(kingdoms, list):
+        if listed.unreadable_rows and not listed.castles:
             return
 
         owned: dict[int, Castle] = {}
         now = time.monotonic()
-        entries = 0
-        skipped = 0
-        for k_data in kingdoms:
-            if not isinstance(k_data, dict):
-                entries += 1
-                skipped += 1
-                logger.debug(f"Skipping malformed gcl kingdom entry: {k_data!r}")
+        for row in listed.castles:
+            if row.owner_id != player.id:
                 continue
-            block_kid = k_data.get("KID", 0)
-            for area_entry in k_data.get("AI", []):
-                entries += 1
-                if not isinstance(area_entry, dict):
-                    skipped += 1
-                    logger.debug(f"Skipping malformed gcl area entry: {area_entry!r}")
-                    continue
-                try:
-                    # A block KID Kingdom lacks fails validation unless the row names its own kingdom
-                    row = PlayerCastle.from_list(area_entry.get("AI"), block_kid)
-                except (ValueError, TypeError) as e:
-                    skipped += 1
-                    logger.debug(f"Skipping unreadable gcl area entry {area_entry!r}: {e}")
-                    continue
-                if row.location_id is None or row.owner_id != self.local_player.id:
-                    # A castle is tracked by its object id; a Berimond capital's row has none
-                    continue
-                x, y, area_id, name, kingdom = row.x, row.y, row.location_id, row.name or "", row.kingdom
-                gate_count, gate_time = area_entry.get("OGC"), area_entry.get("OGT")
-                open_seconds = js_int(gate_time) if js_truthy(gate_time) else 0
-                fields: dict[str, Any] = {
-                    "name": name,
-                    "x": x,
-                    "y": y,
-                    "castle_type": row.castle_type,
-                    "open_gate_counter": js_int(gate_count) if js_truthy(gate_count) else 0,
-                    "open_gate_end": now + open_seconds if open_seconds > 0 else None,
-                }
-                existing = self.castles.get(area_id)
-                if existing is not None:
-                    # Identity preserved for user-held references, but the
-                    # fields land in one swap (see _swap_model_fields):
-                    # written one at a time, a castle mid-relocation would
-                    # be observably at (new_x, old_y).
-                    self._swap_model_fields(existing, {**existing.__dict__, **fields}, set(fields))
-                    owned[area_id] = existing
-                else:
-                    owned[area_id] = Castle(id=area_id, kingdom_id=kingdom, **fields)
+            fields: dict[str, Any] = {
+                "name": row.castle_name,
+                "x": row.x,
+                "y": row.y,
+                "castle_type": row.castle_type,
+                "open_gate_counter": row.open_gate_counter,
+                "open_gate_end": now + row.open_gate_seconds if row.open_gate_seconds > 0 else None,
+            }
+            existing = self.castles.get(row.castle_id)
+            if existing is not None:
+                # One swap keeps a castle mid-relocation from reading as (new x, old y)
+                self._swap_model_fields(existing, {**existing.__dict__, **fields}, set(fields))
+                owned[row.castle_id] = existing
+            else:
+                owned[row.castle_id] = Castle(id=row.castle_id, kingdom_id=row.kingdom_id, **fields)
 
-        if skipped and skipped == entries:
-            logger.warning(
-                f"gcl castle section unreadable: skipped {skipped}/{entries} malformed entries "
-                f"(server schema drift?); keeping the existing castle list"
-            )
-            return
-
-        # Drop castles no longer owned (lost/traded since the last update)
         for stale_id in set(self.castles) - set(owned):
             # A re-acquired castle must not inherit the old freshness stamp
             self._castle_details_at.pop(stale_id, None)
-        # Swap, don't mutate: user threads hold state.castles and
-        # local_player.castles unlocked, and a reader holding the old dict
-        # must keep seeing a consistent snapshot.
+        # Swapped, not mutated: readers hold state.castles and local_player.castles unlocked
         self.castles = owned
-        self.local_player.castles = dict(owned)
+        player.castles = dict(owned)
         logger.debug(f"Parsed {len(owned)} castles")
 
     def _handle_dcl(self, data: dict[str, Any]) -> None:
@@ -345,15 +295,12 @@ class CastleState(StateBase):
         }
         self._swap_model_fields(castle, {**castle.__dict__, **fields}, set(fields))
 
-    def _parse_permanent_castles(self, data: dict[str, Any]) -> None:
+    def _parse_permanent_castles(self, listed: PermanentCastleDataResponse) -> None:
         """Apply a gpc section or push: each castle it names is replaced, the others kept.
 
         Client: ``CastlePermanentCastleData.parseGPC`` (bundle line 139128)
         """
-        gpc = data.get("gpc")
-        if not isinstance(gpc, dict):
-            return
-        castles = PermanentCastleDataResponse.model_validate(gpc).castles
+        castles = listed.castles
         if not castles:
             return
         merged = dict(self.permanent_castles)
