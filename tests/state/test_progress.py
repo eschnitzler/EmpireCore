@@ -58,7 +58,7 @@ class TestLoginSections:
         assert [b.booster_id for b in boosts.boosters] == [19, 11]
         assert (boosts.bought_tool_slots, boosts.permanent_tool_slots, boosts.permanent_unit_slots) == (1, 1, 2)
         assert not boosts.is_premium_active() and boosts.premium_account_type() is None
-        assert boosts.festival is not None and not boosts.festival.is_active()
+        assert boosts.feast is not None and not boosts.feast.is_active()
 
         assert state.get_might().might_points == 1000
         assert state.get_glory_points().glory_points == 7000
@@ -170,12 +170,12 @@ class TestMerges:
         state.update_from_packet("boi", {"BO": [{"L": 6, "ID": 19, "RT": 60}, {"L": 1, "ID": 30, "RT": 60}], "PA": 0})
         boosts = state.get_boosts()
         assert [(b.booster_id, b.level) for b in boosts.boosters] == [(19, 6), (11, 2), (30, 1)]
-        assert boosts.festival is not None, "a boi without bfs keeps the festival"
+        assert boosts.feast is not None, "a boi without bfs keeps the feast"
 
-    def test_a_bfs_reply_sets_the_festival(self, state):
+    def test_a_bfs_reply_sets_the_feast(self, state):
         state.update_from_packet("bfs", {"T": 2, "RT": 3600})
-        festival = state.get_boosts().festival
-        assert festival.festival_type == 2 and festival.is_active()
+        feast = state.get_boosts().feast
+        assert feast.feast_id == 2 and feast.is_active()
 
     def test_a_vli_adds_to_what_is_known(self, state):
         state.update_from_packet("gbd", LOGIN)

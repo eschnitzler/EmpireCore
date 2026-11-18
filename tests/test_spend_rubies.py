@@ -105,6 +105,7 @@ RUBY_REQUESTS = {
     "BuyCampaignQuestRequest": "bcq, CastleQuestVO.buyCost, its c2Cost less reductions (bundle line 269537)",
     "BuyCampaignRewardRequest": "bcr, TimeLimitedCampaignConst.calculateEndRewardPurchaseCost (bundle 607691)",
     "BuyReturnSpeedBoosterRequest": "brs, returnSpeedBoosterVO.finalCostsC2 (bundle line 463040)",
+    "HoldFeastRequest": "bfs, a ruby feast's costC2 (hasC2Costs, split.js 333252) and PWR 1 (split.js 183812)",
 }
 
 SENT_WITHOUT_CONSENT = {
