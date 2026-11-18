@@ -11,6 +11,7 @@ from empire_core.castle import (
     ConstructionCraftingResponse,
     CraftingInfoResponse,
     CraftingQueue,
+    CraftingQueues,
     CraftingSlot,
     CraftingSlotType,
     StartCraftingResponse,
@@ -213,6 +214,24 @@ class TestCraftingQueue:
         state.update_from_packet("jaa", {"KID": 0, "crai": {"CAI": [{"CBI": [QUEUE]}]}})
         (joined,) = state.get_crafting_queues() or ()
         assert (joined.castle_id, joined.queue_id) == (5001, 2)
+
+    def test_a_join_lists_one_area_or_several(self):
+        # parseAllQueueData wraps a CAI that is no array in one
+        state = logged_in_state()
+        state.update_from_packet("jaa", {"KID": 0, "crai": {"CAI": {"CBI": [QUEUE]}}})
+        (joined,) = state.get_crafting_queues() or ()
+        assert joined.castle_id == 5001
+
+    def test_an_unreadable_crai_costs_only_itself(self):
+        state = logged_in_state()
+        state.update_from_packet("jaa", {"KID": 0, "T": 1, "csl": {"SL": 2}, "crai": {"CAI": [{"CBI": [{"QID": {}}]}]}})
+        assert state.get_crafting_queues() is None
+        assert state.get_joined_area() is not None
+
+    def test_crin_reads_a_payload_without_areas_as_one_queue(self):
+        # CRINCommand: i.CAI ? parseAllQueueData(i) : parseBuildingQueueData(i)
+        assert CraftingInfoResponse.model_validate(QUEUE).queues[0].castle_id == 5001
+        assert CraftingQueues.model_validate(QUEUE).queues == ()
 
     def test_a_join_without_crafting_areas_keeps_none(self):
         state = logged_in_state()

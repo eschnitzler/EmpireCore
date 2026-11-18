@@ -7,8 +7,14 @@ import time
 from typing import Any
 
 from empire_core.castle.models.actions import SelectCastleResponse
-from empire_core.castle.models.castles import PlayerCastle
-from empire_core.castle.models.collect import MineStatus, MineStatusList, ResourceCart, ResourceCartInfo
+from empire_core.castle.models.collect import (
+    CollectMineResourcesResponse,
+    CollectResourceCartResponse,
+    MineStatus,
+    MineStatusList,
+    ResourceCart,
+    ResourceCartInfo,
+)
 from empire_core.castle.models.hunter import HunterInfo
 from empire_core.castle.models.judgement import JudgementStarted
 from empire_core.castle.models.updates import (
@@ -19,10 +25,8 @@ from empire_core.castle.models.updates import (
 )
 from empire_core.enums import Kingdom, MapItemType, ResourceCartType, SessionLocation
 from empire_core.gamedata import Judgement
-from empire_core.map.models.areas import MapObject
 from empire_core.map.models.world import MapSize, ServerInfoResponse
 from empire_core.protocol.base import enum_or_none, read_or_none
-from empire_core.protocol.js import js_truthy
 from empire_core.state.base import StateBase, loaded, read_section
 from empire_core.state.models import JoinedArea
 
@@ -54,10 +58,7 @@ class AreaState(StateBase):
         kingdom = enum_or_none(Kingdom, reply.kingdom_id)
         castle_id = x = y = owner_id = occupier_id = None
         area_type = reply.area_type
-        area = data.get("gca")
-        row = area.get("A") if isinstance(area, dict) else None
-        try:
-            parsed = PlayerCastle.from_list(row, Kingdom.GREEN if kingdom is None else kingdom)
+        if (parsed := reply.area) is not None:
             castle_id, x, y = parsed.location_id, parsed.x, parsed.y
             area_type = area_type or parsed.castle_type
             if area_type is MapItemType.OUTPOST:
@@ -66,13 +67,9 @@ class AreaState(StateBase):
                 owner_id = parsed.owner_id
             if kingdom is not None:
                 kingdom = parsed.kingdom
-        except (ValueError, TypeError) as error:
-            if row is not None:
-                logger.warning("Could not read the joined area map row: %s", error)
-        if isinstance(area, dict) and "O" in area:
-            owner = read_or_none(MapObject.model_validate, area["O"], warn=logger, what="a joined area's owner")
-            owner_id = owner.owner_id if owner is not None else None
-            if owner is not None and owner_id is None:
+        if reply.owner is not None:
+            owner_id = reply.owner.owner_id
+            if owner_id is None:
                 logger.warning("Could not read the joined area owner id")
         now = time.time()
         self.session_location = SessionLocation.ISO
@@ -95,8 +92,10 @@ class AreaState(StateBase):
             self._apply_mines(reply.mines)
         if reply.resource_carts is not None:
             self._apply_resource_carts(reply.resource_carts)
-        if js_truthy(data.get("hin")):
-            self._handle_hin(data["hin"])
+        if reply.hunter is not None:
+            self.hunter = reply.hunter
+        if reply.crafting_queues is not None:
+            self._apply_crafting_queues(reply.crafting_queues.queues)
 
     def _handle_hin(self, data: Any) -> None:
         """Keep the hunter's values, from a ``hin`` reply or a join's ``hin``.
@@ -134,15 +133,16 @@ class AreaState(StateBase):
                 self._apply_mines(mines)
 
     def _handle_cmr(self, data: Any) -> None:
-        """Apply a mine collect's reply: the mines (``gsm``), then coins and rubies (``gcu``).
+        """Apply a mine collect's reply: the mines (``gsm``), then coins and rubies (``gcu``); nothing without mines.
 
-        Client: ``CMRCommand.executeCommand`` (bundle line 125737)
+        Client: ``CMRCommand.executeCommand`` (split.js line 637992)
         """
-        if not isinstance(data, dict) or not isinstance(data.get("gsm"), dict):
+        reply = read_section(CollectMineResourcesResponse, data, "a cmr reply")
+        if reply is None or reply.mines is None:
             return
-        self._handle_gsm(data["gsm"])
-        if isinstance(gcu := data.get("gcu"), dict):
-            self._handle_gbd({"gcu": gcu})
+        self._apply_mines(reply.mines)
+        if reply.currencies is not None:
+            self._handle_gbd({"gcu": data["gcu"]})
 
     def _apply_mines(self, mines: MineStatusList) -> None:
         """Replace every mine, keyed by object id.
@@ -165,10 +165,11 @@ class AreaState(StateBase):
     def _handle_rcc(self, data: Any) -> None:
         """Apply a resource cart collect's reply: its carts (``rci``).
 
-        Client: ``CastleResourceCartsData.parse_RCC`` (bundle line 28796)
+        Client: ``CastleResourceCartsData.parse_RCC`` (split.js line 150580)
         """
-        if isinstance(data, dict) and isinstance(data.get("rci"), dict):
-            self._handle_rci(data["rci"])
+        reply = read_section(CollectResourceCartResponse, data, "an rcc reply")
+        if reply is not None and reply.carts is not None:
+            self._apply_resource_carts(reply.carts)
 
     def _apply_resource_carts(self, carts: ResourceCartInfo) -> None:
         """Replace the carts with the first three, wood, stone and food.

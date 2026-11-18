@@ -12,11 +12,9 @@ CRAFTING_QUEUE_REPLIES = ("crst", "crca", "crqm", "crsk", "crun")
 
 class CraftingState(StateBase):
     def _handle_crin(self, data: Any) -> None:
-        """Apply a ``crin``, or a ``jaa``'s ``crai``: the queues it lists over those known.
+        """Apply a ``crin``: the queues it lists over those known.
 
-        Client: ``CRINCommand.executeCommand`` (bundle line 123443) and ``JAACommand`` (bundle line 130249),
-        ``CastleCraftingData.parseBuildingQueueData`` (bundle line 111405), which updates the queue of the same
-        queue id, kingdom and castle
+        Client: ``CRINCommand.executeCommand`` (split.js line 630082)
         """
         if (info := read_section(CraftingInfoResponse, data, "the crafting queues")) is not None:
             self._apply_crafting_queues(info.queues)
@@ -31,6 +29,11 @@ class CraftingState(StateBase):
             self._apply_crafting_queues((queue,))
 
     def _apply_crafting_queues(self, queues: tuple[CraftingQueue, ...]) -> None:
+        """Keep the queues sent over those known.
+
+        Client: ``CastleCraftingData.parseBuildingQueueData`` (split.js line 574217), which updates the queue of
+        the same queue id, kingdom and castle
+        """
         known = dict(self.crafting_queues or {})
         known.update(((queue.queue_id, queue.kingdom, queue.castle_id), queue) for queue in queues)
         self.crafting_queues = known

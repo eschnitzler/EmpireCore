@@ -320,6 +320,10 @@ class StateBase:
         :class:`GameState` implements it."""
         raise NotImplementedError
 
+    def _apply_crafting_queues(self, queues: tuple[CraftingQueue, ...]) -> None:
+        """Keep the crafting queues sent over those known; :class:`CraftingState` implements it."""
+        raise NotImplementedError
+
     def _forget_treasure_map_of(self, event: SpecialEvent) -> None:
         """Drop the treasure map of an event that ended; :class:`TreasureMapState` implements it."""
         raise NotImplementedError
