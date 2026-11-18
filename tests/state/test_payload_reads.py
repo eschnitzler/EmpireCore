@@ -10,7 +10,6 @@ STATE = Path(empire_core.state.__file__).parent
 # Still read from the payload, each being converted to its models (#519)
 NOT_YET_TYPED = {
     "manager.py",
-    "movements.py",
 }
 
 # Models, whose validators are where the wire is read

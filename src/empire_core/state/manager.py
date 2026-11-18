@@ -7,12 +7,12 @@ from collections.abc import Set as AbstractSet
 from typing import Any
 
 from empire_core.alliance.models.chat import AllianceChatLogResponse
+from empire_core.attack.models.send import CreateAttackResponse, DaimyoTauntResponse, TreasureHuntAttackResponse
 from empire_core.castle.models.castles import NameCastleInvitationResponse
 from empire_core.enums import Kingdom
 from empire_core.events.models import BerimondFactionJoinedResponse
-from empire_core.movements.models import MovementOwner
+from empire_core.movements.models import SentMovementResponse
 from empire_core.player.models.progress import LevelUpResponse
-from empire_core.protocol.base import readable_list
 from empire_core.protocol.js import js_truthy
 from empire_core.state.account import ACCOUNT_SECTIONS, AccountState
 from empire_core.state.alliance import AllianceState
@@ -110,8 +110,8 @@ _WHOLE_SECTIONS = {
 # BDSCommand, BISCommand, BMSCommand, BRSCommand, OVSCommand, UPSCommand, BTXCommand (bundle lines
 # 122539, 122554, 122599, 122614, 122644, 122659, 125723, 128733), CPMCommand, SBPCommand
 # (bundle lines 128539, 128320). The coins and rubies (gcu) wherever the client parses them too,
-# and sbp's vip; cpm's gcu comes with its movement. The tax replies TXSCommand and TXCCommand
-# (bundle lines 128808, 128748) and BTXCommand bring their txi. The equipment and gem replies
+# and sbp's vip; every movement reply but ldt (see _MOVEMENT_REPLIES) brings its gcu. The tax replies
+# TXSCommand and TXCCommand (bundle lines 128808, 128748) and BTXCommand bring their txi. The equipment and gem replies
 # BGMCommand, CEQCommand, CGECommand, FRCCommand and SEQCommand (bundle lines 123727, 123783,
 # 123798, 123955, 124019) bring their esl, and frc its ain; the kingdom replies KGTCommand, KSTCommand, KUTCommand,
 # MSKCommand and FJFCommand (bundle lines 124654, 124713, 124728, 125795, 127783) their kpi.
@@ -147,7 +147,7 @@ _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
     "msr": ("rei",),
     **dict.fromkeys(("bcs", "bds", "bis", "bms", "brs", "ovs", "ups"), ("gcu", "boi")),
     "btx": ("gcu", "boi", "txi"),
-    "cpm": ("cpi",),
+    "cpm": ("gcu", "cpi"),
     "sbp": ("gcu", "cpi", "vip", "grc"),
     **dict.fromkeys(("txs", "txc"), ("gcu", "txi")),
     **dict.fromkeys(("bgm", "ceq", "cge"), ("esl",)),
@@ -158,7 +158,8 @@ _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
     "rwb": ("gcu",),
     **dict.fromkeys(("ffp", "ibt", "ira", "fco", "sbd", "sds", "bou", "hru", "hra", "hss"), ("gcu",)),
     **dict.fromkeys(("ebu", "eup", "eud", "rbu", "ebe", "bup"), ("grc", "gcu")),
-    **dict.fromkeys(("rcc", "crm", "cde"), ("grc",)),
+    **dict.fromkeys(("rcc", "cde"), ("grc",)),
+    "crm": ("gcu", "grc"),
     "jaa": ("grc", "uap"),
     "gaa": ("uap",),
     "ccd": ("gcu", "grc"),
@@ -170,6 +171,7 @@ _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
     "tkt": ("tmp", "gcu"),
     "tfm": ("thi", "tmp"),
     "cem": ("gem", "gcu"),
+    **dict.fromkeys(("cra", "cam", "abgcam", "cds", "csm", "cat", "css", "tde", "cdd", "jtr", "thm"), ("gcu",)),
 }
 
 # Replies that carry the decoration storages (sin), applied only on success: EBECommand, EBUCommand,
@@ -222,7 +224,7 @@ _SUCCESS_ONLY = frozenset(
     | {"aja", "sll", "gap"}
     # GBDCommand.exec (bundle line 129376) reads the login data only on ALL_OK
     | {"gbd"}
-    | (set(_NESTED_SECTIONS) - {"cpm", "crm", "gaa"})
+    | (set(_NESTED_SECTIONS) - _MOVEMENT_REPLIES - {"gaa"})
     | {"rue", "kik", "gsm", "rci", "cmr", "rcc", "jaa", "csl", "gab", "gec", "ghw"}
     | {"sde"}
     | {"qli", "qst", "qpg", "qfi", "msp", "cqs"}
@@ -679,40 +681,48 @@ class GameState(
         self._stamp_sections(data, skipped)
         return skipped
 
-    def _handle_attack_sent(self, data: dict[str, Any]) -> None:
-        """Handle the reply to an attack you send: the new movement under ``AAM``.
+    def _handle_attack_sent(self, data: Any) -> None:
+        """Handle the reply to an attack you send: its owner records, then the new movement under ``AAM``.
 
-        Client: ``CRACommand``, ``CAMCommand`` and ``ABGCAMCommand``.
+        Its coins and rubies (``gcu``) are a nested section.
+
+        Client: ``CRACommand``, ``CAMCommand`` and ``ABGCAMCommand`` (split.js lines 638736, 638553,
+        638368); see :class:`CreateAttackResponse`
         """
-        self._apply_sent_movement(data, data.get("AAM"))
+        if (reply := self._read_movement_reply(CreateAttackResponse, data)) is not None:
+            movement = reply.attack_movement
+            self._apply_movement_wrappers([movement] if movement is not None else [], reply.owners)
 
-    def _handle_movement_sent(self, data: dict[str, Any]) -> None:
+    def _handle_movement_sent(self, data: Any) -> None:
         """Handle the reply to a support, spy, travel, transport, siege, monk or oasis trade: the movement in ``A``.
 
-        Client: ``CDSCommand``, ``CSMCommand``, ``CATCommand``, ``CRMCommand``,
-        ``CSSCommand``, ``TDECommand``, ``CDDCommand``, ``CPMCommand`` and ``JTRCommand``.
-        """
-        self._apply_sent_movement(data, data.get("A"))
+        Its owner records come first; its coins and rubies (``gcu``) are a nested section.
 
-    def _handle_thm(self, data: dict[str, Any]) -> None:
+        Client: ``CDSCommand``, ``CSMCommand``, ``CATCommand``, ``CRMCommand``, ``CSSCommand``,
+        ``TDECommand``, ``CDDCommand``, ``CPMCommand`` and ``JTRCommand`` (split.js lines 638687, 638881,
+        638641, 638832, 638930, 639153, 646877, 647842, 643584); see :class:`SentMovementResponse`
+        """
+        if (reply := self._read_movement_reply(SentMovementResponse, data)) is not None:
+            movement = reply.movement
+            self._apply_movement_wrappers([movement] if movement is not None else [], reply.owners)
+
+    def _handle_thm(self, data: Any) -> None:
         """Handle thm, the reply to a treasure hunt you send: the new movement under ``TM``.
 
-        Client: ``THMCommand``.
-        """
-        self._apply_sent_movement(data, data.get("TM"))
+        The reply has no owner records; its coins and rubies (``gcu``) are a nested section.
 
-    def _handle_ldt(self, data: dict[str, Any]) -> None:
+        Client: ``THMCommand.executeCommand`` (split.js line 639199); see :class:`TreasureHuntAttackResponse`
+        """
+        if (reply := self._read_movement_reply(TreasureHuntAttackResponse, data)) is not None:
+            self._apply_movement_wrappers([reply.movement] if reply.movement is not None else [], ())
+
+    def _handle_ldt(self, data: Any) -> None:
         """Handle ldt, a daimyo taunt attack: the payload is the movement wrapper itself.
 
-        Client: ``LDTCommand``.
+        Client: ``LDTCommand.executeCommand`` (split.js line 647055); see :class:`DaimyoTauntResponse`
         """
-        self._apply_movement_wrappers([data], [])
-
-    def _apply_sent_movement(self, data: dict[str, Any], wrapper: Any) -> None:
-        """Apply a send reply's coins and rubies (``gcu``), then store its movement with the owner records (``O``)."""
-        if isinstance(gcu := data.get("gcu"), dict):
-            self._handle_gbd({"gcu": gcu})
-        self._apply_movement_wrappers([wrapper], readable_list(MovementOwner, data.get("O")))
+        if (reply := self._read_movement_reply(DaimyoTauntResponse, data)) is not None:
+            self._apply_movement_wrappers([reply], ())
 
     def _handle_glu(self, data: Any) -> None:
         """Apply a level-up push's currencies and XP, as its gcu and gxp sections.

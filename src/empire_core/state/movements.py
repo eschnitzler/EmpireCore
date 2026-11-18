@@ -8,21 +8,25 @@ import threading
 import time
 import weakref
 from collections.abc import Callable, Iterable
-from typing import Any
+from typing import Any, TypeVar
+
+from pydantic import ValidationError
 
 from empire_core.commanders.models.roster import Commander
-from empire_core.gamedata import Collectable, UnitOrTool
+from empire_core.gamedata import UnitOrTool
 from empire_core.movements.models import (
     ArmyRadiusPush,
-    MovementArea,
+    CancelMovementResponse,
+    GetMovementsResponse,
     MovementFilterResponse,
     MovementForceCancelableResponse,
     MovementOwner,
+    MovementRecord,
     MovementRemovedResponse,
     MovementWrapper,
 )
 from empire_core.movements.tracked import Movement, MovementResources
-from empire_core.protocol.base import read_or_none, readable_list
+from empire_core.protocol.base import BasePayload
 from empire_core.state.announcer import AttackEvents, MovementAnnouncer, OccupationEvents
 from empire_core.state.base import MovementEventCallback, StateBase, read_section
 from empire_core.utils.callbacks import BoundEvent, Event, EventOf
@@ -32,6 +36,11 @@ _POSITIONAL = (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_O
 _ACCEPTS_MOVEMENT: weakref.WeakKeyDictionary[Callable[..., Any], bool] = weakref.WeakKeyDictionary()
 
 logger = logging.getLogger(__name__)
+
+_Reply = TypeVar("_Reply", bound=BasePayload)
+
+# The Movement field each MovementRecord field fills, where the names differ
+_MOVEMENT_FIELDS = {"kingdom_id": "kingdom"}
 
 # A drifted movement schema would fail on every packet, so the warning is
 # rate-limited to one per this interval; the rest go to debug.
@@ -317,64 +326,68 @@ class MovementState(StateBase):
             else:
                 self._dispatch_callback(callback, mid)
 
-    def _handle_gam(self, data: dict[str, Any]) -> None:
+    def _handle_gam(self, data: Any) -> None:
         """Handle 'Get Army Movements' response.
 
         Movements missing from the list are kept, as the client keeps them:
         they leave state when they arrive or when the server removes them.
 
-        Client: ``CastleArmyData.parse_GAM``.
+        Client: ``GAMCommand.executeCommand`` (split.js line 638976); see :class:`GetMovementsResponse`
         """
-        self._apply_movement_wrappers(data.get("M", []), readable_list(MovementOwner, data.get("O")))
+        if (response := self._read_movement_reply(GetMovementsResponse, data)) is not None:
+            self._apply_movement_list(response, response.owners)
 
-    def _handle_movement_push(self, data: dict[str, Any]) -> None:
-        """Handle abr/asr, pushed as an army comes within range of its target.
+    def _apply_movement_list(self, response: GetMovementsResponse, owners: Iterable[MovementOwner]) -> None:
+        """Store a movement list with ``owners``, reporting each movement it could not read."""
+        for reason in response.unreadable_movements:
+            self._log_movement_parse_failure(reason)
+        self._apply_movement_wrappers(response.movements, owners)
 
-        Client: ``CastleArmyData.parse_ABR`` / ``parse_ASR`` (bundle lines 133688, 133687), after
-        ``CastleOtherPlayerData.parseOwnerInfo`` read the one owner record ``O``
-        """
-        if not isinstance(data, dict):
-            return
-        # The owner through the push model; the wrapper through the movement pipeline, which reads
-        # its blocks one by one and reports a drifted record with its traceback. An unreadable
-        # owner costs only the owner, never the movement
-        push = read_or_none(
-            ArmyRadiusPush.model_validate, {"O": data.get("O")}, warn=logger, what="an army push's owner"
-        )
-        owners = [push.owner] if push is not None and push.owner is not None else []
-        self._apply_movement_wrappers([data.get("A")], owners)
+    def _handle_movement_push(self, data: Any) -> None:
+        """Handle abr/asr, pushed as an army comes within range of its target; see :class:`ArmyRadiusPush`."""
+        if (push := self._read_movement_reply(ArmyRadiusPush, data)) is not None:
+            self._apply_movement_wrappers(
+                [push.movement] if push.movement is not None else [],
+                [push.owner] if push.owner is not None else [],
+            )
 
-    def _handle_mcm(self, data: dict[str, Any]) -> None:
+    def _handle_mcm(self, data: Any) -> None:
         """Handle mcm, the reply to your own recall: the movement, now heading home.
 
-        Client: ``MCMCommand``.
+        Client: ``MCMCommand.executeCommand`` (split.js line 639021); see :class:`CancelMovementResponse`
         """
-        for mov in self._apply_movement_wrappers([data.get("A")], ()):
-            self._dispatch_movement_event(self.on_movement_recalled, mov.movement_id, mov)
+        if (reply := self._read_movement_reply(CancelMovementResponse, data)) is not None:
+            for mov in self._apply_movement_wrappers([reply.movement], ()):
+                self._dispatch_movement_event(self.on_movement_recalled, mov.movement_id, mov)
 
-    def _apply_movement_wrappers(self, wrappers: Any, owners: Iterable[MovementOwner]) -> list[Movement]:
-        """Parse and store ``gam``-style movement wrappers; return the ones stored.
+    def _read_movement_reply(self, model: type[_Reply], data: Any) -> _Reply | None:
+        """``data`` read as ``model``; None when it is no object, or when it cannot be read, which is logged."""
+        if not isinstance(data, dict):
+            return None
+        try:
+            return model.model_validate(data)
+        except ValidationError as error:
+            self._log_movement_parse_failure(str(error), error)
+            return None
+
+    def _apply_movement_wrappers(
+        self, wrappers: Iterable[MovementWrapper], owners: Iterable[MovementOwner]
+    ) -> list[Movement]:
+        """Store the movements of ``wrappers``, after the owner records; return the ones stored.
 
         The owner records (``O``) are kept for the session, so a movement whose
         owner came in an earlier packet still finds it, as the client's owner list
         does (``CastleOtherPlayerData.getOwnerInfoVO``, bundle line 138994).
 
-        Client: ``CastleArmyData.parseMapMovementArray``.
+        Client: ``CastleArmyData.parseMapMovementArray`` (split.js line 667169).
         """
         sent = {record.player_id: record for record in owners}
         if sent:
             self._owner_records = {**self._owner_records, **sent}
-        owner_info = self._owner_records
 
         stored = []
-        for m_wrapper in wrappers if isinstance(wrappers, list) else []:
-            if not isinstance(m_wrapper, dict):
-                continue
-            m_data = m_wrapper.get("M", {})
-            if not m_data or m_data.get("MID") is None:
-                continue
-            mov = self._parse_movement(m_data, m_wrapper, owner_info)
-            if mov:
+        for wrapper in wrappers:
+            if (mov := self._parse_movement(wrapper)) is not None:
                 self._store_movement(mov)
                 stored.append(mov)
         return stored
@@ -527,99 +540,75 @@ class MovementState(StateBase):
         with self._lock:
             return self.movement_filter
 
-    def _parse_movement(
-        self,
-        m_data: dict[str, Any],
-        m_wrapper: dict[str, Any] | None = None,
-        owner_info: dict[int, MovementOwner] | None = None,
-    ) -> Movement | None:
-        """Parse a Movement from packet data, built in one validation."""
-        mid = m_data.get("MID")
-        if mid is None:
-            return None
-
+    def _parse_movement(self, wrapper: MovementWrapper) -> Movement | None:
+        """The tracked Movement a wrapper gives, named from the owner records; None, logged, when it cannot be built."""
+        record = wrapper.movement
+        # Only the keys sent: the announcer tells a missing OID, which the client reads as 0, by the fields set
+        fields: dict[str, Any] = {
+            _MOVEMENT_FIELDS.get(name, name): getattr(record, name)
+            for name in record.model_fields_set
+            if name in MovementRecord.model_fields
+        }
+        fields.update(last_updated=time.time(), **self._wrapper_fields(wrapper))
+        if self.local_player is not None:
+            fields["local_player_id"] = self.local_player.PID
+        for side, area in (("target", record.target_area), ("source", record.source_area)):
+            if area is not None:
+                fields[f"{side}_x"] = area.x
+                fields[f"{side}_y"] = area.y
+                fields[f"{side}_area_id"] = area.object_id if area.object_id is not None else -1
+                fields[f"{side}_name"] = area.name
+        if record.target_area is not None:
+            fields["target_type"] = record.target_area.area_type
+        if (owner := self._owner_records.get(record.owner_id)) is not None:
+            fields.update(owner=owner, source_player_name=owner.name, source_alliance_name=owner.alliance_name)
+        if (target := self._owner_records.get(record.target_id)) is not None:
+            fields.update(
+                target_owner=target, target_player_name=target.name, target_alliance_name=target.alliance_name
+            )
         try:
-            data: dict[str, Any] = dict(m_data)
-            data["last_updated"] = time.time()
-            if self.local_player is not None:
-                data["local_player_id"] = self.local_player.PID
-            for key, side in (("TA", "target"), ("SA", "source")):
-                row = data.get(key)
-                area = (
-                    read_or_none(MovementArea.model_validate, {"row": row, "kingdom": data.get("KID")}) if row else None
-                )
-                data[key] = area
-                if area is None:
-                    continue
-                data[f"{side}_x"] = area.x
-                data[f"{side}_y"] = area.y
-                data[f"{side}_area_id"] = area.object_id if area.object_id is not None else -1
-                data[f"{side}_name"] = area.name
-                if side == "target":
-                    data["target_type"] = area.area_type
-            if m_wrapper:
-                data.update(self._wrapper_fields(m_wrapper))
-            mov = Movement.model_validate(data)
-
-            if owner_info:
-                names: dict[str, Any] = {}
-                if (owner := owner_info.get(mov.owner_id)) is not None:
-                    names.update(owner=owner, source_player_name=owner.name, source_alliance_name=owner.alliance_name)
-                if (target := owner_info.get(mov.target_id)) is not None:
-                    names.update(
-                        target_owner=target, target_player_name=target.name, target_alliance_name=target.alliance_name
-                    )
-                if names:
-                    # Already-validated values, set as pydantic's own __setattr__ would
-                    vars(mov).update(names)
-                    mov.__pydantic_fields_set__.update(names)
-
-            return mov
-        except Exception:  # noqa: BLE001 - one bad movement must not drop the packet; logged with its traceback
-            self._log_movement_parse_failure(mid)
+            return Movement.model_validate(fields)
+        except ValidationError as error:
+            self._log_movement_parse_failure(str(error), error)
             return None
 
     @staticmethod
-    def _wrapper_blocks(m_wrapper: dict[str, Any]) -> Callable[[str], MovementWrapper | None]:
-        """The wrapper validated once; if that fails, each block on its own, so a drifted block costs only itself."""
-        # The record itself is read into the Movement, so it is not validated here too
-        whole = read_or_none(MovementWrapper.model_validate, {**m_wrapper, "M": {"MID": 0}})
-        if whole is not None:
-            return lambda key: whole if key in m_wrapper else None
-        blocks = {
-            key: read_or_none(MovementWrapper.model_validate, {"M": {"MID": 0}, key: value})
-            for key, value in m_wrapper.items()
-            if key != "M"
-        }
-        return blocks.get
-
-    def _wrapper_fields(self, m_wrapper: dict[str, Any]) -> dict[str, Any]:
+    def _wrapper_fields(wrapper: MovementWrapper) -> dict[str, Any]:
         """The Movement fields the wrapper's army, wait, cargo and flags give.
 
-        Client: ``ArmyAttackMapmovementVO.loadFromParamObject``, ``parseUnitMovement``,
-        ``ArmyTravelMapMovementVO`` and ``MarketMapmovementVO``.
+        Client: ``ArmyAttackMapmovementVO.loadFromParamObject`` (split.js line 77036),
+        ``BasicMapmovementVO.parseUnitMovement`` (split.js line 87638), ``ArmyTravelMapMovementVO``
+        (split.js line 114881), ``MarketMapmovementVO`` (split.js line 225968) and
+        ``SpyMapmovementVO.parseSpyInfo`` (split.js line 226176)
         """
-        block = self._wrapper_blocks(m_wrapper)
-        fields: dict[str, Any] = {}
-
-        army = next((b.visible_army for b in (block("FA"), block("GA")) if b and b.visible_army), None)
-        if army is not None:
-            parts = [army.left, army.middle, army.right, army.courtyard]
-        elif (travel := block("A")) is not None:
-            parts = [travel.travel_units]
-        else:
-            parts = []
+        army = wrapper.visible_army
+        parts = [army.left, army.middle, army.right, army.courtyard] if army is not None else [wrapper.travel_units]
         units: dict[UnitOrTool, int] = {}
         for part in parts:
             for unit, amount in part.items():
                 units[unit] = units.get(unit, 0) + amount
-        fields["units"] = units
 
-        if (gs := block("GS")) is not None and gs.army_size is not None:
-            fields["estimated_size"] = gs.army_size
+        goods = wrapper.market.goods if wrapper.market is not None else wrapper.travel_goods
+        amounts: dict[str, int] = {}
+        for good in goods:
+            amounts[good.kind.server_key] = amounts.get(good.kind.server_key, 0) + int(good.amount)
 
-        if (um := block("UM")) is not None and um.unit_info is not None:
-            info = um.unit_info
+        fields: dict[str, Any] = {
+            "units": units,
+            "goods": goods,
+            "resources": MovementResources.model_validate(amounts),
+            "attack_type": wrapper.attack_type,
+            "is_shadow": wrapper.is_shadow,
+            "force_cancelable": wrapper.force_cancelable,
+            "support_tools": wrapper.support_tools,
+            "auto_skip_cooldown_type": wrapper.auto_skip_cooldown_type,
+            "spy": wrapper.spy,
+        }
+        if wrapper.army_size is not None:
+            fields["estimated_size"] = wrapper.army_size
+        if wrapper.market is not None:
+            fields["market_carriages"] = wrapper.market.carriages
+        if (info := wrapper.unit_info) is not None:
             fields.update(
                 wait_total=info.wait_total,
                 wait_passed=info.wait_passed,
@@ -627,56 +616,33 @@ class MovementState(StateBase):
                 advisor_movement_count=info.advisor_movement_count,
                 advisor_movement_number=info.advisor_movement_number,
                 advisor_is_last=info.advisor_is_last == 1,
+                commander=info.commander,
             )
-            if info.commander is not None:
-                fields["commander"] = info.commander
-
-        goods: tuple[Collectable, ...] = ()
-        if (mm := block("MM")) is not None and mm.market is not None:
-            fields["market_carriages"] = mm.market.carriages
-            goods = fields["goods"] = mm.market.goods
-        elif (loot := block("G")) is not None:
-            goods = fields["goods"] = loot.travel_goods
-        amounts: dict[str, int] = {}
-        for good in goods:
-            amounts[good.kind.server_key] = amounts.get(good.kind.server_key, 0) + int(good.amount)
-        fields["resources"] = MovementResources.model_validate(amounts)
-
-        if (att := block("ATT")) is not None:
-            fields["attack_type"] = att.attack_type
-        if (sm := block("SM")) is not None:
-            fields["is_shadow"] = sm.is_shadow
-        if (fc := block("FC")) is not None:
-            fields["force_cancelable"] = fc.force_cancelable
-        if (ast := block("AST")) is not None:
-            fields["support_tools"] = ast.support_tools
-        if (asct := block("ASCT")) is not None:
-            fields["auto_skip_cooldown_type"] = asct.auto_skip_cooldown_type
-        # Client: SpyMapmovementVO.parseSpyInfo (bundle line 43748)
-        if (spy := block("S")) is not None and spy.spy is not None:
-            fields["spy"] = spy.spy
         return fields
 
-    def _log_movement_parse_failure(self, mid: Any) -> None:
+    def _log_movement_parse_failure(self, reason: str, error: ValidationError | None = None) -> None:
         """Report a dropped movement loudly, but at most once a minute.
 
         Movements — including the incoming attacks this library exists to
         alert on — disappear silently when the schema drifts, so the failure
-        must be visible at the default level with a traceback. Schema drift
-        fails on every packet, so the warning is rate-limited and the
-        suppressed count is reported with the next one.
+        must be visible at the default level, with the traceback when there
+        is one. Schema drift fails on every packet, so the warning is
+        rate-limited and the suppressed count is reported with the next one.
         """
         self._movement_parse_failures += 1
         now = time.time()
         if now < self._movement_parse_warn_at:
-            logger.debug(f"Failed to parse movement {mid} (warning rate-limited)")
+            logger.debug(f"Failed to read a movement (warning rate-limited): {reason}")
             return
 
         suppressed = self._movement_parse_failures - 1
         self._movement_parse_failures = 0
         self._movement_parse_warn_at = now + MOVEMENT_PARSE_WARN_INTERVAL
         extra = f" ({suppressed} further failures suppressed)" if suppressed else ""
-        logger.exception(f"Failed to parse movement {mid} — it is being dropped, incoming attacks may be missed{extra}")
+        logger.warning(
+            f"Failed to read a movement — it is being dropped, incoming attacks may be missed{extra}: {reason}",
+            exc_info=error,
+        )
 
     def get_all_movements(self) -> list[Movement]:
         """Get all tracked movements (stale ones pruned first)."""
