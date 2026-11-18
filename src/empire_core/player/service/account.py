@@ -1,4 +1,4 @@
-"""Your coat of arms, player name, email address and password."""
+"""Your coat of arms, premium flag, player name, email address and password."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from pydantic import SecretStr
 
 from empire_core.enums import QuestConditionType, VerificationLink
+from empire_core.player.models.account import PREMIUM_FLAG_RUBIES, BuyPremiumFlagRequest, BuyPremiumFlagResponse
 from empire_core.player.models.coat_of_arms import (
     ChangeCoatOfArmsRequest,
     ChangeCoatOfArmsResponse,
@@ -127,6 +128,27 @@ class AccountMixin(ServiceMixin):
             spend_rubies, f"symbol {symbol_id} costs {symbol.cost_rubies} rubies" if symbol.cost_rubies else None
         )
         self.execute(UnlockSymbolRequest(symbol_id=symbol_id), timeout=timeout, spend_rubies=spend_rubies)
+
+    def buy_premium_flag(self, *, spend_rubies: bool = False, timeout: float = 5.0) -> None:
+        """
+        Buy the premium flag your castles fly on the map, with rubies; see "Spending rubies" in the guides.
+
+        Args:
+            spend_rubies: Allow the rubies it costs, ``PREMIUM_FLAG_RUBIES`` before discounts; without it nothing
+                is sent
+            timeout: Timeout in seconds
+
+        Raises:
+            ValueError: ``spend_rubies`` is False
+            CommandError: The server refused
+
+        Client: ``CastleBuyPremiumFlagDialog.onClick`` (bundle line 396605); ``GBPCommand.executeCommand``
+        (bundle line 651488)
+        """
+        self._require_spend_rubies(
+            spend_rubies, f"the premium flag costs {PREMIUM_FLAG_RUBIES} rubies before discounts"
+        )
+        self.request(BuyPremiumFlagRequest(), BuyPremiumFlagResponse, timeout=timeout, spend_rubies=spend_rubies)
 
     # =========================================================================
     # Player name, email address and password

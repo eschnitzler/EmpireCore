@@ -1,11 +1,16 @@
-"""Your cargo points, skills, boosts, titles and achievements."""
+"""Your level, cargo points, skills, boosts, titles and achievements."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
 from empire_core.commanders.models.skills import SkillList
-from empire_core.player.models.account import FoodProductionStatus
+from empire_core.player.models.account import (
+    BUY_LEVEL_RANGE,
+    BuyLevelRequest,
+    BuyLevelResponse,
+    FoodProductionStatus,
+)
 from empire_core.player.models.aqua import (
     CargoPointsResponse,
     GetCargoPointsRequest,
@@ -34,6 +39,35 @@ if TYPE_CHECKING:
 
 
 class StandingMixin(ServiceMixin):
+    def buy_level(self, *, spend_rubies: bool = False, timeout: float = 5.0) -> None:
+        """
+        Buy your next level with rubies; see "Spending rubies" in the guides.
+
+        The client offers it from level 10 to 69 to a split-run test group it reads from the server, so the
+        server may refuse an account outside that group. The price is not worked out here, so this always
+        needs ``spend_rubies``.
+
+        Args:
+            spend_rubies: Allow the rubies it costs; without it nothing is sent
+            timeout: Timeout in seconds
+
+        Raises:
+            ValueError: ``spend_rubies`` is False, or your level is outside ``BUY_LEVEL_RANGE``
+            StateNotLoadedError: No login has brought your level
+            CommandError: The server refused
+
+        Client: ``ButtonBuyLevelComponent.onClickButton`` and ``onConfirm`` (bundle lines 548838, 548859),
+        priced by ``buyLevelData.getLevelUpCost``; ``updateButtonVisibility`` (bundle line 548864) shows the
+        button for ``SplitRunConst.BUY_LEVEL_TEST_PARAM`` and a level in range; ``BLVCommand.executeCommand``
+        (bundle line 650885)
+        """
+        player = self.client.state.get_local_player()
+        if player.level not in BUY_LEVEL_RANGE:
+            raise ValueError(f"the game offers no level to buy at level {player.level}")
+        self._require_spend_rubies(spend_rubies, "buying a level costs rubies")
+        request = BuyLevelRequest(new_level=player.level + player.legendary_level + 1)
+        self.request(request, BuyLevelResponse, timeout=timeout, spend_rubies=spend_rubies)
+
     @property
     def cargo_points(self) -> int | float | None:
         """Your cargo points, from the last ``gap``; None until one arrived (:meth:`get_cargo_points` asks)."""
