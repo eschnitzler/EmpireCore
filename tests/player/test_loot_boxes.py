@@ -54,13 +54,19 @@ class TestWireShapes:
         assert reply.reward_ids == (RewardId(77),)
         assert (reply.key_progress, reply.key_bar_fills, reply.key_used) == (6, 0, MysteryBoxKey.COMMON)
         assert reply.keys_won == (Collectable.of_currency(5001, 1),)
-        assert reply.raw_rewards == [77]
 
     def test_without_reward_rows_only_the_ids_are_read(self):
         reply = OpenLootBoxResponse.model_validate({key: value for key, value in OPENED.items() if key != "LTRR"})
 
         assert reply.reward_ids == (RewardId(77),)
         assert reply.rewards == ()
+
+    def test_without_ltrr_rows_in_ltr_are_the_rewards(self):
+        # OLECommand: createList(LTR), then createList(LTRR) when LTRR is set
+        reply = OpenLootBoxResponse.model_validate({**OPENED, "LTR": [[["C2", 15]]], "LTRR": None})
+
+        assert [(c.kind, c.amount) for c in reply.rewards] == [(CollectableKind.RUBIES, 15)]
+        assert reply.reward_ids == ()
 
 
 class TestGetLootBoxes:

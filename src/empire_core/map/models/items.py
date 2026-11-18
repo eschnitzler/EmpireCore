@@ -559,7 +559,9 @@ class MapAreaItem(BasePayload):
     isle_id: int | None = Field(default=None, description="Isle blueprint id")
     remaining_occupier_seconds: int | None = Field(default=None, description="Seconds left on the occupier's timer")
     protector_positions: list[Any] | None = Field(
-        default=None, description="Positions of the faction object's protectors still standing"
+        default=None,
+        description="Positions of the faction object's protectors still standing; the client reads only how many "
+        "there are (FactionCapitalMapobjectVO.parseAreaInfo)",
     )
     dungeon_level: int | None = Field(default=None, description="The camp's level as its row gives it")
     attacks_left: int | None = Field(default=None, description="Attacks the Berimond watchtower has left")

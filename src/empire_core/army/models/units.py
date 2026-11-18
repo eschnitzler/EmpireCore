@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Annotated, Any
 
 from pydantic import BeforeValidator, Field
 
+from empire_core.castle.models.details import CastleProductionArea
 from empire_core.gamedata import EnumOrInt, UnitOrTool, WodAmounts, WodAmountSlots, WodAmountSlotsInput
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, object_or_none
 from empire_core.protocol.js import js_int
@@ -28,8 +29,8 @@ BUY_UNIT_PACKAGE_SK = 73
 default; nothing in the client reads it or says what it means."""
 
 
-RawBlock = Annotated[dict[str, Any] | None, BeforeValidator(object_or_none)]
-"""A reply block this module keeps as sent; the docstring names the client parser."""
+ProductionAreaBlock = Annotated[CastleProductionArea | None, BeforeValidator(object_or_none)]
+"""A reply's ``gpa``, which the client hands to ``AreaDataUpdater.parseGPA`` (bundle line 659045)."""
 
 
 # =============================================================================
@@ -126,17 +127,20 @@ class DismissUnitsResponse(BaseResponse):
 
     Command: dup
 
-    Client: ``DUPCommand.executeCommand`` (bundle line 125585)
+    Client: ``DUPCommand.executeCommand`` (bundle line 637536): ``gpa`` to ``AreaDataUpdater.parseGPA``,
+    ``gui`` to ``parse_GUI``
     """
 
     command = "dup"
 
-    production_area: RawBlock = Field(
+    production_area: ProductionAreaBlock = Field(
         validation_alias="gpa",
         default=None,
-        description="The castle's production and storage figures, as a raw block",
+        description="The castle's production area after; None when the reply has none",
     )
-    unit_inventory: UnitInventoryBlock = Field(validation_alias="gui", default=None)
+    unit_inventory: UnitInventoryBlock = Field(
+        validation_alias="gui", default=None, description="The units after; None when the reply has none"
+    )
 
 
 # =============================================================================

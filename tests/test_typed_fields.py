@@ -1,10 +1,11 @@
 """
-No model field is a bare id list or a raw row: ids are enums, rewards and goods are Collectables.
+No model field is untyped, a bare id list or a raw row: ids are enums, rewards and goods are Collectables.
 
-A field typed ``Any``, or a list, tuple or set of ``int`` or ``Any`` (nested ones too), or a dict
-keyed by a bare ``int``, fails
+A field with ``Any`` anywhere in its type, or a bare ``dict``, ``list``, ``tuple`` or ``set``, fails
+unless :data:`OPAQUE` names it with why the client leaves it unread or what types it later.
+A list, tuple or set of ``int`` (nested ones too), or a dict keyed by a bare ``int``, fails
 unless :data:`ALLOWED` names it with a reason: player ids, coordinates, a request's wire shape,
-counters, a value that is opaque. ``EnumOrInt[...]`` is an enum, not an int, and ``int | float``
+counters. ``EnumOrInt[...]`` is an enum, not an int, and ``int | float``
 a number, not an id. An entry whose field is gone or typed fails too.
 A game-data row field named ``*_id`` that is a plain int
 fails as well, unless :data:`GAME_DATA_SCALAR_IDS` says why no enum types it.
@@ -14,6 +15,7 @@ import importlib
 import pkgutil
 import types
 import typing
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Annotated, Any, get_args, get_origin
 
 from pydantic import BaseModel, PlainValidator
@@ -50,7 +52,6 @@ ALLOWED: dict[str, str] = {
         "condition counters, not ids; CastleQuestVO.fillFromParams (bundle 52463)"
     ),
     "alliance.models.bookmarks.AddBookmarkRequest.attacker_ids": "player ids",
-    "quests.models.Popup.value": "what the popup's dialog reads, shaped per popup (displayPopUp, bundle 12933)",
     "alliance.models.bookmarks.BookmarkAttackOrder.assigned_attacker_ids": "player ids",
     "alliance.models.bookmarks.DeleteAllianceBookmarkRequest.entries": "request wire shape: [bookmark_id, notify] rows",
     "alliance.models.bookmarks.DeleteBookmarkRequest.positions": "request wire shape: [kingdom, x, y] rows",
@@ -71,7 +72,6 @@ ALLOWED: dict[str, str] = {
         "a unit names its category by text (BasicUnitVO.toolCategory, bundle line 19343), typed as ToolCategory"
     ),
     "gamedata.data.GameData.vip_levels": "keyed by VIP level number, 1 and up; not ids",
-    "gamedata.collectables.Collectable.value": "opaque: the entry as sent, for OTHER and the kinds not read here",
     "gamedata.models.ToolStats.slot_types": "attack-screen slot types: the client names none of them",
     "gamedata.tables.GeneralRarityDef.upgrade_costs": "shard costs, one per star level; not ids",
     "gamedata.tables.GeneralRarityDef.xp_requirements": "xp totals, one per level; not ids",
@@ -83,26 +83,54 @@ ALLOWED: dict[str, str] = {
     "combat.solver.FillOptions.waves": "wave indexes, positions in send order; not ids",
     "quests.models.DailyQuest.progress": "counters, one per condition of the quest",
     "quests.models.Quest.progress": "counters, one per condition of the quest",
-    "alliance.models.chronicle.AllianceChronicleEntry.action_values": (
-        "the client's raw text arguments (bundle line 66358), for describe() and actions without a typed "
-        "view; typed per action by AllianceChronicleEntry.details"
-    ),
     "state.models.Player.castles": "keyed by (kingdom, castle id); castle ids are the player's areas, not game data",
-    "commanders.models.equipment.EquipmentBonus.values": "laid out by the effect type's value class (bundle line 1294)",
-    "commanders.models.equipment.RelicBonus.values": "laid out by the effect type's value class (bundle line 1294)",
-    "commanders.models.roster.CommanderEffect.values": "laid out by the effect type's value class (bundle line 1294)",
-    "map.models.items.MapAreaItem.protector_positions": "opaque: the client reads only its length",
-    "map.models.items.MapAreaItem.raw_data": (
-        "the row held by reference so a map scan stays fast (#343, #354); typed accessors parse it as the client does"
-    ),
     "messages.models.battle_logs.ForwardBattleLogRequest.player_ids": "player ids",
     "messages.models.mailbox.DeleteMessagesRequest.message_ids": "message ids",
     "messages.models.mailbox.DeleteMessagesResponse.message_ids": "message ids",
     "messages.models.mailbox.ForwardSpyLogRequest.player_ids": "player ids",
-    "player.models.economy.OpenLootBoxResponse.raw_rewards": "LTR as sent: rows or reward ids, not yet seen live",
     "messages.models.mailbox.MessagesSentToday.sent": "counts keyed by MessageType; the values are amounts",
     "player.models.progress.TopTitleRanking.thresholds": "points, one per top-X title of the system; not ids",
 }
+
+
+OPAQUE: dict[str, str] = {
+    "alliance.models.chronicle.AllianceChronicleEntry.action_values": (
+        "text arguments the client keeps as sent (AllianceActionListItemVO.parseActionListItem, bundle line "
+        "341337); typed per action by AllianceChronicleEntry.details"
+    ),
+    "map.models.items.MapAreaItem.protector_positions": (
+        "the client reads only its length (FactionCapitalMapobjectVO.parseAreaInfo, bundle line 119979)"
+    ),
+    "map.models.items.MapAreaItem.raw_data": (
+        "the row held by reference so a map scan stays fast (#343, #354); typed accessors parse it as the client does"
+    ),
+    "quests.models.Popup.value": (
+        "deferred: each popup's dialog reads its own shape (CastlePopUpHelper.displayPopUp, bundle line 68586)"
+    ),
+    "gamedata.collectables.Collectable.value": (
+        "deferred: the entry as sent for OTHER and the kinds whose parseServerObject is not modelled yet "
+        "(CollectableHelper.createVO, bundle line 9387)"
+    ),
+    "commanders.models.equipment.EquipmentBonus.values": (
+        "deferred: laid out by the effect type's valueClass (BonusVO.parseFromValueArray, bundle line 32395)"
+    ),
+    "commanders.models.equipment.RelicBonus.values": (
+        "deferred: laid out by the effect type's valueClass (RelicBonusVO.parseRelicFromValueArray, bundle line 233690)"
+    ),
+    "commanders.models.roster.CommanderEffect.values": (
+        "deferred: laid out by the effect type's valueClass (BonusVO.parseFromValueArray, bundle line 32395)"
+    ),
+    "events.models.EventEntry.entry": (
+        "deferred: each event class reads its own entry (CastleSpecialEventData.parseServerEventData, bundle line "
+        "696279)"
+    ),
+    "events.models.SpecialEvent.raw": (
+        "deferred: the entries of an event the library has no class for (ASpecialEventVO.parseParamObject, bundle "
+        "line 15885)"
+    ),
+    "gamedata.data.GameData.raw_tables": "deferred: the item tables not modelled yet (#320)",
+}
+"""Fields with ``Any`` in their type, each with why: what the client leaves unread, or what types it later."""
 
 
 GAME_DATA_SCALAR_IDS: dict[str, str] = {
@@ -161,10 +189,17 @@ def _is_lenient(annotation: Any) -> bool:
     )
 
 
-def _bare(annotation: Any, *, inside: bool = False) -> bool:
-    """Whether the annotation is Any, or holds an int or Any in a list, tuple or set."""
-    if annotation is Any:
+def _untyped(annotation: Any) -> bool:
+    """Whether the annotation is ``Any`` or a bare container, or holds one anywhere."""
+    if annotation is Any or annotation in (dict, list, tuple, set, frozenset):
         return True
+    if _is_lenient(annotation):
+        return False
+    return any(_untyped(arg) for arg in get_args(annotation) if arg is not Ellipsis)
+
+
+def _bare(annotation: Any, *, inside: bool = False) -> bool:
+    """Whether the annotation holds an int in a list, tuple or set, or keys a dict by one."""
     if _is_lenient(annotation):
         return False
     origin = get_origin(annotation)
@@ -193,18 +228,26 @@ def _models() -> list[type[BaseModel]]:
     return found
 
 
-def _bare_fields() -> set[str]:
-    bare = set()
+def _fields(check: Callable[[Any], bool]) -> set[str]:
+    found = set()
     for model in _models():
         for name, field in model.model_fields.items():
             owner = next(c for c in model.__mro__ if name in getattr(c, "__annotations__", {}))
-            if _bare(field.annotation):
-                bare.add(f"{owner.__module__.removeprefix('empire_core.')}.{owner.__qualname__}.{name}")
-    return bare
+            if check(field.annotation):
+                found.add(f"{owner.__module__.removeprefix('empire_core.')}.{owner.__qualname__}.{name}")
+    return found
+
+
+def test_no_model_field_is_untyped():
+    untyped = _fields(_untyped)
+    unlisted = sorted(untyped - set(OPAQUE))
+    assert not unlisted, "type these from the client's parser, or allow them with a reason:\n" + "\n".join(unlisted)
+    stale = sorted(set(OPAQUE) - untyped)
+    assert not stale, "these are typed or gone now; drop them from OPAQUE:\n" + "\n".join(stale)
 
 
 def test_no_model_field_is_a_bare_id_list_or_a_raw_row():
-    bare = _bare_fields()
+    bare = _fields(_bare)
     unlisted = sorted(bare - set(ALLOWED))
     assert not unlisted, (
         "type these with an enum (EnumOrInt) or Collectable, or allow them with a reason:\n" + "\n".join(unlisted)
@@ -240,12 +283,23 @@ def test_no_game_data_id_is_a_plain_int():
 
 
 def test_every_allowed_field_has_a_reason():
-    assert all(reason.strip() for reason in ALLOWED.values())
+    assert all(reason.strip() for reason in (*ALLOWED.values(), *OPAQUE.values()))
+
+
+def test_the_check_finds_untyped_fields():
+    assert _untyped(Any) and _untyped(list[Any]) and _untyped(tuple[Any, ...]) and _untyped(Any | None)
+    assert _untyped(dict[str, Any]) and _untyped(dict[str, list[Any]]) and _untyped(Annotated[dict[str, Any], "m"])
+    assert _untyped(dict) and _untyped(list) and _untyped(list[dict] | None)
+    assert not _untyped(int) and not _untyped(dict[str, int]) and not _untyped(tuple[int, ...])
+    assert (
+        not _untyped(tuple[EnumOrInt[Kingdom], ...])
+        and not _untyped(WodAmounts)
+        and not _untyped(tuple[UnitOrTool, ...])
+    )
 
 
 def test_the_check_finds_bare_fields():
-    assert _bare(Any)
-    assert _bare(list[int]) and _bare(tuple[int, ...]) and _bare(list[Any]) and _bare(tuple[Any, ...])
+    assert _bare(list[int]) and _bare(tuple[int, ...])
     assert _bare(list[list[int]]) and _bare(list[tuple[int, int]]) and _bare(list[int] | None)
     assert _bare(Annotated[tuple[int, ...], "meta"]) and _bare(tuple[Annotated[int, "meta"], ...])
     assert not _bare(int) and not _bare(str) and not _bare(dict[str, int]) and not _bare(tuple[int | float, ...])

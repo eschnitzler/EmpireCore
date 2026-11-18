@@ -20,6 +20,7 @@ from empire_core.protocol.models import (
     CurrentProductionSlot,
     DismissManyWoundedRequest,
     DismissUnitsRequest,
+    DismissUnitsResponse,
     DismissWoundedRequest,
     DoubleProductionSlotRequest,
     DoubleProductionSlotResponse,
@@ -244,7 +245,7 @@ class TestReplies:
         assert reply.unit_inventory is not None and reply.unit_inventory.units == {649: 3}
         assert reply.added_unit is not None and (reply.added_unit.wod_id, reply.added_unit.amount) == (649, 2)
         assert reply.currencies is not None and (reply.currencies.coins, reply.currencies.rubies) == (5000, 30)
-        assert reply.resources == {"W": 100}
+        assert reply.resources is not None and reply.resources.wood == 100
 
     def test_an_o_of_zero_adds_nothing(self):
         # BUPCommand: i.O && 0 != i.O && addUnit(...)
@@ -253,6 +254,13 @@ class TestReplies:
     def test_blocks_that_are_not_objects_read_as_missing(self):
         reply = HealAllResponse.model_validate({"gcu": None, "gui": [], "gpa": "x"})
         assert (reply.currencies, reply.unit_inventory, reply.production_area) == (None, None, None)
+
+    @pytest.mark.parametrize("reply_type", [HealAllResponse, DismissUnitsResponse])
+    def test_gpa_reads_as_the_production_area(self, reply_type):
+        # HRACommand and DUPCommand hand gpa to AreaDataUpdater.parseGPA
+        reply = reply_type.model_validate({"gpa": {"P": "120", "US": 300, "RS1": 1.5}})
+        area = reply.production_area
+        assert area is not None and (area.population, area.unit_capacity, area.barracks_speed) == (120, 300, 1.5)
 
     def test_bou_reply(self):
         reply = DoubleProductionSlotResponse.model_validate({"spl": {"LID": 0}, "gcu": {"C2": 10}})

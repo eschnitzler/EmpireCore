@@ -162,15 +162,15 @@ class OpenLootBoxResponse(BaseResponse):
               "KTR": [{"ID": key, "AMT": amount}, ..], "UKI": key used}
 
     ``LTR`` lists the reward id each box drew and ``LTRR`` each box's collectable rows, as a live
-    reply shows. The client reads the rows from ``LTRR`` when it is set and hands ``LTR`` to the
-    opening dialog as reward ids, which ``getHighestCategoryForRewards`` compares with the tombola's
-    (bundle line 112417). Rows go into ``rewards``, ids into ``reward_ids``, and ``raw_rewards``
-    keeps ``LTR`` as sent.
+    reply shows. The client reads the rows from ``LTRR`` when it is set, else from ``LTR``, and hands
+    ``LTR`` to ``MysteryBoxOpeningDialogProperties`` (bundle line 635217) as reward ids, which
+    ``getHighestCategoryForRewards`` compares with the tombola's (bundle line 577800). Rows go into
+    ``rewards`` and ids into ``reward_ids``.
 
     The client sets the box type's key progress to ``KBS``; it does not lower the box count, and the
     server sends no ``gls`` after an open: a :class:`GetLootBoxesRequest` reads the new count.
 
-    Client: ``OLECommand.executeCommand`` (bundle line 124819)
+    Client: ``OLECommand.executeCommand`` (bundle line 634563)
     """
 
     command = "ole"
@@ -178,7 +178,6 @@ class OpenLootBoxResponse(BaseResponse):
     loot_box_id: EnumOrInt["LootBox"] = Field(validation_alias="LID", default=0, description="The loot box opened")
     rewards: tuple[Collectable, ...] = Field(default=(), description="What the boxes gave, the keys won aside")
     reward_ids: tuple[RewardId, ...] = Field(default=(), description="The reward each box drew, from LTR")
-    raw_rewards: Any = Field(validation_alias="LTR", default=None, description="LTR as the server sent it")
     key_progress: ClientNumber = Field(
         validation_alias="KBS", default=0, description="The keys now collected towards the box's type"
     )
