@@ -85,7 +85,7 @@ class CommanderState(StateBase):
         """Your Legendary and sceat skills as the last ``skl`` listed them; None until one arrived.
 
         The login gbd brings them, and so do a ``skl`` reply or push and an ``ego`` push
-        that carries one. A copy: changing it changes nothing in state.
+        that carries one; a skill reset (``skr``) empties them. A copy: changing it changes nothing in state.
         """
         with self._lock:
             return None if self.skills is None else self.skills.model_copy(deep=True)

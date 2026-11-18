@@ -332,7 +332,7 @@ class GameState(
     spies owned, before boosts           ``gms`` (pushed)             re-login
     commanders and castellans            ``gli``, the replies that    ``client.commanders.get_all()``
                                          carry one (``arl``, ...)
-    Legendary and sceat skills              ``skl``, ``ego``             ``client.player.get_skills()``
+    Legendary and sceat skills              ``skl``, ``ego``, ``skr``    ``client.player.get_skills()``
     your alliance's details, members     ``ain``, ``acn``, ``akm``,   ``client.alliance.get_alliance_info(id)``
                                          ..., ``acm`` (online)
     alliance chat history                ``acl``, ``acm`` (pushed)    --
