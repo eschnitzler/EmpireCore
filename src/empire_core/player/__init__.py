@@ -160,11 +160,13 @@ if TYPE_CHECKING:
         Currency,
         CurrencyId,
         Effect,
+        Feast,
         GlobalEffect,
         LegendarySkill,
         LootBox,
         LootBoxType,
         Research,
+        SceatSkill,
         Title,
     )
 
@@ -321,11 +323,13 @@ __all__ = [
     "Currency",
     "CurrencyId",
     "Effect",
+    "Feast",
     "GlobalEffect",
     "LegendarySkill",
     "LootBox",
     "LootBoxType",
     "Research",
+    "SceatSkill",
     "Title",
 ]
 
@@ -339,11 +343,13 @@ if not TYPE_CHECKING:
             "Currency",
             "CurrencyId",
             "Effect",
+            "Feast",
             "GlobalEffect",
             "LegendarySkill",
             "LootBox",
             "LootBoxType",
             "Research",
+            "SceatSkill",
             "Title",
         ),
     )
