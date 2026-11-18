@@ -19,7 +19,12 @@ on (``apiOK``, ``joinOK``, ``roundTripRes``), as server messages, and every
 constant the client passes to ``sendMessage``, as a client command, since the
 keepalive is sent under ``S2C_PING``.
 
-``--check`` exits 1 when a command table would change; a new release alone
+The ``requests`` and ``handlers`` tables record how the client uses each id
+(see :func:`usage`): the request classes it constructs and the constants it sends
+directly, and the handler classes it registers, marked `` (ack)`` when they never
+read the payload.
+
+``--check`` exits 1 when a table would change; a new release alone
 only prints its hashes. Both modes also list every
 command the library registers that the fresh tables lack;
 ``tests/protocol/test_client_commands.py`` fails on those against the committed
@@ -36,6 +41,8 @@ import re
 import sys
 import urllib.request
 from collections import defaultdict
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -72,12 +79,28 @@ _SYSTEM_HANDLER = re.compile(r"\.handleSystemMessage=function\(.*?\bdefault:", r
 _SYSTEM_CASE = re.compile(r"case\"([A-Za-z]+)\":")
 # t.sendMessage(BasicSmartfoxClient.S2C_PING,[""])
 _SENT = re.compile(r"\.sendMessage\(([A-Za-z_$][\w$]*)\.(S2C_[A-Z0-9_]+)\b")
+# A command constant as code reads it: a.ClientConstSF.C2S_JOIN_CASTLE, f.S2C_PING
+_REFERENCE = r"(?:[\w$]+\.)*?([\w$]+)\.((?:C2S|S2C)_[A-Z0-9_]+)\b"
+# C2SJoinCastleVO.prototype.getCmdId=function(){return a.ClientConstSF.C2S_JOIN_CASTLE}
+_REQUEST_CLASS = re.compile(r"([\w$]+)\.prototype\.getCmdId=function\(\)\{return " + _REFERENCE)
+# u.BasicModel.smartfoxClient.sendMessage(s.BasicSmartfoxConstants.C2S_LOGIN,[...])
+_DIRECT_SEND = re.compile(r"\.(?:sendMessage|sendServerMessageAndWait)\(" + _REFERENCE)
+# i.set(s.ClientConstSF.S2C_PREMIUM_FLAG_INFO,new jl.GPFCommand)
+_REGISTRATION = re.compile(r"\.set\(" + _REFERENCE + r",new (?:[\w$]+\.)*([\w$]+)\)")
+_CONSTRUCTION = re.compile(r"\bnew (?:[\w$]+\.)*([\w$]+)")
+_CLASS = re.compile(r"\.__extends\(([\w$]+),")
+# ...},GPFCommand}(l.CastleCommand) closes the class's module function, passing its parent
+_PARENT = r"\b{}\}}\((?:[\w$]+(?:\([^()]*\))?\.)*([\w$]+)\)"
+_METHOD = re.compile(r"([\w$]+)\.prototype\.(executeCommand|exec)=function\(([\w$,]*)\)\{")
+_ERROR_DIALOG = r"\.showErrorDialog\([\w$]+,{}\)"
+# The snapshot's tables: the constants on each side, then what the client sends and handles
+_TABLES = ("client", "server", "requests", "handlers")
 _BUNDLE_NAME = re.compile(r"Game\.bundle\.([0-9a-f]+)\.js")
 _DLL_NAME = re.compile(r"ggs\.dll\.([0-9a-f]+)\.js")
 
 
-def extract(source: str) -> dict[str, dict[str, list[str]]]:
-    """Every ``C2S_``/``S2C_`` constant in ``source``, as ``{"client"|"server": {id: ["Holder.NAME", ...]}}``."""
+def _holder_names(source: str) -> Callable[[str, int], str]:
+    """The constant class a (possibly minified) variable names at a position in ``source``."""
     holders: dict[str, list[tuple[int, str]]] = defaultdict(list)
     for match in _HOLDER.finditer(source):
         holders[match.group(1)].append((match.start(), match.group(2)))
@@ -86,6 +109,12 @@ def extract(source: str) -> dict[str, dict[str, list[str]]]:
         names = [name for start, name in holders.get(var, []) if start < position]
         return names[-1] if names else var
 
+    return holder_name
+
+
+def extract(source: str) -> dict[str, dict[str, list[str]]]:
+    """Every ``C2S_``/``S2C_`` constant in ``source``, as ``{"client"|"server": {id: ["Holder.NAME", ...]}}``."""
+    holder_name = _holder_names(source)
     tables: dict[str, dict[str, set[str]]] = {"client": defaultdict(set), "server": defaultdict(set)}
     values: dict[tuple[str, str], str] = {}
     for match in _ASSIGNMENT.finditer(source):
@@ -105,6 +134,156 @@ def extract(source: str) -> dict[str, dict[str, list[str]]]:
     }
 
 
+@dataclass
+class _ClientClass:
+    parent: str | None = None
+    methods: dict[str, tuple[list[str], str]] = field(default_factory=dict)
+
+
+def _block(source: str, start: int) -> str:
+    """The body of the ``{`` block at ``start``, skipping braces inside string literals."""
+    depth, quote, index = 0, "", start
+    while index < len(source):
+        char = source[index]
+        if quote:
+            if char == "\\":
+                index += 1
+            elif char == quote:
+                quote = ""
+        elif char in "\"'`":
+            quote = char
+        elif char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return source[start + 1 : index]
+        index += 1
+    raise ValueError(f"unclosed block at {start}")
+
+
+def _classes(source: str) -> dict[str, _ClientClass]:
+    """Each ``__extends`` class in ``source`` with its parent and its ``executeCommand``/``exec`` methods."""
+    classes: dict[str, _ClientClass] = defaultdict(_ClientClass)
+    for match in _CLASS.finditer(source):
+        name = match.group(1)
+        end = re.compile(_PARENT.format(re.escape(name))).search(source, match.end())
+        classes[name].parent = end.group(1) if end else None
+    for match in _METHOD.finditer(source):
+        name, method, params = match.groups()
+        classes[name].methods[method] = (params.split(",") if params else [], _block(source, match.end() - 1))
+    return classes
+
+
+def _payload_used(body: str, names: set[str]) -> bool:
+    """Whether ``body`` uses any of ``names`` other than to show the server's error dialog."""
+    for name in names:
+        body = re.sub(_ERROR_DIALOG.format(re.escape(name)), "", body)
+    return any(re.search(rf"(?<![\w$.]){re.escape(name)}(?![\w$])", body) for name in names)
+
+
+def _reads_payload(
+    name: str, classes: dict[str, _ClientClass], method: str = "executeCommand", start: str | None = None
+) -> bool:
+    """
+    Whether the handler class ``name`` reads its reply's payload, following inherited and super calls.
+
+    ``executeCommand(code, params)`` gets the payload as ``params``; ``CastleCommand`` hands
+    ``[code, params]`` to ``exec``, which is looked up from ``name`` again. ``start`` is the
+    class to look ``method`` up from, for a super call. Anything not followed counts as read.
+    """
+    owner: str | None = start or name
+    while owner is not None and method not in classes.get(owner, _ClientClass()).methods:
+        owner = classes.get(owner, _ClientClass()).parent
+    if owner is None:
+        return True
+    params, body = classes[owner].methods[method]
+    parent = classes[owner].parent
+    if method == "executeCommand":
+        if len(params) < 2:
+            return "arguments" in body
+        payload = {params[1]}
+        if re.search(r"\bthis\.exec\(", body):
+            return _reads_payload(name, classes, "exec")
+    else:
+        if not params:
+            return "arguments" in body
+        row = re.escape(params[0])
+        body = re.sub(rf"(?<![\w$.]){row}\[1\]", "__payload__", body)
+        payload = {"__payload__", *re.findall(r"([\w$]+)=__payload__\b", body)}
+        body = re.sub(r"[\w$]+=__payload__\b", "", body)
+        if re.search(rf"(?<![\w$.]){row}(?!\[0\])(?![\w$])", body):
+            return True
+    super_call = re.compile(rf"[\w$]+\.prototype\.{method}\.call\(this,{','.join(map(re.escape, params))}\)")
+    if super_call.search(body):
+        body = super_call.sub("", body)
+        if parent is None or _reads_payload(name, classes, method, parent):
+            return True
+    return _payload_used(body, payload)
+
+
+def usage(sources: Sequence[str]) -> dict[str, dict[str, list[str]]]:
+    """
+    Which commands the client sends and handles, as ``{"requests"|"handlers": {id: [...]}}``.
+
+    A request is a ``getCmdId`` class the client constructs, or a constant it passes straight to
+    ``sendMessage``/``sendServerMessageAndWait`` (``"Holder.NAME (sent)"``). A handler is a class
+    the client registers under a constant with ``commandDict.set``, marked `` (ack)`` when it
+    never reads the reply's payload, and the SmartFox system messages. Registrations key the
+    handler, not its ``cmdId`` getter: ``GPFCommand`` is registered under ``gpf`` but returns ``gdi``.
+    """
+    values: dict[tuple[str, str], str] = {}
+    by_constant: dict[str, set[str]] = defaultdict(set)
+    named = [(source, _holder_names(source)) for source in sources]
+    for source, holder_name in named:
+        for match in _ASSIGNMENT.finditer(source):
+            var, constant, value = match.groups()
+            values[(holder_name(var, match.start()), constant)] = value
+            by_constant[constant].add(value)
+
+    def resolve(holder: str, constant: str) -> str:
+        found = values.get((holder, constant))
+        if found is None and len(by_constant[constant]) == 1:
+            found = next(iter(by_constant[constant]))
+        if found is None:
+            raise ValueError(f"cannot resolve {holder}.{constant}")
+        return found
+
+    classes: dict[str, _ClientClass] = {}
+    constructed: set[str] = set()
+    requests: dict[str, set[str]] = defaultdict(set)
+    handlers: dict[str, set[str]] = defaultdict(set)
+    request_classes: list[tuple[str, str]] = []
+    for source, holder_name in named:
+        for name, found in _classes(source).items():
+            classes.setdefault(name, found)
+        constructed.update(_CONSTRUCTION.findall(source))
+        for match in _REQUEST_CLASS.finditer(source):
+            name, holder, constant = match.groups()
+            request_classes.append((name, resolve(holder_name(holder, match.start()), constant)))
+        for match in _DIRECT_SEND.finditer(source):
+            holder, constant = match.groups()
+            holder = holder_name(holder, match.start())
+            requests[resolve(holder, constant)].add(f"{holder}.{constant} (sent)")
+        for match in _REGISTRATION.finditer(source):
+            holder, constant, name = match.groups()
+            handlers[resolve(holder_name(holder, match.start()), constant)].add(name)
+        for handler in _SYSTEM_HANDLER.finditer(source):
+            for case in _SYSTEM_CASE.finditer(handler.group(0)):
+                handlers[case.group(1)].add("BasicSmartfoxClient.handleSystemMessage")
+    for name, sent in request_classes:
+        if name in constructed:
+            requests[sent].add(name)
+    marked = {
+        command: {name if _reads_payload(name, classes) else f"{name} (ack)" for name in names}
+        for command, names in handlers.items()
+    }
+    return {
+        "requests": {command: sorted(names) for command, names in sorted(requests.items())},
+        "handlers": {command: sorted(names) for command, names in sorted(marked.items())},
+    }
+
+
 def snapshot(bundle: str, dll: str, bundle_release: str, dll_release: str) -> dict[str, Any]:
     """The committed file's content for these client sources."""
     merged: dict[str, dict[str, set[str]]] = {"client": defaultdict(set), "server": defaultdict(set)}
@@ -119,6 +298,7 @@ def snapshot(bundle: str, dll: str, bundle_release: str, dll_release: str) -> di
         **{
             side: {command: sorted(names) for command, names in sorted(table.items())} for side, table in merged.items()
         },
+        **usage((bundle, dll)),
     }
 
 
@@ -234,8 +414,8 @@ def changes(old: dict[str, Any], new: dict[str, Any]) -> list[str]:
     lines = [
         f"{key}: {old.get(key)} -> {new[key]}" for key in ("bundle_release", "dll_release") if old.get(key) != new[key]
     ]
-    for side in ("client", "server"):
-        before, after = old.get(side, {}), new[side]
+    for side in _TABLES:
+        before, after = old.get(side, {}), new.get(side, {})
         lines += [
             f"{side} dropped {command} ({', '.join(before[command])})" for command in sorted(set(before) - set(after))
         ]
@@ -291,8 +471,8 @@ def _release(path: Path, pattern: re.Pattern[str], given: str | None) -> str:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--download", action="store_true", help="read the live client named by index.html")
-    parser.add_argument("--bundle", type=Path, help="a Game.bundle.<hash>.js (split or not)")
-    parser.add_argument("--dll", type=Path, help="a ggs.dll.<hash>.js (split or not)")
+    parser.add_argument("--bundle", type=Path, help="a Game.bundle.<hash>.js, minified as served")
+    parser.add_argument("--dll", type=Path, help="a ggs.dll.<hash>.js, minified as served")
     parser.add_argument("--bundle-release", help="the bundle's release hash, when its file name lacks it")
     parser.add_argument("--dll-release", help="the dll's release hash, when its file name lacks it")
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT, help="snapshot file to write")
@@ -320,7 +500,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"library {side} command not in the client: {command} ({', '.join(where)})", file=sys.stderr)
     print(f"{len(new['client'])} client and {len(new['server'])} server commands")
     if args.check:
-        return 1 if any(old.get(side) != new[side] for side in ("client", "server")) else 0
+        return 1 if any(old.get(side) != new.get(side) for side in _TABLES) else 0
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(render(new), encoding="utf-8")
     return 0
