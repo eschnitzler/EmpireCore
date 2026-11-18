@@ -189,6 +189,10 @@ if castle.buildings:
     client.castle.upgrade_building(12345, building.object_id)
 ```
 
+`client.castle.construction_list` holds the joined castle's construction slots
+without a request: the join sets it, and the building replies and the server's
+pushes keep it current. It is `None` before a join and after a map scan.
+
 `client.castle.select(castle_id)` joins without returning the state, and
 `join_area(x, y)` joins an outpost, capital, metropolis or Berimond camp by its
 position, as the client does for the areas it may visit that are not castles.
