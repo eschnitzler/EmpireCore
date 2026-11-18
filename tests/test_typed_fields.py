@@ -115,8 +115,7 @@ OPAQUE: dict[str, str] = {
         "deferred: laid out by the effect type's valueClass (BonusVO.parseFromValueArray, bundle line 32395)"
     ),
     "commanders.models.equipment.RelicBonus.values": (
-        "deferred: laid out by the effect type's valueClass (RelicBonusVO.parseRelicFromValueArray, bundle line "
-        "233690)"
+        "deferred: laid out by the effect type's valueClass (RelicBonusVO.parseRelicFromValueArray, bundle line 233690)"
     ),
     "commanders.models.roster.CommanderEffect.values": (
         "deferred: laid out by the effect type's valueClass (BonusVO.parseFromValueArray, bundle line 32395)"
@@ -292,7 +291,11 @@ def test_the_check_finds_untyped_fields():
     assert _untyped(dict[str, Any]) and _untyped(dict[str, list[Any]]) and _untyped(Annotated[dict[str, Any], "m"])
     assert _untyped(dict) and _untyped(list) and _untyped(list[dict] | None)
     assert not _untyped(int) and not _untyped(dict[str, int]) and not _untyped(tuple[int, ...])
-    assert not _untyped(EnumOrInt[Kingdom]) and not _untyped(WodAmounts) and not _untyped(tuple[UnitOrTool, ...])
+    assert (
+        not _untyped(tuple[EnumOrInt[Kingdom], ...])
+        and not _untyped(WodAmounts)
+        and not _untyped(tuple[UnitOrTool, ...])
+    )
 
 
 def test_the_check_finds_bare_fields():
