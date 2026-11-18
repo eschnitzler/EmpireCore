@@ -32,7 +32,10 @@ class ProgressState(StateBase):
     def _parse_progress(self, login: LoginDataResponse) -> set[str]:
         """Apply the progress sections of a gbd, or the one a push or reply carries; return those not applied.
 
-        Client: ``GBDCommand.exec`` (bundle line 129381) calls ``parseUFA``, ``parseUAR``,
+        A login's ``uht`` goes in between its ``ufa`` and ``uar``, so a ``uar`` beside it sets the glory titles'
+        reset over it.
+
+        Client: ``GBDCommand.exec`` (split.js line 651188) calls ``parseUFA``, ``parseUHT``, ``parseUAR``,
         ``parse_BOI``, ``parse_GMU``, ``parse_vli``, ``parse_REI``, ``parse_GRI`` and ``parse_CPI``;
         it never reads the gbd's ``ufp``
         """
@@ -49,6 +52,8 @@ class ProgressState(StateBase):
         if login.glory_points is not None:
             self.glory_points = login.glory_points
             applied.add("ufa")
+        if login.glory_title_reset is not None:
+            self._apply_glory_title_reset(login.glory_title_reset)
         if login.title_ranks is not None:
             self._apply_title_ranks(login.title_ranks)
             applied.add("uar")
@@ -108,17 +113,24 @@ class ProgressState(StateBase):
         self.title_ranks = ranks
 
     def _handle_uht(self, data: Any) -> None:
-        """Handle a ``uht`` push: when the glory top-X titles reset, kept on the glory system of the last ``uar``.
+        """Handle a ``uht`` push: when the glory top-X titles reset.
+
+        Client: ``UHTCommand.executeCommand`` (bundle line 129926), ``CastleTitleData.parseUHT`` (split.js line
+        109746), which does nothing for a falsy body
+        """
+        if not js_truthy(data):
+            return
+        if (reset := read_section(GloryTitleResetResponse, data, "the glory title reset")) is not None:
+            self._apply_glory_title_reset(reset)
+
+    def _apply_glory_title_reset(self, reset: GloryTitleResetResponse) -> None:
+        """Keep when the glory top-X titles reset on the glory system of the last ``uar``.
 
         Nothing is applied before a ``uar`` arrived, nor for an ``RS`` that does not read as a number.
 
-        Client: ``UHTCommand.executeCommand`` (bundle line 129926), ``CastleTitleData.parseUHT`` (bundle line 21048),
-        which does nothing for a falsy body
+        Client: ``CastleTitleData.parseUHT`` (split.js line 109746)
         """
-        if self.title_ranks is None or not js_truthy(data):
-            return
-        reset = read_section(GloryTitleResetResponse, data, "the glory title reset")
-        if reset is None or reset.reset_seconds is None:
+        if self.title_ranks is None or reset.reset_seconds is None:
             return
         glory = self.title_ranks.glory.model_copy(
             update={"reset_seconds": reset.reset_seconds, "received_at": reset.received_at}

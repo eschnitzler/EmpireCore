@@ -156,6 +156,21 @@ class TestState:
         assert ranks.glory.reset_seconds == 3600 and ranks.gallantry.reset_seconds == 0
         assert state.get_last_packet_time("uht") is not None
 
+    def test_a_login_uht_is_read_before_its_uar(self):
+        # GBDCommand.exec: parseUFA, parseUHT, then parseUAR, which sets the glory reset again
+        state = logged_in_state(uar=UAR)
+
+        state.update_from_packet("gbd", {"uht": {"RS": 3600}, "uar": {**UAR, "FTM": {"CTXT": -1, "RS": 900}}})
+
+        assert state.get_title_ranks().glory.reset_seconds == 900
+
+    def test_a_login_uht_without_a_uar_sets_the_glory_reset(self):
+        state = logged_in_state(uar=UAR)
+
+        state.update_from_packet("gbd", {"uht": {"RS": 3600}})
+
+        assert state.get_title_ranks().glory.reset_seconds == 3600
+
     @pytest.mark.parametrize(("payload", "error_code"), [({"RS": 3600}, 1), ({"RS": "x"}, 0), ({}, 0)])
     def test_a_glory_reset_not_read_keeps_it(self, payload, error_code):
         state = logged_in_state(uar=UAR)
