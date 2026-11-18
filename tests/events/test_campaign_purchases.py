@@ -24,6 +24,7 @@ CAMPAIGN = {
         {"QID": 50, "CQID": 2, "QCS": "N"},
         {"QID": 51, "CQID": 3, "ST": 10, "QCS": "C"},
         {"QID": 52, "CQID": 1, "ST": 10, "P": [4], "QCS": "F"},
+        {"QID": 53, "CQID": 4, "ST": 10, "P": [1]},
     ],
 }
 
@@ -62,10 +63,18 @@ def test_a_locked_or_done_quest_is_not_bought(campaign_quest_id):
     assert conn(client).request_payloads == []
 
 
-def test_a_quest_outside_the_campaign_is_not_bought():
+def test_a_running_quest_is_not_bought():
+    client = campaign_client()
+    with pytest.raises(ValueError, match="has not failed"):
+        client.events.buy_campaign_quest(campaign_quest(client, 4), spend_rubies=True)
+    assert conn(client).request_payloads == []
+
+
+@pytest.mark.parametrize("entry", [{"QID": 7, "P": [0]}, {"QID": 7, "CQID": 1, "QCS": "F"}])
+def test_a_quest_outside_the_campaign_is_not_bought(entry):
     client = campaign_client()
     with pytest.raises(ValueError, match="not one of"):
-        client.events.buy_campaign_quest(Quest.from_entry({"QID": 7, "P": [0]}), spend_rubies=True)
+        client.events.buy_campaign_quest(Quest.from_entry(entry), spend_rubies=True)
     assert conn(client).request_payloads == []
 
 
