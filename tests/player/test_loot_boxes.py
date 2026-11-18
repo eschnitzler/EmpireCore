@@ -61,6 +61,13 @@ class TestWireShapes:
         assert reply.reward_ids == (RewardId(77),)
         assert reply.rewards == ()
 
+    def test_without_ltrr_rows_in_ltr_are_the_rewards(self):
+        # OLECommand: createList(LTR), then createList(LTRR) when LTRR is set
+        reply = OpenLootBoxResponse.model_validate({**OPENED, "LTR": [[["C2", 15]]], "LTRR": None})
+
+        assert [(c.kind, c.amount) for c in reply.rewards] == [(CollectableKind.RUBIES, 15)]
+        assert reply.reward_ids == ()
+
 
 class TestGetLootBoxes:
     def test_the_status_is_requested_and_kept(self):
