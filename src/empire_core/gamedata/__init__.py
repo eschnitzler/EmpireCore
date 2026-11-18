@@ -7,6 +7,7 @@ from empire_core.enums import (
     BerimondFaction,
     BerimondLane,
     BerimondSpecialCampType,
+    BoosterId,
     BuildingGroundType,
     BuildingGroup,
     CastleEffect,
@@ -117,6 +118,7 @@ from .models import (
     HorseStats,
     LeagueBracketDef,
     LegendarySkillDef,
+    LevelBoosterDef,
     NpcCampDefence,
     RaidBossDef,
     RelicEffectDef,
@@ -223,6 +225,7 @@ from .troops import count_troops, get_troop_ids, troop_data_available
 
 __all__ = [
     "AssetIndex",
+    "BoosterId",
     "BuildingGroundType",
     "CastleEffect",
     "BuildingGroup",
@@ -332,6 +335,7 @@ __all__ = [
     "HorseStats",
     "LeagueBracketDef",
     "LegendarySkillDef",
+    "LevelBoosterDef",
     "NpcCampDefence",
     "RAW_TABLES",
     "Table",
