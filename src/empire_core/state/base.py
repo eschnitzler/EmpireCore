@@ -235,7 +235,6 @@ class StateBase:
         self.commanders: CommanderRoster | None = None
         self.skills: SkillList | None = None
         self.own_alliance: AllianceInfo | None = None
-        # The ain block own_alliance was read from, for the keys a later ain leaves out
         self._alliance_field_order: dict[str, int] = {}
         self._alliance_reply_order: dict[str, tuple[dict[str, Any], int]] = {}
         self.alliance_chat: tuple[ChatMessageData, ...] = ()

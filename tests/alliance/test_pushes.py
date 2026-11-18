@@ -2,7 +2,8 @@
 
 import threading
 
-from empire_core.alliance.models.info import AllianceBuilding
+from empire_core.alliance.models.info import AllianceBuilding, AllianceInfo, GetAllianceInfoResponse
+from empire_core.alliance.models.membership import AllianceMembership, AllianceMembershipChange
 from empire_core.map.models.items import MapAreaItem
 from empire_core.state.manager import GameState
 from empire_core.state.models import Player
@@ -179,3 +180,50 @@ def test_readers_never_see_a_half_applied_push():
     assert torn == []
     held = state.get_own_alliance()
     assert held is not None and held.glory_points == 299 and held.buildings[0].level == 299 % 5
+
+
+def test_an_ain_keeps_a_crest_it_sends_falsy():
+    # CastleAllianceData.parseAllianceInfo (split.js 61810) reads aee only when truthy
+    state = alliance_state()
+    state.update_from_packet("ain", {"A": {"AID": 301, "aee": {"ACCA": {"ACLI": 4, "ACCS": [1]}}}})
+    state.update_from_packet("ain", {"A": {"AID": 301, "aee": 0}})
+    held = state.get_own_alliance()
+    assert held is not None and held.crests is not None and held.crests.crest is not None
+
+
+def test_a_settings_reply_with_no_alliance_held_keeps_the_reply():
+    state = GameState()
+    state.local_player = Player(PID=7, PN="Player")
+    state.update_from_packet("gal", {"AID": 301, "R": 0})
+    assert state.own_alliance is None
+    state.apply_alliance_settings(
+        {"A": {"AID": 301, "ABL": [{"BT": 6, "L": 2}]}},
+        membership_revision=state.membership_revision,
+        alliance_id=301,
+        command="aug",
+    )
+    held = state.get_own_alliance()
+    assert held is not None and [buff.level for buff in held.buildings] == [2]
+
+
+def test_a_settings_reply_sets_every_forge_field_when_mf_and_if_are_sent():
+    # fillFromParamObject (split.js 137516) reads SRFU and HRFU with MF and IF, as 0 when unsent
+    state = alliance_state()
+    state.update_from_packet("ain", {"A": {"AID": 301, "MF": 1, "IF": 0, "SRFU": 2, "HRFU": 4}})
+    state.apply_alliance_settings(
+        {"A": {"AID": 301, "MF": 0, "IF": 1}},
+        membership_revision=state.membership_revision,
+        alliance_id=301,
+        command="aug",
+    )
+    held = state.get_own_alliance()
+    assert held is not None
+    assert (held.is_able_to_forge, held.is_forge_inventory_full, held.soft_relic_forge_uses) == (False, True, 0)
+
+
+def test_the_reply_models_build_by_name():
+    alliance = AllianceInfo.model_validate({"AID": 301})
+    membership = AllianceMembership.model_validate({"AID": 301, "R": 0})
+    change = AllianceMembershipChange(membership=membership, alliance=alliance)
+    assert change.membership is membership and change.alliance is alliance
+    assert GetAllianceInfoResponse(alliance=alliance).alliance is alliance

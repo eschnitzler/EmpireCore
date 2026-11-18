@@ -174,7 +174,7 @@ class AllianceMembershipChange(BasePayload):
     @field_validator("membership", mode="before")
     @classmethod
     def _membership(cls, value: Any) -> Any:
-        return value if isinstance(value, dict) else None
+        return value if isinstance(value, (dict, AllianceMembership)) else None
 
     @field_validator("alliance", mode="before")
     @classmethod

@@ -662,6 +662,8 @@ def alliance_block(value: Any) -> Any:
 
     Client: ``CastleAllianceData.parseAllianceInfo`` (bundle line 11605)
     """
+    if isinstance(value, AllianceInfo):
+        return value
     block = object_or_none(value)
     return block if isinstance(block, dict) and block.get("AID") is not None else None
 
