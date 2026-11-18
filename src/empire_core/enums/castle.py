@@ -1,5 +1,5 @@
 """Castle buildings, crafting slots, fusion catalysts, resource carts, market goods, market scopes, tax
-collection and the server's weekdays."""
+collection, the ruby wishing well's options and the server's weekdays."""
 
 from enum import Enum, IntEnum
 
@@ -185,6 +185,20 @@ class CatalystConversion(IntEnum):
 
     ASSEMBLE = 0
     DISASSEMBLE = 1
+
+
+class WishingWellOption(str, Enum):
+    """
+    What a ``rww`` asks of the ruby wishing well, its ``WOP``.
+
+    Client: ``WishingWellConst.OPTION_*`` (ggs.dll.js line 237)
+    """
+
+    START = "S"
+    SKIP = "SK"
+    COLLECT = "C"
+    UPGRADE = "U"
+    UPDATE = "UD"
 
 
 class JudgementOption(IntEnum):

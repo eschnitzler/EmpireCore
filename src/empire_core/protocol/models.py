@@ -611,7 +611,7 @@ from empire_core.castle.models.upkeep import (
     ConstructionItemExpiryResponse,
     ResourcePoolResponse,
 )
-from empire_core.castle.models.wishing_well import WishingWellResponse
+from empire_core.castle.models.wishing_well import WishingWellRequest, WishingWellResponse
 from empire_core.commanders.models.auto_sell import (
     AutoSellEquipment,
     AutoSellRules,
@@ -2183,6 +2183,7 @@ __all__ = [
     "DailyResetResponse",
     "FoodProductionStatus",
     "PlayerGiftsResponse",
+    "WishingWellRequest",
     "WishingWellResponse",
     "NewRelicsResponse",
     "GemChange",

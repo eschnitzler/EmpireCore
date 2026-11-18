@@ -324,6 +324,26 @@ rubies) are left out.
 
 **API:** [`CastleService`](../reference/castle.md#empire_core.castle.service.CastleService)
 
+## Ruby wishing well
+
+Your main castle's ruby wishing well takes its level's entry rubies and lucky
+pennies, and gives twice the rubies once its waiting time has passed. Each call
+sends `rww` and returns the well's level and time; the reply reaches
+`client.castle.wishing_well` too.
+
+```python
+well = client.castle.get_wishing_well()
+if well.is_ready_to_start:
+    client.castle.start_wishing_well(spend_rubies=True)
+elif well.is_ready_to_collect:
+    client.castle.collect_wishing_well()
+
+client.castle.finish_wishing_well(spend_rubies=True)  # wishing_well_skip_rubies(seconds left)
+client.castle.upgrade_wishing_well()                   # wood and stone; spend_rubies pays what is missing
+```
+
+Starting and finishing always need `spend_rubies`; a refusal raises `CommandError`.
+
 ## Horses
 
 `client.castle.horses(castle_id)` lists the horses a castle can send

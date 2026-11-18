@@ -2,15 +2,57 @@
 The ruby wishing well.
 
 Commands:
-- rww: the wishing well's level and time, a login section of ``gbd`` and a reply
+- rww: start, finish, collect, upgrade or read the wishing well; its level and time, a login section of ``gbd``
+  and the reply
 """
 
 from __future__ import annotations
 
-from pydantic import Field
+from pydantic import Field, field_serializer
 
-from empire_core.protocol.base import TimedResponse
-from empire_core.protocol.js import ClientInt, ClientNumber
+from empire_core.enums import WishingWellOption
+from empire_core.protocol.base import BaseRequest, TimedResponse
+from empire_core.protocol.js import ClientInt, ClientNumber, js_int, js_int32
+
+_MAX_SKIP_RUBIES = 1999
+
+
+def wishing_well_skip_rubies(seconds: int) -> int:
+    """
+    The rubies finishing the running wishing well costs with ``seconds`` left: half a ruby a whole minute,
+    1999 at most.
+
+    Client: ``WishingWellConst.calculateWishingWellSkipCost`` (ggs.dll.js line 237), shown by
+    ``RubyWishingWellDialog.updateArrow`` (split.js line 266252)
+    """
+    return js_int(max(0.0, min(0.5 * js_int32(seconds / 60), _MAX_SKIP_RUBIES)))
+
+
+class WishingWellRequest(BaseRequest):
+    """
+    Act on the ruby wishing well in your main castle.
+
+    Command: rww
+    Payload: {"PWR": 0 or 1, "_PO": -1, "WOP": option}
+
+    Keys follow the client's order: the constructor sets PWR and _PO before WOP.
+
+    Client: ``C2SWishingWellCommandVO`` (split.js line 110368)
+    """
+
+    command = "rww"
+
+    pay_with_rubies: bool = Field(
+        validation_alias="PWR", default=False, description="Whether the resources an upgrade lacks are paid in rubies"
+    )
+    private_offer_id: int = Field(
+        validation_alias="_PO", default=-1, description="The private offer the payment uses, -1 for none"
+    )
+    option: WishingWellOption = Field(validation_alias="WOP", description="What to do")
+
+    @field_serializer("pay_with_rubies")
+    def _flag(self, value: bool) -> int:
+        return 1 if value else 0
 
 
 class WishingWellResponse(TimedResponse):
@@ -20,9 +62,9 @@ class WishingWellResponse(TimedResponse):
     Command: rww, as a login section of ``gbd`` and a successful reply; a reply refused for lack of
     resources is not read.
 
-    Client: ``RWWCommand`` (bundle line 126903), ``CastleRubyWishingWellData.parse_RWW`` (bundle line 21255),
+    Client: ``RWWCommand`` (split.js line 641960), ``CastleRubyWishingWellData.parse_RWW`` (split.js line 110466),
     ``isReadyToStart``, ``isReadyToCollect``, ``isRunning`` and ``getRemainingSecondsCalculated``
-    (bundle lines 21248-21262)
+    (split.js lines 110440-110504)
     """
 
     command = "rww"
@@ -54,4 +96,4 @@ class WishingWellResponse(TimedResponse):
         return int(max(0.0, self.seconds - self._elapsed(now)))
 
 
-__all__ = ["WishingWellResponse"]
+__all__ = ["WishingWellRequest", "WishingWellResponse", "wishing_well_skip_rubies"]
