@@ -686,6 +686,8 @@ from empire_core.commanders.models.skills import (
     AddSkillPointResponse,
     AssignGeneralRequest,
     AssignGeneralResponse,
+    BuySceatSkillRequest,
+    BuySceatSkillResponse,
     GetGeneralsRequest,
     GetGeneralsResponse,
     GetSkillsRequest,
@@ -696,6 +698,8 @@ from empire_core.commanders.models.skills import (
     ResetSkillsRequest,
     SetGeneralAbilitiesRequest,
     SkillList,
+    SkipSceatSkillActivationRequest,
+    SkipSceatSkillActivationResponse,
     UnlockGeneralSkillRequest,
 )
 from empire_core.defense.models import (
@@ -2028,6 +2032,10 @@ __all__ = [
     "ActivatingSceatSkill",
     "AddSkillPointRequest",
     "AddSkillPointResponse",
+    "BuySceatSkillRequest",
+    "BuySceatSkillResponse",
+    "SkipSceatSkillActivationRequest",
+    "SkipSceatSkillActivationResponse",
     "ResetSkillsRequest",
     "ObjectUpdateEvent",
     "GetCommandersResponse",

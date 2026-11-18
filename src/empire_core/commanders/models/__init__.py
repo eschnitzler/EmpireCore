@@ -89,6 +89,8 @@ from .skills import (
     AddSkillPointResponse,
     AssignGeneralRequest,
     AssignGeneralResponse,
+    BuySceatSkillRequest,
+    BuySceatSkillResponse,
     GetGeneralsRequest,
     GetGeneralsResponse,
     GetSkillsRequest,
@@ -99,6 +101,8 @@ from .skills import (
     ResetSkillsRequest,
     SetGeneralAbilitiesRequest,
     SkillList,
+    SkipSceatSkillActivationRequest,
+    SkipSceatSkillActivationResponse,
     UnlockGeneralSkillRequest,
 )
 
@@ -182,6 +186,10 @@ __all__ = [
     "ActivatingSceatSkill",
     "AddSkillPointRequest",
     "AddSkillPointResponse",
+    "BuySceatSkillRequest",
+    "BuySceatSkillResponse",
+    "SkipSceatSkillActivationRequest",
+    "SkipSceatSkillActivationResponse",
     "ResetSkillsRequest",
     "ObjectUpdateEvent",
     "NewRelicsResponse",

@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Annotated, Any, Literal
 
 from pydantic import Field, field_validator, model_validator
 
+from empire_core.enums import SceatSkillTab
 from empire_core.gamedata import EnumOrInt, GameData
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, object_or_none, readable_list
 from empire_core.protocol.js import ClientInt, js_loose_equals
@@ -480,6 +481,67 @@ class AddSkillPointResponse(BaseResponse):
         return _id_list(value)
 
 
+class BuySceatSkillRequest(BaseRequest):
+    """
+    Buy a sceat skill level with sceat tokens or imperial ducats.
+
+    Command: bss
+    Payload: {"ID": skill_id}
+
+    The client sends the next level of a skill held, or the first of one not held, from its buy dialog once
+    ``CastleLegendSkillItem.canBuy`` passes.
+
+    Client: ``C2SBuySceatSkillVO`` (split.js line 408751), sent by ``CastleSceatSkillVO.buySkill`` (split.js line
+    121683) from ``CastleSceatSkillBuyDialog.onClick`` (split.js line 409120); ``CastleLegendSkillItem.onClick``
+    and ``canBuy`` (split.js lines 186511, 186593)
+    """
+
+    command = "bss"
+
+    skill: EnumOrInt["SceatSkill"] = Field(validation_alias="ID", description="The sceat skill level to buy")
+
+
+class BuySceatSkillResponse(BaseResponse):
+    """
+    The acknowledgement of a ``bss``; it carries nothing.
+
+    Command: bss
+
+    Client: ``BSSCommand.executeCommand`` (split.js line 642034)
+    """
+
+    command = "bss"
+
+
+class SkipSceatSkillActivationRequest(BaseRequest):
+    """
+    Finish the activation of the sceat skill being activated in one Hall of Legends tab, for rubies.
+
+    Command: ssa
+    Payload: {"TID": tab}
+
+    Client: ``C2SSkipSceatSkillActivationVO`` (split.js line 409893) sends the sublayer id less 1, the tab's
+    ``tabID``; sent by ``CastleLegendSkillSceatBottomMenu.onClick`` (split.js line 409833), priced by
+    ``CastleSceatSkillVO.getSkipCosts`` (split.js line 121688)
+    """
+
+    command = "ssa"
+
+    tab: SceatSkillTab = Field(validation_alias="TID", description="The tab whose activating skill to finish")
+
+
+class SkipSceatSkillActivationResponse(BaseResponse):
+    """
+    The acknowledgement of an ``ssa``; it carries nothing.
+
+    Command: ssa
+
+    Client: ``SSACommand.executeCommand`` (split.js line 642076)
+    """
+
+    command = "ssa"
+
+
 class ResetSkillsRequest(BaseRequest):
     """
     Take back every Legendary skill point.
@@ -540,6 +602,10 @@ __all__ = [
     "ActivatingSceatSkill",
     "AddSkillPointRequest",
     "AddSkillPointResponse",
+    "BuySceatSkillRequest",
+    "BuySceatSkillResponse",
+    "SkipSceatSkillActivationRequest",
+    "SkipSceatSkillActivationResponse",
     "ResetSkillsRequest",
     "ObjectUpdateEvent",
 ]
