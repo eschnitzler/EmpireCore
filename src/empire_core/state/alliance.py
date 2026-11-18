@@ -207,7 +207,8 @@ class AllianceState(StateBase):
         authoritative ``gal`` or a new session.
 
         Client: ``JOACommand`` / ``AAICommand`` (split.js lines 624892 / 622475) apply gal before A,
-        ``AASCommand`` (split.js line 622569) gal before a truthy gam; see :class:`AllianceMembershipChange`
+        ``AASCommand`` (split.js line 622569) gal, then the movements of a truthy gam; see
+        :class:`AllianceMembershipChange`
         """
         change = read_section(AllianceMembershipChange, data, "a membership reply")
         if change is None:
@@ -225,8 +226,8 @@ class AllianceState(StateBase):
                 current = self.local_player.AID if self.local_player is not None else None
                 raise ReplyMismatchError(expected, current if current is not None else -1)
             self._handle_gbd(sections)
-            if "gam" in data and isinstance(data["gam"], dict):
-                self._handle_gam(data["gam"])
+            if change.membership is not None and change.movements is not None:
+                self._apply_movement_list(change.movements, ())
 
     @contextmanager
     def alliance_info_read(self, alliance_id: int) -> Iterator[None]:
