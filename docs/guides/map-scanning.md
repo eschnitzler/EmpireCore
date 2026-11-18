@@ -197,9 +197,10 @@ event can cancel spy missions too (see [Spy](spy.md)).
 
 ## The session leaves its castle
 
-A scan moves the session off the castle it had joined and drops
-`client.castle.mines`; `get_joined_area()` still names the castle, as the
-game keeps it. `client.army` methods
+A scan moves the session off the castle it had joined, as the game reads
+the map only from the world map: `client.castle.is_on_map` turns true.
+`get_joined_area()` still names the castle, as the game keeps it, and the
+mines, construction slots and buildings stay as the castle last sent them. `client.army` methods
 join their castle again themselves; anything else castle-scoped needs
 `client.castle.select()` first.
 
