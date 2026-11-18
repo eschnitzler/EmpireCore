@@ -47,6 +47,7 @@ from empire_core.enums import (
     SessionLocation,
     TaxStatus,
     Weekday,
+    WishingWellOption,
 )
 from empire_core.utils.lazy import lazy_exports
 
@@ -277,8 +278,10 @@ from .models import (
     UpgradeWallRequest,
     UpgradeWallResponse,
     VillageListResponse,
+    WishingWellRequest,
     WishingWellResponse,
     open_gate_rubies,
+    wishing_well_skip_rubies,
 )
 from .service import CastleService
 
@@ -504,7 +507,10 @@ __all__ = [
     "TaxInfo",
     "TaxInfoResponse",
     "CastleService",
+    "WishingWellOption",
+    "WishingWellRequest",
     "WishingWellResponse",
+    "wishing_well_skip_rubies",
     "GetLaboratoryProgressRequest",
     "GetMonumentProgressRequest",
     "LaboratoryProgressResponse",
