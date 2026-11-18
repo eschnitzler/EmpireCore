@@ -5,11 +5,22 @@ import pytest
 from empire_core.enums import GGEError, TitleSystem
 from empire_core.exceptions import CommandError
 from empire_core.player import SelectTitleRequest, SelectTitleResponse
+from empire_core.state import GameState
 from tests.service_helpers import conn, logged_in_state, make_client, xt_packet
 
 
 def _client(reply):
-    return make_client({"ste": reply}, state=logged_in_state())  # type: ignore[arg-type]
+    state = logged_in_state()
+    client = make_client({"ste": reply}, state=state)
+    conn(client).on_packet = lambda packet: state.update_from_packet(
+        packet.command_id, packet.payload, packet.error_code
+    )
+    return client
+
+
+def _shown(state: GameState) -> tuple[object, object]:
+    ranks = state.get_title_ranks()
+    return ranks.prefix_system, ranks.suffix_system
 
 
 def test_the_request():
@@ -52,3 +63,28 @@ def test_a_refusal_raises():
 
     assert raised.value.error is GGEError.TITLE_ON_COOLDOWN
     assert client.player.title_ranks.prefix_system is TitleSystem.GLORY
+
+
+def test_a_late_reply_with_no_waiter_still_updates_the_systems():
+    # STECommand applies every successful ste through parseSTE, whoever sent it
+    state = logged_in_state()
+
+    state.update_from_packet("ste", {"PFX": "FACTION", "SFX": "ISLE"})
+
+    assert _shown(state) == (TitleSystem.GALLANTRY, TitleSystem.STORM_ISLANDS)
+
+
+def test_a_refused_reply_changes_nothing():
+    state = logged_in_state()
+
+    state.update_from_packet("ste", {"PFX": "FACTION"}, error_code=GGEError.TITLE_ON_COOLDOWN)
+
+    assert _shown(state) == (TitleSystem.GLORY, TitleSystem.GLORY)
+
+
+def test_a_reply_before_the_title_ranks_is_ignored():
+    state = GameState()
+
+    state.update_from_packet("ste", {"PFX": "FACTION"})
+
+    assert state.title_ranks is None
