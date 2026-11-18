@@ -1835,6 +1835,14 @@ class TestSentMovements:
         state.update_from_packet("csm", {})
         assert state.movements == {}
 
+    @pytest.mark.parametrize("cmd", ["cds", "crm", "cpm", "ldt"])
+    def test_a_refused_reply_with_a_movement_stores_nothing(self, state, cmd):
+        # Each send command parses its movement only on ALL_OK
+        login(state, self.ME)
+        wrapper = {"M": {"MID": 5, "T": 3, "TT": 60, "OID": self.ME}}
+        state.update_from_packet(cmd, wrapper if cmd == "ldt" else {"A": wrapper, "O": []}, error_code=1)
+        assert state.movements == {}
+
     def test_unreadable_block_keeps_the_movement(self, state):
         login(state, self.ME)
         state.update_from_packet("cra", {**SENT_ATTACK, "AAM": {**SENT_ATTACK["AAM"], "UM": "junk"}})

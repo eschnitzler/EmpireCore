@@ -177,6 +177,16 @@ class TestActionRepliesApplyCurrencies:
         player = state.get_local_player()
         assert (player.coins, player.rubies) == (100, 50)
 
+    @pytest.mark.parametrize(
+        "command", ["cra", "cam", "abgcam", "cds", "csm", "cat", "crm", "css", "tde", "cdd", "cpm", "jtr", "thm"]
+    )
+    def test_a_refused_send_keeps_them_and_is_still_stamped(self, state, command):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcu": {"C1": 100, "C2": 50}})
+        state.update_from_packet(command, {"gcu": {"C1": 40, "C2": 30}}, error_code=1)
+        player = state.get_local_player()
+        assert (player.coins, player.rubies) == (100, 50)
+        assert state.get_last_packet_time(command) is not None
+
     @pytest.mark.parametrize("command", ["hcs", "hdu", "mcu", "dup"])
     def test_replies_the_client_reads_no_currencies_from(self, state, command):
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcu": {"C1": 100, "C2": 50}})
