@@ -355,7 +355,7 @@ class TestProductionArea:
 # =============================================================================
 
 
-class TestObjectUpdated:
+class TestBuildingChangedPayload:
     def test_reads_the_object_slots_and_discount(self):
         # AreaDataUpdater.parseEGO: updateObjectInfo(O), parseSCL(scl), parseGAB(gab)
         update = BuildingChanged.model_validate(
