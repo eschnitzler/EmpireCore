@@ -63,6 +63,12 @@ class BuildingsMixin(CastlesMixin, WishingWellMixin):
     # Buildings
     # =========================================================================
 
+    @property
+    def construction_list(self) -> ConstructionList | None:
+        """The joined castle's construction slots, as the last join, push or building reply left them; None before
+        a join, after a map read, or when the join sent none."""
+        return self.client.state.get_construction_list()
+
     def get_build_queue(self, *, timeout: float = 5.0) -> ConstructionList:
         """
         Get the joined castle's construction slots.
