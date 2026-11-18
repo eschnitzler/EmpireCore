@@ -158,6 +158,32 @@ class TestPartialSubPacketsPreserveState:
         assert state.get_local_player().vip_time_left == 3600
 
 
+class TestActionRepliesApplyCurrencies:
+    @pytest.mark.parametrize(
+        "command",
+        ["ebu", "eup", "eud", "rbu", "ira", "ebe", "fco", "sbd", "sds", "bup", "bou", "hru", "hra", "hss"],
+    )
+    def test_the_reply_sets_coins_and_rubies(self, state, command):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcu": {"C1": 100, "C2": 50}})
+        state.update_from_packet(command, {"gcu": {"C1": 40, "C2": 30}})
+        player = state.get_local_player()
+        assert (player.coins, player.rubies) == (40, 30)
+
+    @pytest.mark.parametrize("command", ["ebu", "fco", "hss"])
+    def test_a_refused_reply_keeps_them(self, state, command):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcu": {"C1": 100, "C2": 50}})
+        state.update_from_packet(command, {"gcu": {"C1": 40, "C2": 30}}, error_code=1)
+        player = state.get_local_player()
+        assert (player.coins, player.rubies) == (100, 50)
+
+    @pytest.mark.parametrize("command", ["hcs", "hdu", "mcu", "dup"])
+    def test_replies_the_client_reads_no_currencies_from(self, state, command):
+        state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gcu": {"C1": 100, "C2": 50}})
+        state.update_from_packet(command, {"gcu": {"C1": 40, "C2": 30}})
+        player = state.get_local_player()
+        assert (player.coins, player.rubies) == (100, 50)
+
+
 class TestAllianceMembership:
     def test_alliance_parsed(self, state):
         state.update_from_packet("gbd", {"gpi": {"PID": 7}, "gal": {"AID": 5, "N": "Clan"}})
