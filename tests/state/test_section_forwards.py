@@ -86,6 +86,10 @@ class TestSpyScreen:
     def test_a_null_protection_is_still_stamped(self, state):
         assert stamped(state, "ssi", {"gaa": {"uap": None}}) == {"ssi", "uap"}
 
+    def test_an_unreadable_reply_applies_nothing(self, state, caplog):
+        assert stamped(state, "ssi", {"gaa": {"uap": {"KID": "far"}}}) == {"ssi"}
+        assert "a spy screen" in caplog.text
+
     def test_without_a_map_read_only_the_reply_is_stamped(self, state):
         assert stamped(state, "ssi", {"GC": 0, "AS": 1}) == {"ssi"}
 
@@ -101,6 +105,11 @@ class TestShadyLadySkip:
     def test_coins_that_are_no_object_are_neither_applied_nor_stamped(self, state):
         assert stamped(state, "bst", {"gcu": None}) == {"bst"}
         assert state.get_local_player().coins == 100
+
+    def test_unreadable_events_are_logged_and_the_coins_still_apply(self, state, caplog):
+        assert stamped(state, "bst", {"gcu": {"C1": 1}, "sei": "junk"}) == {"bst", "gcu", "sei"}
+        assert state.get_local_player().coins == 1
+        assert "Could not read the events login section" in caplog.text
 
 
 class TestMineCollect:

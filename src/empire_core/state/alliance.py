@@ -332,7 +332,7 @@ class AllianceState(StateBase):
     def _handle_aqi(self, data: Any) -> None:
         """Handle the reply to leaving your alliance: the chat and details are forgotten, its ``gal`` applied.
 
-        Client: ``AQICommand.executeCommand`` (bundle line 121557): ``resetHistory``, ``parse_GAL(i.gal)``,
+        Client: ``AQICommand.executeCommand`` (split.js line 623712): ``resetHistory``, ``parse_GAL(i.gal)``,
         ``resetMyAlliance``
         """
         self.membership_revision += 1

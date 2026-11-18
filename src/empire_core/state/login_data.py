@@ -88,7 +88,8 @@ class LoginDataResponse(BaseResponse):
     The login data: every section the client reads after logging in, each through its section's model.
 
     A section that is not sent, is falsy, or that its model cannot read, is None; the rest of the login
-    data still reads, and which sections were sent is in ``model_fields_set``. Sections the library has
+    data still reads. Which sections were sent is in ``sent_sections``, and which of those could not be
+    read in ``unread_sections``. Sections the library has
     no model for yet stay as extras. A falsy ``mcd`` gives way to the login data's own ``MTC``, as in the
     client; ``nsm``, a negated flag, is not modelled.
 
