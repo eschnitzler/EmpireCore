@@ -56,6 +56,14 @@ class TestWholeCastle:
 
         assert state.get_buildings() is None
 
+    def test_a_refused_jaa_keeps_them(self):
+        state = joined()
+        state.update_from_packet(
+            "jaa", {"KID": 0, "T": 1, "gca": castle(BD=[[102, 6, 1, 1, 0]])}, GGEError.GENERAL_ERROR
+        )
+
+        assert ids(state) == {5, 20, 21, 22, 30}
+
     def test_gca_replaces_them_whole(self):
         state = joined()
         state.update_from_packet("gca", {"gca": {"BD": [[102, 6, 1, 1, 0]]}})

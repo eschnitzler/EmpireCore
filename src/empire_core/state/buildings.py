@@ -20,7 +20,7 @@ from empire_core.castle.models.buildings import (
     UpgradeWallResponse,
 )
 from empire_core.castle.models.districts import MoveToDistrictResponse, RemoveFromDistrictResponse
-from empire_core.castle.models.objects import BuildingRow, CarriedCastleBuildings
+from empire_core.castle.models.objects import BuildingRow, CarriedCastleBuildings, CastleBuildings
 from empire_core.castle.models.storage import PlaceStoredDecorationResponse, StoreBuildingResponse
 from empire_core.castle.models.updates import BuildingEfficiencyChanged, DamagedBuildings, BuildingChanged
 from empire_core.enums import GGEError
@@ -36,7 +36,6 @@ class _Carrier(NamedTuple):
     model: type[BaseModel]
     rows: Callable[[Any], Iterable[BuildingRow | None]] = lambda _: ()
     removed: Callable[[Any], int | None] = lambda _: None
-    whole: bool = False
     applied_on: frozenset[GGEError] = _SUCCESS
 
 
@@ -51,10 +50,9 @@ def _object_id(reply: Any) -> int:
 # Client: AreaDataUpdater (split.js lines 658985-659186), whose parsers hand each row to
 # IsoUpdaterData.updateObjectInfo or updateMultipleObjectInfos and each removal to removeObjectByObjectId
 _CARRIERS: dict[str, _Carrier] = {
-    # parseJAA, GCACommand, parseEBE: parseGCA
-    "jaa": _Carrier(CarriedCastleBuildings, whole=True),
-    "gca": _Carrier(CarriedCastleBuildings, whole=True),
-    "ebe": _Carrier(CarriedCastleBuildings, whole=True),
+    # GCACommand, parseEBE: parseGCA; a jaa's castle is applied with the join it starts
+    "gca": _Carrier(CarriedCastleBuildings),
+    "ebe": _Carrier(CarriedCastleBuildings),
     # parseGCB, parseGDB, parseIRA: B; parseEUP: O
     "gcb": _Carrier(BuildingEfficiencyChanged, lambda push: push.buildings),
     "gdb": _Carrier(DamagedBuildings, lambda push: push.buildings),
@@ -90,7 +88,7 @@ class BuildingsState(StateBase):
 
         Client: ``IsoUpdaterData.updateObjectInfo``, ``updateMultipleObjectInfos``, ``removeObjectByObjectId``
         (split.js lines 654563, 654550, 654621), ``IsoUpdaterData.parseGCA`` (split.js line 654737);
-        ``IsoCommandPackageObjectUpdateInfo.createCommandList`` (split.js line 655238) skips a negative id
+        ``IsoCommandPackageObjectUpdateInfo.createCommandList`` (split.js line 655236) skips a negative id
         """
         carrier = _CARRIERS[cmd_id]
         if GGEError.from_code(error_code) not in carrier.applied_on:
@@ -100,15 +98,14 @@ class BuildingsState(StateBase):
             return
         if isinstance(reply, BuildingChanged) and reply.area_booster is not None:
             self._apply_area_booster(reply.area_booster)
-        now = time.time()
         if isinstance(reply, CarriedCastleBuildings):
-            # A join starts a new area; a gca or ebe without its block leaves the objects as they were
-            if cmd_id == "jaa" or (reply.buildings is not None and self.joined_area is not None):
-                self._replace_buildings(reply, now)
+            if reply.buildings is not None and self.joined_area is not None:
+                self._replace_buildings(reply.buildings)
             return
         if self.buildings is None:
             return
         held = dict(self.buildings)
+        now = time.time()
         for row in carrier.rows(reply):
             if row is not None and row.object_id >= 0:
                 held[row.object_id] = PlacedBuilding(row=row, received_at=now)
@@ -116,12 +113,12 @@ class BuildingsState(StateBase):
             held.pop(object_id, None)
         self.buildings = held
 
-    def _replace_buildings(self, carried: CarriedCastleBuildings, now: float) -> None:
+    def _replace_buildings(self, castle: CastleBuildings | None) -> None:
         """Start the joined castle's objects over from a whole castle; None when it has no readable block.
 
         Client: ``IsoUpdaterData.parseGCA`` (split.js line 654737) destroys every group before parsing the block
         """
-        castle = carried.buildings
+        now = time.time()
         self.buildings = (
             None
             if castle is None
