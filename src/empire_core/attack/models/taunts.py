@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from pydantic import Field
 
+from empire_core.events.status_models import SentEventId
 from empire_core.gamedata import EnumOrInt
 from empire_core.gamedata.ids.events import Event
 from empire_core.protocol.base import BaseRequest, BaseResponse
@@ -97,7 +98,7 @@ class RagePointsResponse(BaseResponse):
 
     command = "rpr"
 
-    event_id: EnumOrInt[Event] = Field(validation_alias="EID", description="The event the rage is for")
+    event_id: SentEventId = Field(validation_alias="EID", description="The event the rage is for")
     player_rage: ClientInt = Field(validation_alias="PCRP", default=0, description="Your current rage points")
     player_total_rage: ClientInt = Field(validation_alias="PTRP", default=0, description="Your total rage points")
 

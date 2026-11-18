@@ -200,7 +200,16 @@ def js_whole_number(value: Any) -> int | None:
     """``value`` as the int it is when it is a whole number, else None: what a ``Map`` keyed by int ids finds."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
-    return int(value) if value == int(value) else None
+    if isinstance(value, float):
+        return int(value) if value.is_integer() else None
+    return int(value)
+
+
+def js_map_key(value: Any) -> int:
+    """``value`` as the int key a ``Map`` keyed by int ids finds; ValueError for a value it never finds."""
+    if (key := js_whole_number(value)) is None:
+        raise ValueError(f"no whole number: {value!r}")
+    return key
 
 
 def js_loose_equals(value: Any, number: float) -> bool:

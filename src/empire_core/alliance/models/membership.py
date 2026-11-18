@@ -12,7 +12,7 @@ from typing import Any, ClassVar
 
 from pydantic import AliasChoices, ConfigDict, Field, field_serializer, field_validator, model_validator
 
-from empire_core.alliance.models.info import AllianceInfo
+from empire_core.alliance.models.info import AllianceInfo, alliance_block
 from empire_core.enums import AllianceRank
 from empire_core.gamedata.lenient import EnumOrInt
 from empire_core.player.models.profile import PlayerProfileBase
@@ -152,6 +152,34 @@ class AutoJoinedAllianceResponse(BaseResponse):
         if not isinstance(value, dict) or value.get("AID") is None:
             raise ValueError("joined alliance has no id")
         return value
+
+
+class AllianceMembershipChange(BasePayload):
+    """
+    The membership a membership reply carries, and the alliance it names.
+
+    Client: ``JOACommand`` (split.js line 624892), ``AAICommand`` (split.js line 622475) and ``AJACommand``
+    (split.js line 623480) read ``gal`` with ``parse_GAL``, then ``A`` with ``parseAllianceInfo``;
+    ``AFOCommand`` (split.js line 623283) reads ``A``, then ``gal``; ``AASCommand`` (split.js line 622569)
+    reads ``gal``, then a truthy ``gam``
+    """
+
+    membership: AllianceMembership | None = Field(
+        validation_alias="gal", default=None, description="Your membership; None when not sent"
+    )
+    alliance: AllianceInfo | None = Field(
+        validation_alias="A", default=None, description="The alliance; None when not sent or without an id"
+    )
+
+    @field_validator("membership", mode="before")
+    @classmethod
+    def _membership(cls, value: Any) -> Any:
+        return value if isinstance(value, (dict, AllianceMembership)) else None
+
+    @field_validator("alliance", mode="before")
+    @classmethod
+    def _alliance(cls, value: Any) -> Any:
+        return alliance_block(value)
 
 
 class GetAllianceInvitationRequest(BaseRequest):

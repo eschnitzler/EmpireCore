@@ -319,11 +319,13 @@ class AllianceCrests(BasePayload):
     @field_validator("crest", mode="before")
     @classmethod
     def _crest(cls, value: Any) -> Any:
-        return value if js_truthy(value) and isinstance(value, dict) else None
+        return value if isinstance(value, AllianceCrest) or (js_truthy(value) and isinstance(value, dict)) else None
 
     @field_validator("fallback_crest", mode="before")
     @classmethod
     def _fallback(cls, value: Any) -> Any:
+        if isinstance(value, AllianceCrest):
+            return value
         ok = isinstance(value, dict) and js_truthy(value.get("ACLI")) and js_truthy(value.get("ACCS"))
         return value if ok else None
 
@@ -331,6 +333,22 @@ class AllianceCrests(BasePayload):
 # =============================================================================
 # Alliance Info Model
 # =============================================================================
+
+
+_KEPT_WHEN_NULL = ("AA", "AW", "AP")
+_KEPT_WHEN_FALSY = ("STO", "ACLS", "aee")
+_FORGE_KEYS = ("MF", "IF", "SRFU", "HRFU")
+_FORGE_FIELDS = ("is_able_to_forge", "is_forge_inventory_full", "soft_relic_forge_uses", "hard_relic_forge_uses")
+# Groups of fields a reply leaves as they were, each kept when its first field is not sent
+_KEPT_FIELDS = (
+    ("application_count",),
+    ("auto_war",),
+    ("cargo_points",),
+    ("storage",),
+    ("crest_layouts",),
+    ("crests",),
+    _FORGE_FIELDS,
+)
 
 
 def _rank_order(member: AllianceMember) -> tuple[bool, int]:
@@ -454,11 +472,15 @@ class AllianceInfo(BasePayload):
 
     @model_validator(mode="before")
     @classmethod
-    def _forge_fields_come_together(cls, data: Any) -> Any:
-        # The client reads MF, IF, SRFU and HRFU only when both MF and IF are sent
-        if isinstance(data, dict) and (data.get("MF") is None or data.get("IF") is None):
-            return {k: v for k, v in data.items() if k not in ("MF", "IF", "SRFU", "HRFU")}
-        return data
+    def _unread_keys(cls, data: Any) -> Any:
+        # Left out, so model_fields_set names only what fillFromParamObject reads
+        if not isinstance(data, dict):
+            return data
+        unread = {key for key in _KEPT_WHEN_NULL if data.get(key) is None}
+        unread |= {key for key in _KEPT_WHEN_FALSY if not js_truthy(data.get(key))}
+        if data.get("MF") is None or data.get("IF") is None:
+            unread |= set(_FORGE_KEYS)
+        return {key: value for key, value in data.items() if key not in unread}
 
     @field_validator("description", "announcement", mode="before")
     @classmethod
@@ -540,6 +562,30 @@ class AllianceInfo(BasePayload):
         description="Map rows of the alliance's laboratories",
     )
 
+    def filled_over(self, previous: AllianceInfo) -> AllianceInfo:
+        """
+        These details read over ``previous`` ones of the same alliance, as the client fills the alliance it holds.
+
+        What a reply leaves out keeps ``previous``'s value: the application count, auto war and cargo
+        points when unsent or null; the storage, crest layouts and crest when falsy; the forge fields
+        unless both ``MF`` and ``IF`` are sent.
+
+        Client: ``CastleAllianceData.parseAllianceInfo`` (split.js line 61810) fills the alliance it already
+        holds with ``AllianceInfoVO.fillFromParamObject`` (split.js line 137516) and reads ``aee`` only when truthy
+        """
+        sent = self.model_fields_set
+        kept = [group for group in _KEPT_FIELDS if group[0] not in sent]
+        update = {name: getattr(previous, name) for group in kept for name in group}
+        filled = self.model_copy(update=update)
+        filled.model_post_init(None)
+        return filled
+
+    @property
+    def read_fields(self) -> set[str]:
+        """The fields the reply set: the sent ones, and every forge field when ``MF`` and ``IF`` are sent."""
+        sent = set(self.model_fields_set)
+        return sent | set(_FORGE_FIELDS) if _FORGE_FIELDS[0] in sent else sent
+
     @property
     def status_to_own_alliance_enum(self) -> DiplomacyStatus | None:
         """``status_to_own_alliance`` as a :class:`DiplomacyStatus`, None for a value the client does not define."""
@@ -616,6 +662,8 @@ def alliance_block(value: Any) -> Any:
 
     Client: ``CastleAllianceData.parseAllianceInfo`` (bundle line 11605)
     """
+    if isinstance(value, AllianceInfo):
+        return value
     block = object_or_none(value)
     return block if isinstance(block, dict) and block.get("AID") is not None else None
 

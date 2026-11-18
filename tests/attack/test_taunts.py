@@ -69,3 +69,21 @@ class TestRagePoints:
         event = state.get_event(Event.NOMAD_INVASION_72)
         assert isinstance(event, NomadInvasionEvent) and event.player_rage == 1
         state.shutdown()
+
+    def test_the_event_is_looked_up_as_sent(self):
+        # RPRCommand (split.js 646716): getActiveEventByEventId(i.EID), a Map.get
+        state = logged_in_state()
+        state.update_from_packet("sei", {"E": [NOMAD_ENTRY]})
+
+        state.update_from_packet("rpr", {"EID": "72", "PCRP": 40, "PTRP": 90})
+        event = state.get_event(Event.NOMAD_INVASION_72)
+        assert isinstance(event, NomadInvasionEvent) and event.player_rage == 1
+
+        state.update_from_packet("rpr", {"EID": float("inf"), "PCRP": 40, "PTRP": 90})
+        event = state.get_event(Event.NOMAD_INVASION_72)
+        assert isinstance(event, NomadInvasionEvent) and event.player_rage == 1
+
+        state.update_from_packet("rpr", {"EID": 72.0, "PCRP": 40, "PTRP": 90})
+        event = state.get_event(Event.NOMAD_INVASION_72)
+        assert isinstance(event, NomadInvasionEvent) and event.player_rage == 40
+        state.shutdown()
