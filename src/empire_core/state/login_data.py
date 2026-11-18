@@ -81,7 +81,8 @@ class LoginDataResponse(BaseResponse):
     pushed on its own as a login data of that one section.
 
     Client: ``GBDCommand.exec`` (split.js line 651188), which hands each section to its parser in the
-    order the fields here follow; the parsers skip a falsy section
+    order the fields here follow; most parsers skip a falsy section, and ``client.state`` keeps the
+    exceptions (a falsy ``sei`` still refreshes the events)
     """
 
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)

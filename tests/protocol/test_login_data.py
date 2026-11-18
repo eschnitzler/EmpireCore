@@ -2,6 +2,8 @@
 
 import logging
 
+import pytest
+
 from empire_core.events.models import BerimondFactionJoinedResponse
 from empire_core.protocol.models import parse_response
 from empire_core.state.login_data import LoginDataResponse
@@ -27,13 +29,20 @@ class TestLoginData:
         assert "currencies login section" in caplog.text
 
     def test_a_falsy_section_is_none_quietly_but_counts_as_sent(self, caplog):
-        # GBDCommand.exec's parsers skip a falsy section
         with caplog.at_level(logging.WARNING):
             login = LoginDataResponse.model_validate({"gal": None, "gkl": 0, "tmp": "", "skl": False})
 
         assert (login.alliance, login.royal_towers, login.treasure_maps, login.skills) == (None, None, None, None)
         assert login.sent_sections == {"gal", "gkl", "tmp", "skl"}
         assert caplog.text == ""
+
+    @pytest.mark.parametrize("value", [5, "x", [1], [[1]], True, -1.5, {"bogus": [1]}, {"A": 5}])
+    def test_no_section_value_fails_the_whole_login(self, value):
+        sections = {field.validation_alias for field in LoginDataResponse.model_fields.values()} - {None, "E"}
+
+        login = LoginDataResponse.model_validate(dict.fromkeys(sections, value))
+
+        assert login.sent_sections == sections
 
     def test_the_error_code_is_no_section(self):
         login = LoginDataResponse.model_validate({"E": 0, "gcu": {"C1": 1}})
