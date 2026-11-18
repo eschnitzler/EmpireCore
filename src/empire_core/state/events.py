@@ -342,7 +342,7 @@ class EventState(StateBase):
     def _handle_grand_tournament_action(self, data: Any) -> None:
         """Apply a quest action's slots to the Grand Tournament its ``aqs.EID`` names, in receive order.
 
-        Client: ``CAQCommand.executeCommand`` (split.js line 644180) and the ``CAAQ``, ``RAQ``, ``SAQ`` and
+        Client: ``CAQCommand.executeCommand`` (split.js line 644198) and the ``CAAQ``, ``RAQ``, ``SAQ`` and
         ``SCQ`` commands beside it; see :class:`CompleteGrandTournamentQuestResponse`
         """
         action = read_section(CompleteGrandTournamentQuestResponse, data, "a Grand Tournament quest action")
