@@ -97,3 +97,14 @@ def test_laboratory_push_replaces_the_alliance_laboratories():
     state.update_from_packet("sll", {})
     own = state.get_own_alliance()
     assert own is not None and own.laboratories == [] and own.name == "Guild"
+
+
+def test_the_laboratories_of_a_push_survive_a_later_patch():
+    state = player_state(301)
+    state.update_from_packet("ain", {"A": {"AID": 301, "N": "Guild"}})
+    state.update_from_packet("sll", {"ALA": [LABORATORY_ROW]})
+
+    state.update_from_packet("gap", {"P": 4, "A": 9})
+
+    own = state.get_own_alliance()
+    assert own is not None and [lab.location_id for lab in own.laboratories] == [900]

@@ -7,6 +7,7 @@ from empire_core.player.models.progress import (
     AchievementProgress,
     AchievementsResponse,
     ActiveFeast,
+    AssignTitleResponse,
     BoosterInfoResponse,
     GallantryPointsResponse,
     GloryPointsResponse,
@@ -17,7 +18,7 @@ from empire_core.player.models.progress import (
     StormIslandsTitle,
     TitleRanksResponse,
 )
-from empire_core.protocol.js import js_int, js_truthy
+from empire_core.protocol.js import js_truthy
 from empire_core.spy.models import PlagueDoctorInfoResponse
 from empire_core.state.base import StateBase, loaded, read_section
 
@@ -133,12 +134,14 @@ class ProgressState(StateBase):
     def _handle_apt(self, data: Any) -> None:
         """Handle an ``apt`` without a player name: its truthy ``TI`` is your Storm Islands title now.
 
-        Client: ``APTCommand.executeCommand`` (bundle line 123623), ``CastleTitleData.parseAPT`` (bundle line 21029)
+        Client: ``APTCommand.executeCommand`` (split.js line 630637), ``CastleTitleData.parseAPT`` (split.js
+        line 109607); see :class:`AssignTitleResponse`
         """
-        if self.title_ranks is None or not isinstance(data, dict) or js_truthy(data.get("PN")):
+        if self.title_ranks is None:
             return
-        if js_truthy(title_id := data.get("TI")):
-            storm_islands_title = StormIslandsTitle(title_id=js_int(title_id))
+        assigned = read_section(AssignTitleResponse, data, "an apt")
+        if assigned is not None and assigned.player_name is None and assigned.title_id is not None:
+            storm_islands_title = StormIslandsTitle(title_id=assigned.title_id)
             self.title_ranks = self.title_ranks.model_copy(update={"storm_islands_title": storm_islands_title})
 
     def _apply_achievements(self, body: Any) -> bool:
