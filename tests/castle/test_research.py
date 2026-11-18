@@ -1,10 +1,12 @@
-"""Starting research and shortening it with a minute skip: res and msr."""
+"""Starting research, shortening it with a minute skip and finishing it with rubies: res, msr and rfi."""
 
 from __future__ import annotations
 
 import pytest
 
 from empire_core.castle import (
+    FinishResearchRequest,
+    FinishResearchResponse,
     SkipResearchRequest,
     SkipResearchResponse,
     StartResearchRequest,
@@ -196,3 +198,25 @@ class TestService:
         with pytest.raises(CommandError):
             client.castle.start_research(Research.MANEUVER_L1)
         assert client.state.get_research() == before
+
+
+class TestFinishResearch:
+    def test_the_models(self):
+        assert FinishResearchRequest().to_payload() == {}
+        assert isinstance(parse_response("rfi", {}), FinishResearchResponse)
+
+    def test_it_needs_consent(self):
+        client = make_client()
+        with pytest.raises(ValueError, match="spend_rubies"):
+            client.castle.finish_research()
+        assert conn(client).request_payloads == []
+
+    def test_it_sends_rfi(self):
+        client = make_client()
+        client.castle.finish_research(spend_rubies=True)
+        assert conn(client).request_payloads == [("rfi", {})]
+
+    def test_nothing_to_skip_raises(self):
+        client = make_client({"rfi": xt_packet("rfi", error_code=147)})
+        with pytest.raises(CommandError):
+            client.castle.finish_research(spend_rubies=True)

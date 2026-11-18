@@ -172,7 +172,37 @@ class SkipResearchResponse(BaseResponse):
     )
 
 
+class FinishResearchRequest(BaseRequest):
+    """
+    Finish the running research now, for rubies.
+
+    Command: rfi
+    Payload: {}
+
+    Client: ``C2SResearchFinishInstantVO`` (bundle line 252949), sent by
+    ``ResearchProgressInfo.buyResearchInstant`` (bundle line 413633) and the minute skip dialog's full skip,
+    ``ResearchMinuteSkipProperties.getFullSkipCommand`` (bundle line 413731)
+    """
+
+    command = "rfi"
+
+
+class FinishResearchResponse(BaseResponse):
+    """
+    The acknowledgement of an ``rfi``; it carries nothing.
+
+    Command: rfi
+
+    Client: ``RFICommand.executeCommand`` (bundle line 641922), which also takes ``NOTHING_TO_SKIP``
+    without an error dialog
+    """
+
+    command = "rfi"
+
+
 __all__ = [
+    "FinishResearchRequest",
+    "FinishResearchResponse",
     "ResearchInfoRequest",
     "ResearchInfoResponse",
     "SkipResearchRequest",
