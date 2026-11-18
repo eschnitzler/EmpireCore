@@ -80,20 +80,33 @@ class Resources(EmpireModel):
         return self.safe.food
 
 
+def _seconds_until(end: float | None, now: float | None) -> float:
+    if end is None:
+        return 0.0
+    return max(0.0, end - (time.monotonic() if now is None else now))
+
+
 class Castle(EmpireModel):
     """A castle, outpost or metropolis owned by the logged-in player.
 
-    Name, position, kingdom, area type and the Open Gate come from the castle
-    list (``gcl``); everything else from the castle's ``dcl`` entry, kept
-    whole as ``details`` and ``None`` until one has been received. ``units``
-    also follows each ``rue`` push (units received), which ``details`` does
-    not; a ``kik`` push on a Monday sets every ``open_gate_counter`` to 0, and
-    an ``mos`` reply sets the Open Gate, counting an opening once.
+    Name, position, kingdom, area type, the Open Gate and the abandon timers
+    come from the castle list (``gcl``); everything else from the castle's
+    ``dcl`` entry, kept whole as ``details`` and ``None`` until one has been
+    received. ``units`` also follows each ``rue`` push (units received), which
+    ``details`` does not; a ``kik`` push on a Monday sets every
+    ``open_gate_counter`` to 0, an ``mos`` reply sets the Open Gate, counting an
+    opening once, an ``mas`` reply starts the abandon timers and an ``mac``
+    reply clears them (the client sets both to -1). A timer of 0 or less, or
+    one the list leaves out, is ``None``.
 
-    Client: ``CastleListVO.parseCastleList`` (bundle line 13698),
+    Client: ``CastleListVO.parseCastleList`` (split.js line 73142),
     ``DetailedCastleVO.parseData``, ``CastleUserCastleListDetailed.parse_rue``
-    (bundle line 140918), ``CastleListVO.resetOpenGateCounter`` (bundle line 13728),
-    ``CastleUserData.parse_MOS`` (bundle line 9897)
+    (split.js line 700821), ``CastleListVO.resetOpenGateCounter`` (split.js line 73201),
+    ``CastleUserData.parse_MOS``, ``parse_MAS`` and ``parse_MAC`` (split.js lines 54119, 54139, 54146);
+    ``InteractiveMapobjectVO.remainingAbandonOutpostTime``, ``remainingCancelAbandonOutpostTime`` and
+    ``remainingCooldownAbandonOutpostTime`` (split.js lines 20171, 20193, 20361) count down from when
+    they were set, and ``CastleManagementDialog`` (split.js lines 129874-129939) shows each only while
+    it is above 0
 
     Not to be confused with :class:`empire_core.castle.models.castles.CastleInfo`,
     which is the parsed *protocol* model for another player's castle.
@@ -123,6 +136,20 @@ class Castle(EmpireModel):
         default=None,
         description="When the open gate closes, in time.monotonic() seconds; None while it is closed",
     )
+    abandon_end: float | None = Field(
+        default=None,
+        description="When the castle is given up, in time.monotonic() seconds; None while it is not being abandoned",
+    )
+    cancel_abandon_end: float | None = Field(
+        default=None,
+        description="Until when abandoning the castle can be cancelled, in time.monotonic() seconds; None when it "
+        "cannot be",
+    )
+    no_abandon_end: float | None = Field(
+        default=None,
+        description="When the castle has been held long enough to be abandoned, in time.monotonic() seconds; None "
+        "once it has",
+    )
     details: DetailedCastleInfo | None = Field(
         default=None, description="The castle's latest details; None until they arrive"
     )
@@ -130,11 +157,21 @@ class Castle(EmpireModel):
     def open_gate_seconds(self, now: float | None = None) -> float:
         """Seconds until the open gate closes, 0 while it is closed.
 
-        Client: ``InteractiveMapobjectVO.remainingOpenGateTime`` (bundle line 3645) counts down from when it was set
+        Client: ``InteractiveMapobjectVO.remainingOpenGateTime`` (split.js line 20135) counts down from when it was set
         """
-        if self.open_gate_end is None:
-            return 0.0
-        return max(0.0, self.open_gate_end - (time.monotonic() if now is None else now))
+        return _seconds_until(self.open_gate_end, now)
+
+    def abandon_seconds(self, now: float | None = None) -> float:
+        """Seconds until the castle is given up, 0 while it is not being abandoned."""
+        return _seconds_until(self.abandon_end, now)
+
+    def cancel_abandon_seconds(self, now: float | None = None) -> float:
+        """Seconds left to cancel abandoning the castle, 0 when it cannot be."""
+        return _seconds_until(self.cancel_abandon_end, now)
+
+    def no_abandon_seconds(self, now: float | None = None) -> float:
+        """Seconds until the castle has been held long enough to be abandoned, 0 once it has."""
+        return _seconds_until(self.no_abandon_end, now)
 
     @property
     def population(self) -> int:

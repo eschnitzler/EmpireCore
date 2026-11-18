@@ -403,7 +403,7 @@ class AbandonCastleRequest(BaseRequest):
     def accepts_reply(self, payload: Any) -> bool:
         """Whether a mas reply is about this castle: its ``CID``, and its ``KID`` when sent.
 
-        Client: ``CastleUserData.parse_MAS`` (bundle line 9893) looks the castle up by ``CID`` and ``KID``.
+        Client: ``CastleUserData.parse_MAS`` (split.js line 54139) looks the castle up by ``CID`` and ``KID``.
         """
         if not isinstance(payload, dict) or not js_same_number(payload.get("CID"), self.castle_id):
             return False
@@ -417,16 +417,16 @@ class AbandonCastleResponse(BaseResponse):
     Command: mas
     Payload: {"CID": castle_id, "KID": kingdom_id, "AOT": seconds, "CAT": seconds}
 
-    Client: ``MASCommand.executeCommand`` (bundle line 125051),
-    ``CastleUserData.parse_MAS`` (bundle line 9893)
+    Client: ``MASCommand.executeCommand`` (split.js line 635734),
+    ``CastleUserData.parse_MAS`` (split.js line 54139), which reads ``AOT`` and ``CAT`` through ``int()``
     """
 
     command = "mas"
 
     castle_id: int = Field(validation_alias="CID", description="The castle being abandoned")
     kingdom_id: Kingdom = Field(validation_alias="KID", default=Kingdom.GREEN, description="The castle's kingdom")
-    abandon_seconds: int = Field(validation_alias="AOT", default=-1, description="Seconds until it is abandoned")
-    cancel_seconds: int = Field(validation_alias="CAT", default=-1, description="Seconds left to cancel the abandon")
+    abandon_seconds: int = Field(validation_alias="AOT", default=0, description="Seconds until it is abandoned")
+    cancel_seconds: int = Field(validation_alias="CAT", default=0, description="Seconds left to cancel the abandon")
 
     _timers = field_validator("abandon_seconds", "cancel_seconds", mode="before")(js_int)
 
@@ -455,7 +455,7 @@ class CancelAbandonCastleRequest(BaseRequest):
     def accepts_reply(self, payload: Any) -> bool:
         """Whether a mac reply is about this castle: its ``CID``, and its ``KID`` when sent.
 
-        Client: ``CastleUserData.parse_MAC`` (bundle line 9896) looks the castle up by ``CID`` and ``KID``.
+        Client: ``CastleUserData.parse_MAC`` (split.js line 54146) looks the castle up by ``CID`` and ``KID``.
         """
         if not isinstance(payload, dict) or not js_same_number(payload.get("CID"), self.castle_id):
             return False
@@ -469,8 +469,8 @@ class CancelAbandonCastleResponse(BaseResponse):
     Command: mac
     Payload: {"CID": castle_id, "KID": kingdom_id}
 
-    Client: ``MACCommand.executeCommand`` (bundle line 125037),
-    ``CastleUserData.parse_MAC`` (bundle line 9896)
+    Client: ``MACCommand.executeCommand`` (split.js line 635691),
+    ``CastleUserData.parse_MAC`` (split.js line 54146)
     """
 
     command = "mac"

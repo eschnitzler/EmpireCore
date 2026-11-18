@@ -219,6 +219,10 @@ class TestAbandonCastle:
         assert (reply.castle_id, reply.kingdom_id) == (5, Kingdom.ICE)
         assert (reply.abandon_seconds, reply.cancel_seconds) == (86400, 10800)
 
+    def test_a_timer_the_reply_lacks_reads_as_zero(self):
+        reply = AbandonCastleResponse.model_validate({"CID": 5, "KID": 2})
+        assert (reply.abandon_seconds, reply.cancel_seconds) == (0, 0)
+
     def test_a_cancel_sends_cid_then_kid(self):
         payload = CancelAbandonCastleRequest(castle_id=5, kingdom_id=Kingdom.ICE).to_payload()
         assert list(payload) == ["CID", "KID"]
