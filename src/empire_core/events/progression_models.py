@@ -276,8 +276,14 @@ class AllianceCampInfoResponse(BaseResponse):
     @field_validator("camp", mode="before")
     @classmethod
     def _first(cls, value: Any) -> Any:
+        if isinstance(value, AllianceCampInfo):
+            return value
         first = value[0] if isinstance(value, list) and value else None
         return first if js_truthy(first) else None
+
+    @field_serializer("camp")
+    def _as_list(self, camp: AllianceCampInfo | None) -> list[dict[str, Any]]:
+        return [] if camp is None else [camp.model_dump(by_alias=True)]
 
 
 # Part-paid unlocks

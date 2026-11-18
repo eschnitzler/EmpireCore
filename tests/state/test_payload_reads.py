@@ -22,6 +22,13 @@ NOT_YET_TYPED = {
 _PAYLOAD_TYPES = {"Any", "dict", "dict[str, Any]"}
 
 
+def _root(node: ast.expr) -> str | None:
+    """The name an expression such as ``data["A"].get("B")`` starts from."""
+    while isinstance(node, (ast.Subscript, ast.Attribute, ast.Call)):
+        node = node.func if isinstance(node, ast.Call) else node.value
+    return node.id if isinstance(node, ast.Name) else None
+
+
 def _payload_names(function: ast.FunctionDef) -> set[str]:
     """A handler's untyped parameters, and the names bound from them."""
     names = {
@@ -30,13 +37,9 @@ def _payload_names(function: ast.FunctionDef) -> set[str]:
         if arg.arg != "self" and (arg.annotation is None or ast.unparse(arg.annotation) in _PAYLOAD_TYPES)
     }
     for node in ast.walk(function):
-        if isinstance(node, (ast.Assign, ast.NamedExpr)):
-            source = node.value
-            while isinstance(source, (ast.Subscript, ast.Attribute, ast.Call)):
-                source = source.func if isinstance(source, ast.Call) else source.value
-            if isinstance(source, ast.Name) and source.id in names:
-                targets = node.targets if isinstance(node, ast.Assign) else [node.target]
-                names |= {target.id for target in targets if isinstance(target, ast.Name)}
+        if isinstance(node, (ast.Assign, ast.NamedExpr)) and _root(node.value) in names:
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            names |= {target.id for target in targets if isinstance(target, ast.Name)}
     return names
 
 
@@ -53,8 +56,7 @@ def payload_gets(path: Path) -> list[int]:
             if isinstance(node, ast.Call)
             and isinstance(node.func, ast.Attribute)
             and node.func.attr == "get"
-            and isinstance(node.func.value, ast.Name)
-            and node.func.value.id in names
+            and _root(node.func.value) in names
         ]
     return sorted(lines)
 
@@ -80,6 +82,7 @@ def test_the_guard_finds_a_payload_read(tmp_path):
         "def _handle_x(self, data: Any) -> None:\n"
         "    block = data['A']\n"
         "    self.cache.get(1)\n"
+        "    data['C'].get('D')\n"
         "    return block.get('B')\n"
     )
-    assert payload_gets(handler) == [4]
+    assert payload_gets(handler) == [4, 5]
