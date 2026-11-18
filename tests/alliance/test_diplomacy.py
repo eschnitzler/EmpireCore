@@ -10,7 +10,6 @@ import pytest
 
 from empire_core.enums import DiplomacyStatus
 from empire_core.exceptions import CommandError, ReplyMismatchError
-from empire_core.protocol.packet import Packet
 from empire_core.state.manager import GameState
 from tests.alliance.test_pushes import alliance_state
 from tests.service_helpers import conn, make_client, xt_packet
@@ -32,7 +31,7 @@ def adp_reply(own: dict[str, Any]) -> dict[str, Any]:
 def wired(state: GameState, command: str, payload: Any, error_code: int = 0, then: Any = None):
     client = make_client({command: xt_packet(command, payload, error_code)}, state=state)
 
-    def received(packet: Packet) -> None:
+    def received(packet: Any) -> None:
         state.update_from_packet(packet.command_id, packet.payload, packet.error_code)
         if then is not None:
             then()
