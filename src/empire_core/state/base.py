@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from empire_core.alliance.models.chat import ChatMessageData
 from empire_core.alliance.models.gifts import AllianceGift
 from empire_core.alliance.models.help import AllianceHelpRequest
-from empire_core.alliance.models.horizon import HorizonMemberPerformance
+from empire_core.alliance.models.horizon import HorizonMemberPerformance, JadePhase
 from empire_core.alliance.models.info import AllianceInfo
 from empire_core.attack.models.alien_camps import AlienRerollCountsResponse
 from empire_core.attack.models.counter import AttackCounterResponse
@@ -285,6 +285,7 @@ class StateBase:
         self.crafting_queues: dict[tuple[CraftingQueueId, Kingdom, int], CraftingQueue] | None = None
         self.fusion_forges: dict[FusionForgeId | int, FusionForge] | None = None
         self.horizon_performance: tuple[HorizonMemberPerformance, ...] | None = None
+        self.jade_phase: JadePhase | None = None
 
         # Freshness bookkeeping (see the GameState docstring). Wall-clock seconds.
         self._packet_times: dict[str, float] = {}

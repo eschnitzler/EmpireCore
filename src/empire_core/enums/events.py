@@ -29,6 +29,28 @@ class PerformanceStatistic(IntEnum):
     AQUAMARINE_FIRST_POINTS_TIMESTAMP = 21
 
 
+class JadeScoringPhase(IntEnum):
+    """
+    The phase of Beyond the Horizon's Jade Desert scoring.
+
+    Client: ``ClientConstJadeScoring.PHASE_1`` and ``PHASE_2`` (split.js lines 56749-56750); the game shows phase 2
+    as "Phase 2 has begun!" (``dialog_beyondTheHorizon_citadel_phaseSwitch_started_banner_title``)
+    """
+
+    PHASE_1 = 1
+    PHASE_2 = 2
+
+
+class HorizonEntryConditionType(Enum):
+    """
+    A kind of condition for entering Beyond the Horizon that you do not meet yet.
+
+    Client: ``ABGEntryConditionVO.CONDITION_TYPE_BUILDINGS`` (split.js line 716712), the only kind the client names
+    """
+
+    BUILDINGS = "BUILDINGS"
+
+
 class BerimondFaction(IntEnum):
     """
     A side of the Battle for Berimond, by the name the game shows it: the blue House of Ursidae and the red House of

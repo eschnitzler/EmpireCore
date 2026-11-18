@@ -226,6 +226,8 @@ _SUCCESS_ONLY = frozenset(
     | {"tse", "tcc"}
     # GAECommand.executeCommand (bundle line 127262)
     | {"gae"}
+    # ABGICommand.executeCommand (split.js line 643311)
+    | {"abgi"}
     # The event minigames' replies and pushes: LWSCommand, LWJCommand, LWCCommand, LWMCommand, DGECommand,
     # CFCCommand, SAFCommand, GDTICommand, DDICommand, VWCCommand (bundle lines 128141, 128105, 128090, 128122,
     # 124175, 124161, 127599, 123604, 123589, 128541)
@@ -412,6 +414,7 @@ class GameState(
         "tde": "_handle_movement_sent",
         "cdd": "_handle_movement_sent",
         "cpm": "_handle_movement_sent",
+        "jtr": "_handle_movement_sent",
         "thm": "_handle_thm",
         "ldt": "_handle_ldt",
         "mcm": "_handle_mcm",
@@ -446,6 +449,7 @@ class GameState(
         "sll": "_handle_sll",
         "gap": "_handle_gap",
         "gae": "_handle_gae",
+        "abgi": "_handle_abgi",
         "frc": "_handle_frc",
         "acm": "_handle_acm",
         "aqi": "_handle_aqi",
@@ -643,10 +647,10 @@ class GameState(
         self._apply_sent_movement(data, data.get("AAM"))
 
     def _handle_movement_sent(self, data: dict[str, Any]) -> None:
-        """Handle the reply to a support, spy, travel, transport, siege or monk you send: the new movement under ``A``.
+        """Handle the reply to a support, spy, travel, transport, siege, monk or oasis trade: the movement in ``A``.
 
         Client: ``CDSCommand``, ``CSMCommand``, ``CATCommand``, ``CRMCommand``,
-        ``CSSCommand``, ``TDECommand``, ``CDDCommand`` and ``CPMCommand``.
+        ``CSSCommand``, ``TDECommand``, ``CDDCommand``, ``CPMCommand`` and ``JTRCommand``.
         """
         self._apply_sent_movement(data, data.get("A"))
 
@@ -769,10 +773,12 @@ class GameState(
         """When a packet (or gbd sub-packet) of this kind was last applied.
 
         Accepts the wire ids this manager tracks — "gbd", "gam", "dcl", "abr", "asr", the send replies ("cra", "cam",
-        "abgcam", "cds", "csm", "cat", "crm", "css", "tde", "cdd", "cpm", "thm", "ldt"), "mcm", "mrm", "mfc", "glu",
+        "abgcam", "cds", "csm", "cat", "crm", "css", "tde", "cdd", "cpm", "jtr", "thm", "ldt"), "mcm", "mrm", "mfc",
+        "glu",
         "mir", "fjf", "bst", "sce", "see", "tee", "pep", "acm", "aqi", "acn", "cal", "ufp", "uht", "apt", "car", "bfs",
         the event minigames' "lws", "lwj", "lwc", "lwm", "dge", "cfc", "saf", "sap", "gdti", "ddi" and "vwc",
         the hunter's "hin", the judgement's "sjc" and "jjc", the hero's "hdc", the alliance camp push "aic", the
+        Jade Desert phase push "abgi", the
         daimyo's "gda", "gdc" and "gdw", the coat of arms symbols' "gus", the player name change's "gnci" and the
         account deletion's "psd" (each only a successful one),
         the officers' school's "gtp" (only a successful one), the quest pushes "qli", "qst", "qpg", "qfi", "msp" and the
