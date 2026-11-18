@@ -212,3 +212,28 @@ class TestFindNextTower:
 
     def test_request_sends_nothing(self):
         assert FindNextTowerRequest().to_payload() == {}
+
+
+class TestScanKeepsRawData:
+    @pytest.fixture
+    def scans(self, monkeypatch) -> list[bool]:
+        kept: list[bool] = []
+
+        def scan(self, *args, keep_raw_data: bool = False, **kwargs) -> ScanResult:
+            kept.append(keep_raw_data)
+            return ScanResult(items=[], owners={}, kingdom=Kingdom.GREEN)
+
+        monkeypatch.setattr("empire_core.map.service.MapScanner.scan_kingdom", scan)
+        monkeypatch.setattr("empire_core.map.service.MapScanner.scan_chunks", scan)
+        return kept
+
+    def test_scans_pass_keep_raw_data_on(self, scans):
+        client = make_client({})
+        client.map.scan_kingdom(Kingdom.GREEN)
+        client.map.scan_kingdom(Kingdom.GREEN, keep_raw_data=True)
+        client.map.scan_chunks(Kingdom.GREEN, [(1, 1)], keep_raw_data=True)
+        assert scans == [False, True, True]
+
+    def test_a_chunked_scan_around_keeps_each_row(self, scans):
+        make_client({}).map.scan_around(500, 500, 100, Kingdom.GREEN)
+        assert scans == [True]

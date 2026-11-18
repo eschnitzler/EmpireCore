@@ -146,7 +146,7 @@ class OwnerPositions(Sequence[OwnerCastlePosition]):
     @classmethod
     def from_rows(cls, value: Any) -> OwnerPositions:
         """
-        Read ``AP`` or ``VP`` rows, as ``WorldMapOwnerInfoVO.parsePosList`` (bundle line 10795) does.
+        Read ``AP`` or ``VP`` rows, as ``WorldMapOwnerInfoVO.parsePosList`` (split.js line 58463) does.
 
         Only the first five entries of a row are read. A row the server wraps in one
         extra list (seen on AP in Berimond) is unwrapped, which the client does not do;
@@ -159,7 +159,7 @@ class OwnerPositions(Sequence[OwnerCastlePosition]):
         if isinstance(value, OwnerPositions):
             return value
         positions = cls()
-        if not isinstance(value, list):
+        if not isinstance(value, (list, tuple)):
             return positions
         packed: list[int | None] = []
         for entry in value:
@@ -209,6 +209,7 @@ class OwnerPositions(Sequence[OwnerCastlePosition]):
     def __get_pydantic_core_schema__(cls, source: Any, handler: GetCoreSchemaHandler) -> core_schema.CoreSchema:
         return core_schema.no_info_plain_validator_function(
             cls.from_rows,
+            json_schema_input_schema=handler.generate_schema(list[OwnerCastlePosition]),
             serialization=core_schema.plain_serializer_function_ser_schema(
                 lambda positions: [list(position) for position in positions]
             ),

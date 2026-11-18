@@ -178,6 +178,30 @@ class TestGoldenMapArea:
         assert not gc.is_tracked(positions._packed)
         assert [ref for ref in gc.get_referents(positions) if not isinstance(ref, type)] == [positions._packed]
 
+    def test_positions_dump_as_rows_that_read_back(self):
+        from empire_core.map.models.areas import MapObject
+
+        owner = MapObject.model_validate({"OID": 5, "AP": [[0, 1, 2, 3, 1], [2, 9, 8, 7]]})
+        dumped = owner.model_dump(by_alias=True)
+        assert dumped["AP"] == [[0, 1, 2, 3, 1], [2, 9, 8, 7, None]]
+        assert MapObject.model_validate(dumped).castle_positions == owner.castle_positions
+        assert MapObject.model_validate_json(owner.model_dump_json(by_alias=True)) == owner
+
+    def test_positions_given_as_a_tuple_by_field_name_are_kept(self):
+        from empire_core.map.models.areas import MapObject
+        from empire_core.map.models.owners import OwnerCastlePosition
+
+        position = OwnerCastlePosition(kingdom_id=0, area_id=1, x=2, y=3, area_type=1)
+        assert MapObject(owner_id=5, village_positions=(position,)).village_positions == [position]  # type: ignore[arg-type]
+
+    def test_owner_records_have_a_json_schema(self):
+        from empire_core.map.models.areas import MapObject
+        from empire_core.movements.models.movement import MovementOwner
+        from empire_core.player.models.profile import PlayerProfileBase
+
+        for model in (MapObject, PlayerProfileBase, MovementOwner):
+            assert model.model_json_schema()["properties"]["AP"]["type"] == "array"
+
     def test_short_rows_are_read_as_the_client_reads_them(self):
         response = GetMapAreaResponse.model_validate({"KID": 0, "AI": [[31, 2, 3], [43, 4, 5], CASTLE_ROW]})
         assert [(i.item_type, i.x) for i in response.items] == [
