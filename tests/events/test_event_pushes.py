@@ -69,6 +69,6 @@ class TestEventEnds:
     def test_a_push_names_its_event_as_sent(self, model, body):
         # getActiveEventByEventId (split.js 696557) is a Map.get: 72.0 finds event 72, "72" finds none
         assert model.model_validate({**body, "EID": 72.0}).event_id is Event.NOMAD_INVASION_72
-        for value in ("72", 72.5, True, None):
+        for value in ("72", 72.5, True, None, float("inf"), float("nan")):
             with pytest.raises(ValidationError):
                 model.model_validate({**body, "EID": value})

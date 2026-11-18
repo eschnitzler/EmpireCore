@@ -198,7 +198,7 @@ def js_falsy(value: Any) -> bool:
 
 def js_whole_number(value: Any) -> int | None:
     """``value`` as the int it is when it is a whole number, else None: what a ``Map`` keyed by int ids finds."""
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or (isinstance(value, float) and not math.isfinite(value)):
         return None
     return int(value) if value == int(value) else None
 
