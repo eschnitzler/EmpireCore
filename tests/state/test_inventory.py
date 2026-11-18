@@ -126,6 +126,13 @@ class TestGems:
         state.update_from_packet(command, body if command == "esl" else {"esl": body})
         assert state.get_inventory_space().gem_space == 470
 
+    def test_a_bgm_shows_its_gems_without_adding_them(self, state):
+        # BGMCommand.parseGemInventory (split.js line 631174) feeds only the merchant dialog
+        state.update_from_packet("ggm", {"GEM": [[101, 2]], "RGEM": []})
+        state.update_from_packet("bgm", {"esl": {"E": 380, "G": 470, "TE": 400, "TG": 480}, "GEM": [101, 102]})
+        gems = state.get_gems()
+        assert (gems.amount(101), gems.amount(102)) == (2, 0)
+
     def test_a_seq_reply_applies_its_space_with_the_commanders(self, state):
         state.update_from_packet("gbd", LOGIN)
         state.update_from_packet("seq", {"gli": {"C": [], "B": []}, "gcu": {"C1": 5}, "esl": {"E": 391, "TE": 400}})
