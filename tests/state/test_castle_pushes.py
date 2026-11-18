@@ -265,6 +265,15 @@ class TestResourceCarts:
 
         assert state.get_resource_cart(ResourceCartType.WOOD).remaining_seconds == 7200
 
+    @pytest.mark.parametrize("reply", [{"RT": 0, "A": 10}, {"RT": 0, "A": 10, "rci": 0}, {"RT": 0, "rci": "carts"}])
+    def test_an_rcc_without_carts_keeps_them(self, state, reply):
+        # parse_RCC: e.rci&&this.parse_RCI(e.rci)
+        state.update_from_packet("rci", CARTS)
+
+        state.update_from_packet("rcc", reply)
+
+        assert [cart.amount for cart in state.get_resource_carts()] == [10, 20, 0]
+
     def test_only_the_first_three_are_read(self, state):
         # CastleResourceCartsData.parse_RCI reads RC[0] to RC[2]
         state.update_from_packet("rci", {"RC": [*CARTS["RC"], {"RT": 0, "A": 99, "RS": 0}]})

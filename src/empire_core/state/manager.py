@@ -127,7 +127,6 @@ _WHOLE_SECTIONS = {
 # 125982, 121164, 123053, 127640, 127658), gdr also its sce.
 # VFICommand also parses its gcu, and SOUCommand (bundle line 125699) its gcu beside the spl the state does not keep.
 # The protection (uap) of a map read and a joined area: GAACommand, JAACommand (bundle lines 130164, 130243)
-# JAACommand also brings its crai crafting queues (bundle line 130249)
 # CCDCommand and SAPCommand (bundle lines 127678, 127618) parse their gcu
 # MOSCommand (bundle line 125119) parses its gcu
 # BCRCommand (bundle line 640456) parses its gcu
@@ -160,7 +159,7 @@ _NESTED_SECTIONS: dict[str, tuple[str, ...]] = {
     **dict.fromkeys(("ffp", "ibt", "ira", "fco", "sbd", "sds", "bou", "hru", "hra", "hss"), ("gcu",)),
     **dict.fromkeys(("ebu", "eup", "eud", "rbu", "ebe", "bup"), ("grc", "gcu")),
     **dict.fromkeys(("rcc", "crm", "cde"), ("grc",)),
-    "jaa": ("grc", "uap", "crai"),
+    "jaa": ("grc", "uap"),
     "gaa": ("uap",),
     "ccd": ("gcu", "grc"),
     "sap": ("gcu",),
@@ -618,7 +617,7 @@ class GameState(
     def _handle_gbd(self, data: dict[str, Any]) -> set[str]:
         """Apply the login data, or the one section a push wraps in the same shape.
 
-        Each section is read once, through :class:`LoginDataResponse`. ``ain`` and a join's ``crai`` are
+        Each section is read once, through :class:`LoginDataResponse`. ``ain`` and ``kpi``'s ``fki`` are
         still applied from their bodies.
 
         Returns the sections present but not applied, which are not stamped.
@@ -664,8 +663,6 @@ class GameState(
         self._parse_max_spies(login)
         if login.movement_filter is not None:
             self.movement_filter = login.movement_filter
-        if isinstance(crai := data.get("crai"), dict) and js_truthy(crai.get("CAI")):
-            self._handle_crin(crai)
         if login.castle_details is not None:
             self._apply_castle_details(login.castle_details)
         elif "dcl" in login.sent_sections and js_truthy(data["dcl"]):
