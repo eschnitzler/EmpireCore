@@ -102,6 +102,22 @@ class ProgressState(StateBase):
         if (points := read_section(GallantryPointsResponse, data, "the Berimond points")) is not None:
             self.gallantry_points = points
 
+    def _handle_ste(self, data: Any) -> None:
+        """Show the title systems an ``ste`` reply names on the kept ``uar``; nothing before one arrived.
+
+        Client: ``STECommand.executeCommand`` (split.js line 649139), ``CastleTitleData.parseSTE`` (split.js
+        line 109757), which sets each system only when it is truthy
+        """
+        selected = read_section(SelectTitleResponse, data, "the selected title systems")
+        if selected is None or self.title_ranks is None:
+            return
+        changed = {
+            field: system
+            for field, system in (("prefix_system", selected.prefix_system), ("suffix_system", selected.suffix_system))
+            if system is not None
+        }
+        self.title_ranks = self.title_ranks.model_copy(update=changed)
+
     def _apply_title_ranks(self, ranks: TitleRanksResponse) -> None:
         """Read a ``uar``; an alliance city title it does not send keeps its value.
 
@@ -207,26 +223,6 @@ class ProgressState(StateBase):
         """Your Berimond points, from the last ``ufp`` push; None until one arrived (the login data has none)."""
         with self._lock:
             return self.gallantry_points
-
-    def select_title_systems(self, selected: SelectTitleResponse) -> None:
-        """Apply an ``ste`` reply to the title systems of the kept ``uar``: each one the reply names.
-
-        ``client.player.select_titles`` calls it. Nothing is applied before a ``uar`` arrived.
-
-        Client: ``CastleTitleData.parseSTE`` (bundle line 21041)
-        """
-        with self._lock:
-            if self.title_ranks is None:
-                return
-            changed = {
-                field: system
-                for field, system in (
-                    ("prefix_system", selected.prefix_system),
-                    ("suffix_system", selected.suffix_system),
-                )
-                if system is not None
-            }
-            self.title_ranks = self.title_ranks.model_copy(update=changed)
 
     def get_title_ranks(self) -> TitleRanksResponse:
         """Your top-X ranks, Storm Islands title and displayed title systems, from the last ``uar``.

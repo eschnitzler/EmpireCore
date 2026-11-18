@@ -190,8 +190,8 @@ _MOVEMENT_REPLIES = frozenset(
 # Commands whose state the client applies only from a successful reply: SEICommand, SEECommand,
 # TEICommand, TEECommand, PEPCommand, FJFCommand, BSTCommand (bundle lines 128379, 128364,
 # 128409, 128394, 128214, 127782, 127608), ACMCommand, AQICommand, UFPCommand, BFSCommand (bundle
-# lines 121317, 121557, 121010, 122569), GTPCommand (bundle line 126146), UHTCommand, APTCommand,
-# CARCommand (bundle lines 129926, 123623, 125277), the section replies above;
+# lines 121317, 121557, 121010, 122569), STECommand (split.js line 649139), GTPCommand (bundle line 126146),
+# UHTCommand, APTCommand, CARCommand (bundle lines 129926, 123623, 125277), the section replies above;
 # a refused movement reply is still stamped (see _MOVEMENT_REPLIES). Also the castle
 # pushes and replies:
 # RUECommand, KIKCommand, GSMCommand, RCICommand, CMRCommand, RCCCommand, JAACommand, CSLCommand and
@@ -215,6 +215,7 @@ _SUCCESS_ONLY = frozenset(
         "apt",
         "car",
         "bfs",
+        "ste",
         "gtp",
         *_WHOLE_SECTIONS,
         *_SECTION_PUSHES,
@@ -345,7 +346,8 @@ class GameState(
     might points                         ``gmu`` (pushed)             re-login
     glory points                         ``ufa`` (pushed)             re-login
     Berimond points                      ``ufp`` (pushed only)        --
-    top-X ranks, Storm Islands title     ``uar`` (pushed)             re-login
+    top-X ranks, Storm Islands title,    ``uar`` (pushed), ``ste``    re-login
+    displayed title systems
     achievements                         ``vli`` (pushed)             re-login
     relocation                           ``gri`` (pushed)             re-login
     plague doctors                         ``cpi``, ``cpm``, ``sbp``    re-login
@@ -495,6 +497,7 @@ class GameState(
         "apt": "_handle_apt",
         "car": "_handle_car",
         "bfs": "_handle_bfs",
+        "ste": "_handle_ste",
         "gtp": "_handle_gtp",
         # Castle pushes and the joined area
         "rue": "_handle_rue",

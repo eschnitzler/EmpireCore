@@ -35,7 +35,8 @@ class AccountState(StateBase):
         ``PlayerGiftData.parse_PGL``, ``CastleRubyWishingWellData.parse_RWW``, ``CastleEquipmentData.parseNRF``,
         ``CastleUserData.parse_DTS``, ``parse_GEM``, ``parse_GPF`` and ``parse_SCD`` and
         ``CastleMessageData.parse_MCD`` (split.js lines 579446, 339695, 715112, 711633, 582271, 110466,
-        711934, 54274, 53945, 54052, 54264, 672695)
+        711934, 54274, 53945, 54052, 54264, 672695). ``parse_MCD`` sets the count of each type an ``mcd`` lists
+        and keeps the others; ``MCDCommand`` (split.js line 636745) pushes it the same way
         """
         applied: set[str] = set()
         if login.daily_reset is not None:
@@ -71,8 +72,10 @@ class AccountState(StateBase):
         if login.credentials is not None:
             self.credentials_status = login.credentials
             applied.add("scd")
-        if login.messages_sent_today is not None:
-            self.messages_sent_today = login.messages_sent_today
+        if (counts := login.messages_sent_today) is not None:
+            if self.messages_sent_today is not None:
+                counts = counts.model_copy(update={"sent": {**self.messages_sent_today.sent, **counts.sent}})
+            self.messages_sent_today = counts
             applied.add("mcd")
         return (login.sent_sections & set(ACCOUNT_SECTIONS)) - applied
 
@@ -204,7 +207,7 @@ class AccountState(StateBase):
             return self.account_deletion
 
     def get_messages_sent_today(self) -> MessagesSentToday | None:
-        """Messages of each limited type sent today, from the last ``mcd``; None until one arrived."""
+        """Messages of each limited type sent today, each from the last ``mcd`` that listed it; None until one came."""
         with self._lock:
             return self.messages_sent_today
 
