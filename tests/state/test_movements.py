@@ -1793,7 +1793,7 @@ class TestSentMovements:
         time.sleep(0.1)
         assert fired == []
 
-    @pytest.mark.parametrize("cmd", ["cds", "csm", "cat", "crm", "css", "tde", "cdd", "cpm"])
+    @pytest.mark.parametrize("cmd", ["cds", "csm", "cat", "crm", "css", "tde", "cdd", "cpm", "jtr"])
     def test_replies_under_a_are_stored(self, state, cmd):
         login(state, self.ME)
         state.update_from_packet(cmd, {"A": {"M": {"MID": 5, "T": 3, "TT": 60, "OID": self.ME}}, "O": []})

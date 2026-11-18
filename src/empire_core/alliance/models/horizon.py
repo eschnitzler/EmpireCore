@@ -777,14 +777,17 @@ class JadePhase(EmpireModel):
     """
     The Jade Desert's scoring phase as the ``abgi`` pushes so far left it.
 
-    Client: ``AllianceBattleGroundEventVO.parseJadePhaseInfo`` (split.js line 585444) starts at
-    ``ClientConstJadeScoring.PHASE_1`` and no condition (-1, ``NO_PHASE_2_CONDITION``), and turns to phase 2 once the
-    phase 2 time passes (``onJadePhaseTimer``)
+    The client starts from the event's own data, which is not read here, so a phase no push has named is None.
+
+    Client: ``AllianceBattleGroundEventVO.parseJadePhaseInfo`` (split.js line 585444), also run by its
+    ``parseParamObject``; it turns to phase 2 once the phase 2 time passes (``onJadePhaseTimer``)
     """
 
     model_config = ConfigDict(frozen=True)
 
-    phase: EnumOrInt[JadeScoringPhase] = Field(default=JadeScoringPhase.PHASE_1, description="The phase last pushed")
+    phase: EnumOrInt[JadeScoringPhase] | None = Field(
+        default=None, description="The phase last pushed; None until a push named it"
+    )
     phase_2_starts_at: float | None = Field(
         default=None, description="When phase 2 starts, in epoch seconds; None until a push named it"
     )
@@ -804,8 +807,8 @@ class JadePhase(EmpireModel):
             phase_2_condition_percent=push.phase_2_condition_percent,
         )
 
-    def current_phase(self, now: float) -> EnumOrInt[JadeScoringPhase]:
-        """The phase at ``now`` epoch seconds: phase 2 once its start has passed."""
+    def current_phase(self, now: float) -> EnumOrInt[JadeScoringPhase] | None:
+        """The phase at ``now`` epoch seconds: phase 2 once its start has passed; None while unknown."""
         if self.phase_2_starts_at is not None and now >= self.phase_2_starts_at:
             return JadeScoringPhase.PHASE_2
         return self.phase
