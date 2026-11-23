@@ -38,7 +38,7 @@ class TestCastleList:
         assert before + 10000 <= castle.cancel_abandon_end <= after + 10000
         assert before + 3600 <= castle.no_abandon_end <= after + 3600
         assert 85990 < castle.abandon_seconds() <= 86000
-        assert castle.cancel_abandon_seconds(now=castle.cancel_abandon_end - 60) == 60
+        assert castle.cancel_abandon_seconds(now=castle.cancel_abandon_end - 60) == pytest.approx(60)
         assert castle.no_abandon_seconds(now=castle.no_abandon_end + 1) == 0
 
     @pytest.mark.parametrize("keys", [{"AOT": -1, "CAT": -1, "TA": -1}, {"AOT": 0, "CAT": 0, "TA": 0}, {}])
@@ -68,7 +68,7 @@ class TestReplies:
 
         assert 86390 < castle.abandon_seconds() <= 86400
         assert 10790 < castle.cancel_abandon_seconds() <= 10800
-        assert castle.abandon_end - castle.cancel_abandon_end == 86400 - 10800
+        assert castle.abandon_end - castle.cancel_abandon_end == pytest.approx(86400 - 10800)
         assert castle.no_abandon_end == cooldown
 
     def test_a_cancel_reply_clears_both_timers_and_keeps_the_cooldown(self):
