@@ -112,15 +112,22 @@ class Booster(TimedPayload):
         return self.level > 0 if self.is_permanent else self.remaining_seconds(now) >= 0
 
 
+def _feast_or_none(value: Any) -> int | None:
+    # getFestivalItemByID finds no feast for the -1 the server sends while none is held
+    feast_id = js_int(value)
+    return None if feast_id < 0 else feast_id
+
+
 class ActiveFeast(TimedPayload):
     """
     The feast you hold, for faster recruitment in every castle: a ``boi``'s ``bfs``, or a ``bfs`` reply.
 
-    Client: ``FestivalVO.fillFromParamObject``, ``parseDuration`` and ``isActive`` (split.js lines 459800-459826)
+    Client: ``FestivalVO.fillFromParamObject``, ``parseDuration`` and ``isActive`` (split.js lines 459800-459826);
+    ``getFestivalItemByID`` finds no feast for a ``T`` of -1
     """
 
-    feast_id: Annotated[EnumOrInt["Feast"], BeforeValidator(js_int)] = Field(
-        validation_alias="T", default=0, description="The feast"
+    feast_id: Annotated[EnumOrInt["Feast"] | None, BeforeValidator(_feast_or_none)] = Field(
+        validation_alias="T", default=0, description="The feast; None when the server sends -1 for no feast"
     )
     seconds: ClientNumber = Field(
         validation_alias="RT", default=0, description="Seconds left when the values were read"
