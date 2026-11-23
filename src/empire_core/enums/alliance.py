@@ -194,7 +194,8 @@ class AllianceBuffType(IntEnum):
 
     Client: ``AllianceConst.TYPE_*`` (dll line 18805), the series ids of
     ``allianceBuffData.getAllianceBuffVoBySeriesIDAndLevel`` (bundle line 27189); 22 to 25 are
-    ``AllianceRaidConst.BUFF_SERIES_RAID_BOSS_ATTACK_*`` (bundle line 33863)
+    ``AllianceRaidConst.BUFF_SERIES_RAID_BOSS_ATTACK_*`` (bundle line 33863); 26 to 37 are the Jade Desert's
+    ``AllianceConst.TYPE_*`` of release efded7cc (ggs.dll.js)
     """
 
     MEMBERS = 0
@@ -223,11 +224,24 @@ class AllianceBuffType(IntEnum):
     TEMP_RAID_BOSS_RARE_ATTACK_BOOST = 23
     TEMP_RAID_BOSS_EPIC_ATTACK_BOOST = 24
     TEMP_RAID_BOSS_LEGENDARY_ATTACK_BOOST = 25
+    CITADEL_WALL_BONUS = 26
+    CITADEL_GATE_BONUS = 27
+    CITADEL_MOAT_BONUS = 28
+    TEMP_CITADEL_WALL_UNITS_BOOST = 29
+    TEMP_CITADEL_YARD_POWER_BOOST = 30
+    FORTRESS_RAID_ANCIENT_STATUETTE_BONUS = 31
+    OASIS_TRADE_RESTORED_STATUETTE_BONUS = 32
+    OASIS_TRADE_RETURNING_UNITS_BONUS = 33
+    HIDEOUT_BONUS = 34
+    TEMP_FORTRESS_RAID_JADEITE_BOOST = 35
+    TEMP_FORTRESS_RAID_VARNISH_BOOST = 36
+    TEMP_FORTRESS_RAID_SILK_BOOST = 37
 
     @property
     def text_id(self) -> str | None:
         """
-        The text id of the buff's name, None for ``FORGE_UPGRADE`` and ``NOBLE_HOUSE``, which have none.
+        The text id of the buff's name, None for ``FORGE_UPGRADE`` and ``NOBLE_HOUSE``, which have none, and for
+        the Jade Desert series (26 to 37), which ``getNameTextId`` does not name.
 
         Client: ``CastleEffectsHelper.getNameTextId`` (bundle line 4191)
         """

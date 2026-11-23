@@ -436,3 +436,9 @@ def test_scalar_raw_ruby_costs_remain_supported(value):
         client.alliance.upgrade(6)
     client.alliance.upgrade(6, spend_rubies=True)
     assert conn(client).request_payloads[-1] == ("aug", {"BT": 6, "L": 1})
+
+
+@pytest.mark.parametrize("series", range(26, 38))
+def test_the_jade_desert_buff_series_are_named(series):
+    assert isinstance(AllianceBuffType(series), AllianceBuffType)
+    assert AllianceBuffType(series).text_id is None
