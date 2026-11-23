@@ -139,3 +139,11 @@ def test_a_feast_the_game_data_lacks_is_not_sent():
     with pytest.raises(ValueError, match="not in the game data"):
         client.player.hold_feast(Feast.HEARTY_IMPERIAL_BANQUET, 5)
     assert conn(client).request_payloads == []
+
+
+def test_no_feast_held_reads_as_none():
+    # The login boosters send T -1 while no feast is held; getFestivalItemByID finds none
+    state = logged_in_state()
+    state.update_from_packet("boi", {"bfs": {"T": -1, "RT": 0}})
+    feast = state.get_boosts().feast
+    assert feast is not None and feast.feast_id is None and not feast.is_active()
