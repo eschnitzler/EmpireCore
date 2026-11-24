@@ -418,3 +418,10 @@ class TestGal:
     @pytest.mark.parametrize("body", [{}, {"AID": 0}, {"AID": -1}, {"AID": "x"}])
     def test_no_alliance(self, body):
         assert not AllianceMembership.model_validate(body).is_member
+
+
+def test_no_alliance_reads_its_rank_as_none():
+    # A player in no alliance gets gal AID -1 and R -1; the client defines no rank below 0
+    membership = AllianceMembership.model_validate({"AID": -1, "R": -1})
+    assert membership.rank is None
+    assert AllianceMembership.model_validate({"AID": 5, "R": 8}).rank is AllianceRank.MEMBER

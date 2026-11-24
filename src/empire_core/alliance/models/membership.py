@@ -38,8 +38,10 @@ class AllianceMembership(BasePayload):
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     alliance_id: ClientInt = Field(validation_alias="AID", default=0, description="The alliance; 0 or less for none")
-    rank: EnumOrInt[AllianceRank] = Field(
-        default=AllianceRank.LEADER, validation_alias="R", description="Your rank in the alliance"
+    rank: EnumOrInt[AllianceRank] | None = Field(
+        default=AllianceRank.LEADER,
+        validation_alias="R",
+        description="Your rank in the alliance; None for the -1 sent while you are in none",
     )
     # The client reads AN; live servers send N
     name: str = Field(default="", validation_alias=AliasChoices("AN", "N"), description="The alliance's name")
@@ -52,8 +54,10 @@ class AllianceMembership(BasePayload):
 
     @field_validator("rank", mode="before")
     @classmethod
-    def _rank(cls, value: Any) -> int:
-        return js_int(value)
+    def _rank(cls, value: Any) -> int | None:
+        # The client defines no rank below 0; it defaults a rank to -1 for no alliance (split.js line 350412)
+        rank = js_int(value)
+        return None if rank < 0 else rank
 
     @field_validator("looking_for_alliance", mode="before")
     @classmethod
