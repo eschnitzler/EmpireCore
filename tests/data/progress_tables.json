@@ -1,0 +1,3722 @@
+{
+ "version": "790.06",
+ "generalSlots": [
+  {
+   "slotID": "101011",
+   "abilityGroupIDs": "1020"
+  },
+  {
+   "slotID": "101012",
+   "abilityGroupIDs": "1034,1038"
+  },
+  {
+   "slotID": "101013",
+   "abilityGroupIDs": "1005,1035,1039"
+  },
+  {
+   "slotID": "101014",
+   "abilityGroupIDs": "1033,1030"
+  },
+  {
+   "slotID": "101016",
+   "abilityGroupIDs": "1020"
+  },
+  {
+   "slotID": "101017",
+   "abilityGroupIDs": "1034,1038"
+  },
+  {
+   "slotID": "101018",
+   "abilityGroupIDs": "1005,1035,1039"
+  },
+  {
+   "slotID": "101019",
+   "abilityGroupIDs": "1033,1030"
+  },
+  {
+   "slotID": "101021",
+   "abilityGroupIDs": "1025"
+  },
+  {
+   "slotID": "101022",
+   "abilityGroupIDs": "1023,1001"
+  },
+  {
+   "slotID": "101023",
+   "abilityGroupIDs": "1021,1013,1022"
+  },
+  {
+   "slotID": "101026",
+   "abilityGroupIDs": "1025"
+  },
+  {
+   "slotID": "101027",
+   "abilityGroupIDs": "1023,1001"
+  },
+  {
+   "slotID": "101028",
+   "abilityGroupIDs": "1021,1013,1022"
+  },
+  {
+   "slotID": "101032",
+   "abilityGroupIDs": "1026"
+  },
+  {
+   "slotID": "101031",
+   "abilityGroupIDs": "1028,1007"
+  },
+  {
+   "slotID": "101033",
+   "abilityGroupIDs": "1027,1030,1001"
+  },
+  {
+   "slotID": "101037",
+   "abilityGroupIDs": "1026"
+  },
+  {
+   "slotID": "101036",
+   "abilityGroupIDs": "1028,1007"
+  },
+  {
+   "slotID": "101038",
+   "abilityGroupIDs": "1027,1030,1001"
+  },
+  {
+   "slotID": "101041",
+   "abilityGroupIDs": "1015"
+  },
+  {
+   "slotID": "101042",
+   "abilityGroupIDs": "1001,1002"
+  },
+  {
+   "slotID": "101043",
+   "abilityGroupIDs": "1007,1014"
+  },
+  {
+   "slotID": "101044",
+   "abilityGroupIDs": "1003"
+  },
+  {
+   "slotID": "101046",
+   "abilityGroupIDs": "1015"
+  },
+  {
+   "slotID": "101047",
+   "abilityGroupIDs": "1001,1002,1018"
+  },
+  {
+   "slotID": "101048",
+   "abilityGroupIDs": "1007,1014"
+  },
+  {
+   "slotID": "101049",
+   "abilityGroupIDs": "1003,1016"
+  },
+  {
+   "slotID": "101051",
+   "abilityGroupIDs": "1010"
+  },
+  {
+   "slotID": "101052",
+   "abilityGroupIDs": "1001,1011"
+  },
+  {
+   "slotID": "101053",
+   "abilityGroupIDs": "1039,1019,1012"
+  },
+  {
+   "slotID": "101054",
+   "abilityGroupIDs": "1029,1007"
+  },
+  {
+   "slotID": "101056",
+   "abilityGroupIDs": "1010"
+  },
+  {
+   "slotID": "101057",
+   "abilityGroupIDs": "1001,1011"
+  },
+  {
+   "slotID": "101058",
+   "abilityGroupIDs": "1039,1012"
+  },
+  {
+   "slotID": "101059",
+   "abilityGroupIDs": "1029,1007"
+  },
+  {
+   "slotID": "101191",
+   "abilityGroupIDs": "1013,1007"
+  },
+  {
+   "slotID": "101192",
+   "abilityGroupIDs": "1001,1002"
+  },
+  {
+   "slotID": "101193",
+   "abilityGroupIDs": "1038,1028,1014"
+  },
+  {
+   "slotID": "101194",
+   "abilityGroupIDs": "1003"
+  },
+  {
+   "slotID": "101196",
+   "abilityGroupIDs": "1013,1007"
+  },
+  {
+   "slotID": "101197",
+   "abilityGroupIDs": "1001,1002"
+  },
+  {
+   "slotID": "101198",
+   "abilityGroupIDs": "1038,1028,1014"
+  },
+  {
+   "slotID": "101199",
+   "abilityGroupIDs": "1003"
+  },
+  {
+   "slotID": "101071",
+   "abilityGroupIDs": "1002"
+  },
+  {
+   "slotID": "101076",
+   "abilityGroupIDs": "1002,1016"
+  },
+  {
+   "slotID": "101081",
+   "abilityGroupIDs": "1019,1013"
+  },
+  {
+   "slotID": "101086",
+   "abilityGroupIDs": "1013"
+  },
+  {
+   "slotID": "101201",
+   "abilityGroupIDs": "1001,1013"
+  },
+  {
+   "slotID": "101202",
+   "abilityGroupIDs": "1010"
+  },
+  {
+   "slotID": "101203",
+   "abilityGroupIDs": "1019,1011,1007"
+  },
+  {
+   "slotID": "101206",
+   "abilityGroupIDs": "1001,1013"
+  },
+  {
+   "slotID": "101207",
+   "abilityGroupIDs": "1010"
+  },
+  {
+   "slotID": "101208",
+   "abilityGroupIDs": "1011,1007"
+  },
+  {
+   "slotID": "101211",
+   "abilityGroupIDs": "1011,1039"
+  },
+  {
+   "slotID": "101212",
+   "abilityGroupIDs": "1022,1002"
+  },
+  {
+   "slotID": "101213",
+   "abilityGroupIDs": "1001,1014"
+  },
+  {
+   "slotID": "101214",
+   "abilityGroupIDs": "1003"
+  },
+  {
+   "slotID": "101216",
+   "abilityGroupIDs": "1011,1039,1018"
+  },
+  {
+   "slotID": "101217",
+   "abilityGroupIDs": "1022,1002"
+  },
+  {
+   "slotID": "101218",
+   "abilityGroupIDs": "1001,1014"
+  },
+  {
+   "slotID": "101219",
+   "abilityGroupIDs": "1003"
+  },
+  {
+   "slotID": "101221",
+   "abilityGroupIDs": "1015,1002"
+  },
+  {
+   "slotID": "101222",
+   "abilityGroupIDs": "1001"
+  },
+  {
+   "slotID": "101223",
+   "abilityGroupIDs": "1007"
+  },
+  {
+   "slotID": "101226",
+   "abilityGroupIDs": "1015,1002"
+  },
+  {
+   "slotID": "101227",
+   "abilityGroupIDs": "1001,1016"
+  },
+  {
+   "slotID": "101228",
+   "abilityGroupIDs": "1018,1007"
+  },
+  {
+   "slotID": "101231",
+   "abilityGroupIDs": "1002"
+  },
+  {
+   "slotID": "101236",
+   "abilityGroupIDs": "1002,1016"
+  },
+  {
+   "slotID": "101241",
+   "abilityGroupIDs": "1025,1030"
+  },
+  {
+   "slotID": "101242",
+   "abilityGroupIDs": "1001,1023"
+  },
+  {
+   "slotID": "101243",
+   "abilityGroupIDs": "1002,1022"
+  },
+  {
+   "slotID": "101244",
+   "abilityGroupIDs": "1021,1003"
+  },
+  {
+   "slotID": "101246",
+   "abilityGroupIDs": "1025,1030"
+  },
+  {
+   "slotID": "101247",
+   "abilityGroupIDs": "1001,1023"
+  },
+  {
+   "slotID": "101248",
+   "abilityGroupIDs": "1002,1022"
+  },
+  {
+   "slotID": "101249",
+   "abilityGroupIDs": "1021,1003"
+  },
+  {
+   "slotID": "101251",
+   "abilityGroupIDs": "1020,1038"
+  },
+  {
+   "slotID": "101252",
+   "abilityGroupIDs": "1010,1014"
+  },
+  {
+   "slotID": "101253",
+   "abilityGroupIDs": "1035,1030,1033"
+  },
+  {
+   "slotID": "101254",
+   "abilityGroupIDs": "1005,1003"
+  },
+  {
+   "slotID": "101256",
+   "abilityGroupIDs": "1020,1038"
+  },
+  {
+   "slotID": "101257",
+   "abilityGroupIDs": "1010,1014"
+  },
+  {
+   "slotID": "101258",
+   "abilityGroupIDs": "1035,1030,1033"
+  },
+  {
+   "slotID": "101259",
+   "abilityGroupIDs": "1005,1003"
+  },
+  {
+   "slotID": "101271",
+   "abilityGroupIDs": "1022,1028"
+  },
+  {
+   "slotID": "101272",
+   "abilityGroupIDs": "1001,1012,1027"
+  },
+  {
+   "slotID": "101273",
+   "abilityGroupIDs": "1005,1007"
+  },
+  {
+   "slotID": "101274",
+   "abilityGroupIDs": "1003"
+  },
+  {
+   "slotID": "101276",
+   "abilityGroupIDs": "1022,1028"
+  },
+  {
+   "slotID": "101277",
+   "abilityGroupIDs": "1001,1012,1027"
+  },
+  {
+   "slotID": "101278",
+   "abilityGroupIDs": "1005,1007"
+  },
+  {
+   "slotID": "101279",
+   "abilityGroupIDs": "1003"
+  },
+  {
+   "slotID": "101261",
+   "abilityGroupIDs": "1026"
+  },
+  {
+   "slotID": "101266",
+   "abilityGroupIDs": "1026,1016"
+  },
+  {
+   "slotID": "101371",
+   "abilityGroupIDs": "1020,1027"
+  },
+  {
+   "slotID": "101372",
+   "abilityGroupIDs": "1002,1022"
+  },
+  {
+   "slotID": "101373",
+   "abilityGroupIDs": "1015,1030,1029"
+  },
+  {
+   "slotID": "101374",
+   "abilityGroupIDs": "1013,1003"
+  },
+  {
+   "slotID": "101376",
+   "abilityGroupIDs": "1020,1027"
+  },
+  {
+   "slotID": "101377",
+   "abilityGroupIDs": "1002,1022"
+  },
+  {
+   "slotID": "101378",
+   "abilityGroupIDs": "1015,1030,1029"
+  },
+  {
+   "slotID": "101379",
+   "abilityGroupIDs": "1013,1003"
+  }
+ ],
+ "generalSkillTiers": [
+  {
+   "tierID": "1",
+   "generalID": "104",
+   "tier": "1",
+   "previousTierRequiredSkillPoints": "0"
+  },
+  {
+   "tierID": "2",
+   "generalID": "104",
+   "tier": "2",
+   "previousTierRequiredSkillPoints": "10"
+  },
+  {
+   "tierID": "3",
+   "generalID": "104",
+   "tier": "3",
+   "previousTierRequiredSkillPoints": "35"
+  },
+  {
+   "tierID": "4",
+   "generalID": "104",
+   "tier": "4",
+   "previousTierRequiredSkillPoints": "70"
+  },
+  {
+   "tierID": "17",
+   "generalID": "104",
+   "tier": "5",
+   "previousTierRequiredSkillPoints": "90",
+   "minGeneralStarTier": "10"
+  },
+  {
+   "tierID": "5",
+   "generalID": "101",
+   "tier": "1",
+   "previousTierRequiredSkillPoints": "0"
+  },
+  {
+   "tierID": "6",
+   "generalID": "101",
+   "tier": "2",
+   "previousTierRequiredSkillPoints": "10"
+  },
+  {
+   "tierID": "7",
+   "generalID": "101",
+   "tier": "3",
+   "previousTierRequiredSkillPoints": "35"
+  },
+  {
+   "tierID": "8",
+   "generalID": "101",
+   "tier": "4",
+   "previousTierRequiredSkillPoints": "70"
+  },
+  {
+   "tierID": "18",
+   "generalID": "101",
+   "tier": "5",
+   "previousTierRequiredSkillPoints": "90",
+   "minGeneralStarTier": "10"
+  },
+  {
+   "tierID": "9",
+   "generalID": "102",
+   "tier": "1",
+   "previousTierRequiredSkillPoints": "0"
+  },
+  {
+   "tierID": "10",
+   "generalID": "102",
+   "tier": "2",
+   "previousTierRequiredSkillPoints": "10"
+  },
+  {
+   "tierID": "11",
+   "generalID": "102",
+   "tier": "3",
+   "previousTierRequiredSkillPoints": "35"
+  },
+  {
+   "tierID": "12",
+   "generalID": "102",
+   "tier": "4",
+   "previousTierRequiredSkillPoints": "70"
+  },
+  {
+   "tierID": "19",
+   "generalID": "102",
+   "tier": "5",
+   "previousTierRequiredSkillPoints": "90",
+   "minGeneralStarTier": "10"
+  },
+  {
+   "tierID": "13",
+   "generalID": "103",
+   "tier": "1",
+   "previousTierRequiredSkillPoints": "0"
+  },
+  {
+   "tierID": "14",
+   "generalID": "103",
+   "tier": "2",
+   "previousTierRequiredSkillPoints": "10"
+  },
+  {
+   "tierID": "15",
+   "generalID": "103",
+   "tier": "3",
+   "previousTierRequiredSkillPoints": "35"
+  },
+  {
+   "tierID": "16",
+   "generalID": "103",
+   "tier": "4",
+   "previousTierRequiredSkillPoints": "70"
+  },
+  {
+   "tierID": "20",
+   "generalID": "103",
+   "tier": "5",
+   "previousTierRequiredSkillPoints": "90",
+   "minGeneralStarTier": "10"
+  },
+  {
+   "tierID": "21",
+   "generalID": "105",
+   "tier": "1",
+   "previousTierRequiredSkillPoints": "0"
+  },
+  {
+   "tierID": "22",
+   "generalID": "105",
+   "tier": "2",
+   "previousTierRequiredSkillPoints": "10"
+  },
+  {
+   "tierID": "23",
+   "generalID": "105",
+   "tier": "3",
+   "previousTierRequiredSkillPoints": "35"
+  },
+  {
+   "tierID": "24",
+   "generalID": "105",
+   "tier": "4",
+   "previousTierRequiredSkillPoints": "70"
+  },
+  {
+   "tierID": "25",
+   "generalID": "105",
+   "tier": "5",
+   "previousTierRequiredSkillPoints": "90",
+   "minGeneralStarTier": "10"
+  },
+  {
+   "tierID": "26",
+   "generalID": "119",
+   "tier": "1",
+   "previousTierRequiredSkillPoints": "0"
+  },
+  {
+   "tierID": "27",
+   "generalID": "119",
+   "tier": "2",
+   "previousTierRequiredSkillPoints": "10"
+  },
+  {
+   "tierID": "28",
+   "generalID": "119",
+   "tier": "3",
+   "previousTierRequiredSkillPoints": "35"
+  },
+  {
+   "tierID": "29",
+   "generalID": "119",
+   "tier": "4",
+   "previousTierRequiredSkillPoints": "70"
+  },
+  {
+   "tierID": "30",
+   "generalID": "119",
+   "tier": "5",
+   "previousTierRequiredSkillPoints": "90",
+   "minGeneralStarTier": "10"
+  },
+  {
+   "tierID": "31",
+   "generalID": "107",
+   "tier": "1",
+   "previousTierRequiredSkillPoints": "0"
+  },
+  {
+   "tierID": "32",
+   "generalID": "107",
+   "tier": "2",
+   "previousTierRequiredSkillPoints": "10"
+  },
+  {
+   "tierID": "33",
+   "generalID": "107",
+   "tier": "3",
+   "previousTierRequiredSkillPoints": "35",
+   "minGeneralStarTier": "5"
+  },
+  {
+   "tierID": "34",
+   "generalID": "108",
+   "tier": "1",
+   "previousTierRequiredSkillPoints": "0"
+  },
+  {
+   "tierID": "35",
+   "generalID": "108",
+   "tier": "2",
+   "previousTierRequiredSkillPoints": "10"
+  },
+  {
+   "tierID": "36",
+   "generalID": "108",
+   "tier": "3",
+   "previousTierRequiredSkillPoints": "35",
+   "minGeneralStarTier": "5"
+  },
+  {
+   "tierID": "37",
+   "generalID": "120",
+   "tier": "1",
+   "previousTierRequiredSkillPoints": "0"
+  },
+  {
+   "tierID": "38",
+   "generalID": "120",
+   "tier": "2",
+   "previousTierRequiredSkillPoints": "10"
+  },
+  {
+   "tierID": "39",
+   "generalID": "120",
+   "tier": "3",
+   "previousTierRequiredSkillPoints": "35"
+  },
+  {
+   "tierID": "40",
+   "generalID": "120",
+   "tier": "4",
+   "previousTierRequiredSkillPoints": "70"
+  },
+  {
+   "tierID": "41",
+   "generalID": "120",
+   "tier": "5",
+   "previousTierRequiredSkillPoints": "90",
+   "minGeneralStarTier": "10"
+  },
+  {
+   "tierID": "42",
+   "generalID": "121",
+   "tier": "1",
+   "previousTierRequiredSkillPoints": "0"
+  },
+  {
+   "tierID": "43",
+   "generalID": "121",
+   "tier": "2",
+   "previousTierRequiredSkillPoints": "10"
+  },
+  {
+   "tierID": "44",
+   "generalID": "121",
+   "tier": "3",
+   "previousTierRequiredSkillPoints": "35"
+  },
+  {
+   "tierID": "45",
+   "generalID": "121",
+   "tier": "4",
+   "previousTierRequiredSkillPoints": "70"
+  },
+  {
+   "tierID": "46",
+   "generalID": "121",
+   "tier": "5",
+   "previousTierRequiredSkillPoints": "90",
+   "minGeneralStarTier": "10"
+  },
+  {
+   "tierID": "47",
+   "generalID": "122",
+   "tier": "1",
+   "previousTierRequiredSkillPoints": "0"
+  },
+  {
+   "tierID": "48",
+   "generalID": "122",
+   "tier": "2",
+   "previousTierRequiredSkillPoints": "10"
+  },
+  {
+   "tierID": "49",
+   "generalID": "122",
+   "tier": "3",
+   "previousTierRequiredSkillPoints": "35"
+  },
+  {
+   "tierID": "50",
+   "generalID": "122",
+   "tier": "4",
+   "previousTierRequiredSkillPoints": "70"
+  },
+  {
+   "tierID": "51",
+   "generalID": "122",
+   "tier": "5",
+   "previousTierRequiredSkillPoints": "90",
+   "minGeneralStarTier": "10"
+  },
+  {
+   "tierID": "52",
+   "generalID": "123",
+   "tier": "1",
+   "previousTierRequiredSkillPoints": "0"
+  },
+  {
+   "tierID": "53",
+   "generalID": "123",
+   "tier": "2",
+   "previousTierRequiredSkillPoints": "10"
+  },
+  {
+   "tierID": "54",
+   "generalID": "123",
+   "tier": "3",
+   "previousTierRequiredSkillPoints": "35",
+   "minGeneralStarTier": "5"
+  },
+  {
+   "tierID": "55",
+   "generalID": "124",
+   "tier": "1",
+   "previousTierRequiredSkillPoints": "0"
+  },
+  {
+   "tierID": "56",
+   "generalID": "124",
+   "tier": "2",
+   "previousTierRequiredSkillPoints": "10"
+  },
+  {
+   "tierID": "57",
+   "generalID": "124",
+   "tier": "3",
+   "previousTierRequiredSkillPoints": "35"
+  },
+  {
+   "tierID": "58",
+   "generalID": "124",
+   "tier": "4",
+   "previousTierRequiredSkillPoints": "70"
+  },
+  {
+   "tierID": "59",
+   "generalID": "124",
+   "tier": "5",
+   "previousTierRequiredSkillPoints": "90",
+   "minGeneralStarTier": "10"
+  },
+  {
+   "tierID": "60",
+   "generalID": "125",
+   "tier": "1",
+   "previousTierRequiredSkillPoints": "0"
+  },
+  {
+   "tierID": "61",
+   "generalID": "125",
+   "tier": "2",
+   "previousTierRequiredSkillPoints": "10"
+  },
+  {
+   "tierID": "62",
+   "generalID": "125",
+   "tier": "3",
+   "previousTierRequiredSkillPoints": "35"
+  },
+  {
+   "tierID": "63",
+   "generalID": "125",
+   "tier": "4",
+   "previousTierRequiredSkillPoints": "70"
+  },
+  {
+   "tierID": "64",
+   "generalID": "125",
+   "tier": "5",
+   "previousTierRequiredSkillPoints": "90",
+   "minGeneralStarTier": "10"
+  },
+  {
+   "tierID": "65",
+   "generalID": "127",
+   "tier": "1",
+   "previousTierRequiredSkillPoints": "0"
+  },
+  {
+   "tierID": "66",
+   "generalID": "127",
+   "tier": "2",
+   "previousTierRequiredSkillPoints": "10"
+  },
+  {
+   "tierID": "67",
+   "generalID": "127",
+   "tier": "3",
+   "previousTierRequiredSkillPoints": "35"
+  },
+  {
+   "tierID": "68",
+   "generalID": "127",
+   "tier": "4",
+   "previousTierRequiredSkillPoints": "70"
+  },
+  {
+   "tierID": "69",
+   "generalID": "127",
+   "tier": "5",
+   "previousTierRequiredSkillPoints": "90",
+   "minGeneralStarTier": "10"
+  },
+  {
+   "tierID": "70",
+   "generalID": "126",
+   "tier": "1",
+   "previousTierRequiredSkillPoints": "0"
+  },
+  {
+   "tierID": "71",
+   "generalID": "126",
+   "tier": "2",
+   "previousTierRequiredSkillPoints": "10"
+  },
+  {
+   "tierID": "72",
+   "generalID": "126",
+   "tier": "3",
+   "previousTierRequiredSkillPoints": "35",
+   "minGeneralStarTier": "5"
+  },
+  {
+   "tierID": "73",
+   "generalID": "137",
+   "tier": "1",
+   "previousTierRequiredSkillPoints": "0"
+  },
+  {
+   "tierID": "74",
+   "generalID": "137",
+   "tier": "2",
+   "previousTierRequiredSkillPoints": "10"
+  },
+  {
+   "tierID": "75",
+   "generalID": "137",
+   "tier": "3",
+   "previousTierRequiredSkillPoints": "35"
+  },
+  {
+   "tierID": "76",
+   "generalID": "137",
+   "tier": "4",
+   "previousTierRequiredSkillPoints": "70"
+  },
+  {
+   "tierID": "77",
+   "generalID": "137",
+   "tier": "5",
+   "previousTierRequiredSkillPoints": "90",
+   "minGeneralStarTier": "10"
+  }
+ ],
+ "generalXpItems": [
+  {
+   "currencyID": "7001",
+   "xpAmount": "250"
+  },
+  {
+   "currencyID": "7002",
+   "xpAmount": "500"
+  },
+  {
+   "currencyID": "7003",
+   "xpAmount": "1000"
+  },
+  {
+   "currencyID": "7004",
+   "xpAmount": "2500"
+  },
+  {
+   "currencyID": "7005",
+   "xpAmount": "5000"
+  },
+  {
+   "currencyID": "7006",
+   "xpAmount": "7500"
+  },
+  {
+   "currencyID": "7007",
+   "xpAmount": "10000"
+  },
+  {
+   "currencyID": "7008",
+   "xpAmount": "12500"
+  },
+  {
+   "currencyID": "7009",
+   "xpAmount": "15000"
+  }
+ ],
+ "generalAbilityEffects": [
+  {
+   "abilityEffectID": "102610",
+   "effects": "21026&759+1#760+1",
+   "priority": "75"
+  },
+  {
+   "abilityEffectID": "102620",
+   "effects": "21026&705+1.3#707+1.3",
+   "priority": "76"
+  },
+  {
+   "abilityEffectID": "102630",
+   "effects": "21026&706+1.6#708+1.6",
+   "priority": "77"
+  },
+  {
+   "abilityEffectID": "102615",
+   "effects": "21026&716+1#717+1",
+   "priority": "195"
+  },
+  {
+   "abilityEffectID": "102625",
+   "effects": "21026&701+1.3#703+1.3",
+   "priority": "196"
+  },
+  {
+   "abilityEffectID": "102635",
+   "effects": "21026&702+1.6#704+1.6",
+   "priority": "197"
+  },
+  {
+   "abilityEffectID": "100110",
+   "effects": "21001&6",
+   "priority": "1"
+  },
+  {
+   "abilityEffectID": "100120",
+   "effects": "21001&8",
+   "priority": "1"
+  },
+  {
+   "abilityEffectID": "100130",
+   "effects": "21001&10",
+   "priority": "1"
+  },
+  {
+   "abilityEffectID": "100210",
+   "effects": "21002&35",
+   "priority": "2"
+  },
+  {
+   "abilityEffectID": "100220",
+   "effects": "21002&45",
+   "priority": "2"
+  },
+  {
+   "abilityEffectID": "100230",
+   "effects": "21002&55",
+   "priority": "2"
+  },
+  {
+   "abilityEffectID": "100310",
+   "effects": "21003&5",
+   "priority": "3"
+  },
+  {
+   "abilityEffectID": "100320",
+   "effects": "21003&7",
+   "priority": "3"
+  },
+  {
+   "abilityEffectID": "100330",
+   "effects": "21003&9",
+   "priority": "3"
+  },
+  {
+   "abilityEffectID": "100510",
+   "effects": "21005&1",
+   "priority": "5"
+  },
+  {
+   "abilityEffectID": "100520",
+   "effects": "21005&1.2",
+   "priority": "5"
+  },
+  {
+   "abilityEffectID": "100530",
+   "effects": "21005&1.4",
+   "priority": "5"
+  },
+  {
+   "abilityEffectID": "100710",
+   "effects": "21007&0.5",
+   "priority": "7"
+  },
+  {
+   "abilityEffectID": "100720",
+   "effects": "21007&0.75",
+   "priority": "7"
+  },
+  {
+   "abilityEffectID": "100730",
+   "effects": "21007&1",
+   "priority": "7"
+  },
+  {
+   "abilityEffectID": "101010",
+   "effects": "21010&2",
+   "priority": "10"
+  },
+  {
+   "abilityEffectID": "101020",
+   "effects": "21010&3",
+   "priority": "10"
+  },
+  {
+   "abilityEffectID": "101030",
+   "effects": "21010&4",
+   "priority": "10"
+  },
+  {
+   "abilityEffectID": "101110",
+   "effects": "21011&50",
+   "priority": "11"
+  },
+  {
+   "abilityEffectID": "101120",
+   "effects": "21011&75",
+   "priority": "11"
+  },
+  {
+   "abilityEffectID": "101130",
+   "effects": "21011&100",
+   "priority": "11"
+  },
+  {
+   "abilityEffectID": "101210",
+   "effects": "21012&10",
+   "priority": "12"
+  },
+  {
+   "abilityEffectID": "101220",
+   "effects": "21012&15",
+   "priority": "12"
+  },
+  {
+   "abilityEffectID": "101230",
+   "effects": "21012&20",
+   "priority": "12"
+  },
+  {
+   "abilityEffectID": "101310",
+   "effects": "21013&20",
+   "priority": "13"
+  },
+  {
+   "abilityEffectID": "101320",
+   "effects": "21013&25",
+   "priority": "13"
+  },
+  {
+   "abilityEffectID": "101330",
+   "effects": "21013&30",
+   "priority": "13"
+  },
+  {
+   "abilityEffectID": "101410",
+   "effects": "21014&30",
+   "priority": "14"
+  },
+  {
+   "abilityEffectID": "101420",
+   "effects": "21014&35",
+   "priority": "14"
+  },
+  {
+   "abilityEffectID": "101430",
+   "effects": "21014&40",
+   "priority": "14"
+  },
+  {
+   "abilityEffectID": "101510",
+   "effects": "21015&10",
+   "priority": "15"
+  },
+  {
+   "abilityEffectID": "101520",
+   "effects": "21015&12",
+   "priority": "15"
+  },
+  {
+   "abilityEffectID": "101530",
+   "effects": "21015&14",
+   "priority": "15"
+  },
+  {
+   "abilityEffectID": "101910",
+   "effects": "21019&50,21040&50",
+   "priority": "19"
+  },
+  {
+   "abilityEffectID": "101920",
+   "effects": "21019&55,21040&50",
+   "priority": "19"
+  },
+  {
+   "abilityEffectID": "101930",
+   "effects": "21019&60,21040&50",
+   "priority": "19"
+  },
+  {
+   "abilityEffectID": "102010",
+   "effects": "21020&1",
+   "priority": "20"
+  },
+  {
+   "abilityEffectID": "102020",
+   "effects": "21020&1.3",
+   "priority": "20"
+  },
+  {
+   "abilityEffectID": "102030",
+   "effects": "21020&1.6",
+   "priority": "20"
+  },
+  {
+   "abilityEffectID": "102110",
+   "effects": "21021&0",
+   "priority": "21"
+  },
+  {
+   "abilityEffectID": "102120",
+   "effects": "21021&1",
+   "priority": "21"
+  },
+  {
+   "abilityEffectID": "102130",
+   "effects": "21021&2",
+   "priority": "21"
+  },
+  {
+   "abilityEffectID": "102210",
+   "effects": "21022&5",
+   "priority": "22"
+  },
+  {
+   "abilityEffectID": "102220",
+   "effects": "21022&6",
+   "priority": "22"
+  },
+  {
+   "abilityEffectID": "102230",
+   "effects": "21022&7",
+   "priority": "22"
+  },
+  {
+   "abilityEffectID": "102310",
+   "effects": "21023&100",
+   "priority": "23"
+  },
+  {
+   "abilityEffectID": "102320",
+   "effects": "21023&125",
+   "priority": "23"
+  },
+  {
+   "abilityEffectID": "102330",
+   "effects": "21023&150",
+   "priority": "23"
+  },
+  {
+   "abilityEffectID": "102510",
+   "effects": "21025&30",
+   "priority": "25"
+  },
+  {
+   "abilityEffectID": "102520",
+   "effects": "21025&35",
+   "priority": "25"
+  },
+  {
+   "abilityEffectID": "102530",
+   "effects": "21025&40",
+   "priority": "25"
+  },
+  {
+   "abilityEffectID": "102710",
+   "effects": "21027&0.3",
+   "priority": "27"
+  },
+  {
+   "abilityEffectID": "102720",
+   "effects": "21027&0.5",
+   "priority": "27"
+  },
+  {
+   "abilityEffectID": "102730",
+   "effects": "21027&0.7",
+   "priority": "27"
+  },
+  {
+   "abilityEffectID": "102810",
+   "effects": "21028&15",
+   "priority": "28"
+  },
+  {
+   "abilityEffectID": "102820",
+   "effects": "21028&20",
+   "priority": "28"
+  },
+  {
+   "abilityEffectID": "102830",
+   "effects": "21028&25",
+   "priority": "28"
+  },
+  {
+   "abilityEffectID": "102910",
+   "effects": "21029&30",
+   "priority": "29"
+  },
+  {
+   "abilityEffectID": "102920",
+   "effects": "21029&40",
+   "priority": "29"
+  },
+  {
+   "abilityEffectID": "102930",
+   "effects": "21029&50",
+   "priority": "29"
+  },
+  {
+   "abilityEffectID": "103010",
+   "effects": "21030&0.3",
+   "priority": "30"
+  },
+  {
+   "abilityEffectID": "103020",
+   "effects": "21030&0.5",
+   "priority": "30"
+  },
+  {
+   "abilityEffectID": "103030",
+   "effects": "21030&0.7",
+   "priority": "30"
+  },
+  {
+   "abilityEffectID": "103310",
+   "effects": "21033&15",
+   "priority": "33"
+  },
+  {
+   "abilityEffectID": "103320",
+   "effects": "21033&18",
+   "priority": "33"
+  },
+  {
+   "abilityEffectID": "103330",
+   "effects": "21033&21",
+   "priority": "33"
+  },
+  {
+   "abilityEffectID": "103410",
+   "effects": "21034&1.5",
+   "priority": "34"
+  },
+  {
+   "abilityEffectID": "103420",
+   "effects": "21034&2",
+   "priority": "34"
+  },
+  {
+   "abilityEffectID": "103430",
+   "effects": "21034&2.5",
+   "priority": "34"
+  },
+  {
+   "abilityEffectID": "103510",
+   "effects": "21035&15",
+   "priority": "35"
+  },
+  {
+   "abilityEffectID": "103520",
+   "effects": "21035&20",
+   "priority": "35"
+  },
+  {
+   "abilityEffectID": "103530",
+   "effects": "21035&25",
+   "priority": "35"
+  },
+  {
+   "abilityEffectID": "103810",
+   "effects": "21038&0.1",
+   "priority": "38"
+  },
+  {
+   "abilityEffectID": "103820",
+   "effects": "21038&0.15",
+   "priority": "38"
+  },
+  {
+   "abilityEffectID": "103830",
+   "effects": "21038&0.2",
+   "priority": "38"
+  },
+  {
+   "abilityEffectID": "103910",
+   "effects": "21039&15",
+   "priority": "39"
+  },
+  {
+   "abilityEffectID": "103920",
+   "effects": "21039&20",
+   "priority": "39"
+  },
+  {
+   "abilityEffectID": "103930",
+   "effects": "21039&25",
+   "priority": "39"
+  },
+  {
+   "abilityEffectID": "100115",
+   "effects": "21001&6",
+   "priority": "40"
+  },
+  {
+   "abilityEffectID": "100125",
+   "effects": "21001&8",
+   "priority": "40"
+  },
+  {
+   "abilityEffectID": "100135",
+   "effects": "21001&10",
+   "priority": "40"
+  },
+  {
+   "abilityEffectID": "100215",
+   "effects": "21002&35",
+   "priority": "1"
+  },
+  {
+   "abilityEffectID": "100225",
+   "effects": "21002&45",
+   "priority": "1"
+  },
+  {
+   "abilityEffectID": "100235",
+   "effects": "21002&55",
+   "priority": "1"
+  },
+  {
+   "abilityEffectID": "100315",
+   "effects": "21003&5",
+   "priority": "2"
+  },
+  {
+   "abilityEffectID": "100325",
+   "effects": "21003&7",
+   "priority": "2"
+  },
+  {
+   "abilityEffectID": "100335",
+   "effects": "21003&9",
+   "priority": "2"
+  },
+  {
+   "abilityEffectID": "100515",
+   "effects": "21005&1.2",
+   "priority": "3"
+  },
+  {
+   "abilityEffectID": "100525",
+   "effects": "21005&1.5",
+   "priority": "3"
+  },
+  {
+   "abilityEffectID": "100535",
+   "effects": "21005&1.8",
+   "priority": "3"
+  },
+  {
+   "abilityEffectID": "100715",
+   "effects": "21007&0.5",
+   "priority": "6"
+  },
+  {
+   "abilityEffectID": "100725",
+   "effects": "21007&0.75",
+   "priority": "6"
+  },
+  {
+   "abilityEffectID": "100735",
+   "effects": "21007&1",
+   "priority": "6"
+  },
+  {
+   "abilityEffectID": "101015",
+   "effects": "21010&2",
+   "priority": "8"
+  },
+  {
+   "abilityEffectID": "101025",
+   "effects": "21010&3",
+   "priority": "8"
+  },
+  {
+   "abilityEffectID": "101035",
+   "effects": "21010&4",
+   "priority": "8"
+  },
+  {
+   "abilityEffectID": "101115",
+   "effects": "21011&50",
+   "priority": "10"
+  },
+  {
+   "abilityEffectID": "101125",
+   "effects": "21011&75",
+   "priority": "10"
+  },
+  {
+   "abilityEffectID": "101135",
+   "effects": "21011&100",
+   "priority": "10"
+  },
+  {
+   "abilityEffectID": "101215",
+   "effects": "21012&10",
+   "priority": "11"
+  },
+  {
+   "abilityEffectID": "101225",
+   "effects": "21012&15",
+   "priority": "11"
+  },
+  {
+   "abilityEffectID": "101235",
+   "effects": "21012&20",
+   "priority": "11"
+  },
+  {
+   "abilityEffectID": "101315",
+   "effects": "21013&20",
+   "priority": "12"
+  },
+  {
+   "abilityEffectID": "101325",
+   "effects": "21013&25",
+   "priority": "12"
+  },
+  {
+   "abilityEffectID": "101335",
+   "effects": "21013&30",
+   "priority": "12"
+  },
+  {
+   "abilityEffectID": "101415",
+   "effects": "21014&50",
+   "priority": "13"
+  },
+  {
+   "abilityEffectID": "101425",
+   "effects": "21014&56",
+   "priority": "13"
+  },
+  {
+   "abilityEffectID": "101435",
+   "effects": "21014&62",
+   "priority": "13"
+  },
+  {
+   "abilityEffectID": "101515",
+   "effects": "21015&10",
+   "priority": "14"
+  },
+  {
+   "abilityEffectID": "101525",
+   "effects": "21015&12",
+   "priority": "14"
+  },
+  {
+   "abilityEffectID": "101535",
+   "effects": "21015&14",
+   "priority": "14"
+  },
+  {
+   "abilityEffectID": "101615",
+   "effects": "21016&15",
+   "priority": "15"
+  },
+  {
+   "abilityEffectID": "101625",
+   "effects": "21016&18",
+   "priority": "15"
+  },
+  {
+   "abilityEffectID": "101635",
+   "effects": "21016&21",
+   "priority": "15"
+  },
+  {
+   "abilityEffectID": "101815",
+   "effects": "21018&10",
+   "priority": "16"
+  },
+  {
+   "abilityEffectID": "101825",
+   "effects": "21018&12",
+   "priority": "16"
+  },
+  {
+   "abilityEffectID": "101835",
+   "effects": "21018&14",
+   "priority": "16"
+  },
+  {
+   "abilityEffectID": "102015",
+   "effects": "21020&1.2",
+   "priority": "19"
+  },
+  {
+   "abilityEffectID": "102025",
+   "effects": "21020&1.5",
+   "priority": "19"
+  },
+  {
+   "abilityEffectID": "102035",
+   "effects": "21020&1.8",
+   "priority": "19"
+  },
+  {
+   "abilityEffectID": "102115",
+   "effects": "21021&0",
+   "priority": "20"
+  },
+  {
+   "abilityEffectID": "102125",
+   "effects": "21021&1",
+   "priority": "20"
+  },
+  {
+   "abilityEffectID": "102135",
+   "effects": "21021&2",
+   "priority": "20"
+  },
+  {
+   "abilityEffectID": "102215",
+   "effects": "21022&5",
+   "priority": "21"
+  },
+  {
+   "abilityEffectID": "102225",
+   "effects": "21022&6",
+   "priority": "21"
+  },
+  {
+   "abilityEffectID": "102235",
+   "effects": "21022&7",
+   "priority": "21"
+  },
+  {
+   "abilityEffectID": "102315",
+   "effects": "21023&100",
+   "priority": "22"
+  },
+  {
+   "abilityEffectID": "102325",
+   "effects": "21023&120",
+   "priority": "22"
+  },
+  {
+   "abilityEffectID": "102335",
+   "effects": "21023&140",
+   "priority": "22"
+  },
+  {
+   "abilityEffectID": "102515",
+   "effects": "21025&30",
+   "priority": "23"
+  },
+  {
+   "abilityEffectID": "102525",
+   "effects": "21025&35",
+   "priority": "23"
+  },
+  {
+   "abilityEffectID": "102535",
+   "effects": "21025&40",
+   "priority": "23"
+  },
+  {
+   "abilityEffectID": "102715",
+   "effects": "21027&0.3",
+   "priority": "26"
+  },
+  {
+   "abilityEffectID": "102725",
+   "effects": "21027&0.5",
+   "priority": "26"
+  },
+  {
+   "abilityEffectID": "102735",
+   "effects": "21027&0.7",
+   "priority": "26"
+  },
+  {
+   "abilityEffectID": "102815",
+   "effects": "21028&15",
+   "priority": "27"
+  },
+  {
+   "abilityEffectID": "102825",
+   "effects": "21028&20",
+   "priority": "27"
+  },
+  {
+   "abilityEffectID": "102835",
+   "effects": "21028&25",
+   "priority": "27"
+  },
+  {
+   "abilityEffectID": "102915",
+   "effects": "21029&30",
+   "priority": "28"
+  },
+  {
+   "abilityEffectID": "102925",
+   "effects": "21029&40",
+   "priority": "28"
+  },
+  {
+   "abilityEffectID": "102935",
+   "effects": "21029&50",
+   "priority": "28"
+  },
+  {
+   "abilityEffectID": "103015",
+   "effects": "21030&0.3",
+   "priority": "29"
+  },
+  {
+   "abilityEffectID": "103025",
+   "effects": "21030&0.5",
+   "priority": "29"
+  },
+  {
+   "abilityEffectID": "103035",
+   "effects": "21030&0.7",
+   "priority": "29"
+  },
+  {
+   "abilityEffectID": "103315",
+   "effects": "21033&15",
+   "priority": "30"
+  },
+  {
+   "abilityEffectID": "103325",
+   "effects": "21033&18",
+   "priority": "30"
+  },
+  {
+   "abilityEffectID": "103335",
+   "effects": "21033&21",
+   "priority": "30"
+  },
+  {
+   "abilityEffectID": "103415",
+   "effects": "21034&20",
+   "priority": "33"
+  },
+  {
+   "abilityEffectID": "103425",
+   "effects": "21034&26",
+   "priority": "33"
+  },
+  {
+   "abilityEffectID": "103435",
+   "effects": "21034&32",
+   "priority": "33"
+  },
+  {
+   "abilityEffectID": "103515",
+   "effects": "21035&15",
+   "priority": "34"
+  },
+  {
+   "abilityEffectID": "103525",
+   "effects": "21035&20",
+   "priority": "34"
+  },
+  {
+   "abilityEffectID": "103535",
+   "effects": "21035&25",
+   "priority": "34"
+  },
+  {
+   "abilityEffectID": "103815",
+   "effects": "21038&0.15",
+   "priority": "35"
+  },
+  {
+   "abilityEffectID": "103825",
+   "effects": "21038&0.2",
+   "priority": "35"
+  },
+  {
+   "abilityEffectID": "103835",
+   "effects": "21038&0.25",
+   "priority": "35"
+  },
+  {
+   "abilityEffectID": "103915",
+   "effects": "21039&15",
+   "priority": "38"
+  },
+  {
+   "abilityEffectID": "103925",
+   "effects": "21039&20",
+   "priority": "38"
+  },
+  {
+   "abilityEffectID": "103935",
+   "effects": "21039&25",
+   "priority": "38"
+  }
+ ],
+ "sceatSkillTiers": [
+  {
+   "tierID": "1",
+   "skillTreeID": "3",
+   "tier": "1"
+  },
+  {
+   "tierID": "2",
+   "skillTreeID": "3",
+   "tier": "2",
+   "requiredBuildings": "1942"
+  },
+  {
+   "tierID": "3",
+   "skillTreeID": "3",
+   "tier": "3",
+   "requiredBuildings": "1944,1943,1959"
+  },
+  {
+   "tierID": "4",
+   "skillTreeID": "3",
+   "tier": "4",
+   "requiredBuildings": "1938"
+  },
+  {
+   "tierID": "6",
+   "skillTreeID": "3",
+   "tier": "5",
+   "requiredBuildings": "1984,1985,1986"
+  },
+  {
+   "tierID": "5",
+   "skillTreeID": "4",
+   "tier": "1",
+   "requiredBuildings": "1942,1938"
+  },
+  {
+   "tierID": "8",
+   "skillTreeID": "5",
+   "tier": "1"
+  },
+  {
+   "tierID": "9",
+   "skillTreeID": "5",
+   "tier": "2",
+   "requiredBuildings": "252"
+  },
+  {
+   "tierID": "10",
+   "skillTreeID": "5",
+   "tier": "3",
+   "requiredBuildings": "254",
+   "requirePreviousTierUnlocked": "0",
+   "requiredSkillIDs": "160"
+  },
+  {
+   "tierID": "11",
+   "skillTreeID": "5",
+   "tier": "4",
+   "requirePreviousTierUnlocked": "0",
+   "requiredSkillIDs": "160,162"
+  },
+  {
+   "tierID": "12",
+   "skillTreeID": "5",
+   "tier": "5",
+   "requirePreviousTierUnlocked": "0",
+   "requiredSkillIDs": "160,162"
+  },
+  {
+   "tierID": "13",
+   "skillTreeID": "6",
+   "tier": "1",
+   "requiredBuildings": "252,256,257",
+   "requirePreviousTierUnlocked": "0"
+  },
+  {
+   "tierID": "14",
+   "skillTreeID": "6",
+   "tier": "2",
+   "requiredBuildings": "252,256,257",
+   "requirePreviousTierUnlocked": "0",
+   "requiredSkillIDs": "169,179,189,199"
+  },
+  {
+   "tierID": "15",
+   "skillTreeID": "6",
+   "tier": "3",
+   "requiredBuildings": "252,256,257",
+   "requirePreviousTierUnlocked": "0",
+   "requiredSkillIDs": "209,219,229,239"
+  },
+  {
+   "tierID": "16",
+   "skillTreeID": "6",
+   "tier": "4",
+   "requiredBuildings": "252,256,257",
+   "requirePreviousTierUnlocked": "0",
+   "requiredSkillIDs": "249,259"
+  },
+  {
+   "tierID": "17",
+   "skillTreeID": "6",
+   "tier": "5",
+   "requiredBuildings": "252,256,257",
+   "requirePreviousTierUnlocked": "0",
+   "requiredSkillIDs": "269,279,289,299,309,319"
+  },
+  {
+   "tierID": "18",
+   "skillTreeID": "7",
+   "tier": "1",
+   "requirePreviousTierUnlocked": "0"
+  },
+  {
+   "tierID": "19",
+   "skillTreeID": "7",
+   "tier": "2",
+   "requirePreviousTierUnlocked": "0"
+  },
+  {
+   "tierID": "20",
+   "skillTreeID": "7",
+   "tier": "3",
+   "requirePreviousTierUnlocked": "0"
+  },
+  {
+   "tierID": "21",
+   "skillTreeID": "7",
+   "tier": "4",
+   "requirePreviousTierUnlocked": "0"
+  },
+  {
+   "tierID": "22",
+   "skillTreeID": "7",
+   "tier": "5",
+   "requirePreviousTierUnlocked": "0"
+  },
+  {
+   "tierID": "25",
+   "skillTreeID": "7",
+   "tier": "6",
+   "requirePreviousTierUnlocked": "0"
+  },
+  {
+   "tierID": "23",
+   "skillTreeID": "8",
+   "tier": "1",
+   "requirePreviousTierUnlocked": "0"
+  },
+  {
+   "tierID": "24",
+   "skillTreeID": "8",
+   "tier": "2",
+   "requirePreviousTierUnlocked": "0"
+  }
+ ],
+ "levelups": [
+  {
+   "minLevel": 1,
+   "maxLevel": "70",
+   "rewardID": "447"
+  },
+  {
+   "isLegend": "1",
+   "minLevel": 1,
+   "maxLevel": "950",
+   "rewardID": "447"
+  },
+  {
+   "minLevel": 1,
+   "maxLevel": "8",
+   "rewardID": "447",
+   "abTest": "inSkipGroup"
+  },
+  {
+   "minLevel": 9,
+   "maxLevel": "9",
+   "rewardID": "765",
+   "abTest": "inSkipGroup"
+  },
+  {
+   "minLevel": 10,
+   "maxLevel": "10",
+   "rewardID": "766",
+   "abTest": "inSkipGroup"
+  },
+  {
+   "minLevel": 11,
+   "maxLevel": "11",
+   "rewardID": "767",
+   "abTest": "inSkipGroup"
+  },
+  {
+   "minLevel": 12,
+   "maxLevel": "12",
+   "rewardID": "768",
+   "abTest": "inSkipGroup"
+  },
+  {
+   "minLevel": 13,
+   "maxLevel": "13",
+   "rewardID": "769",
+   "abTest": "inSkipGroup"
+  },
+  {
+   "minLevel": 14,
+   "maxLevel": "70",
+   "rewardID": "447",
+   "abTest": "inSkipGroup"
+  },
+  {
+   "isLegend": "1",
+   "minLevel": 1,
+   "maxLevel": "950",
+   "rewardID": "447",
+   "abTest": "inSkipGroup"
+  }
+ ],
+ "levelUpPrices": [
+  {
+   "levelUpPriceID": "10",
+   "fromLevel": "10",
+   "toLevel": "11",
+   "c2Cost": "490"
+  },
+  {
+   "levelUpPriceID": "11",
+   "fromLevel": "11",
+   "toLevel": "12",
+   "c2Cost": "590"
+  },
+  {
+   "levelUpPriceID": "12",
+   "fromLevel": "12",
+   "toLevel": "13",
+   "c2Cost": "690"
+  },
+  {
+   "levelUpPriceID": "13",
+   "fromLevel": "13",
+   "toLevel": "14",
+   "c2Cost": "790"
+  },
+  {
+   "levelUpPriceID": "14",
+   "fromLevel": "14",
+   "toLevel": "15",
+   "c2Cost": "910"
+  },
+  {
+   "levelUpPriceID": "15",
+   "fromLevel": "15",
+   "toLevel": "16",
+   "c2Cost": "1040"
+  },
+  {
+   "levelUpPriceID": "16",
+   "fromLevel": "16",
+   "toLevel": "17",
+   "c2Cost": "1170"
+  },
+  {
+   "levelUpPriceID": "17",
+   "fromLevel": "17",
+   "toLevel": "18",
+   "c2Cost": "1310"
+  },
+  {
+   "levelUpPriceID": "18",
+   "fromLevel": "18",
+   "toLevel": "19",
+   "c2Cost": "1460"
+  },
+  {
+   "levelUpPriceID": "19",
+   "fromLevel": "19",
+   "toLevel": "20",
+   "c2Cost": "1610"
+  },
+  {
+   "levelUpPriceID": "20",
+   "fromLevel": "20",
+   "toLevel": "21",
+   "c2Cost": "1780"
+  },
+  {
+   "levelUpPriceID": "21",
+   "fromLevel": "21",
+   "toLevel": "22",
+   "c2Cost": "1990"
+  },
+  {
+   "levelUpPriceID": "22",
+   "fromLevel": "22",
+   "toLevel": "23",
+   "c2Cost": "2140"
+  },
+  {
+   "levelUpPriceID": "23",
+   "fromLevel": "23",
+   "toLevel": "24",
+   "c2Cost": "2340"
+  },
+  {
+   "levelUpPriceID": "24",
+   "fromLevel": "24",
+   "toLevel": "25",
+   "c2Cost": "2530"
+  },
+  {
+   "levelUpPriceID": "25",
+   "fromLevel": "25",
+   "toLevel": "26",
+   "c2Cost": "2740"
+  },
+  {
+   "levelUpPriceID": "26",
+   "fromLevel": "26",
+   "toLevel": "27",
+   "c2Cost": "2950"
+  },
+  {
+   "levelUpPriceID": "27",
+   "fromLevel": "27",
+   "toLevel": "28",
+   "c2Cost": "3180"
+  },
+  {
+   "levelUpPriceID": "28",
+   "fromLevel": "28",
+   "toLevel": "29",
+   "c2Cost": "3410"
+  },
+  {
+   "levelUpPriceID": "29",
+   "fromLevel": "29",
+   "toLevel": "30",
+   "c2Cost": "3650"
+  },
+  {
+   "levelUpPriceID": "30",
+   "fromLevel": "30",
+   "toLevel": "31",
+   "c2Cost": "3900"
+  },
+  {
+   "levelUpPriceID": "31",
+   "fromLevel": "31",
+   "toLevel": "32",
+   "c2Cost": "4160"
+  },
+  {
+   "levelUpPriceID": "32",
+   "fromLevel": "32",
+   "toLevel": "33",
+   "c2Cost": "4430"
+  },
+  {
+   "levelUpPriceID": "33",
+   "fromLevel": "33",
+   "toLevel": "34",
+   "c2Cost": "4710"
+  },
+  {
+   "levelUpPriceID": "34",
+   "fromLevel": "34",
+   "toLevel": "35",
+   "c2Cost": "4990"
+  },
+  {
+   "levelUpPriceID": "35",
+   "fromLevel": "35",
+   "toLevel": "36",
+   "c2Cost": "5280"
+  },
+  {
+   "levelUpPriceID": "36",
+   "fromLevel": "36",
+   "toLevel": "37",
+   "c2Cost": "5590"
+  },
+  {
+   "levelUpPriceID": "37",
+   "fromLevel": "37",
+   "toLevel": "38",
+   "c2Cost": "5900"
+  },
+  {
+   "levelUpPriceID": "38",
+   "fromLevel": "38",
+   "toLevel": "39",
+   "c2Cost": "6210"
+  },
+  {
+   "levelUpPriceID": "39",
+   "fromLevel": "39",
+   "toLevel": "40",
+   "c2Cost": "6550"
+  },
+  {
+   "levelUpPriceID": "40",
+   "fromLevel": "40",
+   "toLevel": "41",
+   "c2Cost": "6880"
+  },
+  {
+   "levelUpPriceID": "41",
+   "fromLevel": "41",
+   "toLevel": "42",
+   "c2Cost": "7230"
+  },
+  {
+   "levelUpPriceID": "42",
+   "fromLevel": "42",
+   "toLevel": "43",
+   "c2Cost": "7580"
+  },
+  {
+   "levelUpPriceID": "43",
+   "fromLevel": "43",
+   "toLevel": "44",
+   "c2Cost": "7940"
+  },
+  {
+   "levelUpPriceID": "44",
+   "fromLevel": "44",
+   "toLevel": "45",
+   "c2Cost": "8310"
+  },
+  {
+   "levelUpPriceID": "45",
+   "fromLevel": "45",
+   "toLevel": "46",
+   "c2Cost": "8690"
+  },
+  {
+   "levelUpPriceID": "46",
+   "fromLevel": "46",
+   "toLevel": "47",
+   "c2Cost": "9070"
+  },
+  {
+   "levelUpPriceID": "47",
+   "fromLevel": "47",
+   "toLevel": "48",
+   "c2Cost": "9470"
+  },
+  {
+   "levelUpPriceID": "48",
+   "fromLevel": "48",
+   "toLevel": "49",
+   "c2Cost": "9870"
+  },
+  {
+   "levelUpPriceID": "49",
+   "fromLevel": "49",
+   "toLevel": "50",
+   "c2Cost": "10290"
+  },
+  {
+   "levelUpPriceID": "50",
+   "fromLevel": "50",
+   "toLevel": "51",
+   "c2Cost": "10710"
+  },
+  {
+   "levelUpPriceID": "51",
+   "fromLevel": "51",
+   "toLevel": "52",
+   "c2Cost": "11140"
+  },
+  {
+   "levelUpPriceID": "52",
+   "fromLevel": "52",
+   "toLevel": "53",
+   "c2Cost": "11570"
+  },
+  {
+   "levelUpPriceID": "53",
+   "fromLevel": "53",
+   "toLevel": "54",
+   "c2Cost": "12020"
+  },
+  {
+   "levelUpPriceID": "54",
+   "fromLevel": "54",
+   "toLevel": "55",
+   "c2Cost": "12480"
+  },
+  {
+   "levelUpPriceID": "55",
+   "fromLevel": "55",
+   "toLevel": "56",
+   "c2Cost": "12940"
+  },
+  {
+   "levelUpPriceID": "56",
+   "fromLevel": "56",
+   "toLevel": "57",
+   "c2Cost": "13410"
+  },
+  {
+   "levelUpPriceID": "57",
+   "fromLevel": "57",
+   "toLevel": "58",
+   "c2Cost": "13890"
+  },
+  {
+   "levelUpPriceID": "58",
+   "fromLevel": "58",
+   "toLevel": "59",
+   "c2Cost": "14380"
+  },
+  {
+   "levelUpPriceID": "59",
+   "fromLevel": "59",
+   "toLevel": "60",
+   "c2Cost": "14880"
+  },
+  {
+   "levelUpPriceID": "60",
+   "fromLevel": "60",
+   "toLevel": "61",
+   "c2Cost": "15380"
+  },
+  {
+   "levelUpPriceID": "61",
+   "fromLevel": "61",
+   "toLevel": "62",
+   "c2Cost": "15900"
+  },
+  {
+   "levelUpPriceID": "62",
+   "fromLevel": "62",
+   "toLevel": "63",
+   "c2Cost": "16420"
+  },
+  {
+   "levelUpPriceID": "63",
+   "fromLevel": "63",
+   "toLevel": "64",
+   "c2Cost": "16950"
+  },
+  {
+   "levelUpPriceID": "64",
+   "fromLevel": "64",
+   "toLevel": "65",
+   "c2Cost": "17490"
+  },
+  {
+   "levelUpPriceID": "65",
+   "fromLevel": "65",
+   "toLevel": "66",
+   "c2Cost": "18040"
+  },
+  {
+   "levelUpPriceID": "66",
+   "fromLevel": "66",
+   "toLevel": "67",
+   "c2Cost": "18590"
+  },
+  {
+   "levelUpPriceID": "67",
+   "fromLevel": "67",
+   "toLevel": "68",
+   "c2Cost": "19160"
+  },
+  {
+   "levelUpPriceID": "68",
+   "fromLevel": "68",
+   "toLevel": "69",
+   "c2Cost": "19730"
+  },
+  {
+   "levelUpPriceID": "69",
+   "fromLevel": "69",
+   "toLevel": "70",
+   "c2Cost": "20300"
+  }
+ ],
+ "mightranks": [
+  {
+   "mightID": "1",
+   "threshold": "500",
+   "rewardID": "8512"
+  },
+  {
+   "mightID": "2",
+   "threshold": "1000",
+   "rewardID": "8513"
+  },
+  {
+   "mightID": "3",
+   "threshold": "1500",
+   "rewardID": "8514"
+  },
+  {
+   "mightID": "4",
+   "threshold": "2500",
+   "rewardID": "8515"
+  },
+  {
+   "mightID": "5",
+   "threshold": "4000",
+   "rewardID": "8516"
+  },
+  {
+   "mightID": "6",
+   "threshold": "7000",
+   "rewardID": "8517"
+  },
+  {
+   "mightID": "7",
+   "threshold": "10000",
+   "rewardID": "8518"
+  },
+  {
+   "mightID": "8",
+   "threshold": "15000",
+   "rewardID": "8519"
+  },
+  {
+   "mightID": "9",
+   "threshold": "20000",
+   "rewardID": "8520"
+  },
+  {
+   "mightID": "10",
+   "threshold": "25000",
+   "rewardID": "8521"
+  },
+  {
+   "mightID": "11",
+   "threshold": "30000",
+   "rewardID": "8522"
+  },
+  {
+   "mightID": "12",
+   "threshold": "35000",
+   "rewardID": "8523"
+  },
+  {
+   "mightID": "13",
+   "threshold": "40000",
+   "rewardID": "8524"
+  },
+  {
+   "mightID": "14",
+   "threshold": "45000",
+   "rewardID": "8525"
+  },
+  {
+   "mightID": "15",
+   "threshold": "50000",
+   "rewardID": "8526"
+  },
+  {
+   "mightID": "16",
+   "threshold": "75000",
+   "rewardID": "8527"
+  },
+  {
+   "mightID": "17",
+   "threshold": "100000",
+   "rewardID": "8528"
+  },
+  {
+   "mightID": "18",
+   "threshold": "150000",
+   "rewardID": "8529"
+  },
+  {
+   "mightID": "19",
+   "threshold": "200000",
+   "rewardID": "8530"
+  },
+  {
+   "mightID": "20",
+   "threshold": "300000",
+   "rewardID": "8531"
+  },
+  {
+   "mightID": "21",
+   "threshold": "500000",
+   "rewardID": "8532"
+  },
+  {
+   "mightID": "22",
+   "threshold": "750000",
+   "rewardID": "8533"
+  },
+  {
+   "mightID": "23",
+   "threshold": "1000000",
+   "rewardID": "8534"
+  },
+  {
+   "mightID": "24",
+   "threshold": "1500000",
+   "rewardID": "8535"
+  },
+  {
+   "mightID": "25",
+   "threshold": "2000000",
+   "rewardID": "8536"
+  },
+  {
+   "mightID": "26",
+   "threshold": "3500000",
+   "rewardID": "8537"
+  },
+  {
+   "mightID": "27",
+   "threshold": "5000000",
+   "rewardID": "8538"
+  },
+  {
+   "mightID": "28",
+   "threshold": "7500000",
+   "rewardID": "8539"
+  },
+  {
+   "mightID": "29",
+   "threshold": "10000000",
+   "rewardID": "8540"
+  },
+  {
+   "mightID": "30",
+   "threshold": "12500000",
+   "rewardID": "8541"
+  },
+  {
+   "mightID": "31",
+   "threshold": "15000000",
+   "rewardID": "8542"
+  },
+  {
+   "mightID": "32",
+   "threshold": "17500000",
+   "rewardID": "8543"
+  },
+  {
+   "mightID": "33",
+   "threshold": "20000000",
+   "rewardID": "8544"
+  }
+ ],
+ "highscoreboni": [
+  {
+   "leaguetypeID": "6",
+   "highestRank": "1",
+   "lowestRank": "50",
+   "unitReward": "215+50#216+50",
+   "minAmount": "260",
+   "toolReward": "403",
+   "toolOffset": "1",
+   "toolMinAmount": "5"
+  },
+  {
+   "leaguetypeID": "6",
+   "highestRank": "51",
+   "lowestRank": "100",
+   "unitReward": "215+50#216+50",
+   "minAmount": "150",
+   "toolReward": "402",
+   "toolOffset": "1",
+   "toolMinAmount": "5"
+  },
+  {
+   "leaguetypeID": "6",
+   "highestRank": "101",
+   "lowestRank": "150",
+   "unitReward": "215+50#216+50",
+   "minAmount": "260",
+   "toolReward": "401",
+   "toolOffset": "1",
+   "toolMinAmount": "5"
+  },
+  {
+   "leaguetypeID": "6",
+   "highestRank": "151",
+   "lowestRank": "200",
+   "unitReward": "215+50#216+50",
+   "minAmount": "150",
+   "toolReward": "401",
+   "toolOffset": "1",
+   "toolMinAmount": "5"
+  },
+  {
+   "leaguetypeID": "6",
+   "highestRank": "201",
+   "minAmount": "10",
+   "c1Reward": "130000"
+  },
+  {
+   "leaguetypeID": "5",
+   "highestRank": "1",
+   "lowestRank": "50",
+   "unitReward": "9+50#10+50",
+   "minAmount": "260",
+   "toolReward": "651",
+   "toolOffset": "101",
+   "toolMinAmount": "50"
+  },
+  {
+   "leaguetypeID": "5",
+   "highestRank": "51",
+   "lowestRank": "100",
+   "unitReward": "9+50#10+50",
+   "minAmount": "150",
+   "toolReward": "651",
+   "toolOffset": "131",
+   "toolMinAmount": "50"
+  },
+  {
+   "leaguetypeID": "5",
+   "highestRank": "101",
+   "lowestRank": "150",
+   "unitReward": "9+50#10+50",
+   "minAmount": "260",
+   "toolReward": "651",
+   "toolOffset": "171",
+   "toolMinAmount": "50"
+  },
+  {
+   "leaguetypeID": "5",
+   "highestRank": "151",
+   "lowestRank": "200",
+   "unitReward": "9+50#10+50",
+   "minAmount": "150",
+   "toolReward": "651",
+   "toolOffset": "211",
+   "toolMinAmount": "50"
+  },
+  {
+   "leaguetypeID": "5",
+   "highestRank": "201",
+   "minAmount": "10",
+   "c1Reward": "100000"
+  },
+  {
+   "leaguetypeID": "4",
+   "highestRank": "1",
+   "lowestRank": "50",
+   "unitReward": "9+50#10+50",
+   "minAmount": "260",
+   "toolReward": "651",
+   "toolOffset": "91",
+   "toolMinAmount": "50"
+  },
+  {
+   "leaguetypeID": "4",
+   "highestRank": "51",
+   "lowestRank": "100",
+   "unitReward": "9+50#10+50",
+   "minAmount": "150",
+   "toolReward": "651",
+   "toolOffset": "121",
+   "toolMinAmount": "50"
+  },
+  {
+   "leaguetypeID": "4",
+   "highestRank": "101",
+   "lowestRank": "150",
+   "unitReward": "9+50#10+50",
+   "minAmount": "260",
+   "toolReward": "651",
+   "toolOffset": "161",
+   "toolMinAmount": "50"
+  },
+  {
+   "leaguetypeID": "4",
+   "highestRank": "151",
+   "lowestRank": "200",
+   "unitReward": "9+50#10+50",
+   "minAmount": "150",
+   "toolReward": "651",
+   "toolOffset": "201",
+   "toolMinAmount": "50"
+  },
+  {
+   "leaguetypeID": "4",
+   "highestRank": "201",
+   "minAmount": "10",
+   "c1Reward": "70000"
+  },
+  {
+   "leaguetypeID": "3",
+   "highestRank": "1",
+   "lowestRank": "50",
+   "unitReward": "9+50#10+50",
+   "minAmount": "260",
+   "toolReward": "651",
+   "toolOffset": "91",
+   "toolMinAmount": "50"
+  },
+  {
+   "leaguetypeID": "3",
+   "highestRank": "51",
+   "lowestRank": "100",
+   "unitReward": "9+50#10+50",
+   "minAmount": "150",
+   "toolReward": "651",
+   "toolOffset": "121",
+   "toolMinAmount": "50"
+  },
+  {
+   "leaguetypeID": "3",
+   "highestRank": "101",
+   "lowestRank": "150",
+   "unitReward": "9+50#10+50",
+   "minAmount": "260",
+   "toolReward": "651",
+   "toolOffset": "161",
+   "toolMinAmount": "50"
+  },
+  {
+   "leaguetypeID": "3",
+   "highestRank": "151",
+   "lowestRank": "200",
+   "unitReward": "9+50#10+50",
+   "minAmount": "150",
+   "toolReward": "651",
+   "toolOffset": "201",
+   "toolMinAmount": "50"
+  },
+  {
+   "leaguetypeID": "3",
+   "highestRank": "201",
+   "minAmount": "10",
+   "c1Reward": "40000"
+  },
+  {
+   "leaguetypeID": "2",
+   "highestRank": "1",
+   "lowestRank": "50",
+   "unitReward": "9+50#10+50",
+   "minAmount": "260",
+   "toolReward": "651",
+   "toolOffset": "61",
+   "toolMinAmount": "100"
+  },
+  {
+   "leaguetypeID": "2",
+   "highestRank": "51",
+   "lowestRank": "100",
+   "unitReward": "9+50#10+50",
+   "minAmount": "150",
+   "toolReward": "651",
+   "toolOffset": "101",
+   "toolMinAmount": "50"
+  },
+  {
+   "leaguetypeID": "2",
+   "highestRank": "101",
+   "lowestRank": "150",
+   "unitReward": "9+50#10+50",
+   "minAmount": "260",
+   "toolReward": "651",
+   "toolOffset": "151",
+   "toolMinAmount": "50"
+  },
+  {
+   "leaguetypeID": "2",
+   "highestRank": "151",
+   "lowestRank": "200",
+   "unitReward": "9+50#10+50",
+   "minAmount": "150",
+   "toolReward": "651",
+   "toolOffset": "181",
+   "toolMinAmount": "50"
+  },
+  {
+   "leaguetypeID": "2",
+   "highestRank": "201",
+   "minAmount": "10",
+   "c1Reward": "25000"
+  },
+  {
+   "leaguetypeID": "1",
+   "highestRank": "1",
+   "lowestRank": "50",
+   "unitReward": "9+50#10+50",
+   "minAmount": "260",
+   "toolReward": "651",
+   "toolOffset": "61",
+   "toolMinAmount": "100"
+  },
+  {
+   "leaguetypeID": "1",
+   "highestRank": "51",
+   "lowestRank": "100",
+   "unitReward": "9+50#10+50",
+   "minAmount": "150",
+   "toolReward": "651",
+   "toolOffset": "101",
+   "toolMinAmount": "50"
+  },
+  {
+   "leaguetypeID": "1",
+   "highestRank": "101",
+   "lowestRank": "150",
+   "unitReward": "9+50#10+50",
+   "minAmount": "260",
+   "toolReward": "651",
+   "toolOffset": "151",
+   "toolMinAmount": "50"
+  },
+  {
+   "leaguetypeID": "1",
+   "highestRank": "151",
+   "lowestRank": "200",
+   "unitReward": "9+50#10+50",
+   "minAmount": "150",
+   "toolReward": "651",
+   "toolOffset": "181",
+   "toolMinAmount": "50"
+  },
+  {
+   "leaguetypeID": "1",
+   "highestRank": "201",
+   "minAmount": "10",
+   "c1Reward": "7500"
+  }
+ ],
+ "generalAbilities": [
+  {
+   "abilityID": "10011",
+   "name": "PowerSurge",
+   "abilityGroupID": "1001",
+   "level": "1",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "2",
+   "abilityAttackEffectID": "100110",
+   "abilityDefenseEffectID": "100115",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10012",
+   "name": "PowerSurge",
+   "abilityGroupID": "1001",
+   "level": "2",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "2",
+   "abilityAttackEffectID": "100120",
+   "abilityDefenseEffectID": "100125",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10013",
+   "name": "PowerSurge",
+   "abilityGroupID": "1001",
+   "level": "3",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "2",
+   "abilityAttackEffectID": "100130",
+   "abilityDefenseEffectID": "100135",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10021",
+   "name": "RisetotheTask",
+   "abilityGroupID": "1002",
+   "level": "1",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "2",
+   "abilityAttackEffectID": "100210",
+   "abilityDefenseEffectID": "100215",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10022",
+   "name": "RisetotheTask",
+   "abilityGroupID": "1002",
+   "level": "2",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "2",
+   "abilityAttackEffectID": "100220",
+   "abilityDefenseEffectID": "100225",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10023",
+   "name": "RisetotheTask",
+   "abilityGroupID": "1002",
+   "level": "3",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "2",
+   "abilityAttackEffectID": "100230",
+   "abilityDefenseEffectID": "100235",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10031",
+   "name": "GiantSlayer",
+   "abilityGroupID": "1003",
+   "level": "1",
+   "abilityTriggerID": "3",
+   "abilityAttackEffectID": "100310",
+   "abilityDefenseEffectID": "100315",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10032",
+   "name": "GiantSlayer",
+   "abilityGroupID": "1003",
+   "level": "2",
+   "abilityTriggerID": "3",
+   "abilityAttackEffectID": "100320",
+   "abilityDefenseEffectID": "100325",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10033",
+   "name": "GiantSlayer",
+   "abilityGroupID": "1003",
+   "level": "3",
+   "abilityTriggerID": "3",
+   "abilityAttackEffectID": "100330",
+   "abilityDefenseEffectID": "100335",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10051",
+   "name": "Intimidate",
+   "abilityGroupID": "1005",
+   "level": "1",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "3",
+   "abilityAttackEffectID": "100510",
+   "abilityDefenseEffectID": "100515",
+   "affectsEnemyArmy": "1"
+  },
+  {
+   "abilityID": "10052",
+   "name": "Intimidate",
+   "abilityGroupID": "1005",
+   "level": "2",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "3",
+   "abilityAttackEffectID": "100520",
+   "abilityDefenseEffectID": "100525",
+   "affectsEnemyArmy": "1"
+  },
+  {
+   "abilityID": "10053",
+   "name": "Intimidate",
+   "abilityGroupID": "1005",
+   "level": "3",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "3",
+   "abilityAttackEffectID": "100530",
+   "abilityDefenseEffectID": "100535",
+   "affectsEnemyArmy": "1"
+  },
+  {
+   "abilityID": "10071",
+   "name": "Hordebreaker",
+   "abilityGroupID": "1007",
+   "level": "1",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "3",
+   "abilityAttackEffectID": "100710",
+   "abilityDefenseEffectID": "100715",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10072",
+   "name": "Hordebreaker",
+   "abilityGroupID": "1007",
+   "level": "2",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "3",
+   "abilityAttackEffectID": "100720",
+   "abilityDefenseEffectID": "100725",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10073",
+   "name": "Hordebreaker",
+   "abilityGroupID": "1007",
+   "level": "3",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "3",
+   "abilityAttackEffectID": "100730",
+   "abilityDefenseEffectID": "100735",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10101",
+   "name": "EndlessPractice",
+   "abilityGroupID": "1010",
+   "level": "1",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "1",
+   "abilityAttackEffectID": "101010",
+   "abilityDefenseEffectID": "101015",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10102",
+   "name": "EndlessPractice",
+   "abilityGroupID": "1010",
+   "level": "2",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "1",
+   "abilityAttackEffectID": "101020",
+   "abilityDefenseEffectID": "101025",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10103",
+   "name": "EndlessPractice",
+   "abilityGroupID": "1010",
+   "level": "3",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "1",
+   "abilityAttackEffectID": "101030",
+   "abilityDefenseEffectID": "101035",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10111",
+   "name": "WayoftheSword",
+   "abilityGroupID": "1011",
+   "level": "1",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "1",
+   "abilityAttackEffectID": "101110",
+   "abilityDefenseEffectID": "101115",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10112",
+   "name": "WayoftheSword",
+   "abilityGroupID": "1011",
+   "level": "2",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "1",
+   "abilityAttackEffectID": "101120",
+   "abilityDefenseEffectID": "101125",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10113",
+   "name": "WayoftheSword",
+   "abilityGroupID": "1011",
+   "level": "3",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "1",
+   "abilityAttackEffectID": "101130",
+   "abilityDefenseEffectID": "101135",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10121",
+   "name": "IronWill",
+   "abilityGroupID": "1012",
+   "level": "1",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "1",
+   "abilityAttackEffectID": "101210",
+   "abilityDefenseEffectID": "101215",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10122",
+   "name": "IronWill",
+   "abilityGroupID": "1012",
+   "level": "2",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "1",
+   "abilityAttackEffectID": "101220",
+   "abilityDefenseEffectID": "101225",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10123",
+   "name": "IronWill",
+   "abilityGroupID": "1012",
+   "level": "3",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "1",
+   "abilityAttackEffectID": "101230",
+   "abilityDefenseEffectID": "101235",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10131",
+   "name": "Sabotage",
+   "abilityGroupID": "1013",
+   "level": "1",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "3",
+   "abilityAttackEffectID": "101310",
+   "abilityDefenseEffectID": "101315",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10132",
+   "name": "Sabotage",
+   "abilityGroupID": "1013",
+   "level": "2",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "3",
+   "abilityAttackEffectID": "101320",
+   "abilityDefenseEffectID": "101325",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10133",
+   "name": "Sabotage",
+   "abilityGroupID": "1013",
+   "level": "3",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "3",
+   "abilityAttackEffectID": "101330",
+   "abilityDefenseEffectID": "101335",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10141",
+   "name": "HeartofaWarrior",
+   "abilityGroupID": "1014",
+   "level": "1",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "2",
+   "abilityAttackEffectID": "101410",
+   "abilityDefenseEffectID": "101415",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10142",
+   "name": "HeartofaWarrior",
+   "abilityGroupID": "1014",
+   "level": "2",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "2",
+   "abilityAttackEffectID": "101420",
+   "abilityDefenseEffectID": "101425",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10143",
+   "name": "HeartofaWarrior",
+   "abilityGroupID": "1014",
+   "level": "3",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "2",
+   "abilityAttackEffectID": "101430",
+   "abilityDefenseEffectID": "101435",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10151",
+   "name": "ToweringShield",
+   "abilityGroupID": "1015",
+   "level": "1",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "3",
+   "abilityAttackEffectID": "101510",
+   "abilityDefenseEffectID": "101515",
+   "affectsEnemyArmy": "1"
+  },
+  {
+   "abilityID": "10152",
+   "name": "ToweringShield",
+   "abilityGroupID": "1015",
+   "level": "2",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "3",
+   "abilityAttackEffectID": "101520",
+   "abilityDefenseEffectID": "101525",
+   "affectsEnemyArmy": "1"
+  },
+  {
+   "abilityID": "10153",
+   "name": "ToweringShield",
+   "abilityGroupID": "1015",
+   "level": "3",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "3",
+   "abilityAttackEffectID": "101530",
+   "abilityDefenseEffectID": "101535",
+   "affectsEnemyArmy": "1"
+  },
+  {
+   "abilityID": "10161",
+   "name": "WallAmount",
+   "abilityGroupID": "1016",
+   "level": "1",
+   "abilityTriggerID": "1",
+   "abilityDefenseEffectID": "101615",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10162",
+   "name": "WallAmount",
+   "abilityGroupID": "1016",
+   "level": "2",
+   "abilityTriggerID": "1",
+   "abilityDefenseEffectID": "101625",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10163",
+   "name": "WallAmount",
+   "abilityGroupID": "1016",
+   "level": "3",
+   "abilityTriggerID": "1",
+   "abilityDefenseEffectID": "101635",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10181",
+   "name": "HeroicDefense",
+   "abilityGroupID": "1018",
+   "level": "1",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "2",
+   "abilityDefenseEffectID": "101815",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10182",
+   "name": "HeroicDefense",
+   "abilityGroupID": "1018",
+   "level": "2",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "2",
+   "abilityDefenseEffectID": "101825",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10183",
+   "name": "HeroicDefense",
+   "abilityGroupID": "1018",
+   "level": "3",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "2",
+   "abilityDefenseEffectID": "101835",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10191",
+   "name": "MindClarity",
+   "abilityGroupID": "1019",
+   "level": "1",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "1",
+   "abilityAttackEffectID": "101910",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10192",
+   "name": "MindClarity",
+   "abilityGroupID": "1019",
+   "level": "2",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "1",
+   "abilityAttackEffectID": "101920",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10193",
+   "name": "MindClarity",
+   "abilityGroupID": "1019",
+   "level": "3",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "1",
+   "abilityAttackEffectID": "101930",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10201",
+   "name": "AspectoftheDragon",
+   "abilityGroupID": "1020",
+   "level": "1",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "2",
+   "abilityAttackEffectID": "102010",
+   "abilityDefenseEffectID": "102015",
+   "affectsEnemyArmy": "1"
+  },
+  {
+   "abilityID": "10202",
+   "name": "AspectoftheDragon",
+   "abilityGroupID": "1020",
+   "level": "2",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "2",
+   "abilityAttackEffectID": "102020",
+   "abilityDefenseEffectID": "102025",
+   "affectsEnemyArmy": "1"
+  },
+  {
+   "abilityID": "10203",
+   "name": "AspectoftheDragon",
+   "abilityGroupID": "1020",
+   "level": "3",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "2",
+   "abilityAttackEffectID": "102030",
+   "abilityDefenseEffectID": "102035",
+   "affectsEnemyArmy": "1"
+  },
+  {
+   "abilityID": "10211",
+   "name": "Ayala(Falcon)",
+   "abilityGroupID": "1021",
+   "level": "1",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "1",
+   "abilityAttackEffectID": "102110",
+   "abilityDefenseEffectID": "102115",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10212",
+   "name": "Ayala(Falcon)",
+   "abilityGroupID": "1021",
+   "level": "2",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "1",
+   "abilityAttackEffectID": "102120",
+   "abilityDefenseEffectID": "102125",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10213",
+   "name": "Ayala(Falcon)",
+   "abilityGroupID": "1021",
+   "level": "3",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "1",
+   "abilityAttackEffectID": "102130",
+   "abilityDefenseEffectID": "102135",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10221",
+   "name": "Ambush",
+   "abilityGroupID": "1022",
+   "level": "1",
+   "abilityTriggerID": "1",
+   "abilityAttackEffectID": "102210",
+   "abilityDefenseEffectID": "102215",
+   "affectsEnemyArmy": "1"
+  },
+  {
+   "abilityID": "10222",
+   "name": "Ambush",
+   "abilityGroupID": "1022",
+   "level": "2",
+   "abilityTriggerID": "1",
+   "abilityAttackEffectID": "102220",
+   "abilityDefenseEffectID": "102225",
+   "affectsEnemyArmy": "1"
+  },
+  {
+   "abilityID": "10223",
+   "name": "Ambush",
+   "abilityGroupID": "1022",
+   "level": "3",
+   "abilityTriggerID": "1",
+   "abilityAttackEffectID": "102230",
+   "abilityDefenseEffectID": "102235",
+   "affectsEnemyArmy": "1"
+  },
+  {
+   "abilityID": "10231",
+   "name": "Longbows",
+   "abilityGroupID": "1023",
+   "level": "1",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "2",
+   "abilityAttackEffectID": "102310",
+   "abilityDefenseEffectID": "102315",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10232",
+   "name": "Longbows",
+   "abilityGroupID": "1023",
+   "level": "2",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "2",
+   "abilityAttackEffectID": "102320",
+   "abilityDefenseEffectID": "102325",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10233",
+   "name": "Longbows",
+   "abilityGroupID": "1023",
+   "level": "3",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "2",
+   "abilityAttackEffectID": "102330",
+   "abilityDefenseEffectID": "102335",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10251",
+   "name": "ReinforcedArrows",
+   "abilityGroupID": "1025",
+   "level": "1",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "2",
+   "abilityAttackEffectID": "102510",
+   "abilityDefenseEffectID": "102515",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10252",
+   "name": "ReinforcedArrows",
+   "abilityGroupID": "1025",
+   "level": "2",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "2",
+   "abilityAttackEffectID": "102520",
+   "abilityDefenseEffectID": "102525",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10253",
+   "name": "ReinforcedArrows",
+   "abilityGroupID": "1025",
+   "level": "3",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "2",
+   "abilityAttackEffectID": "102530",
+   "abilityDefenseEffectID": "102535",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10261",
+   "name": "Plunder",
+   "abilityGroupID": "1026",
+   "level": "1",
+   "abilityTriggerID": "3",
+   "abilityAttackEffectID": "102610",
+   "abilityDefenseEffectID": "102615",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10262",
+   "name": "Plunder",
+   "abilityGroupID": "1026",
+   "level": "2",
+   "abilityTriggerID": "3",
+   "abilityAttackEffectID": "102620",
+   "abilityDefenseEffectID": "102625",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10263",
+   "name": "Plunder",
+   "abilityGroupID": "1026",
+   "level": "3",
+   "abilityTriggerID": "3",
+   "abilityAttackEffectID": "102630",
+   "abilityDefenseEffectID": "102635",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10271",
+   "name": "YourCut",
+   "abilityGroupID": "1027",
+   "level": "1",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "2",
+   "abilityAttackEffectID": "102710",
+   "abilityDefenseEffectID": "102715",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10272",
+   "name": "YourCut",
+   "abilityGroupID": "1027",
+   "level": "2",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "2",
+   "abilityAttackEffectID": "102720",
+   "abilityDefenseEffectID": "102725",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10273",
+   "name": "YourCut",
+   "abilityGroupID": "1027",
+   "level": "3",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "2",
+   "abilityAttackEffectID": "102730",
+   "abilityDefenseEffectID": "102735",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10281",
+   "name": "HiddenTreasures",
+   "abilityGroupID": "1028",
+   "level": "1",
+   "abilityTriggerID": "4",
+   "abilityAttackEffectID": "102810",
+   "abilityDefenseEffectID": "102815",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10282",
+   "name": "HiddenTreasures",
+   "abilityGroupID": "1028",
+   "level": "2",
+   "abilityTriggerID": "4",
+   "abilityAttackEffectID": "102820",
+   "abilityDefenseEffectID": "102825",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10283",
+   "name": "HiddenTreasures",
+   "abilityGroupID": "1028",
+   "level": "3",
+   "abilityTriggerID": "4",
+   "abilityAttackEffectID": "102830",
+   "abilityDefenseEffectID": "102835",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10291",
+   "name": "TheWayofPerfection",
+   "abilityGroupID": "1029",
+   "level": "1",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "1",
+   "abilityAttackEffectID": "102910",
+   "abilityDefenseEffectID": "102915",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10292",
+   "name": "TheWayofPerfection",
+   "abilityGroupID": "1029",
+   "level": "2",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "1",
+   "abilityAttackEffectID": "102920",
+   "abilityDefenseEffectID": "102925",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10293",
+   "name": "TheWayofPerfection",
+   "abilityGroupID": "1029",
+   "level": "3",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "1",
+   "abilityAttackEffectID": "102930",
+   "abilityDefenseEffectID": "102935",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10301",
+   "name": "Vengence",
+   "abilityGroupID": "1030",
+   "level": "1",
+   "abilityTriggerID": "3",
+   "abilityAttackEffectID": "103010",
+   "abilityDefenseEffectID": "103015",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10302",
+   "name": "Vengence",
+   "abilityGroupID": "1030",
+   "level": "2",
+   "abilityTriggerID": "3",
+   "abilityAttackEffectID": "103020",
+   "abilityDefenseEffectID": "103025",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10303",
+   "name": "Vengence",
+   "abilityGroupID": "1030",
+   "level": "3",
+   "abilityTriggerID": "3",
+   "abilityAttackEffectID": "103030",
+   "abilityDefenseEffectID": "103035",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10331",
+   "name": "WingsWhirlwind",
+   "abilityGroupID": "1033",
+   "level": "1",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "2",
+   "abilityAttackEffectID": "103310",
+   "abilityDefenseEffectID": "103315",
+   "affectsEnemyArmy": "1"
+  },
+  {
+   "abilityID": "10332",
+   "name": "WingsWhirlwind",
+   "abilityGroupID": "1033",
+   "level": "2",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "2",
+   "abilityAttackEffectID": "103320",
+   "abilityDefenseEffectID": "103325",
+   "affectsEnemyArmy": "1"
+  },
+  {
+   "abilityID": "10333",
+   "name": "WingsWhirlwind",
+   "abilityGroupID": "1033",
+   "level": "3",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "2",
+   "abilityAttackEffectID": "103330",
+   "abilityDefenseEffectID": "103335",
+   "affectsEnemyArmy": "1"
+  },
+  {
+   "abilityID": "10341",
+   "name": "Tailwhip",
+   "abilityGroupID": "1034",
+   "level": "1",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "3",
+   "abilityAttackEffectID": "103410",
+   "abilityDefenseEffectID": "103415",
+   "affectsEnemyArmy": "1"
+  },
+  {
+   "abilityID": "10342",
+   "name": "Tailwhip",
+   "abilityGroupID": "1034",
+   "level": "2",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "3",
+   "abilityAttackEffectID": "103420",
+   "abilityDefenseEffectID": "103425",
+   "affectsEnemyArmy": "1"
+  },
+  {
+   "abilityID": "10343",
+   "name": "Tailwhip",
+   "abilityGroupID": "1034",
+   "level": "3",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "3",
+   "abilityAttackEffectID": "103430",
+   "abilityDefenseEffectID": "103435",
+   "affectsEnemyArmy": "1"
+  },
+  {
+   "abilityID": "10351",
+   "name": "DragonscaleArmor",
+   "abilityGroupID": "1035",
+   "level": "1",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "2",
+   "abilityAttackEffectID": "103510",
+   "abilityDefenseEffectID": "103515",
+   "affectsEnemyArmy": "1"
+  },
+  {
+   "abilityID": "10352",
+   "name": "DragonscaleArmor",
+   "abilityGroupID": "1035",
+   "level": "2",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "2",
+   "abilityAttackEffectID": "103520",
+   "abilityDefenseEffectID": "103525",
+   "affectsEnemyArmy": "1"
+  },
+  {
+   "abilityID": "10353",
+   "name": "DragonscaleArmor",
+   "abilityGroupID": "1035",
+   "level": "3",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "2",
+   "abilityAttackEffectID": "103530",
+   "abilityDefenseEffectID": "103535",
+   "affectsEnemyArmy": "1"
+  },
+  {
+   "abilityID": "10381",
+   "name": "Exhalted",
+   "abilityGroupID": "1038",
+   "level": "1",
+   "abilityTriggerID": "3",
+   "abilityAttackEffectID": "103810",
+   "abilityDefenseEffectID": "103815",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10382",
+   "name": "Exhalted",
+   "abilityGroupID": "1038",
+   "level": "2",
+   "abilityTriggerID": "3",
+   "abilityAttackEffectID": "103820",
+   "abilityDefenseEffectID": "103825",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10383",
+   "name": "Exhalted",
+   "abilityGroupID": "1038",
+   "level": "3",
+   "abilityTriggerID": "3",
+   "abilityAttackEffectID": "103830",
+   "abilityDefenseEffectID": "103835",
+   "affectsEnemyArmy": "0"
+  },
+  {
+   "abilityID": "10391",
+   "name": "LastingWounds",
+   "abilityGroupID": "1039",
+   "level": "1",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "3",
+   "abilityAttackEffectID": "103910",
+   "abilityDefenseEffectID": "103915",
+   "affectsEnemyArmy": "1"
+  },
+  {
+   "abilityID": "10392",
+   "name": "LastingWounds",
+   "abilityGroupID": "1039",
+   "level": "2",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "3",
+   "abilityAttackEffectID": "103920",
+   "abilityDefenseEffectID": "103925",
+   "affectsEnemyArmy": "1"
+  },
+  {
+   "abilityID": "10393",
+   "name": "LastingWounds",
+   "abilityGroupID": "1039",
+   "level": "3",
+   "abilityTriggerID": "2",
+   "triggerPerWave": "3",
+   "abilityAttackEffectID": "103930",
+   "abilityDefenseEffectID": "103935",
+   "affectsEnemyArmy": "1"
+  }
+ ]
+}
