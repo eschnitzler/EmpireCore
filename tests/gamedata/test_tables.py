@@ -6,6 +6,7 @@ import sys
 from empire_core.combat import Bonus, effect_value_bonuses
 from empire_core.enums import (
     BerimondFaction,
+    BerimondInvasionCampSize,
     BuildingGroundType,
     BuildingGroup,
     CollectableKind,
@@ -606,7 +607,13 @@ def test_berimond_invasion_camp_rows_name_their_faction():
             "factioninvasioncamps": [
                 {"factionInvasionCampID": "1", "countVictory": "3", "factionID": "0", "wallBonus": "10"},
                 {"factionInvasionCampID": "2", "countVictory": "3", "factionID": "1", "wallBonus": "20"},
-                {"factionInvasionCampID": "3", "countVictory": "3", "factionID": "1", "wallBonus": "30"},
+                {
+                    "factionInvasionCampID": "3",
+                    "countVictory": "3",
+                    "factionID": "1",
+                    "wallBonus": "30",
+                    "campSize": "2",
+                },
             ]
         },
     )
@@ -616,6 +623,7 @@ def test_berimond_invasion_camp_rows_name_their_faction():
     assert blue is not None and blue.faction_id is BerimondFaction.URSIDAE and blue.wall_bonus == 10
     # the faction's map keeps the last row of a level, as CastleFactionInvasionCampData.parseXML sets it
     assert red is not None and red.faction_id is BerimondFaction.GERBRANDT and red.wall_bonus == 30
+    assert (red.camp_size, blue.camp_size) == (BerimondInvasionCampSize.LARGE, BerimondInvasionCampSize.SMALL)
     assert data.berimond_invasion_camps[BerimondInvasionCampId(2)].wall_bonus == 20
 
 

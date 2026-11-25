@@ -53,6 +53,7 @@ from .commanders import EquipmentSlot, EquipmentType, Rareness, WearerType
 from .errors import GGEError
 from .events import (
     BerimondFaction,
+    BerimondInvasionCampSize,
     BerimondLane,
     BerimondSpecialCampType,
     GachaRarity,
@@ -170,6 +171,7 @@ __all__ = [
     "JadeScoringPhase",
     "WheelOfFortuneType",
     "BerimondFaction",
+    "BerimondInvasionCampSize",
     "BerimondLane",
     "BerimondSpecialCampType",
     "GachaRarity",

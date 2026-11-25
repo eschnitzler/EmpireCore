@@ -19,6 +19,7 @@ from pydantic import Field, ValidationInfo, field_validator, model_validator
 
 from empire_core.enums import (
     BerimondFaction,
+    BerimondInvasionCampSize,
     BerimondLane,
     BerimondSpecialCampType,
     BuildingGroundType,
@@ -3096,8 +3097,8 @@ class InvasionCampDef(EventCampDef):
     object looks it up with.
 
     Client: ``CastleInvasionCampNodeVO.parseXML`` (split.js line 207719), keyed by its ``countVictory`` in
-    ``CastleXmlData.parseXML`` (split.js line 66533); ``CastleNomadCampData.getNomadCamp`` (split.js line 578174) and
-    ``CastleSamuraiCampData.getSamuraiCamp`` (split.js line 578422)
+    ``CastleXmlData.parseXML`` (split.js line 66533); ``CastleNomadCampData.getNomadCamp`` (split.js line 578177) and
+    ``CastleSamuraiCampData.getSamuraiCamp`` (split.js line 578425)
     """
 
     count_victory: int = Field(validation_alias="countVictory", description="The camp level the row is for")
@@ -3122,7 +3123,9 @@ class BerimondInvasionCampDef(InvasionCampDef):
     One faction's Berimond invasion camp at one level, a ``factioninvasioncamps`` row.
 
     Client: ``CastleFactionInvasionCampNodeVO.parseXML`` (split.js line 576039), keyed by
-    ``factionInvasionCampID`` in ``CastleFactionInvasionCampData.parseXML`` (split.js line 575986)
+    ``factionInvasionCampID`` in ``CastleFactionInvasionCampData.parseXML`` (split.js line 575986); the camp's
+    size picks its map picture in ``FactionInvasionCampMapObjectVO.getDisplayObjectClipContainer``
+    (split.js line 395011)
     """
 
     camp_id: BerimondInvasionCampId = Field(validation_alias="factionInvasionCampID", description="The row")
@@ -3130,13 +3133,16 @@ class BerimondInvasionCampDef(InvasionCampDef):
     faction_id: GameDataId[BerimondFaction] = Field(
         validation_alias="factionID", default=BerimondFaction.URSIDAE, description="The faction whose camp it is"
     )
+    camp_size: GameDataId[BerimondInvasionCampSize] = Field(
+        validation_alias="campSize", default=BerimondInvasionCampSize.SMALL, description="The camp's size on the map"
+    )
 
     @field_validator("camp_id", mode="before")
     @classmethod
     def _id(cls, value: object) -> int:
         return row_id(value)
 
-    @field_validator("count_victory", "cooldown_seconds", "skip_cost", "faction_id", mode="before")
+    @field_validator("count_victory", "cooldown_seconds", "skip_cost", "faction_id", "camp_size", mode="before")
     @classmethod
     def _int_column(cls, value: object) -> int:
         return _parse_int_or_default(value, 0)
@@ -3296,7 +3302,7 @@ class OasisTradeDef(_Row):
 
 class PalaceFortressDef(_Row):
     """
-    One level of a Beyond the Horizon Palace Fortress: the jade it holds to loot and its cooldown.
+    One level of a Beyond the Horizon Palace Fortress: the currency its loot pool holds and its cooldown.
 
     Client: ``ResourceCampVO.parseXML`` (split.js line 717244), keyed by ``resourceCampID`` in
     ``ABGJadeCampData.parseXML`` (split.js line 717136)

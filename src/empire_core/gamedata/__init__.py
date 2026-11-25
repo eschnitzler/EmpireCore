@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from empire_core.enums import (
     AllianceBuffType,
     BerimondFaction,
+    BerimondInvasionCampSize,
     BerimondLane,
     BerimondSpecialCampType,
     BoosterId,
@@ -476,6 +477,7 @@ __all__ = [
     "TreasureMapType",
     "WearerType",
     "BerimondFaction",
+    "BerimondInvasionCampSize",
     "BerimondLane",
     "BerimondSpecialCampType",
     "HorizonScoring",
