@@ -86,7 +86,7 @@ from .assets import AssetIndex
 from .cache import default_cache_dir
 from .cdn import fetch_items_data, get_items_version
 from .collectables import Collectable, CollectableObject, CollectableRows, CurrencyAmounts, CurrencyIdRows
-from .data import CAMP_TABLES, RAW_TABLES, GameData
+from .data import RAW_TABLES, GameData
 from .effect_texts import (
     describe_building,
     describe_construction_item,
@@ -123,7 +123,6 @@ from .models import (
     LegendarySkillDef,
     LevelBoosterDef,
     MonumentLevelDef,
-    NpcCampDefence,
     RaidBossDef,
     RelicEffectDef,
     SceatSkillDef,
@@ -156,6 +155,8 @@ from .tables import (
     AllianceInvasionCampDef,
     AllianceInvasionCampId,
     AllianceTowerEffectDef,
+    BerimondInvasionCampDef,
+    BerimondInvasionCampId,
     BerimondSpecialCampDef,
     BuildingDef,
     CitadelLevelDef,
@@ -177,6 +178,7 @@ from .tables import (
     DonationSettingDef,
     DonationSettingId,
     EquipmentGroupDef,
+    EventCampDef,
     EventDef,
     EventDifficultyDef,
     EventDifficultyId,
@@ -190,6 +192,7 @@ from .tables import (
     GeneralsHubCharacterDef,
     HorizonSettingDef,
     HorizonSettingId,
+    InvasionCampDef,
     JudgementDef,
     LeaderboardRewardDef,
     LeaderboardRewardId,
@@ -329,7 +332,6 @@ __all__ = [
     "GlobalEffectDef",
     "SceatSkillDef",
     "SceatSkillTreeDef",
-    "CAMP_TABLES",
     "DefaultCommanderDef",
     "DungeonDefence",
     "EffectCapDef",
@@ -352,7 +354,6 @@ __all__ = [
     "LegendarySkillDef",
     "LevelBoosterDef",
     "MonumentLevelDef",
-    "NpcCampDefence",
     "RAW_TABLES",
     "Table",
     "RaidBossDef",
@@ -410,6 +411,10 @@ __all__ = [
     "StartResourcesId",
     "AllianceInvasionCampDef",
     "AllianceInvasionCampId",
+    "BerimondInvasionCampDef",
+    "BerimondInvasionCampId",
+    "EventCampDef",
+    "InvasionCampDef",
     "AllianceTowerEffectDef",
     "FeastDef",
     "DaimyoContractId",

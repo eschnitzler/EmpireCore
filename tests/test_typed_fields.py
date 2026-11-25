@@ -162,7 +162,6 @@ GAME_DATA_SCALAR_IDS: dict[str, str] = {
     "gamedata.models.GeneralSkillDef.skill_group_id": "skill groups have no table",
     "gamedata.models.LegendarySkillDef.skill_group_id": "skill groups have no table",
     "gamedata.models.LegendarySkillDef.skill_tree_id": "skill trees have no table",
-    "gamedata.models.NpcCampDefence.commander_id": "a default commander id, which has no enum",
     "gamedata.models.RelicEffectDef.relic_effect_id": "relic effects have no name to make an enum of",
     "gamedata.models.SceatSkillDef.skill_group_id": "skill groups have no table",
     "gamedata.models.SceatSkillDef.skill_tree_id": "a sceat_skill_trees key; the trees have no name or enum",

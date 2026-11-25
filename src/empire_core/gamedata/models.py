@@ -19,7 +19,6 @@ from pydantic import ConfigDict, Field, ValidationInfo, field_validator, model_v
 
 from empire_core.enums import (
     AllianceBuffType,
-    BerimondFaction,
     BoosterId,
     CastleEffect,
     Kingdom,
@@ -1820,41 +1819,6 @@ class DungeonDefence(_Row):
         return commanders.get(js_parse_int(value))
 
 
-class NpcCampDefence(_Row):
-    """
-    An event camp's defense, shared shape across the camp tables.
-
-    Covers the nomad, samurai, Berimond invasion and alliance invasion camps.
-
-    Client: ``CastleInvasionCampNodeVO.parseXML`` (bundle line 39701)
-    """
-
-    count_victory: int = Field(validation_alias="countVictory", default=0)
-    def_strength: int = Field(validation_alias="defStrength", default=0)
-    raw_defense_units: str = Field(validation_alias="defenceUnits", default="")
-    raw_defense_tools: str = Field(validation_alias="defenceTools", default="")
-    wall_bonus: float = Field(validation_alias="wallBonus", default=0)
-    gate_bonus: float = Field(validation_alias="gateBonus", default=0)
-    commander_id: int = Field(validation_alias="lordID", default=0)
-    guards: int = 0
-    unit_wall_count: int = Field(validation_alias="unitWallCount", default=0)
-    cool_down: int = Field(validation_alias="coolDown", default=0)
-    dungeon_level: int = Field(validation_alias="dungeonlevel", default=0)
-    faction_id: GameDataId[BerimondFaction] = Field(
-        validation_alias="factionID",
-        default=BerimondFaction.URSIDAE,
-        description="The Berimond faction a Berimond invasion camp row is for",
-    )
-
-    @property
-    def defense_unit_ids(self) -> tuple[int, ...]:
-        return parse_ids(self.raw_defense_units)
-
-    @property
-    def defense_tool_ids(self) -> tuple[int, ...]:
-        return parse_ids(self.raw_defense_tools)
-
-
 class _DaimyoAreaRow(_Row):
     """
     One rank and level of a daimyo castle or township.
@@ -1989,7 +1953,6 @@ __all__ = [
     "GemDef",
     "GeneralSkillDef",
     "GlobalEffectDef",
-    "NpcCampDefence",
     "RelicEffectDef",
     "SceatSkillDef",
     "SceatSkillTreeDef",

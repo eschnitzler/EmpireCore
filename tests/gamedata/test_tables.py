@@ -24,6 +24,7 @@ from empire_core.enums import (
 )
 from empire_core.gamedata import (
     AllianceInvasionCampId,
+    BerimondInvasionCampId,
     BuildingDef,
     CitadelLevelId,
     DailyQuestDef,
@@ -521,7 +522,6 @@ class TestEventTables:
             105,
             18500,
         )
-        assert [row.dungeon_level for row in data.camps["allianceInvasionCamps"]] == [105]
 
     def test_they_survive_the_cache(self, tmp_path):
         GameData.parse("788.02", self.ITEMS)._write_cache(tmp_path / "cache.json")
@@ -554,8 +554,9 @@ def test_berimond_invasion_camp_rows_name_their_faction():
         "788.02",
         {
             "factioninvasioncamps": [
-                {"countVictory": "3", "factionID": "0", "wallBonus": "10"},
-                {"countVictory": "3", "factionID": "1", "wallBonus": "20"},
+                {"factionInvasionCampID": "1", "countVictory": "3", "factionID": "0", "wallBonus": "10"},
+                {"factionInvasionCampID": "2", "countVictory": "3", "factionID": "1", "wallBonus": "20"},
+                {"factionInvasionCampID": "3", "countVictory": "3", "factionID": "1", "wallBonus": "30"},
             ]
         },
     )
@@ -563,7 +564,9 @@ def test_berimond_invasion_camp_rows_name_their_faction():
     blue = data.berimond_invasion_camp(3, BerimondFaction.URSIDAE)
     red = data.berimond_invasion_camp(3, BerimondFaction.GERBRANDT)
     assert blue is not None and blue.faction_id is BerimondFaction.URSIDAE and blue.wall_bonus == 10
-    assert red is not None and red.faction_id is BerimondFaction.GERBRANDT and red.wall_bonus == 20
+    # the faction's map keeps the last row of a level, as CastleFactionInvasionCampData.parseXML sets it
+    assert red is not None and red.faction_id is BerimondFaction.GERBRANDT and red.wall_bonus == 30
+    assert data.berimond_invasion_camps[BerimondInvasionCampId(2)].wall_bonus == 20
 
 
 class TestFeastsAndSceatSkillTrees:

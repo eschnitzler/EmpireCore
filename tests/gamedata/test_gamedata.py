@@ -26,6 +26,7 @@ from empire_core.gamedata import (
     Event,
     GameData,
     ToolStats,
+    Unit,
     UnitStats,
     WodAmount,
     cache,
@@ -946,11 +947,10 @@ class TestDungeonDefence:
     def test_camp_tables_share_one_shape(self):
         data = GameData.parse("783.01", FULL_PAYLOAD)
 
-        camps = data.camps["nomadCamps"]
+        camp = data.nomad_camps[1]
 
-        assert [c.def_strength for c in camps] == [150]
-        assert camps[0].defense_unit_ids == (743, 744)
-        assert camps[0].defense_tool_ids == (730, 731)
+        assert camp.count_victory == 1
+        assert camp.defense_units == (Unit.PIKEMAN, Unit.SPEARTHROWER)
 
     def test_general_skills_are_modeled_now(self):
         data = GameData.parse("783.01", FULL_PAYLOAD)

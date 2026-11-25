@@ -15,8 +15,7 @@ from typing import TYPE_CHECKING, NamedTuple, Protocol
 from empire_core.army.spy_army import SpyArmy
 from empire_core.commanders.models.roster import LeaderBase
 from empire_core.enums import BerimondFaction, CombatEffectType, Flank, Kingdom, MapItemType, NPCOwner
-from empire_core.gamedata import EnumOrInt, GameData, NpcCampDefence, ScalingCampId, ToolStats
-from empire_core.gamedata.data import BERIMOND_INVASION_CAMP_TABLE
+from empire_core.gamedata import EnumOrInt, EventCampDef, GameData, ScalingCampId, ToolStats
 from empire_core.gamedata.ids.events import Event
 from empire_core.map.models.items import MapAreaItem
 
@@ -586,58 +585,33 @@ def robber_baron_camp_defense(
     )
 
 
-def event_camp_defense(
-    table: str,
-    victories: int,
-    *,
-    faction_id: BerimondFaction | int | None = None,
-    game_data: GameData | None = None,
-) -> dict[Flank, DefenderFlankEffects] | None:
+def event_camp_defense(camp: EventCampDef, *, game_data: GameData | None = None) -> dict[Flank, DefenderFlankEffects]:
     """
     What defends an event camp, per flank.
 
     Nomad, samurai, Berimond invasion and alliance invasion camps are described
-    differently from robber baron camps: instead of a per-flank composition they
-    give a defense strength, a unit and tool list, and wall and gate bonuses.
+    differently from robber baron camps: instead of a per-flank composition their
+    row lists the kinds of unit that defend it, and its wall and gate bonuses.
     The same units defend every flank, so the composition is split evenly and
     the fortification applied to each.
 
-    Args:
-        game_data: Optional tables override; uses the process game data by default.
-        table: One of ``empire_core.gamedata.CAMP_TABLES``
-        victories: The camp's victory count; for ``factioninvasioncamps``, the
-            camp's level (:func:`invasion_camp_level`)
-        faction_id: For ``factioninvasioncamps``, which has a row per faction
-            at each level, the camp's faction (:func:`berimond_invasion_side`)
+    Find the camp's row on the game data: ``nomad_camps[level]``, ``samurai_camps[level]``,
+    ``berimond_invasion_camp(level, faction_id)`` or ``alliance_invasion_camps[camp_id]``.
 
-    Raises:
-        ValueError: ``factioninvasioncamps`` without ``faction_id``
+    Args:
+        camp: The camp's row
+        game_data: Optional tables override; uses the process game data by default.
 
     Returns:
-        Effects per flank, or None when no such camp is listed. Unit counts are
-        not given by these tables, so the strengths reflect one of each listed
-        unit; treat the wall and gate bonuses as the reliable part.
+        Effects per flank. The rows give no unit counts, so the strengths
+        reflect one of each listed unit; treat the wall and gate bonuses as
+        the reliable part.
     """
     game_data = game_data if game_data is not None else GameData.require()
-    if table == BERIMOND_INVASION_CAMP_TABLE:
-        if faction_id is None:
-            raise ValueError("A Berimond invasion camp's row depends on its faction; pass faction_id")
-        row = game_data.berimond_invasion_camp(victories, faction_id)
-    else:
-        row = next(
-            (camp for camp in game_data.camps.get(table, []) if camp.count_victory == victories),
-            None,
-        )
-    if row is None:
-        return None
-    return _camp_flanks(row, game_data)
-
-
-def _camp_flanks(row: NpcCampDefence, game_data: GameData) -> dict[Flank, DefenderFlankEffects]:
-    stacks = [(wod_id, 1) for wod_id in row.defense_unit_ids]
+    stacks = [(unit, 1) for unit in camp.defense_units]
     return {
         flank: defender_flank_effects(
-            stacks, flank=flank, wall_bonus=row.wall_bonus / 100, gate_bonus=row.gate_bonus / 100, game_data=game_data
+            stacks, flank=flank, wall_bonus=camp.wall_bonus / 100, gate_bonus=camp.gate_bonus / 100, game_data=game_data
         )
         for flank in (Flank.LEFT, Flank.MIDDLE, Flank.RIGHT, Flank.YARD)
     }

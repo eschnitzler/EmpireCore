@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, NewType
 from pydantic import Field, ValidationInfo, field_validator, model_validator
 
 from empire_core.enums import (
+    BerimondFaction,
     BerimondLane,
     BerimondSpecialCampType,
     BuildingGroundType,
@@ -71,6 +72,7 @@ if TYPE_CHECKING:
         SceatSkill,
         Title,
         TreasureMapId,
+        Unit,
     )
 
 
@@ -181,6 +183,10 @@ ScalingCampId = NewType("ScalingCampId", int)
 AllianceInvasionCampId = NewType("AllianceInvasionCampId", int)
 """The id of an ``allianceInvasionCamps`` row, an alliance invasion camp that :attr:`GameData.alliance_invasion_camps`
 describes."""
+
+BerimondInvasionCampId = NewType("BerimondInvasionCampId", int)
+"""The id of a ``factioninvasioncamps`` row, one faction's Berimond invasion camp at one level, that
+:attr:`GameData.berimond_invasion_camps` describes."""
 
 RewardSetId = NewType("RewardSetId", int)
 """The reward set a league score event's ``RSID`` names: which :attr:`GameData.league_type_events` rows give its
@@ -3047,16 +3053,94 @@ class AllianceTowerEffectDef(_Row):
         return 0.0 if math.isnan(number) else number
 
 
-class AllianceInvasionCampDef(_Row):
+class EventCampDef(_Row):
+    """
+    What defends an event camp: the fortification and defenders of a nomad, samurai, Berimond invasion or alliance
+    invasion camp row.
+
+    The client reads the wall and gate of these rows; the defenders the items list are not read by it.
+
+    Client: ``CastleInvasionCampNodeVO.parseXML`` (split.js line 207719) and
+    ``CastleAllianceInvasionCampNodeVO.parseXML`` (split.js line 573435)
+    """
+
+    wall_bonus: int = Field(validation_alias="wallBonus", default=0, description="Wall protection, in percent")
+    gate_bonus: int = Field(validation_alias="gateBonus", default=0, description="Gate protection, in percent")
+    defense_units: tuple[GameDataId["Unit"], ...] = Field(
+        validation_alias="defenceUnits", default=(), description="The kinds of unit that defend it"
+    )
+
+    @field_validator("wall_bonus", "gate_bonus", mode="before")
+    @classmethod
+    def _fortification(cls, value: object) -> int:
+        return _parse_int_or_default(value, 0)
+
+    @field_validator("defense_units", mode="before")
+    @classmethod
+    def _units(cls, value: object) -> list[int]:
+        return _int_list(value)
+
+
+class InvasionCampDef(EventCampDef):
+    """
+    One level of a nomad camp (``nomadCamps``) or a samurai camp (``samuraiCamps``), by the level a camp's map
+    object looks it up with.
+
+    Client: ``CastleInvasionCampNodeVO.parseXML`` (split.js line 207719), keyed by its ``countVictory`` in
+    ``CastleXmlData.parseXML`` (split.js line 66533); ``CastleNomadCampData.getNomadCamp`` (split.js line 578174) and
+    ``CastleSamuraiCampData.getSamuraiCamp`` (split.js line 578422)
+    """
+
+    count_victory: int = Field(validation_alias="countVictory", description="The camp level the row is for")
+    cooldown_seconds: int = Field(
+        validation_alias="coolDown", default=0, description="Seconds before the camp can be attacked again"
+    )
+    skip_cost: int = Field(validation_alias="skipCosts", default=0, description="Rubies to skip a whole cooldown")
+
+    @field_validator("count_victory", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator("cooldown_seconds", "skip_cost", mode="before")
+    @classmethod
+    def _int_column(cls, value: object) -> int:
+        return _parse_int_or_default(value, 0)
+
+
+class BerimondInvasionCampDef(InvasionCampDef):
+    """
+    One faction's Berimond invasion camp at one level, a ``factioninvasioncamps`` row.
+
+    Client: ``CastleFactionInvasionCampNodeVO.parseXML`` (split.js line 576039), keyed by
+    ``factionInvasionCampID`` in ``CastleFactionInvasionCampData.parseXML`` (split.js line 575986)
+    """
+
+    camp_id: BerimondInvasionCampId = Field(validation_alias="factionInvasionCampID", description="The row")
+    count_victory: int = Field(validation_alias="countVictory", default=0, description="The camp level the row is for")
+    faction_id: GameDataId[BerimondFaction] = Field(
+        validation_alias="factionID", default=BerimondFaction.URSIDAE, description="The faction whose camp it is"
+    )
+
+    @field_validator("camp_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator("count_victory", "cooldown_seconds", "skip_cost", "faction_id", mode="before")
+    @classmethod
+    def _int_column(cls, value: object) -> int:
+        return _parse_int_or_default(value, 0)
+
+
+class AllianceInvasionCampDef(EventCampDef):
     """
     An alliance invasion camp, by the id an ``aic`` push names it with while its event scales no difficulty; with a
     difficulty chosen, that id is a scaling camp's (``GameData.scaling_camps``).
 
-    The camp's defence, as the combat code reads it, is in ``GameData.camps["allianceInvasionCamps"]``.
-
-    Client: ``CastleAllianceInvasionCampNodeVO.parseXML`` (bundle line 111195), keyed by id in
-    ``CastleAllianceInvasionCampData`` (bundle line 111180), whose ``getAllianceCamp`` (bundle line 111182) looks up
-    a scaling camp instead when the event's difficulty scaling is on (``AICCommand.executeCommand``, bundle line
+    Client: ``CastleAllianceInvasionCampNodeVO.parseXML`` (split.js line 573435), keyed by id in
+    ``CastleAllianceInvasionCampData`` (split.js line 573383), whose ``getAllianceCamp`` (split.js line 573391) looks
+    up a scaling camp instead when the event's difficulty scaling is on (``AICCommand.executeCommand``, bundle line
     128192)
     """
 
@@ -3067,8 +3151,6 @@ class AllianceInvasionCampDef(_Row):
         validation_alias="rageNeededForLevelUp", default=0, description="Alliance rage to its next level"
     )
     player_rage_cap: int = Field(validation_alias="playerRageCap", default=0, description="Most rage a player builds")
-    wall_bonus: int = Field(validation_alias="wallBonus", default=0, description="Wall protection, in percent")
-    gate_bonus: int = Field(validation_alias="gateBonus", default=0, description="Gate protection, in percent")
     count_victory: int = Field(validation_alias="countVictory", default=0, description="Its victory count")
 
     @field_validator("camp_id", mode="before")
@@ -3077,9 +3159,8 @@ class AllianceInvasionCampDef(_Row):
         return row_id(value)
 
     @field_validator(
-        "event_id", "dungeon_level", "rage_needed_for_level_up", "player_rage_cap", "wall_bonus", "gate_bonus",
-        "count_victory", mode="before",
-    )  # fmt: skip
+        "event_id", "dungeon_level", "rage_needed_for_level_up", "player_rage_cap", "count_victory", mode="before"
+    )
     @classmethod
     def _int_column(cls, value: object) -> int:
         return _parse_int_or_default(value, 0)
@@ -3514,6 +3595,10 @@ __all__ = [
     "StartResourcesId",
     "AllianceInvasionCampDef",
     "AllianceInvasionCampId",
+    "BerimondInvasionCampDef",
+    "BerimondInvasionCampId",
+    "EventCampDef",
+    "InvasionCampDef",
     "AllianceTowerEffectDef",
     "FeastDef",
     "CitadelLevelDef",
