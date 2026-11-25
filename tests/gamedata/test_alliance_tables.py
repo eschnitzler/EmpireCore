@@ -8,7 +8,9 @@ from pathlib import Path
 import pytest
 
 from empire_core.alliance.models.diplomacy import AllianceDonation
+from empire_core.alliance.models.info import AllianceInfo
 from empire_core.enums import AllianceRank, AllianceRight, CollectableKind, HelpType, HorizonPhaseTriggerType
+from empire_core.events.status_models import GrandTournamentQuestSlot
 from empire_core.gamedata import (
     AllianceTowerId,
     AllianceTreasuryDonatableId,
@@ -269,3 +271,16 @@ def test_rank_rewards(data):
         ITEMS["allianceBattleGroundRankRewards"]
     )
 
+
+def test_an_alliance_reads_its_glory_levels(data):
+    alliance = AllianceInfo.model_validate({"AID": 1, "CF": "34000", "HF": 7999})
+
+    assert alliance.glory_level(game_data=data) == 3
+    assert alliance.highest_glory_level(game_data=data) == 1
+    assert AllianceInfo.model_validate({"AID": 1, "CF": 10**19}).glory_level(game_data=data) == 50
+
+
+def test_grand_tournament_quest_slots_name_their_quest():
+    slot = GrandTournamentQuestSlot.model_validate({"slot_id": 0, "QID": "12", "PID": -1, "RS": 0})
+
+    assert slot.alliance_quest_id == GrandTournamentQuestId(12)

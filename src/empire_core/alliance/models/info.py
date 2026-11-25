@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Annotated, Any
 from pydantic import BeforeValidator, Field, PrivateAttr, field_validator, model_validator
 
 from empire_core.enums import AllianceBuffType, AllianceRank, DiplomacyStatus, OnlineState
-from empire_core.gamedata import EnumOrInt
+from empire_core.gamedata import EnumOrInt, GameData
 from empire_core.map.models.items import MapAreaItem, parse_area_rows
 from empire_core.map.models.owners import AllianceCrest
 from empire_core.player.models.profile import PlayerProfileBase
@@ -655,6 +655,35 @@ class AllianceInfo(BasePayload):
         Client: ``AllianceInfoVO.allianceLeader`` (bundle line 25986)
         """
         return next((m for m in self.members if m.alliance_rank == AllianceRank.LEADER), None)
+
+    def glory_level(self, *, game_data: GameData | None = None) -> int:
+        """
+        The glory level the alliance's glory points reach; 0 below the first.
+
+        Raises:
+            GameDataNotLoadedError: No ``game_data`` given, and the game data cannot be loaded
+
+        Client: ``AllianceInfoVO.allianceFameLevel`` (split.js line 138078), of the points capped at
+        ``AllianceConst.FAME_CAP``
+        """
+        game_data = game_data if game_data is not None else GameData.require()
+        return game_data.alliance_glory_level(min(self.glory_points, _GLORY_POINTS_CAP))
+
+    def highest_glory_level(self, *, game_data: GameData | None = None) -> int:
+        """
+        The glory level the alliance's highest glory points reached; 0 below the first.
+
+        Raises:
+            GameDataNotLoadedError: No ``game_data`` given, and the game data cannot be loaded
+
+        Client: ``AllianceInfoVO.highestReachedFameLevel`` (split.js line 138089)
+        """
+        game_data = game_data if game_data is not None else GameData.require()
+        return game_data.alliance_glory_level(self.highest_glory_points)
+
+
+_GLORY_POINTS_CAP = 9e18
+"""``AllianceConst.FAME_CAP`` (ggs.dll.js line 237)."""
 
 
 def alliance_block(value: Any) -> Any:
