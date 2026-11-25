@@ -26,8 +26,9 @@ FIXTURES = Path(__file__).resolve().parent.parent / "data"
 
 # sha256 of the dense reply's model_dump(mode="json") with sorted keys, as v0.45.0 parsed it; since v0.50 a
 # crest without a layout and a castle without a tower connection dump None, not 0 and [], and since v0.60
-# camp_id is daimyo_castle_id, daimyo_township_id or alliance_camp_id, and since v0.64 the abg_* fields are horizon_*
-V0_45_DIGEST = "153920cb7fa777e2816f76a1a34dcb0cad6c2411d9a330f30dfcc2a4cea71e9d"
+# camp_id is daimyo_castle_id, daimyo_township_id or alliance_camp_id, and since v0.64 the abg_* fields are horizon_*;
+# since v0.67 the fixture's alliance crests use colours 1-20, the ones the game has
+V0_45_DIGEST = "8cf6d8ac671353d333484391984175f57a61db576a02cbcbed8ef38e9fc69d80"
 
 # sha256 of a one-chunk scan of the live-shaped reply (see _scan_digest), as v0.45.0 scanned it, camp_id split as above
 V0_45_SCAN_DIGESTS = {

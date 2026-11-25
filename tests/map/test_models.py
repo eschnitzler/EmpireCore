@@ -89,7 +89,7 @@ class TestGoldenMapArea:
         record = {**self.OWNER, "aee": {"ACCA": {"ACLI": "4", "ACCS": [3, 7, 11]}}}
         owner = GetMapAreaResponse.model_validate({"KID": 0, "AI": [], "OI": [record]}).owners[0]
         assert owner.alliance_emblem is not None and owner.alliance_emblem.crest is not None
-        assert (owner.alliance_emblem.crest.layout_id, owner.alliance_emblem.crest.color_ids) == (4, [3, 7, 11])
+        assert (owner.alliance_emblem.crest.layout_id, owner.alliance_emblem.crest.color_ids) == (4, (3, 7, 11))
         assert owner.alliance_emblem.crest.color_ids[0] is AllianceCrestColor.COLOR_3
 
     def test_owner_record_blocks_that_are_not_objects_read_as_none(self):
@@ -295,7 +295,7 @@ class TestOwnerRecordLeniency:
         assert record.faction.title_id is None
         assert OwnerFaction.model_validate({"TID": -1}).title_id is None
         assert record.alliance_emblem is not None and record.alliance_emblem.crest is not None
-        assert record.alliance_emblem.crest.color_ids == []
+        assert record.alliance_emblem.crest.color_ids == ()
 
     def test_gaa_keys_follow_the_client_order(self):
         # C2SGetAreasVO declares KID, AX1, AY1, AX2, AY2
@@ -677,7 +677,7 @@ class TestCampRows:
             (HorizonTowerConnection(x=5, y=6),),
         )
         assert item.alliance_crest is not None
-        assert (item.alliance_crest.layout_id, item.alliance_crest.color_ids) == (2, [1, 2])
+        assert (item.alliance_crest.layout_id, item.alliance_crest.color_ids) == (2, (1, 2))
         assert item.owner_id is None
 
     def test_an_horizon_tower_reads_its_connections(self):

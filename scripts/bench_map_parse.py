@@ -19,7 +19,9 @@ scan drops, and a few dozen player castles.
 Then it counts the gc-tracked objects one scan chunk of every type allocates (net
 of those freed while it runs, as the collector counts them) and keeps, on the
 dense reply padded to 1,500 rows and 250 owner records of 27 castles and 3
-villages each: the shape of a dense chunk in a crowded kingdom.
+villages each, members of 20 alliances: the shape of a dense chunk in a crowded kingdom.
+It counts it cold, with no owner block shared yet (see ``Interned``), and as the next
+chunk of a scan, after one whose owners are in the same alliances but have other crests.
 """
 
 from __future__ import annotations
@@ -38,6 +40,7 @@ from typing import Any
 from empire_core.enums import Kingdom
 from empire_core.map.models.areas import GetMapAreaRequest, GetMapAreaResponse, MapObject
 from empire_core.map.models.items import parse_area_rows
+from empire_core.map.models.owners import Interned
 from empire_core.map.models.world import MapSize
 from empire_core.map.pacing import MapAreaPacer
 from empire_core.map.scanner import MapScanner
@@ -88,27 +91,44 @@ def benchmarks(dense: dict[str, Any], chunk: dict[str, Any]) -> dict[str, Callab
     }
 
 
-def crowded(dense: dict[str, Any]) -> dict[str, Any]:
-    """The dense reply padded to 1,500 rows and 250 owner records of 27 castles and 3 villages each."""
+def crowded(dense: dict[str, Any], chunk: int = 0) -> dict[str, Any]:
+    """
+    The dense reply padded to 1,500 rows and 250 owner records of 27 castles and 3 villages each.
+
+    The owners in an alliance belong to one of 20 alliances, whose members share its name and crest.
+    Each ``chunk`` after the first has other owners, whose crests have other background colours.
+    """
     rows = [row for row in dense["AI"] if len(row) >= 4]
+    alliances = [record for record in dense["OI"] if record.get("aee")][:20]
     owners = []
     for index in range(250):
-        record = dict(dense["OI"][index % len(dense["OI"])], OID=2_000_000 + index)
+        record = dict(dense["OI"][index % len(dense["OI"])], OID=2_000_000 + 250 * chunk + index)
+        if chunk:
+            number = 250 * chunk + index
+            record["E"] = dict(record["E"], BGC1=number // 41 % 41, BGC2=number % 41)
+        if record.get("aee"):
+            alliance = alliances[index % len(alliances)]
+            record.update(AID=alliance["AID"], AN=alliance["AN"], aee=alliance["aee"])
         record["AP"] = [[index % 4, 1_000_000 + 30 * index + n, n, index, 1] for n in range(27)]
         record["VP"] = [[0, 2_000_000 + 30 * index + n, n, index] for n in range(3)]
         owners.append(record)
     return {"KID": 0, "AI": [rows[n % len(rows)] for n in range(1500)], "OI": owners}
 
 
-def chunk_objects(payload: dict[str, Any]) -> tuple[int, int]:
+def chunk_objects(payload: dict[str, Any], after: dict[str, Any] | None) -> tuple[int, int]:
     """
     The gc-tracked objects scanning one chunk of ``payload`` (every type) allocates net of those it frees, and keeps.
 
     The reply is decoded afresh before the count, as each chunk of a scan is, so rows a
-    result keeps count as kept, while decoding it does not count as allocated.
+    result keeps count as kept, while decoding it does not count as allocated. The count
+    follows a read of ``after``, whose owner blocks stay shared; with None it follows a
+    read of ``payload`` and forgets every shared block.
     """
     text = json.dumps(payload)
-    MapScanner(_OneReply(json.loads(text)))._process_chunk(*CHUNK, Kingdom.GREEN, None, 5.0)  # type: ignore[arg-type]
+    first = MapScanner(_OneReply(json.loads(json.dumps(after or payload))))  # type: ignore[arg-type]
+    first._process_chunk(*CHUNK, Kingdom.GREEN, None, 5.0)
+    if after is None:
+        Interned.clear()
     gc.collect()
     before = len(gc.get_objects())
     scanner = MapScanner(_OneReply(json.loads(text)))  # type: ignore[arg-type]
@@ -137,8 +157,10 @@ def main() -> None:
     print(f"median of {args.runs}:")
     for name, run in benchmarks(dense, chunk).items():
         print(f"  {name:<9} {median_seconds(run, args.runs) * 1000:7.2f} ms")
-    allocated, kept = chunk_objects(crowded(dense))
-    print(f"crowded chunk: {allocated} gc-tracked objects allocated (net), {kept} kept")
+    first, second = crowded(dense), crowded(dense, chunk=1)
+    for name, payload, after in (("cold", first, None), ("next", second, first)):
+        allocated, kept = chunk_objects(payload, after)
+        print(f"crowded chunk, {name:<5} {allocated:6} gc-tracked objects allocated (net), {kept:6} kept")
 
 
 if __name__ == "__main__":
