@@ -16,6 +16,7 @@ from empire_core.gamedata import (
     FusionForgeId,
     GameData,
     SceatSkill,
+    TreasureMapId,
     Unit,
 )
 
@@ -50,6 +51,15 @@ def parse(**tables: object) -> GameData:
 @pytest.mark.parametrize(("attribute", "items_table"), TABLES.items())
 def test_every_real_row_reads(real: GameData, attribute: str, items_table: str) -> None:
     assert len(getattr(real, attribute)) == len(REAL[items_table])
+
+
+def test_every_table_survives_the_cache(real: GameData, tmp_path: Path) -> None:
+    cache_file = tmp_path / "items.json"
+    real._write_cache(cache_file)
+    cached = GameData._read_cache(cache_file, "790.06")
+    assert cached is not None
+    for attribute in TABLES:
+        assert dict(getattr(cached, attribute)) == dict(getattr(real, attribute)), attribute
 
 
 def test_every_real_slum_reads(real: GameData) -> None:
@@ -112,7 +122,6 @@ class TestSlums:
         cached = GameData._read_cache(cache_file, "790.06")
         assert cached is not None
         assert cached.slums == real.slums
-        assert cached.kingdoms[Kingdom.ICE] == real.kingdoms[Kingdom.ICE]
 
 
 class TestExpansions:
@@ -135,6 +144,12 @@ class TestExpansions:
         assert locked is not None
         assert locked.locked_by_skill_id is SceatSkill.ONWARDS_AND_OUTWARDS_L1
         assert {cost.amount for cost in locked.costs} == {500, 2500}
+
+    def test_a_season_map_space(self, real: GameData) -> None:
+        thorn_king = real.expansion(TreasureMapId.THORN_KING_NORMAL, 1)
+        assert thorn_king is not None
+        assert thorn_king.space_ids[0] is TreasureMapId.THORN_KING_NORMAL
+        assert (thorn_king.expansion_id, thorn_king.cost_rubies) == (74, 200)
 
     def test_past_the_last_level(self, real: GameData) -> None:
         assert real.expansion(Kingdom.GREEN, 1000) is None

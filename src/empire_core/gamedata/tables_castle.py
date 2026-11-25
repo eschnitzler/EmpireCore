@@ -18,7 +18,7 @@ from empire_core.protocol.js import js_falsy, js_int, js_parse_int, js_truthy
 
 from .collectables import _KINDS_BY_KEY, _KINDS_BY_XML_KEY, _XML_COST_PREFIX, Collectable
 from .lenient import GameDataId
-from .models import _landmark_int, _parse_int_or_default, _Row
+from .models import _landmark_int, _landmark_level, _parse_int_or_default, _Row
 from .tables import PackageId, PartPayPriceId, _client_bool, _int_list, _text, row_id
 
 if TYPE_CHECKING:
@@ -485,10 +485,7 @@ class WishingWellLevelDef(_Row):
     @field_validator("level", mode="before")
     @classmethod
     def _level(cls, value: object) -> int:
-        level = _nan_int(value)
-        if level is None:
-            raise ValueError(f"level {value!r} has no leading integer")
-        return level
+        return _landmark_level(value)
 
     @field_validator(
         "wishing_well_id", "entry_rubies", "cost_wood", "cost_stone", "lucky_pennies", "waiting_seconds",
