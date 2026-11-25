@@ -131,6 +131,7 @@ class TestRerollCosts:
     def test_a_type_without_prices_raises(self):
         with pytest.raises(ValueError, match="no reroll prices"):
             DATA.reroll_cost(RerollType.CHARGE_CAMP_EFFECT, 1)
+        assert DATA.free_soft_rerolls(RerollType.CHARGE_CAMP_EFFECT) == 0
 
     def test_alien_prices_go_by_position(self):
         soft = [DATA.alien_reroll_cost(n, rubies=False).reroll_cost_id for n in (0, 1, 19, 20, 25)]
@@ -140,6 +141,10 @@ class TestRerollCosts:
     def test_a_ruby_alien_reroll_past_the_last_price_raises(self):
         with pytest.raises(ValueError, match="after 20 rerolls"):
             DATA.alien_reroll_cost(20, rubies=True)
+        with pytest.raises(ValueError):
+            DATA.alien_reroll_cost(-1, rubies=False)
+        with pytest.raises(ValueError):
+            parse(rerollCosts=[]).alien_reroll_cost(0, rubies=False)
 
     def test_unsorted_rows(self):
         rows = [
@@ -190,9 +195,12 @@ class TestAlienRerollChances:
         assert [row.chance_id for row in data.alien_reroll_odds(rubies=False)] == [2, 1]
         assert [row.chance_id for row in data.alien_reroll_odds(rubies=True)] == [3]
 
-    def test_a_row_without_units_is_left_out(self):
-        rows = [{"alienRerollChancesID": "1", "chance": "5", "isSoftCurrency": "1"}]
-        assert parse(alienRerollChances=rows).alien_reroll_odds(rubies=False) == []
+    def test_a_missing_column_reads_as_0(self):
+        # getValueOrDefault throws for a required column only on an XML node; an items row reads the default
+        rows = [{"alienRerollChancesID": "1", "isSoftCurrency": "1"}, {"alienRerollChancesID": "2", "amountUnits": ""}]
+        first, second = parse(alienRerollChances=rows).alien_reroll_chances.values()
+        assert (first.added_units, first.chance, first.for_soft_rerolls) == (0, 0, True)
+        assert (second.added_units, second.for_soft_rerolls, second.for_ruby_rerolls) == (0, False, False)
 
 
 class TestMessageRestrictions:

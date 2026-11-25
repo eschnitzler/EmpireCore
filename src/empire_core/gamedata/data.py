@@ -1906,7 +1906,7 @@ class GameData(EmpireModel):
             and (league_type_id == -1 or row.league_type_id == league_type_id)
         )
 
-    def is_minute_skip(self, currency_id: int) -> bool:
+    def is_minute_skip(self, currency_id: CurrencyId | int) -> bool:
         """
         Whether ``currency_id`` is a minute skip: in the minute skips' currency type.
 

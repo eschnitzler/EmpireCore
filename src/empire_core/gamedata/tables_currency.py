@@ -15,7 +15,7 @@ from empire_core.protocol.js import js_falsy, js_parse_int, js_string
 
 from .collectables import _XML_COST_PREFIX, Collectable
 from .lenient import GameDataId, GameDataKey
-from .models import _parse_int_or_default, _Row
+from .models import _landmark_int, _parse_int_or_default, _Row
 from .tables import _is_one, row_id
 
 if TYPE_CHECKING:
@@ -48,11 +48,6 @@ MessageRestrictionId = NewType("MessageRestrictionId", int)
 
 The rows have no name, so no generated enum names them; this type marks the id space instead.
 """
-
-
-def _parse_int_or(value: object, default: str) -> int | None:
-    """``parseInt(value || default)``: a missing or empty value reads as the default, and NaN as None."""
-    return js_parse_int(default if js_falsy(value) else value)
 
 
 class CurrencyTypeDef(_Row):
@@ -89,7 +84,7 @@ class CurrencyTypeDef(_Row):
         parts = ("" if js_falsy(value) else js_string(value)).split("-")
         return (js_parse_int(parts[0]), js_parse_int(parts[1]) if len(parts) > 1 else None)
 
-    def contains(self, currency_id: int) -> bool:
+    def contains(self, currency_id: CurrencyId | int) -> bool:
         """Whether ``currency_id`` is in the range, both ends included; a range missing an end holds none."""
         first, last = self.currency_id_range
         return first is not None and last is not None and first <= currency_id <= last
@@ -235,8 +230,10 @@ class AlienRerollChanceDef(_Row):
     """
 
     chance_id: AlienRerollChanceId = Field(validation_alias="alienRerollChancesID", description="The row")
-    added_units: int = Field(validation_alias="amountUnits", description="Units the camp gains")
-    chance_thousandths: int = Field(validation_alias="chance", description="Its chance, in thousandths")
+    added_units: int = Field(validation_alias="amountUnits", default=0, description="Units the camp gains")
+    chance_thousandths: int = Field(
+        validation_alias="chance", default=0, description="Its chance as the column has it, 1000 times the client's"
+    )
     for_soft_rerolls: bool = Field(
         validation_alias="isSoftCurrency", default=False, description="Whether it is a reroll paid without rubies"
     )
@@ -249,15 +246,10 @@ class AlienRerollChanceDef(_Row):
     def _id(cls, value: object) -> int:
         return row_id(value)
 
-    @field_validator("added_units", mode="before")
+    @field_validator("added_units", "chance_thousandths", mode="before")
     @classmethod
-    def _units(cls, value: object) -> int:
-        return _required_int(value, "amountUnits")
-
-    @field_validator("chance_thousandths", mode="before")
-    @classmethod
-    def _chance(cls, value: object) -> int:
-        return _required_int(value, "chance")
+    def _int_column(cls, value: object) -> int:
+        return _parse_int_or_default(value, 0)
 
     @field_validator("for_soft_rerolls", "for_ruby_rerolls", mode="before")
     @classmethod
@@ -268,14 +260,6 @@ class AlienRerollChanceDef(_Row):
     def chance(self) -> float:
         """Its chance as the client keeps it: :attr:`chance_thousandths` over 1000."""
         return self.chance_thousandths / 1000
-
-
-def _required_int(value: object, column: str) -> int:
-    """``parseInt(getValueOrDefault(column, row, "0", true))``: the client throws for a missing or empty value."""
-    parsed = None if js_falsy(value) else js_parse_int(value)
-    if parsed is None:
-        raise ValueError(f"{column} {value!r} is not a number")
-    return parsed
 
 
 class MessageRestrictionDef(_Row):
@@ -312,17 +296,17 @@ class MessageRestrictionDef(_Row):
     @field_validator("message_type", "daily_limit", mode="before")
     @classmethod
     def _number(cls, value: object) -> int | None:
-        return _parse_int_or(value, "")
+        return _landmark_int(value, "")
 
     @field_validator("min_level", mode="before")
     @classmethod
     def _min_level(cls, value: object) -> int | None:
-        return _parse_int_or(value, "-1")
+        return _landmark_int(value, "-1")
 
     @field_validator("min_level_special_server", mode="before")
     @classmethod
     def _min_level_special_server(cls, value: object) -> int | None:
-        return _parse_int_or(value, "1")
+        return _landmark_int(value, "1")
 
     def required_level(self, *, special_server: bool = False) -> int | None:
         """The level it is sent from, on a special server or not; None where no level reaches it."""
