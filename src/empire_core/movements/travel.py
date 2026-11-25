@@ -186,7 +186,8 @@ def travel_distance(
     Args:
         source: where the trip starts.
         target: where it goes; a Berimond watchtower's or capital's row names its special camp.
-        map_width: the kingdom's map width in fields, ``client.map.map_size(kingdom).width``.
+        map_width: the kingdom's map width in fields (``ClientConstCastle.WORLD_WIDTH``, bundle line 5397),
+            ``client.map.map_size(kingdom).width``.
         collector_attack: the trip is a collector attack.
         outer_realms_rank_swap: the trip is an attack on an Outer Realms server whose event scores by rank swap.
         berimond_event_running: the Battle for Berimond runs.
