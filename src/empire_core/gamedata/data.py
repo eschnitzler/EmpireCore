@@ -30,10 +30,20 @@ from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple, TypeVar
 
 from pydantic import ConfigDict, Field, PrivateAttr
 
-from empire_core.enums import BerimondFaction, BerimondLane, BerimondSpecialCampType, BoosterId, Kingdom, UnitRole
+from empire_core.enums import (
+    AllianceRank,
+    AllianceRight,
+    BerimondFaction,
+    BerimondLane,
+    BerimondSpecialCampType,
+    BoosterId,
+    HelpType,
+    Kingdom,
+    UnitRole,
+)
 from empire_core.exceptions import AmbiguousLookupError, GameDataNotLoadedError, NetworkError
 from empire_core.protocol.base import EmpireModel
-from empire_core.protocol.js import js_truthy
+from empire_core.protocol.js import js_int, js_truthy
 
 from . import cache, cdn
 from .assets import AssetIndex
@@ -173,6 +183,29 @@ from .tables import (
     is_cost_column,
     is_research_cost_column,
     row_id,
+)
+from .tables_alliance import (
+    AllianceForgeLevelDef,
+    AllianceGloryLevelDef,
+    AllianceHelpRequestDef,
+    AllianceRankDef,
+    AllianceRightDef,
+    AllianceTowerDef,
+    AllianceTowerEffectActivationDef,
+    AllianceTowerEffectActivationId,
+    AllianceTowerId,
+    AllianceTreasuryDonatableDef,
+    AllianceTreasuryDonatableId,
+    GrandTournamentQuestDef,
+    GrandTournamentQuestId,
+    HorizonDungeonDef,
+    HorizonDungeonId,
+    HorizonPhaseTriggerDef,
+    HorizonPhaseTriggerId,
+    HorizonRankRewardDef,
+    HorizonRankRewardId,
+    HorizonRewardSetId,
+    is_glory_reward_column,
 )
 from .tables_castle import (
     CASTLE_MODELS,
@@ -352,6 +385,18 @@ _CACHED_MODELS = (
     EquipmentEffectValue,
     CastleEffectValue,
     *CASTLE_MODELS,
+    AllianceRankDef,
+    AllianceRightDef,
+    AllianceGloryLevelDef,
+    AllianceHelpRequestDef,
+    GrandTournamentQuestDef,
+    AllianceForgeLevelDef,
+    AllianceTreasuryDonatableDef,
+    AllianceTowerDef,
+    AllianceTowerEffectActivationDef,
+    HorizonDungeonDef,
+    HorizonPhaseTriggerDef,
+    HorizonRankRewardDef,
 )
 """Every row model the cache stores; the fingerprint covers each one's fields."""
 
@@ -622,6 +667,26 @@ _TABLES: dict[str, _TableSource] = {
         "officersSchoolCurrencies", OfficersSchoolCurrencyDef, "officers_school_currency_id"
     ),
     "officers_school_unit_pairs": _TableSource("officersSchoolUnitPairs", OfficersSchoolUnitPairDef, "pair_id"),
+    "alliance_ranks": _TableSource("allianceranks", AllianceRankDef, "rank"),
+    "alliance_rights": _TableSource("alliancerankrights", AllianceRightDef, "right"),
+    "alliance_glory_levels": _TableSource(
+        "alliancefameranks", AllianceGloryLevelDef, "level", reads=is_glory_reward_column
+    ),
+    "alliance_help_requests": _TableSource("alliancehelprequests", AllianceHelpRequestDef, "help_type"),
+    "grand_tournament_quests": _TableSource("allianceQuests", GrandTournamentQuestDef, "quest_id"),
+    "alliance_forge_levels": _TableSource("allianceForges", AllianceForgeLevelDef, "level"),
+    "alliance_treasury_donatables": _TableSource(
+        "allianceFundsDonatables", AllianceTreasuryDonatableDef, "donatable_id"
+    ),
+    "alliance_towers": _TableSource("allianceTowers", AllianceTowerDef, "tower_id"),
+    "alliance_tower_effect_activations": _TableSource(
+        "allianceTowerEffectsActivations", AllianceTowerEffectActivationDef, "activation_id"
+    ),
+    "horizon_dungeons": _TableSource("allianceBattleGroundDungeons", HorizonDungeonDef, "dungeon_id"),
+    "horizon_phase_triggers": _TableSource(
+        "allianceBattleGroundPhaseTriggers", HorizonPhaseTriggerDef, "phase_trigger_id"
+    ),
+    "horizon_rank_rewards": _TableSource("allianceBattleGroundRankRewards", HorizonRankRewardDef, "rank_reward_id"),
 }
 """The GameData tables read lazily, by attribute name: each a :class:`Table` built from these rows."""
 
@@ -1277,6 +1342,209 @@ class GameData(EmpireModel):
     def officers_school_unit_pairs(self) -> Table[OfficersSchoolUnitPairId, OfficersSchoolUnitPairDef]:
         """The unit pairs the officers' school buildings unlock, by row id."""
         return self._table("officers_school_unit_pairs")
+
+    @cached_property
+    def alliance_ranks(self) -> Table[GameDataId[AllianceRank], AllianceRankDef]:
+        """The alliance ranks (``allianceranks``) by ``AllianceRank``, with the right a rank change needs."""
+        return self._table("alliance_ranks")
+
+    @cached_property
+    def alliance_rights(self) -> Table[GameDataId[AllianceRight], AllianceRightDef]:
+        """The alliance rights (``alliancerankrights``) by ``AllianceRight``, with the lowest rank that has each."""
+        return self._table("alliance_rights")
+
+    @cached_property
+    def alliance_glory_levels(self) -> Table[int, AllianceGloryLevelDef]:
+        """The alliance glory levels (``alliancefameranks``) by level."""
+        return self._table("alliance_glory_levels")
+
+    @cached_property
+    def alliance_help_requests(self) -> Table[GameDataId[HelpType], AllianceHelpRequestDef]:
+        """The kinds of alliance help request (``alliancehelprequests``) by ``HelpType``."""
+        return self._table("alliance_help_requests")
+
+    @cached_property
+    def grand_tournament_quests(self) -> Table[GrandTournamentQuestId, GrandTournamentQuestDef]:
+        """The Grand Tournament's quests (``allianceQuests``), by the quest id a quest slot names."""
+        return self._table("grand_tournament_quests")
+
+    @cached_property
+    def alliance_forge_levels(self) -> Table[int, AllianceForgeLevelDef]:
+        """The alliance forge's levels (``allianceForges``) by level, with what a craft costs."""
+        return self._table("alliance_forge_levels")
+
+    @cached_property
+    def alliance_treasury_donatables(self) -> Table[AllianceTreasuryDonatableId, AllianceTreasuryDonatableDef]:
+        """The goods the alliance treasury takes (``allianceFundsDonatables``), by row id."""
+        return self._table("alliance_treasury_donatables")
+
+    @cached_property
+    def alliance_towers(self) -> Table[AllianceTowerId, AllianceTowerDef]:
+        """Beyond the Horizon's alliance tower levels (``allianceTowers``), by row id."""
+        return self._table("alliance_towers")
+
+    @cached_property
+    def alliance_tower_effect_activations(
+        self,
+    ) -> Table[AllianceTowerEffectActivationId, AllianceTowerEffectActivationDef]:
+        """The price steps of activating an alliance tower's buffs (``allianceTowerEffectsActivations``), by row id."""
+        return self._table("alliance_tower_effect_activations")
+
+    @cached_property
+    def horizon_dungeons(self) -> Table[HorizonDungeonId, HorizonDungeonDef]:
+        """Beyond the Horizon's robber baron levels (``allianceBattleGroundDungeons``), a row per scoring and level."""
+        return self._table("horizon_dungeons")
+
+    @cached_property
+    def horizon_phase_triggers(self) -> Table[HorizonPhaseTriggerId, HorizonPhaseTriggerDef]:
+        """What starts each Beyond the Horizon phase (``allianceBattleGroundPhaseTriggers``), by trigger id."""
+        return self._table("horizon_phase_triggers")
+
+    @cached_property
+    def horizon_rank_rewards(self) -> Table[HorizonRankRewardId, HorizonRankRewardDef]:
+        """Beyond the Horizon's end rewards (``allianceBattleGroundRankRewards``), by row id."""
+        return self._table("horizon_rank_rewards")
+
+    def alliance_rank_has_right(self, rank: int, right: int) -> bool:
+        """
+        Whether members of ``rank`` have ``right``: false for a right the game data lacks.
+
+        Client: ``CastleAllianceData.hasRight`` (split.js line 61651)
+        """
+        row = self.alliance_rights.get(right)
+        return row is not None and row.needed_rank >= rank
+
+    def alliance_rank_may_rerank(self, rank: int, target_rank: int) -> bool:
+        """
+        Whether members of ``rank`` may give a member ``target_rank`` or take it away.
+
+        Client: ``CastleAllianceData.mayRerank`` (split.js line 61643)
+        """
+        row = self.alliance_ranks.get(target_rank)
+        return self.alliance_rank_has_right(rank, row.rerank_right if row is not None else -1)
+
+    def alliance_glory_level(self, glory_points: float) -> int:
+        """
+        The glory level ``glory_points`` reach: the highest level whose threshold they meet, 0 for none.
+
+        Client: ``CastleAllianceFameData.getLevelFromFamePoints`` (split.js line 667037)
+        """
+        reached = [row.level for row in self._glory_levels_by_level if row.threshold <= glory_points]
+        return reached[-1] if reached else 0
+
+    def alliance_glory_points_for_level(self, level: int) -> float:
+        """
+        The glory points ``level`` starts at; 0 for a level the game data lacks.
+
+        Client: ``CastleAllianceFameData.getFamePointsForLevel`` (split.js line 667033)
+        """
+        row = self.alliance_glory_levels.get(level)
+        return row.threshold if row is not None else 0
+
+    @cached_property
+    def _glory_levels_by_level(self) -> tuple[AllianceGloryLevelDef, ...]:
+        return tuple(sorted(self.alliance_glory_levels.values(), key=lambda row: row.level))
+
+    def alliance_tower_effect_activation_cost(self, seconds_until_revival: float) -> int:
+        """
+        Rubies activating an alliance tower's buffs costs with ``seconds_until_revival`` left: the price of the
+        shortest step still above that time, 0 when none is.
+
+        Client: ``CastleAllianceBattleGroundData.getAllianceTowerEffectActivationCost`` (split.js line 716166)
+        """
+        step: AllianceTowerEffectActivationDef | None = None
+        for row in self.alliance_tower_effect_activations.values():
+            if seconds_until_revival < row.remaining_seconds and (
+                step is None or row.remaining_seconds < step.remaining_seconds
+            ):
+                step = row
+        return step.cost_rubies if step is not None else 0
+
+    def alliance_tower_by_victories(self, victory_count: int) -> AllianceTowerDef | None:
+        """
+        The alliance tower level ``victory_count`` victories reach: the last row with the most victories at most
+        that many; None for none.
+
+        Client: ``CastleAllianceBattleGroundData.getTowerInfoByCountVictory`` (split.js line 716047)
+        """
+        found, most = None, 0
+        for row in self.alliance_towers.values():
+            if most <= row.victory_count <= victory_count:
+                found, most = row, row.victory_count
+        return found
+
+    def alliance_tower_by_level(self, level: int) -> AllianceTowerDef | None:
+        """
+        The first alliance tower row of ``level``; None for none.
+
+        Client: ``CastleAllianceBattleGroundData.getTowerInfoByCountLevel`` (split.js line 716061)
+        """
+        return next((row for row in self.alliance_towers.values() if row.level == level), None)
+
+    def horizon_dungeon_max_level(self, scoring_id: HorizonScoringId) -> int:
+        """
+        The highest robber baron level in a Beyond the Horizon scoring, at least 1.
+
+        Client: ``CastleAllianceBattleGroundData.getDungeonMaxLevel`` (split.js line 715815), for the running event's
+        scoring
+        """
+        return max([1, *(row.level for row in self.horizon_dungeons.values() if row.scoring_id == scoring_id)])
+
+    def horizon_dungeon_by_victories(
+        self, scoring_id: HorizonScoringId, victory_count: int
+    ) -> HorizonDungeonDef | None:
+        """
+        A Beyond the Horizon robber baron's row by your victories over it: the first row of the scoring with that
+        many, else the scoring's highest level; None when the scoring has no rows.
+
+        Client: ``CastleAllianceBattleGroundData.getDungeonVOByVictoryCount`` (split.js line 715832), for the running
+        event's scoring
+        """
+        highest: HorizonDungeonDef | None = None
+        for row in self.horizon_dungeons.values():
+            if row.scoring_id != scoring_id:
+                continue
+            if highest is None or highest.level < row.level:
+                highest = row
+            if row.victory_count == victory_count:
+                return row
+        return highest
+
+    def horizon_dungeon_by_level(self, scoring_id: HorizonScoringId, level: int) -> HorizonDungeonDef | None:
+        """
+        A Beyond the Horizon robber baron's row by level, a level above the scoring's highest read as the highest;
+        None for none.
+
+        Client: ``CastleAllianceBattleGroundData.getDungeonVOByDungeonLevel`` (split.js line 715852), for the running
+        event's scoring
+        """
+        level = min(level, self.horizon_dungeon_max_level(scoring_id))
+        return next(
+            (row for row in self.horizon_dungeons.values() if row.scoring_id == scoring_id and row.level == level),
+            None,
+        )
+
+    def horizon_dungeon_skip_cost(
+        self, scoring_id: HorizonScoringId, victory_count: int, cooldown_seconds: float
+    ) -> int | None:
+        """
+        Rubies to skip the ``cooldown_seconds`` left of a Beyond the Horizon robber baron's cooldown, at least 1;
+        None when the scoring has no robber barons, where the client fails.
+
+        Client: ``CastleAllianceBattleGroundData.getDungeonSkipCost`` (split.js line 715874)
+        """
+        row = self.horizon_dungeon_by_victories(scoring_id, victory_count)
+        if row is None:
+            return None
+        return js_int(max(1, row.skip_cost * cooldown_seconds / 180 / 60))
+
+    def horizon_rank_rewards_of_set(self, reward_set_id: HorizonRewardSetId) -> tuple[HorizonRankRewardDef, ...]:
+        """
+        The end rewards of a Beyond the Horizon reward set, in table order.
+
+        Client: ``CastleAllianceBattleGroundData.getRewardsByRewardSetID`` (split.js line 715676)
+        """
+        return tuple(row for row in self.horizon_rank_rewards.values() if row.reward_set_id == reward_set_id)
 
     # ------------------------------------------------------------------
     # Lookups

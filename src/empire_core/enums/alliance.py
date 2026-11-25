@@ -47,6 +47,36 @@ _RANK_TEXT_NUMBERS = {
 }
 
 
+class AllianceRight(IntEnum):
+    """
+    Something only some alliance ranks may do; ``GameData.alliance_rights`` says which.
+
+    ``HANDLE_SERGEANT`` is the client's ``RIGHT_HANDLE_SEAGANT``. The items' right 17 has no constant and stays a
+    plain int.
+
+    Client: ``AllianceConst.RIGHT_*`` (ggs.dll.js line 237)
+    """
+
+    HANDLE_DEPUTY = 0
+    RENAME = 1
+    DELETE = 2
+    NEW_LEADER = 3
+    HANDLE_GENERAL = 4
+    HANDLE_SERGEANT = 5
+    DESCRIPTION = 6
+    DIPLOMACY = 7
+    UPGRADE = 8
+    INVITE = 9
+    KICK_MEMBER = 10
+    ANNOUNCEMENT = 11
+    NEWSLETTER = 12
+    AUTO_WAR = 13
+    ACCEPT_APPLICATIONS = 14
+    MANAGE_BOOKMARKS = 15
+    EMBLEM = 16
+    CHANGE_LANGUAGE = 18
+
+
 class DiplomacyStatus(IntEnum):
     """
     An alliance's standing with another alliance.

@@ -41,6 +41,17 @@ class JadeScoringPhase(IntEnum):
     PHASE_2 = 2
 
 
+class HorizonPhaseTriggerType(IntEnum):
+    """
+    What starts the next phase of a Beyond the Horizon run.
+
+    Client: ``ABGPhaseTriggerVO.TYPE_TIMER`` and ``TYPE_CITADEL_CONDITION`` (split.js lines 156086-156087)
+    """
+
+    TIMER = 1
+    CITADEL_CONDITION = 2
+
+
 class HorizonEntryConditionType(Enum):
     """
     A kind of condition for entering Beyond the Horizon that you do not meet yet.
