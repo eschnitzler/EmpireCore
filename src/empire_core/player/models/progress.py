@@ -42,7 +42,15 @@ from empire_core.protocol.base import (
     object_or_none,
     readable_list,
 )
-from empire_core.protocol.js import ClientInt, ClientNumber, js_int, js_loose_equals, js_parse_int, js_truthy
+from empire_core.protocol.js import (
+    ClientInt,
+    ClientIntOf,
+    ClientNumber,
+    js_int,
+    js_loose_equals,
+    js_parse_int,
+    js_truthy,
+)
 
 if TYPE_CHECKING:
     from empire_core.gamedata import Achievement, Feast, Title
@@ -595,9 +603,9 @@ class AchievementProgress(BasePayload):
 
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
-    achievement_id: Annotated[
-        Literal[0] | EnumOrInt["Achievement"], Field(union_mode="left_to_right"), BeforeValidator(js_int)
-    ] = Field(validation_alias="AID", default=0, description="The achievement; 0 when not sent")
+    achievement_id: ClientIntOf[Annotated[Literal[0] | EnumOrInt["Achievement"], Field(union_mode="left_to_right")]] = (
+        Field(validation_alias="AID", default=0, description="The achievement; 0 when not sent")
+    )
     progress: Numbers = Field(
         validation_alias="P",
         default=(),

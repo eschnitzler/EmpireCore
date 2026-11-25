@@ -18,7 +18,7 @@ from pydantic import BeforeValidator, Field
 
 from empire_core.castle.models.details import CastleProductionArea
 from empire_core.gamedata import EnumOrInt, UnitOrTool, WodAmounts, WodAmountSlots, WodAmountSlotsInput
-from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, object_or_none
+from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, OptionalBlock
 from empire_core.protocol.js import js_int
 
 if TYPE_CHECKING:
@@ -29,7 +29,7 @@ BUY_UNIT_PACKAGE_SK = 73
 default; nothing in the client reads it or says what it means."""
 
 
-ProductionAreaBlock = Annotated[CastleProductionArea | None, BeforeValidator(object_or_none)]
+ProductionAreaBlock = OptionalBlock[CastleProductionArea]
 """A reply's ``gpa``, which the client hands to ``AreaDataUpdater.parseGPA`` (bundle line 659045)."""
 
 
@@ -90,7 +90,7 @@ class GetUnitsResponse(BaseResponse, UnitInventory):
     command = "gui"
 
 
-UnitInventoryBlock = Annotated[UnitInventory | None, BeforeValidator(object_or_none)]
+UnitInventoryBlock = OptionalBlock[UnitInventory]
 
 
 # =============================================================================

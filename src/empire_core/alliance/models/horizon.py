@@ -45,7 +45,7 @@ from empire_core.map.models.items import MapAreaItem, parse_area_rows
 from empire_core.map.models.owners import OwnerCrest
 from empire_core.movements.models.movement import NO_HORSE, HorseBoosterId, SentMovementResponse
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, EmpireModel, readable_list
-from empire_core.protocol.js import ClientInt, js_int, js_truthy, movement_targets
+from empire_core.protocol.js import ClientInt, ClientIntOf, js_int, js_truthy, movement_targets
 
 if TYPE_CHECKING:
     from empire_core.gamedata.ids import AllianceTowerEffect, Building, Effect
@@ -972,7 +972,7 @@ class OasisSettlementResponse(BaseResponse):
 
     x: ClientInt = Field(validation_alias="X", default=0, description="Its map x")
     y: ClientInt = Field(validation_alias="Y", default=0, description="Its map y")
-    settlement_id: Annotated[OasisSettlementId, BeforeValidator(js_int)] = Field(
+    settlement_id: ClientIntOf[OasisSettlementId] = Field(
         validation_alias="TCI",
         default=OasisSettlementId(0),
         description="Its level's row, a GameData.oasis_settlements row",

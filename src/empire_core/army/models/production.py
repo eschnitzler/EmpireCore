@@ -24,7 +24,7 @@ from empire_core.castle.models.resources import CastleResources
 from empire_core.enums import Kingdom, ProductionListId, RecruitmentMode, SlotType
 from empire_core.gamedata import UnitOrTool
 from empire_core.gamedata.lenient import EnumOrInt
-from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, CurrencyBlock, object_or_none
+from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, CurrencyBlock, OptionalBlock
 from empire_core.protocol.js import ParseInt, js_int, js_loose_equals, js_number, js_same_number, js_truthy
 
 from .units import BUY_UNIT_PACKAGE_SK, UnitInventoryBlock
@@ -272,8 +272,8 @@ class ProductionList(BasePayload):
         return data
 
 
-ProductionListBlock = Annotated[ProductionList | None, BeforeValidator(object_or_none)]
-ResourcesBlock = Annotated[CastleResources | None, BeforeValidator(object_or_none)]
+ProductionListBlock = OptionalBlock[ProductionList]
+ResourcesBlock = OptionalBlock[CastleResources]
 
 
 # =============================================================================
@@ -374,7 +374,7 @@ class ProduceUnitsResponse(BaseResponse):
     unit_inventory: UnitInventoryBlock = Field(
         validation_alias="gui", default=None, description="The units after; None when the reply has none"
     )
-    added_unit: Annotated[AddedUnit | None, BeforeValidator(object_or_none)] = Field(
+    added_unit: OptionalBlock[AddedUnit] = Field(
         validation_alias="O",
         default=None,
         description="Units put straight into the inventory; None when there are none",

@@ -31,7 +31,7 @@ from empire_core.protocol.base import (
     int_entries,
     readable_list,
 )
-from empire_core.protocol.js import ClientInt, js_int, js_loose_equals, js_parse_int, js_truthy
+from empire_core.protocol.js import ClientInt, ClientIntOf, js_loose_equals, js_parse_int, js_truthy
 
 from .equipment import Equipment, EquipmentBonus
 
@@ -245,8 +245,7 @@ class LeaderBase(BasePayload):
         ),
     )
     general_id: (
-        Annotated[Literal[-1, 0] | EnumOrInt["General"], Field(union_mode="left_to_right"), BeforeValidator(js_int)]
-        | None
+        ClientIntOf[Annotated[Literal[-1, 0] | EnumOrInt["General"], Field(union_mode="left_to_right")]] | None
     ) = Field(
         validation_alias="GID",
         default=None,

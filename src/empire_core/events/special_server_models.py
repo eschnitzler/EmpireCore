@@ -13,14 +13,14 @@ Commands:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Literal
+from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
-from pydantic import BeforeValidator, Field, field_serializer, field_validator, model_validator
+from pydantic import Field, field_serializer, field_validator, model_validator
 
 from empire_core.enums import ServerType
 from empire_core.gamedata import EnumOrInt, HorizonSettingId, OuterRealmsSettingId
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, TimedPayload
-from empire_core.protocol.js import ClientInt, ClientNumber, js_int, js_loose_equals, js_truthy
+from empire_core.protocol.js import ClientInt, ClientIntOf, ClientNumber, js_int, js_loose_equals, js_truthy
 
 if TYPE_CHECKING:
     from empire_core.gamedata import Effect, PrebuiltCastle
@@ -290,7 +290,7 @@ class PreviousOuterRealmsRun(PreviousSpecialServerRun):
     ``tempServerData.getConfigVOByID``
     """
 
-    setting_id: Annotated[OuterRealmsSettingId, BeforeValidator(js_int)] = Field(
+    setting_id: ClientIntOf[OuterRealmsSettingId] = Field(
         validation_alias="TSID",
         default=OuterRealmsSettingId(0),
         description="The run's settings, a GameData.outer_realms_settings row",
@@ -305,7 +305,7 @@ class PreviousHorizonRun(PreviousSpecialServerRun):
     ``allianceBattlegroundData.getConfigVOByID``
     """
 
-    setting_id: Annotated[HorizonSettingId, BeforeValidator(js_int)] = Field(
+    setting_id: ClientIntOf[HorizonSettingId] = Field(
         validation_alias="TSID",
         default=HorizonSettingId(0),
         description="The run's settings, a GameData.horizon_settings row",

@@ -9,15 +9,15 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Annotated, Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
-from pydantic import BeforeValidator, Field, field_validator
+from pydantic import Field, field_validator
 
 from empire_core.enums import AllianceBuffType, AllianceChronicleAction, DiplomacyStatus
 from empire_core.gamedata import DaimyoContractId, GameData
 from empire_core.gamedata.lenient import EnumOrInt, known
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, readable_list
-from empire_core.protocol.js import ClientInt, js_int, js_loose_equals, js_number_or_none, js_parse_int, js_string
+from empire_core.protocol.js import ClientInt, ClientIntOf, js_loose_equals, js_number_or_none, js_parse_int, js_string
 from empire_core.texts import PlainText, has_text, text
 
 if TYPE_CHECKING:
@@ -382,7 +382,7 @@ class AllianceChronicleEntry(BasePayload):
     player_id: ClientInt = Field(validation_alias="PID", default=0, description="The player the entry is about")
     player_name: str | None = Field(validation_alias="PN", default=None, description="The player's name")
     seconds_ago: ClientInt = Field(validation_alias="MA", default=0, description="Seconds since the action")
-    action: Annotated[EnumOrInt[AllianceChronicleAction], BeforeValidator(js_int)] = Field(
+    action: ClientIntOf[EnumOrInt[AllianceChronicleAction]] = Field(
         validation_alias="A",
         default=AllianceChronicleAction.MEMBER_JOIN,
         description="What happened",

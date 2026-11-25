@@ -11,13 +11,11 @@ Commands:
 
 from __future__ import annotations
 
-from typing import Annotated
-
-from pydantic import BeforeValidator, Field
+from pydantic import Field
 
 from empire_core.castle.models.details import CastleProductionArea
 from empire_core.enums import BoosterId
-from empire_core.protocol.base import BaseRequest, BaseResponse, CurrencyBlock, object_or_none
+from empire_core.protocol.base import BaseRequest, BaseResponse, CurrencyBlock, OptionalBlock
 
 from .progress import BoosterInfoResponse
 
@@ -130,7 +128,7 @@ class HireResponse(BaseResponse):
     """
 
     currencies: CurrencyBlock = Field(validation_alias="gcu", default=None, description="Coins and rubies after")
-    boosts: Annotated[BoosterInfoResponse | None, BeforeValidator(object_or_none)] = Field(
+    boosts: OptionalBlock[BoosterInfoResponse] = Field(
         validation_alias="boi", default=None, description="The boosters after; None when the reply has none"
     )
 
@@ -146,7 +144,7 @@ class HireInstructorResponse(HireResponse):
 
     command = "bis"
 
-    production_area: Annotated[CastleProductionArea | None, BeforeValidator(object_or_none)] = Field(
+    production_area: OptionalBlock[CastleProductionArea] = Field(
         validation_alias="gpa",
         default=None,
         description="The joined castle's production area after; None when the reply has none",

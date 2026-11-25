@@ -580,6 +580,10 @@ def object_or_none(value: Any) -> Any:
     return value if isinstance(value, (dict, pydantic.BaseModel)) else None
 
 
+OptionalBlock = Annotated[T | None, BeforeValidator(object_or_none)]
+"""``OptionalBlock[M]``: a reply block read as ``M``, or None when it is missing or not an object."""
+
+
 def list_or_empty(value: Any) -> Any:
     """A reply value that is an array, else no entries."""
     return value if isinstance(value, list) else []
@@ -694,7 +698,7 @@ class CurrencyTotals(BasePayload):
         return value if isinstance(value, (int, float)) and not isinstance(value, bool) else None
 
 
-CurrencyBlock = Annotated[CurrencyTotals | None, BeforeValidator(object_or_none)]
+CurrencyBlock = OptionalBlock[CurrencyTotals]
 """A ``gcu`` block, or None when a reply sends none or something that is not an object."""
 
 
@@ -744,6 +748,7 @@ __all__ = [
     "int_entries",
     "list_or_empty",
     "object_or_none",
+    "OptionalBlock",
     "read_or_none",
     "readable_list",
     # Response registry

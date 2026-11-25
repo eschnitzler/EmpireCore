@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Annotated, Any, NamedTuple, Protocol, TypeAlia
 
 from pydantic import BeforeValidator, PlainSerializer, TypeAdapter
 
-from empire_core.protocol.js import js_int
+from empire_core.protocol.js import ClientInt, js_int
 
 from .lenient import EnumOrInt
 
@@ -91,7 +91,7 @@ class WodAmount(NamedTuple):
 
     item: Annotated[UnitOrTool | None, BeforeValidator(_wod_id)]
     """The unit or tool; None for an empty slot."""
-    amount: Annotated[int, BeforeValidator(js_int)] = 0
+    amount: ClientInt = 0
     """How many."""
 
     @property

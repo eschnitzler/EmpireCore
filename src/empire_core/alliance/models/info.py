@@ -26,6 +26,7 @@ from empire_core.protocol.base import (
 )
 from empire_core.protocol.js import (
     ClientInt,
+    ClientIntOf,
     ParseInt,
     js_floor,
     js_int,
@@ -270,7 +271,7 @@ class CrestLayout(BasePayload):
     )
     seconds_left: int | float = Field(validation_alias="ACLET", default=0, description="Seconds until the layout ends")
     is_active: bool = Field(validation_alias="ACIA", default=False, description="The layout is the one in use")
-    color_ids: tuple[Annotated[EnumOrInt["AllianceCrestColor"], BeforeValidator(js_int)], ...] | None = Field(
+    color_ids: tuple[ClientIntOf[EnumOrInt["AllianceCrestColor"]], ...] | None = Field(
         validation_alias="ACLCS",
         default=None,
         description="The layout's colours, as ACCS names them; None when unsent",

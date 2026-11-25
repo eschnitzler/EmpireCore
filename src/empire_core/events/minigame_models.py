@@ -22,13 +22,10 @@ from empire_core.gamedata import (
 )
 from empire_core.gamedata.ids.events import Event
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, CurrencyBlock
-from empire_core.protocol.js import ClientInt, js_int, js_number, js_truthy
+from empire_core.protocol.js import ClientInt, ClientIntOf, js_int, js_number, js_truthy
 from empire_core.ranking.event_models import GetColossusHighscoreResponse
 
 _Truthy = Annotated[bool, BeforeValidator(js_truthy)]
-_WinClassId = Annotated[WheelOfFortuneWinClassId, BeforeValidator(js_int)]
-_RewardSetId = Annotated[WheelOfFortuneRewardSetId, BeforeValidator(js_int)]
-_DonationItemId = Annotated[DonationItemId, BeforeValidator(js_int)]
 
 
 def _first_int(value: Any) -> int | None:
@@ -119,16 +116,16 @@ class WheelOfFortuneStatus(BaseResponse):
     )
     has_free_spin: _Truthy = Field(default=False, validation_alias="HFS", description="Whether a free spin is waiting")
     pro_mode: _Truthy = Field(default=False, validation_alias="PMA", description="Whether the pro mode is on")
-    win_class: _WinClassId = Field(
+    win_class: ClientIntOf[WheelOfFortuneWinClassId] = Field(
         default=WheelOfFortuneWinClassId(0), validation_alias="CWC", description="The wheel's current win class"
     )
     win_class_progress: float = Field(
         default=0.0, validation_alias="WCP", description="The spins made towards the next win class"
     )
-    jackpot_set_id: _RewardSetId = Field(
+    jackpot_set_id: ClientIntOf[WheelOfFortuneRewardSetId] = Field(
         default=WheelOfFortuneRewardSetId(0), validation_alias="JSID", description="The next jackpot set"
     )
-    jackpot_spin_set_id: _RewardSetId = Field(
+    jackpot_spin_set_id: ClientIntOf[WheelOfFortuneRewardSetId] = Field(
         default=WheelOfFortuneRewardSetId(0),
         validation_alias="JHID",
         description="The jackpot set of the next jackpot spin",
@@ -174,10 +171,10 @@ class WheelOfFortuneChangeModeResponse(BaseResponse):
 
     command: ClassVar[str] = "lwm"
 
-    jackpot_set_id: _RewardSetId = Field(
+    jackpot_set_id: ClientIntOf[WheelOfFortuneRewardSetId] = Field(
         default=WheelOfFortuneRewardSetId(0), validation_alias="JSID", description="The next jackpot set"
     )
-    jackpot_spin_set_id: _RewardSetId = Field(
+    jackpot_spin_set_id: ClientIntOf[WheelOfFortuneRewardSetId] = Field(
         default=WheelOfFortuneRewardSetId(0),
         validation_alias="JHID",
         description="The jackpot set of the next jackpot spin",
@@ -249,7 +246,7 @@ class GachaSpinResponse(GachaUpdate):
 
     command: ClassVar[str] = "dge"
 
-    gacha_id: Annotated[GachaId, BeforeValidator(js_int)] = Field(
+    gacha_id: ClientIntOf[GachaId] = Field(
         default=GachaId(0), validation_alias="ID", description="The gacha level pulled from, a GameData.gachas row"
     )
     pulls: tuple[GachaPull, ...] = Field(default=(), validation_alias="LTR", description="Each pull's rewards")
@@ -387,7 +384,7 @@ class DonationItemPoints(BasePayload):
     Client: ``CastleDonationEventData.parseGDTI`` (bundle line 58869)
     """
 
-    donation_item_id: _DonationItemId = Field(
+    donation_item_id: ClientIntOf[DonationItemId] = Field(
         validation_alias="DII", description="The donation item, a GameData.donation_items row"
     )
     points: ClientInt = Field(default=0, validation_alias="DIP", description="The points it has earned")

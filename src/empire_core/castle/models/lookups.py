@@ -11,14 +11,14 @@ Commands:
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Annotated, Any
+from typing import TYPE_CHECKING, Any
 
-from pydantic import BeforeValidator, Field, field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from empire_core.enums import Kingdom
 from empire_core.gamedata import EnumOrInt
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, readable_list
-from empire_core.protocol.js import ClientInt, ClientNumber, js_int, js_truthy
+from empire_core.protocol.js import ClientInt, ClientIntOf, ClientNumber, js_int, js_truthy
 
 if TYPE_CHECKING:
     from empire_core.gamedata import Building
@@ -86,7 +86,7 @@ class ShowUpgradableBuildingsResponse(BaseResponse):
 
     command = "sub"
 
-    wod_id: Annotated[EnumOrInt["Building"], BeforeValidator(js_int)] = Field(
+    wod_id: ClientIntOf[EnumOrInt["Building"]] = Field(
         validation_alias="WOD", default=-1, description="The building type asked for"
     )
     buildings: list[UpgradableBuilding] = Field(
@@ -121,7 +121,7 @@ class TransportationBuilding(BasePayload):
     Client: ``PrebuiltCastleData.parseCastleTransportationBuildings`` (bundle line 142315)
     """
 
-    wod_id: Annotated[EnumOrInt["Building"], BeforeValidator(js_int)] = Field(description="The building type")
+    wod_id: ClientIntOf[EnumOrInt["Building"]] = Field(description="The building type")
     amount: ClientInt = Field(default=0, description="How many go along")
 
     @model_validator(mode="before")

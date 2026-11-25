@@ -10,9 +10,9 @@ Commands:
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING
 
-from pydantic import BeforeValidator, Field, ValidatorFunctionWrapHandler, field_validator, model_validator
+from pydantic import Field, ValidatorFunctionWrapHandler, field_validator, model_validator
 
 from empire_core.army.models.units import UnitInventory
 from empire_core.army.spy_army import SpyArmyBlock
@@ -20,7 +20,7 @@ from empire_core.commanders.models.roster import Castellan
 from empire_core.enums import Kingdom
 from empire_core.gamedata import EnumOrInt, TreasureMapNodeId
 from empire_core.protocol.base import BaseRequest, BaseResponse, int_entries, read_or_none
-from empire_core.protocol.js import js_int
+from empire_core.protocol.js import ClientIntOf
 
 from .info import AttackInfoResponse, GetAttackInfoResponse
 
@@ -312,9 +312,7 @@ class GetTreasureNodeAttackInfoResponse(BaseResponse):
     command = "tai"
 
     map_id: EnumOrInt["TreasureMapId"] = Field(validation_alias="MID", description="The treasure map")
-    node_id: Annotated[TreasureMapNodeId, BeforeValidator(js_int)] = Field(
-        validation_alias="NID", description="The node on the treasure map"
-    )
+    node_id: ClientIntOf[TreasureMapNodeId] = Field(validation_alias="NID", description="The node on the treasure map")
     spy_army: SpyArmyBlock = Field(
         validation_alias="S",
         default=None,

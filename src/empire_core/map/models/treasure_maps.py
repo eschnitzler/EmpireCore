@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Annotated, Any, ClassVar
 
-from pydantic import BeforeValidator, ConfigDict, Field, ValidatorFunctionWrapHandler, WrapValidator, field_validator
+from pydantic import ConfigDict, Field, ValidatorFunctionWrapHandler, WrapValidator, field_validator
 
 from empire_core.enums import TreasureMapProgress
 from empire_core.gamedata import CollectableRows, EnumOrInt, TreasureMapNodeId, WodAmounts
@@ -21,11 +21,12 @@ from empire_core.protocol.base import (
     BasePayload,
     BaseRequest,
     BaseResponse,
+    OptionalBlock,
     TimedPayload,
     object_or_none,
     readable_list,
 )
-from empire_core.protocol.js import ClientInt, ClientNumber, js_int, js_loose_equals, js_truthy
+from empire_core.protocol.js import ClientInt, ClientIntOf, ClientNumber, js_int, js_loose_equals, js_truthy
 
 if TYPE_CHECKING:
     from empire_core.gamedata import TreasureMapId
@@ -47,8 +48,6 @@ TreasureMapOrNone = Annotated[EnumOrInt["TreasureMapId"], WrapValidator(_no_map_
 NO_TREASURE_MAP_NODE = TreasureMapNodeId(-1)
 """No treasure map node: what a dungeon cooldown skip names for a camp on the world map."""
 
-_NodeId = Annotated[TreasureMapNodeId, BeforeValidator(js_int)]
-
 
 class TreasureMapNode(TimedPayload):
     """
@@ -61,7 +60,7 @@ class TreasureMapNode(TimedPayload):
     the parts of the node's obstacle (``CastleTreasureMapUnlockObstacleDialog``, bundle line 67833)
     """
 
-    node_id: _NodeId = Field(
+    node_id: ClientIntOf[TreasureMapNodeId] = Field(
         validation_alias="NID", default=TreasureMapNodeId(0), description="The node on the treasure map"
     )
     defeated: bool = Field(validation_alias="A", default=False, description="Whether the node has fallen")
@@ -285,7 +284,7 @@ class TreasureMapsResponse(BaseResponse):
         return tuple(readable_list(TreasureMap, value, accept=lambda entry: isinstance(entry, dict)))
 
 
-TreasureMapsBlock = Annotated[TreasureMapsResponse | None, BeforeValidator(object_or_none)]
+TreasureMapsBlock = OptionalBlock[TreasureMapsResponse]
 """A ``tmp`` block inside another reply, or None when it sends none."""
 
 

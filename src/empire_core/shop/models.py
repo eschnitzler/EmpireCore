@@ -8,16 +8,14 @@ Commands:
 
 from __future__ import annotations
 
-from typing import Annotated
-
-from pydantic import BeforeValidator, Field, field_serializer, model_validator
+from pydantic import Field, field_serializer, model_validator
 
 from empire_core.army.models.production import ResourcesBlock
 from empire_core.castle.models.storage import DecorationStorages
 from empire_core.enums import Kingdom, PackageBuyType
 from empire_core.gamedata import PackageId
 from empire_core.player.models.account import VipStatusResponse
-from empire_core.protocol.base import BaseRequest, BaseResponse, CurrencyBlock, EmpireModel, object_or_none
+from empire_core.protocol.base import BaseRequest, BaseResponse, CurrencyBlock, EmpireModel, OptionalBlock
 from empire_core.protocol.js import ClientInt
 from empire_core.spy.models import PlagueDoctorInfoResponse
 
@@ -80,10 +78,6 @@ class BuyEventPackageRequest(BaseRequest):
         return 1 if value else 0
 
 
-_PlagueDoctors = Annotated[PlagueDoctorInfoResponse | None, BeforeValidator(object_or_none)]
-_Vip = Annotated[VipStatusResponse | None, BeforeValidator(object_or_none)]
-
-
 class BuyEventPackageResponse(BaseResponse):
     """
     What a package bought changed: your currencies, the castle's resources and units, plague doctors, decoration
@@ -112,11 +106,13 @@ class BuyEventPackageResponse(BaseResponse):
     resources: ResourcesBlock = Field(
         validation_alias="grc", default=None, description="The castle's resources after; None when the reply has none"
     )
-    plague_doctors: _PlagueDoctors = Field(
+    plague_doctors: OptionalBlock[PlagueDoctorInfoResponse] = Field(
         validation_alias="cpi", default=None, description="Your plague doctors after; None when the reply has none"
     )
     storages: DecorationStorages = Field(validation_alias="sin", default_factory=list, description="The storages after")
-    vip: _Vip = Field(validation_alias="vip", default=None, description="Your VIP after; None when the reply has none")
+    vip: OptionalBlock[VipStatusResponse] = Field(
+        validation_alias="vip", default=None, description="Your VIP after; None when the reply has none"
+    )
 
 
 class GetPackageBuyCountsRequest(BaseRequest):

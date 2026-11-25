@@ -14,9 +14,9 @@ Commands:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Literal
+from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
-from pydantic import BeforeValidator, Field, field_serializer, field_validator, model_validator
+from pydantic import Field, field_serializer, field_validator, model_validator
 
 from empire_core.enums import Kingdom
 from empire_core.events.status_models import SentEventId
@@ -30,7 +30,7 @@ from empire_core.gamedata import (
 )
 from empire_core.gamedata.ids.events import Event
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, TimedPayload, readable_list
-from empire_core.protocol.js import ClientInt, ClientNumber, js_int, js_truthy
+from empire_core.protocol.js import ClientInt, ClientIntOf, ClientNumber, js_int, js_truthy
 
 if TYPE_CHECKING:
     from empire_core.gamedata import TreasureMapId
@@ -56,7 +56,7 @@ class DaimyoArea(TimedPayload):
         validation_alias="CD", default=0, description="Seconds until the area can be attacked again when read"
     )
     cooldown_count: ClientInt = Field(validation_alias="CDC", default=0, description="How often it went on cooldown")
-    scaling_camp_id: Annotated[ScalingCampId, BeforeValidator(js_int)] = Field(
+    scaling_camp_id: ClientIntOf[ScalingCampId] = Field(
         validation_alias="DDCID",
         default=ScalingCampId(-1),
         description="The area's camp in GameData.scaling_camps, -1 without difficulty scaling",
@@ -123,7 +123,7 @@ class DaimyoContractProgress(BasePayload):
     Client: ``SamuraiDaimyoContractProgressVO.parseServerData`` (bundle line 142665)
     """
 
-    contract_id: Annotated[DaimyoContractId, BeforeValidator(js_int)] = Field(
+    contract_id: ClientIntOf[DaimyoContractId] = Field(
         default=DaimyoContractId(0),
         description="The contract, in GameData.daimyo_castle_contracts or daimyo_township_contracts as listed",
     )
@@ -250,7 +250,7 @@ class AllianceCampInfo(BasePayload):
     """
 
     event_id: SentEventId = Field(validation_alias="EID", description="The event the camp belongs to")
-    camp_id: Annotated[AllianceInvasionCampId | ScalingCampId, BeforeValidator(js_int)] = Field(
+    camp_id: ClientIntOf[AllianceInvasionCampId | ScalingCampId] = Field(
         validation_alias="ACID",
         description="The camp: a GameData.scaling_camps row when its event has a difficulty chosen, else a "
         "GameData.alliance_invasion_camps row",

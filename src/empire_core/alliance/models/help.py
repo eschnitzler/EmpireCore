@@ -15,12 +15,12 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Annotated, Any, Literal
 
-from pydantic import BeforeValidator, Field, field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from empire_core.enums import HelpType
 from empire_core.gamedata import EnumOrInt
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, enum_or_none, read_or_none, readable_list
-from empire_core.protocol.js import ClientInt, js_int, js_number_or_none, js_truthy
+from empire_core.protocol.js import ClientInt, ClientIntOf, js_int, js_number_or_none, js_truthy
 
 if TYPE_CHECKING:
     from empire_core.gamedata import Building
@@ -276,12 +276,12 @@ class AllianceHelpReceived(BaseResponse):
         description="The helping players' names: one, or every member who helped the request together",
     )
     list_id: ClientInt = Field(validation_alias="LID", default=0, description="Your request's id")
-    building_wod_id: Annotated[
-        Literal[0] | EnumOrInt["Building"], Field(union_mode="left_to_right"), BeforeValidator(js_int)
-    ] = Field(
-        validation_alias="WID",
-        default=0,
-        description="The helped building's type; 0 for none",
+    building_wod_id: ClientIntOf[Annotated[Literal[0] | EnumOrInt["Building"], Field(union_mode="left_to_right")]] = (
+        Field(
+            validation_alias="WID",
+            default=0,
+            description="The helped building's type; 0 for none",
+        )
     )
 
     @field_validator("helper_names", mode="before")

@@ -20,7 +20,7 @@ from empire_core.enums import GGEError, Kingdom, ProductionListId
 from empire_core.gamedata import UnitOrTool
 from empire_core.gamedata.lenient import EnumOrInt
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, list_or_empty
-from empire_core.protocol.js import ClientInt, js_int
+from empire_core.protocol.js import ClientInt, ClientIntOf
 
 from .production import ProductionSlot
 
@@ -178,11 +178,11 @@ class RecruitmentCopyTarget(RecruitmentCosts):
         validation_alias="LID", default=ProductionListId.SOLDIERS, description="The list"
     )
     castle_id: ClientInt = Field(validation_alias="AID", default=0, description="The castle")
-    kingdom: Annotated[Kingdom, BeforeValidator(js_int)] = Field(
+    kingdom: ClientIntOf[Kingdom] = Field(
         validation_alias="SID", default=Kingdom.GREEN, description="The castle's kingdom"
     )
     castle_name: str = Field(validation_alias="CN", default="", description="The castle's name")
-    refusal: Annotated[EnumOrInt[GGEError], BeforeValidator(js_int)] = Field(
+    refusal: ClientIntOf[EnumOrInt[GGEError]] = Field(
         validation_alias="EID",
         default=GGEError.ALL_OK,
         description="Why the castle cannot take the copy, ALL_OK when it can",
