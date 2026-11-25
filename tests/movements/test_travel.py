@@ -5,10 +5,12 @@ from pathlib import Path
 
 import pytest
 
-from empire_core.enums import MapItemType, SpyType
+from empire_core.enums import Kingdom, MapItemType, SpyType
 from empire_core.gamedata import GameData, HorseStats, ToolStats, UnitStats, VipLevelDef
+from empire_core.map.models.items import MapAreaItem
 from empire_core.movements import (
     attack_travel_time,
+    conquest_travel_speed,
     corrected_attack_distance,
     low_level_boost,
     lowest_travel_speed,
@@ -18,6 +20,7 @@ from empire_core.movements import (
     support_travel_time,
     trade_capacity,
     trade_travel_time,
+    travel_distance,
     travel_time,
     travel_time_with_horse,
     troop_speed,
@@ -33,7 +36,11 @@ GAME_DATA = GameData.parse(
         "levelBoosters": [
             {"boosterType": "11", "level": str(level), "costC2": "0", "boostPercentage": str(percent)}
             for level, percent in enumerate(CARAVAN_PERCENTS)
-        ]
+        ],
+        "specialcamps": [
+            {"specialcampID": camp, "type": "DUNGEON", "distance": str(distance)}
+            for camp, distance in CLIENT["distance_camps"].items()
+        ],
     },
 )
 
@@ -188,3 +195,53 @@ def test_trade_capacity_is_per_carriage_times_carriages():
 def test_an_unknown_caravan_overloader_level_raises():
     with pytest.raises(KeyError):
         resources_per_carriage(22, game_data=GAME_DATA)
+
+
+def test_travel_distance_matches_the_client():
+    for row in CLIENT["distance"]:
+        source_type, sx, sy, target_type, tx, ty, kingdom, camp, width, collector, berimond, rank_swap, expected = row
+        target_kind = MapItemType(target_type)
+        source = MapAreaItem(item_type=MapItemType(source_type), x=sx, y=sy, kingdom=Kingdom(kingdom))
+        target = MapAreaItem(
+            item_type=target_kind,
+            x=tx,
+            y=ty,
+            kingdom=Kingdom(kingdom),
+            special_camp_id=camp
+            if target_kind in (MapItemType.BERIMOND_WATCHTOWER, MapItemType.BERIMOND_CAPITAL)
+            else None,
+        )
+        distance = travel_distance(
+            source,
+            target,
+            width,
+            collector_attack=collector,
+            outer_realms_rank_swap=rank_swap,
+            berimond_event_running=berimond,
+            game_data=GAME_DATA,
+        )
+        assert distance == expected, row
+
+
+def test_a_berimond_camp_without_a_distance_raises():
+    source = MapAreaItem(item_type=MapItemType.BERIMOND_CAMP, x=3, y=4)
+    tower = MapAreaItem(item_type=MapItemType.BERIMOND_WATCHTOWER, x=9, y=9, special_camp_id=91)
+
+    with pytest.raises(KeyError):
+        travel_distance(source, tower, 650, game_data=GAME_DATA)
+
+
+@pytest.mark.parametrize(
+    ("kind", "area_type"),
+    [
+        ("capital", MapItemType.CAPITAL),
+        ("metropolis", MapItemType.TRADING_METROPOLIS),
+        ("outpost", MapItemType.OUTPOST),
+        ("outpost", MapItemType.BERIMOND_CAMP),
+    ],
+)
+def test_conquest_travel_speed_matches_the_client(kind, area_type):
+    rows = [row for row in CLIENT["conquest_speed"] if row[0] == kind]
+    assert rows
+    for _, lowest, expected in rows:
+        assert conquest_travel_speed(lowest, area_type) == expected

@@ -393,5 +393,19 @@ per_carriage = resources_per_carriage(overloader.level if overloader else 0)
 carriages carry together. Bonuses from effects (commander equipment, research,
 titles, alliance buffs) are arguments in percent.
 
+`travel_distance(source, target, map_width)` measures the distance between two
+map rows as the game does: event camps, Beyond the Horizon towers and portals
+are fixed distances, Berimond targets take their camp's distance from the game
+data, and everything else is the straight line the short way round the map.
+A conquest travels at `conquest_travel_speed(speed, target_area_type)`, the
+army's speed capped at 5 for a capital or trading metropolis and 2 otherwise:
+
+```python
+width = client.map.map_size(target.kingdom).width
+distance = travel_distance(source, target, width)
+speed = conquest_travel_speed(lowest_travel_speed(troops), target.item_type)
+seconds = attack_travel_time(speed, distance, target.item_type, player_level=70)
+```
+
 **API:** [`MovementsService`](../reference/movements.md#empire_core.movements.service.MovementsService),
 [`Movement`](../reference/movements.md#empire_core.movements.tracked.Movement)
