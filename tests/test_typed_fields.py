@@ -185,6 +185,7 @@ GAME_DATA_SCALAR_IDS: dict[str, str] = {
     "gamedata.tables.QuestDef.series_id": "quest series have no table",
     "gamedata.tables.ResearchDef.group_id": "research groups have no table",
     "gamedata.tables.OasisSettlementDef.settlement_type_id": "oasis settlement kinds have no table",
+    "gamedata.tables.PalaceFortressDef.fortress_type_id": "palace fortress kinds have no table",
     "gamedata.tables.OasisSettlementDef.trade_group_id": "trade groups group oasis_trades rows; no table",
     "gamedata.tables.OasisTradeDef.trade_group_id": "trade groups group oasis_trades rows; no table",
 }

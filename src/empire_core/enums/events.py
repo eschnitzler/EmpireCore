@@ -51,6 +51,21 @@ class HorizonEntryConditionType(Enum):
     BUILDINGS = "BUILDINGS"
 
 
+class HorizonScoring(str, Enum):
+    """
+    The season a Beyond the Horizon run plays, by the name the game shows it.
+
+    Client: ``AllianceBattleGroundScoringVO.SCORING_SYSTEM_ALLIANCE_COLLECTOR``, ``SCORING_SYSTEM_ALLIANCE_TOWER`` and
+    ``SCORING_SYSTEM_ALLIANCE_JADE`` (split.js lines 95836-95841); names from the
+    ``dialog_beyondTheHorizon_main_journey_subtitle_AllianceCollector``, ``..._AllianceTower`` and
+    ``beyondTheHorizon_eventName_short_title_AllianceJade`` texts
+    """
+
+    SECRET_CITIES = "AllianceCollector"
+    WAR_OF_THE_TOUCAN_GODS = "AllianceTower"
+    JADE_DESERT = "AllianceJade"
+
+
 class BerimondFaction(IntEnum):
     """
     A side of the Battle for Berimond, by the name the game shows it: the blue House of Ursidae and the red House of

@@ -25,6 +25,7 @@ from empire_core.enums import (
     BuildingGroup,
     CollectableKind,
     EquipmentSlot,
+    HorizonScoring,
     Kingdom,
     MapItemType,
     QuestConditionType,
@@ -187,6 +188,14 @@ describes."""
 BerimondInvasionCampId = NewType("BerimondInvasionCampId", int)
 """The id of a ``factioninvasioncamps`` row, one faction's Berimond invasion camp at one level, that
 :attr:`GameData.berimond_invasion_camps` describes."""
+
+PalaceFortressId = NewType("PalaceFortressId", int)
+"""The id of a ``resourceCamps`` row, a Beyond the Horizon Palace Fortress level that :attr:`GameData.palace_fortresses`
+describes."""
+
+HorizonScoringId = NewType("HorizonScoringId", int)
+"""The id of an ``allianceBattleGroundScorings`` row, the season a Beyond the Horizon run plays, that
+:attr:`GameData.horizon_scorings` describes."""
 
 RewardSetId = NewType("RewardSetId", int)
 """The reward set a league score event's ``RSID`` names: which :attr:`GameData.league_type_events` rows give its
@@ -3175,7 +3184,6 @@ def _float_column(value: object, default: float) -> float:
 class OasisSettlementDef(_Row):
     """
     One level of a Beyond the Horizon Oasis Settlement: the trades it offers, its cooldown and the army it takes.
-    Its ``allianceBattleGroundScoringID`` is not read: the scorings table is not loaded.
 
     Client: ``TradingCampVO.parseXML`` (split.js line 717363), keyed by ``tradingCampID`` in
     ``ABGJadeCampData.parseXML`` (split.js line 717136)
@@ -3202,6 +3210,11 @@ class OasisSettlementDef(_Row):
     speed_multiplier: float = Field(
         validation_alias="speedMultiplier", default=1.0, description="Factor on the travel speed to it"
     )
+    scoring_id: HorizonScoringId = Field(
+        validation_alias="allianceBattleGroundScoringID",
+        default=HorizonScoringId(0),
+        description="The season it is part of, a horizon_scorings row",
+    )
 
     @field_validator("settlement_id", mode="before")
     @classmethod
@@ -3215,7 +3228,7 @@ class OasisSettlementDef(_Row):
 
     @field_validator(
         "settlement_type_id", "level", "max_level", "trade_group_id", "cooldown_seconds", "resource_limit",
-        "max_army_size", mode="before",
+        "max_army_size", "scoring_id", mode="before",
     )  # fmt: skip
     @classmethod
     def _int_column(cls, value: object) -> int:
@@ -3276,6 +3289,100 @@ class OasisTradeDef(_Row):
         "trade_group_id", "main_reward_id", "secondary_reward_id", "resource_consumed", "loot_capacity_cost",
         mode="before",
     )  # fmt: skip
+    @classmethod
+    def _int_column(cls, value: object) -> int:
+        return _parse_int_or_default(value, 0)
+
+
+class PalaceFortressDef(_Row):
+    """
+    One level of a Beyond the Horizon Palace Fortress: the jade it holds to loot and its cooldown.
+
+    Client: ``ResourceCampVO.parseXML`` (split.js line 717244), keyed by ``resourceCampID`` in
+    ``ABGJadeCampData.parseXML`` (split.js line 717136)
+    """
+
+    fortress_id: PalaceFortressId = Field(validation_alias="resourceCampID", description="The fortress level")
+    name: str = Field(default="", description="The row's internal name")
+    fortress_type_id: int = Field(
+        validation_alias="resourceCampTypeID", default=0, description="The fortress kind its levels share"
+    )
+    level: int = Field(default=0, description="Its level")
+    loot_currency_id: GameDataId["CurrencyId"] = Field(
+        validation_alias="lootPoolCurrencyID", default=0, description="The currency its loot pool holds"
+    )
+    loot_pool_capacity: int = Field(
+        validation_alias="lootPoolCapacity", default=0, description="The most its loot pool holds"
+    )
+    cooldown_seconds: int = Field(
+        validation_alias="cooldownSeconds", default=0, description="Seconds before it can be attacked again"
+    )
+    travel_cost_multiplier: float = Field(
+        validation_alias="travelCostMultiplier", default=1.0, description="Factor on the travel cost to it"
+    )
+    speed_multiplier: float = Field(
+        validation_alias="speedMultiplier", default=1.0, description="Factor on the travel speed to it"
+    )
+    scoring_id: HorizonScoringId = Field(
+        validation_alias="allianceBattleGroundScoringID",
+        default=HorizonScoringId(0),
+        description="The season it is part of, a horizon_scorings row",
+    )
+
+    @field_validator("fortress_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def _text_column(cls, value: object) -> str:
+        return _text(value)
+
+    @field_validator(
+        "fortress_type_id", "level", "loot_currency_id", "loot_pool_capacity", "cooldown_seconds", "scoring_id",
+        mode="before",
+    )  # fmt: skip
+    @classmethod
+    def _int_column(cls, value: object) -> int:
+        return _parse_int_or_default(value, 0)
+
+    @field_validator("travel_cost_multiplier", "speed_multiplier", mode="before")
+    @classmethod
+    def _number(cls, value: object) -> float:
+        return _float_column(value, 1.0)
+
+
+class HorizonScoringDef(_Row):
+    """
+    The season a Beyond the Horizon run plays and the shares its scoring takes.
+
+    Client: ``AllianceBattleGroundScoringVO.parseXML`` (split.js line 95813), keyed by ``scoringID`` in
+    ``CastleAllianceBattleGroundData`` (split.js line 715613)
+    """
+
+    scoring_id: HorizonScoringId = Field(validation_alias="scoringID", description="The scoring")
+    scoring: GameDataKey[HorizonScoring] = Field(description="The season it plays")
+    metropolis_decay: int = Field(validation_alias="metropolisDecay", default=0, description="Its metropolis decay")
+    royal_tower_decay: int = Field(validation_alias="kingstowerDecay", default=0, description="Its royal tower decay")
+    player_steal: int = Field(validation_alias="playerSteal", default=0, description="Its player steal")
+    alliance_steal: int = Field(
+        validation_alias="allianceSteal",
+        default=0,
+        description="Percent of what a capital last gave that an attack on it takes",
+    )
+
+    @field_validator("scoring_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator("scoring", mode="before")
+    @classmethod
+    def _text_column(cls, value: object) -> str:
+        return _text(value, "0")
+
+    @field_validator("metropolis_decay", "royal_tower_decay", "player_steal", "alliance_steal", mode="before")
     @classmethod
     def _int_column(cls, value: object) -> int:
         return _parse_int_or_default(value, 0)
@@ -3598,7 +3705,11 @@ __all__ = [
     "BerimondInvasionCampDef",
     "BerimondInvasionCampId",
     "EventCampDef",
+    "HorizonScoringDef",
+    "HorizonScoringId",
     "InvasionCampDef",
+    "PalaceFortressDef",
+    "PalaceFortressId",
     "AllianceTowerEffectDef",
     "FeastDef",
     "CitadelLevelDef",

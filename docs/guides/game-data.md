@@ -78,7 +78,10 @@ Each event camp kind has its own table, keyed as the game looks its rows up:
 `nomad_camps` and `samurai_camps` by camp level, `berimond_invasion_camps` by
 row id (`berimond_invasion_camp(level, faction_id)` finds a camp's row) and
 `alliance_invasion_camps` by `AllianceInvasionCampId`. Pass a row to
-`empire_core.combat.event_camp_defense` for what defends it.
+`empire_core.combat.event_camp_defense` for what defends it. Beyond the
+Horizon's Jade Desert adds `palace_fortresses`, `oasis_settlements` and
+`oasis_trades`; a fortress or settlement names its season in
+`horizon_scorings` by `scoring_id`.
 `raw("bossdungeons")` returns a table that is not modeled yet, exactly as the
 items file has it.
 

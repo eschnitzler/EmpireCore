@@ -10,6 +10,7 @@ from empire_core.enums import (
     BuildingGroup,
     CollectableKind,
     EquipmentSlot,
+    HorizonScoring,
     Kingdom,
     MapItemType,
     PlayerRelation,
@@ -40,10 +41,12 @@ from empire_core.gamedata import (
     EventDifficultyId,
     GachaId,
     GameData,
+    HorizonScoringId,
     HorizonSettingId,
     OasisSettlementId,
     OasisTradeId,
     OuterRealmsSettingId,
+    PalaceFortressId,
     PartPayPriceId,
     QuestCondition,
     QuestDef,
@@ -406,7 +409,25 @@ class TestEventTables:
                 "level": "1",
                 "tradeGroupID": "1",
                 "speedMultiplier": "x",
+                "allianceBattleGroundScoringID": "3",
             }
+        ],
+        "resourceCamps": [
+            {
+                "resourceCampID": "200",
+                "name": "Jadeite Fortress Level 1",
+                "resourceCampTypeID": "1",
+                "level": "70",
+                "lootPoolCurrencyID": "95",
+                "cooldownSeconds": "28800",
+                "lootPoolCapacity": "400000",
+                "travelCostMultiplier": "0.5",
+                "allianceBattleGroundScoringID": "3",
+            }
+        ],
+        "allianceBattleGroundScorings": [
+            {"scoringID": "1", "scoring": "AllianceCollector", "metropolisDecay": "70", "allianceSteal": "15"},
+            {"scoringID": "3", "scoring": "AllianceJade"},
         ],
         "trades": [
             {
@@ -512,6 +533,35 @@ class TestEventTables:
         level_2 = data.citadel_levels[CitadelLevelId(2)]
         assert (level_2.radius, level_2.scatter_weights) == (15, (15, 5))
         assert [(cost.item, cost.amount) for cost in level_2.costs] == [(ids.Currency.ANCIENT_JADE_STATUETTE, 25000)]
+
+    def test_jade_desert_palace_fortresses_and_scorings(self):
+        data = GameData.parse("790.02", self.ITEMS)
+
+        fortress = data.palace_fortresses[PalaceFortressId(200)]
+        assert (fortress.fortress_type_id, fortress.level, fortress.loot_currency_id) == (
+            1,
+            70,
+            ids.CurrencyId.RAW_JADEITE,
+        )
+        assert (fortress.loot_pool_capacity, fortress.cooldown_seconds) == (400000, 28800)
+        assert (fortress.travel_cost_multiplier, fortress.speed_multiplier) == (0.5, 1.0)
+        jade = data.horizon_scorings[fortress.scoring_id]
+        assert jade.scoring is HorizonScoring.JADE_DESERT
+        assert data.horizon_scorings[data.oasis_settlements[OasisSettlementId(100)].scoring_id] == jade
+        collector = data.horizon_scorings[HorizonScoringId(1)]
+        assert (collector.scoring, collector.metropolis_decay, collector.alliance_steal) == (
+            HorizonScoring.SECRET_CITIES,
+            70,
+            15,
+        )
+
+    def test_oasis_trades_prefer_capitalised_trades_as_the_client_does(self):
+        # ABGJadeCampData.parseXML reads `e.Trades || e.trades`: an empty array is truthy, so it still wins
+        trade = {"tradeID": "11", "tradeGroupID": "2"}
+
+        assert list(GameData.parse("790.02", {"Trades": [trade], "trades": []}).oasis_trades) == [11]
+        assert list(GameData.parse("790.02", {"Trades": [], "trades": [trade]}).oasis_trades) == []
+        assert list(GameData.parse("790.02", {"Trades": None, "trades": [trade]}).oasis_trades) == [11]
 
     def test_alliance_invasion_camps_by_id(self):
         data = GameData.parse("788.02", self.ITEMS)
