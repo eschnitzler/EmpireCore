@@ -14,6 +14,10 @@ The items data: typed tables, lookups by name, and the generated id enums.
 
 ::: empire_core.gamedata.tables
 
+## `gamedata.tables_castle`
+
+::: empire_core.gamedata.tables_castle
+
 ## `gamedata.table`
 
 ::: empire_core.gamedata.table
