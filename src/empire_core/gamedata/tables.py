@@ -3155,8 +3155,8 @@ class AllianceInvasionCampDef(EventCampDef):
 
     Client: ``CastleAllianceInvasionCampNodeVO.parseXML`` (split.js line 573435), keyed by id in
     ``CastleAllianceInvasionCampData`` (split.js line 573383), whose ``getAllianceCamp`` (split.js line 573391) looks
-    up a scaling camp instead when the event's difficulty scaling is on (``AICCommand.executeCommand``, bundle line
-    128192)
+    up a scaling camp instead when the event's difficulty scaling is on (``AICCommand.executeCommand``, split.js
+    line 646604)
     """
 
     camp_id: AllianceInvasionCampId = Field(validation_alias="allianceInvasionCampID", description="The camp")
@@ -3368,7 +3368,7 @@ class HorizonScoringDef(_Row):
     """
 
     scoring_id: HorizonScoringId = Field(validation_alias="scoringID", description="The scoring")
-    scoring: GameDataKey[HorizonScoring] = Field(description="The season it plays")
+    scoring: GameDataKey[HorizonScoring] = Field(default="0", description="The season it plays")
     metropolis_decay: int = Field(validation_alias="metropolisDecay", default=0, description="Its metropolis decay")
     royal_tower_decay: int = Field(validation_alias="kingstowerDecay", default=0, description="Its royal tower decay")
     player_steal: int = Field(validation_alias="playerSteal", default=0, description="Its player steal")

@@ -586,6 +586,8 @@ class TestEventTables:
             == GameData.parse("788.02", self.ITEMS).part_pay_prices[PartPayPriceId(164)]
         )
         assert again.alliance_invasion_camps[AllianceInvasionCampId(85)].event_id == ids.Event.NOMAD_INVASION_72
+        assert again.palace_fortresses[PalaceFortressId(200)].scoring_id == HorizonScoringId(3)
+        assert again.horizon_scorings[HorizonScoringId(3)].scoring is HorizonScoring.JADE_DESERT
 
 
 def test_quests_and_buildings_name_their_season_maps():
@@ -625,6 +627,30 @@ def test_berimond_invasion_camp_rows_name_their_faction():
     assert red is not None and red.faction_id is BerimondFaction.GERBRANDT and red.wall_bonus == 30
     assert (red.camp_size, blue.camp_size) == (BerimondInvasionCampSize.LARGE, BerimondInvasionCampSize.SMALL)
     assert data.berimond_invasion_camps[BerimondInvasionCampId(2)].wall_bonus == 20
+
+
+def test_samurai_camps_keep_the_last_row_of_a_level():
+    # CastleXmlData.parseXML sets each row in a Map by countVictory, so a later row of a level replaces it
+    data = GameData.parse(
+        "790.02",
+        {
+            "samuraiCamps": [
+                {"countVictory": "4", "coolDown": "3600", "skipCosts": "40", "wallBonus": "10"},
+                {"countVictory": "4", "coolDown": "7200", "skipCosts": "80", "wallBonus": "20"},
+            ]
+        },
+    )
+
+    camp = data.samurai_camps[4]
+    assert (camp.cooldown_seconds, camp.skip_cost, camp.wall_bonus) == (7200, 80, 20)
+    assert list(data.nomad_camps) == []
+
+
+def test_a_scoring_without_its_name_reads_the_clients_default():
+    # getValueOrDefault("scoring", row, "0", true) only throws for XML rows; a JSON row falls back to "0"
+    data = GameData.parse("790.02", {"allianceBattleGroundScorings": [{"scoringID": "4"}]})
+
+    assert data.horizon_scorings[HorizonScoringId(4)].scoring == "0"
 
 
 class TestFeastsAndSceatSkillTrees:
