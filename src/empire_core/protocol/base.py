@@ -616,6 +616,9 @@ IdArray = Annotated[tuple[T, ...], BeforeValidator(_int_ids)]
 ``IdArray[E]``: an id array the client walks, looking each entry up in a table keyed by int ids, read as ``E``.
 
 An entry that is no int finds no row and is dropped; anything but an array is no ids.
+
+Client: ``CastleResearchData.parse_REI`` (split.js line 694409) for ``BR``,
+``CastleAchievementData.parse_FA`` (split.js line 156176) for ``FA``
 """
 
 
