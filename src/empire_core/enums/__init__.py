@@ -105,7 +105,7 @@ from .player import (
     TitleSystem,
     VerificationLink,
 )
-from .popups import PopupType
+from .popups import GrandNobilityPrizeSkin, PopupType
 from .ranking import RankingType
 from .rewards import LoginBonusSpecial
 from .spy import SpyArmySection, SpyLogType, SpyOutcome, SpyStep, SpyType
@@ -188,6 +188,7 @@ __all__ = [
     # Movement
     "MovementFilter",
     "MovementType",
+    "GrandNobilityPrizeSkin",
     "PopupType",
     # Attack / combat
     "AttackType",

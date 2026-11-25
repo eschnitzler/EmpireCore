@@ -107,7 +107,8 @@ OPAQUE: dict[str, str] = {
         "the row as sent, which a scan keeps only on request (#357); typed accessors parse it as the client does"
     ),
     "quests.models.Popup.value": (
-        "deferred: each popup's dialog reads its own shape (CastlePopUpHelper.displayPopUp, bundle line 68586)"
+        "each popup's dialog reads its own shape (CastlePopUpHelper.displayPopUp, split.js line 68586); typed by "
+        "Popup.details for the event reward and rewards-unlocked popups, the rest deferred"
     ),
     "gamedata.collectables.Collectable.value": (
         "the entry as sent where nothing below the commanders area can read it: an OTHER entry, which the client "

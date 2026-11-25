@@ -3,7 +3,7 @@ donating for a quest."""
 
 from typing import TYPE_CHECKING
 
-from empire_core.enums import PopupType, QuestConditionType
+from empire_core.enums import GrandNobilityPrizeSkin, PopupType, QuestConditionType, RewardGrantType
 from empire_core.utils.lazy import lazy_exports
 
 from .models import (
@@ -14,6 +14,7 @@ from .models import (
     CampaignQuestStatusResponse,
     DailyQuest,
     DailyQuests,
+    EventRewardPopup,
     FinishQuestConditionRequest,
     Popup,
     PopupsResponse,
@@ -28,6 +29,7 @@ from .models import (
     QuestProgressResponse,
     QuestsStartedResponse,
     QuestStarterClickRequest,
+    RewardsUnlockedPopup,
 )
 from .service import QuestsService
 
@@ -38,8 +40,10 @@ __all__ = [
     "DailyQuest",
     "DailyQuests",
     "CampaignQuestStatusResponse",
+    "EventRewardPopup",
     "Popup",
     "PopupsResponse",
+    "RewardsUnlockedPopup",
     "QuestFinishedResponse",
     "QuestListResponse",
     "QuestProgressResponse",
@@ -47,7 +51,9 @@ __all__ = [
     "FinishQuestConditionRequest",
     "Quest",
     "QuestBook",
+    "GrandNobilityPrizeSkin",
     "PopupType",
+    "RewardGrantType",
     "QuestConditionType",
     "QuestDonateCurrencyRequest",
     "QuestDonateCurrencyResponse",

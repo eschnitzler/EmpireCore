@@ -16,10 +16,10 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 from pydantic import ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
-from empire_core.enums import PopupType, QuestConditionType
+from empire_core.enums import GrandNobilityPrizeSkin, PopupType, QuestConditionType, RewardGrantType
 from empire_core.gamedata import Collectable, CollectableRows, CurrencyId, EnumOrInt, RewardId
 from empire_core.protocol.base import BaseRequest, BaseResponse, CurrencyBlock, EmpireModel
-from empire_core.protocol.js import js_int, js_loose_equals, js_truthy
+from empire_core.protocol.js import js_int, js_loose_equals, js_number_or_none, js_parse_int, js_truthy
 
 if TYPE_CHECKING:
     from empire_core.gamedata import DailyQuestId, MainQuest, QuestId
@@ -294,9 +294,190 @@ class CampaignQuestStatusResponse(BaseResponse):
         return tuple(quests)
 
 
+def _int_or_none(value: Any) -> int | None:
+    """``int(value ? value : -1)``: None for the client's -1."""
+    return js_int(value) if js_truthy(value) else None
+
+
+class EventRewardPopup(EmpireModel):
+    """
+    What an event's end or reward popup shows: your points and rank, and what you won.
+
+    ``reward_ids`` name the rewards when the server sends them, else ``rewards`` holds them. With a
+    ``threshold`` the client shows only the units of the named rewards, their amounts scaled by it
+    (``BeggingKnightsConst.calculateRewardAmount``).
+
+    Client: ``CastleGenericRewardDialogProperties`` (split.js line 276596), ``CastlePopUpHelper.createRewardList``
+    and ``setGrantType`` (split.js lines 69958, 69989), for each popup of ``POPUPS``
+    (``CastlePopUpHelper.displayPopUp``, split.js line 68586)
+    """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True, populate_by_name=True)
+
+    POPUPS: ClassVar[tuple[PopupType, ...]] = (
+        PopupType.NOBILITY_CONTEST_FIRST,
+        PopupType.NOBILITY_CONTEST_REWARD,
+        PopupType.NOBILITY_CONTEST_END_WITHOUT_REWARD,
+        PopupType.NOBILITY_CONTEST_TOPX,
+        PopupType.MARAUDERS_CONTEST_FIRST,
+        PopupType.MARAUDERS_CONTEST_TOPX,
+        PopupType.MARAUDERS_CONTEST_REWARD,
+        PopupType.MARAUDERS_CONTEST_END_WITHOUT_REWARD,
+        PopupType.WHEEL_OF_FORTUNE_FIRST,
+        PopupType.WHEEL_OF_FORTUNE_TOPX,
+        PopupType.WHEEL_OF_FORTUNE_REWARD,
+        PopupType.WHEEL_OF_FORTUNE_END_WITHOUT_REWARD,
+        PopupType.NOMAD_INVASION_FIRST,
+        PopupType.NOMAD_INVASION_TOPX,
+        PopupType.NOMAD_INVASION_REWARD,
+        PopupType.NOMAD_INVASION_END_WITHOUT_REWARD,
+        PopupType.WAR_OF_THE_REALMS_FIRST_ALLIANCE,
+        PopupType.WAR_OF_THE_REALMS_TOPX_ALLIANCE,
+        PopupType.WAR_OF_THE_REALMS_REWARD_ALLIANCE,
+        PopupType.WAR_OF_THE_REALMS_END_WITHOUT_REWARD,
+        PopupType.WAR_OF_THE_REALMS_FIRST_PLAYER,
+        PopupType.WAR_OF_THE_REALMS_TOPX_PLAYER,
+        PopupType.WAR_OF_THE_REALMS_REWARD_PLAYER,
+        PopupType.WAR_OF_THE_REALMS_END_WITHOUT_REWARD_PLAYER,
+        PopupType.ALLIANCE_NOMAD_INVASION_FIRST_ALLIANCE,
+        PopupType.ALLIANCE_NOMAD_INVASION_TOPX_ALLIANCE,
+        PopupType.ALLIANCE_NOMAD_INVASION_REWARD_ALLIANCE,
+        PopupType.ALLIANCE_NOMAD_INVASION_END_WITHOUT_REWARD,
+        PopupType.ALLIANCE_NOMAD_INVASION_FIRST_PLAYER,
+        PopupType.ALLIANCE_NOMAD_INVASION_TOPX_PLAYER,
+        PopupType.ALLIANCE_NOMAD_INVASION_REWARD_PLAYER,
+        PopupType.ALLIANCE_NOMAD_INVASION_END_WITHOUT_REWARD_PLAYER,
+        PopupType.SAMURAI_INVASION_REWARD_ALLIANCE,
+        PopupType.SAMURAI_INVASION_END_WITHOUT_REWARD_ALLIANCE,
+        PopupType.SAMURAI_INVASION_REWARD_PLAYER,
+        PopupType.SAMURAI_INVASION_END_WITHOUT_REWARD_PLAYER,
+        PopupType.GRAND_NOBILITY_PRIZE_FIRST,
+        PopupType.GRAND_NOBILITY_PRIZE_TOPX,
+        PopupType.GRAND_NOBILITY_PRIZE_REWARD,
+        PopupType.GRAND_NOBILITY_PRIZE_END_WITHOUT_REWARD,
+        PopupType.ALLIANCE_TOURNAMENT_FIRST,
+        PopupType.ALLIANCE_TOURNAMENT_TOPX,
+        PopupType.ALLIANCE_TOURNAMENT_REWARD,
+        PopupType.BLOODCROW_INVASION_FIRST_ALLIANCE,
+        PopupType.BLOODCROW_INVASION_TOPX_ALLIANCE,
+        PopupType.BLOODCROW_INVASION_REWARD_ALLIANCE,
+        PopupType.BLOODCROW_INVASION_END_WITHOUT_REWARD,
+        PopupType.BLOODCROW_INVASION_FIRST_PLAYER,
+        PopupType.BLOODCROW_INVASION_TOPX_PLAYER,
+        PopupType.BLOODCROW_INVASION_REWARD_PLAYER,
+        PopupType.BLOODCROW_INVASION_END_WITHOUT_REWARD_PLAYER,
+        PopupType.COLLECTOR_REWARD_PLAYER,
+        PopupType.WHEEL_OF_UNIMAGINABLE_AFFLUENCE_FIRST,
+        PopupType.WHEEL_OF_UNIMAGINABLE_AFFLUENCE_TOPX,
+        PopupType.WHEEL_OF_UNIMAGINABLE_AFFLUENCE_REWARD,
+        PopupType.WHEEL_OF_UNIMAGINABLE_AFFLUENCE_END_WITHOUT_REWARD,
+    )
+
+    points: int | None = Field(validation_alias="OP", default=None, description="Your points; None when not sent")
+    own_rank: int | None = Field(validation_alias="OR", default=None, description="Your rank; None when not sent")
+    top_x: int | None = Field(
+        validation_alias="TX", default=None, description="How many top ranks win a prize; None when not sent"
+    )
+    option_id: int | None = Field(
+        validation_alias="EOID", default=None, description="The event option the rewards are for; None when not sent"
+    )
+    reward_ids: tuple[RewardId, ...] = Field(
+        validation_alias="RIDS", default=(), description="The rewards won; GameData.reward_list gives what they hold"
+    )
+    threshold: int | float | None = Field(
+        validation_alias="TH", default=None, description="The threshold that scales the units won; None for none"
+    )
+    rewards: CollectableRows = Field(
+        validation_alias="RW", default=(), description="What was won, where the popup names no reward ids"
+    )
+    grant_type: EnumOrInt[RewardGrantType] | None = Field(
+        validation_alias="GT", default=None, description="Who the rewards go to; None when not sent"
+    )
+    skin: EnumOrInt[GrandNobilityPrizeSkin] = Field(
+        validation_alias="SID", default=GrandNobilityPrizeSkin.DEFAULT, description="The look of the popup"
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _rewards(cls, data: Any) -> Any:
+        if not isinstance(data, dict) or not {"RIDS", "RID", "R"} & data.keys():
+            return data
+        data = dict(data)
+        rid = data.pop("RID", None)
+        rows = data.pop("R", None)
+        if js_truthy(data.get("RIDS")) or js_truthy(rid):
+            data.pop("RW", None)
+            if not js_truthy(data.get("RIDS")):
+                data["RIDS"] = [rid]
+        elif not js_truthy(data.get("RW")) and js_truthy(rows):
+            data["RW"] = rows
+        return data
+
+    @field_validator("points", "own_rank", "top_x", "option_id", mode="before")
+    @classmethod
+    def _int(cls, value: Any) -> int | None:
+        return _int_or_none(value)
+
+    @field_validator("reward_ids", mode="before")
+    @classmethod
+    def _ids(cls, value: Any) -> Any:
+        return tuple(js_int(rid) for rid in value) if isinstance(value, list | tuple) else ()
+
+    @field_validator("threshold", mode="before")
+    @classmethod
+    def _threshold(cls, value: Any) -> int | float | None:
+        return js_number_or_none(value)
+
+    @field_validator("rewards", mode="before")
+    @classmethod
+    def _rows(cls, value: Any) -> Any:
+        return value if js_truthy(value) else ()
+
+    @field_validator("grant_type", mode="before")
+    @classmethod
+    def _grant_type(cls, value: Any) -> int | None:
+        return js_parse_int(value) if js_truthy(value) else None
+
+    @field_validator("skin", mode="before")
+    @classmethod
+    def _skin(cls, value: Any) -> int:
+        return js_int(value) if js_truthy(value) else GrandNobilityPrizeSkin.DEFAULT
+
+
+class RewardsUnlockedPopup(EmpireModel):
+    """
+    The rewards an alliance unlocked in an alliance contest, as their popup lists them.
+
+    Client: ``CastleGenericRewardsDialogProperties`` with ``createList(t.RW)`` for each popup of ``POPUPS``
+    (``CastlePopUpHelper.displayPopUp``, split.js line 68586)
+    """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True, populate_by_name=True)
+
+    POPUPS: ClassVar[tuple[PopupType, ...]] = (
+        PopupType.WAR_OF_THE_REALMS_ALLIANCE_REWARDS_UNLOCKED,
+        PopupType.ALLIANCE_NOMAD_INVASION_ALLIANCE_REWARDS_UNLOCKED,
+        PopupType.SAMURAI_INVASION_ALLIANCE_REWARDS_UNLOCKED,
+        PopupType.BERIMOND_INVASION_ALLIANCE_REWARDS_UNLOCKED,
+        PopupType.BLOODCROW_INVASION_ALLIANCE_REWARDS_UNLOCKED,
+    )
+
+    rewards: CollectableRows = Field(validation_alias="RW", default=(), description="The rewards unlocked")
+
+
+PopupDetails = EventRewardPopup | RewardsUnlockedPopup
+"""What a popup's ``VAL`` holds, by popup: :attr:`Popup.details`."""
+
+_POPUP_DETAILS: dict[int, type[PopupDetails]] = {
+    popup: details for details in (EventRewardPopup, RewardsUnlockedPopup) for popup in details.POPUPS
+}
+
+
 class Popup(EmpireModel):
     """
     One popup of an ``msp``: which, and the value its dialog reads.
+
+    ``details`` types the value for the popups whose dialog the library reads; ``value`` keeps it as sent.
 
     Client: ``CastlePopUpHelper.displayPopUps`` (bundle line 12922) reads ``int(POP)`` and hands ``VAL`` to
     ``displayPopUp`` (bundle line 12928), whose dialog reads what it needs of it
@@ -325,6 +506,12 @@ class Popup(EmpireModel):
     @classmethod
     def _int(cls, value: Any) -> int:
         return js_int(value)
+
+    @property
+    def details(self) -> PopupDetails | None:
+        """What ``value`` holds, typed by the popup's dialog; None for a popup the library does not read."""
+        details = _POPUP_DETAILS.get(self.popup_id)
+        return details.model_validate(self.value) if details is not None and isinstance(self.value, dict) else None
 
 
 class PopupsResponse(BaseResponse):
