@@ -178,9 +178,9 @@ class OuterRealmsRankRewardDef(_Row):
     """
     One reward of an Outer Realms reward set: for a rank, or for reaching some points.
 
-    The client keeps the rows as a list and reads neither of the row's ids as one; the row's
-    ``tempServerRankRewardID`` keys it here. A row with a rank above 0 rewards that rank, else one with participation
-    points above 0 rewards those points, else the client builds no reward for it.
+    The client keeps the rows as a list and reads ``tempServerRankID`` as the reward's id, which repeats once per
+    reward set; the row's ``tempServerRankRewardID`` keys it here. A row with a rank above 0 rewards that rank, else
+    one with participation points above 0 rewards those points, else the client builds no reward for it.
 
     Client: ``CastleTempServerRewardVO.parseXML`` (split.js line 698347), listed by ``CastleTempServerData.parseXML``
     (split.js line 697680); ``getRewardsByRewardSetID`` (split.js line 697811)
@@ -190,7 +190,7 @@ class OuterRealmsRankRewardDef(_Row):
     rank_id: OuterRealmsRankId = Field(
         validation_alias="tempServerRankID",
         default=OuterRealmsRankId(0),
-        description="The band of ranks it names, the id of a tempServerRankPoints row",
+        description="The outer_realms_rank_points band with the same tempServerRankID; the client never joins them",
     )
     reward_id: RewardId = Field(validation_alias="rewardID", default=RewardId(0), description="Its reward")
     participation_points: int = Field(
@@ -269,7 +269,7 @@ class StormIsleDef(_Row):
     isle_type: str = Field(
         validation_alias="type",
         default="UNKNOWN",
-        description="What the isle is, e.g. VILLAGEWOOD or DUNGEON; a VILLAGE prefix marks a resource village",
+        description="What the isle is, e.g. VILLAGEWOOD or DUNGEON; one naming VILLAGE is a resource village",
     )
     dungeon_level: int = Field(validation_alias="dungeonlevel", default=0, description="Its level")
     max_victories: int = Field(
@@ -553,8 +553,8 @@ class _LeagueTypeRow(_Row):
     def _league_type(cls, value: object) -> int:
         return _parse_int_or_default(value, 0)
 
-    def matches_league_type(self, league_type_id: int) -> bool:
-        """Whether it is for that league."""
+    def matches_league_type(self, league_type_id: LeagueType | int) -> bool:
+        """Whether it is for that league. Client: ``matchesLeagueType`` (split.js line 707664)."""
         return self.league_type_id in (0, league_type_id)
 
 

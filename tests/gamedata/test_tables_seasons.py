@@ -1,6 +1,9 @@
 """The special server and season tables, read as the client reads them."""
 
+import json
 import logging
+import os
+from pathlib import Path
 
 import pytest
 
@@ -429,4 +432,39 @@ def test_every_table_survives_the_cache(tmp_path, caplog):
     assert again.storm_isles[IsleId(1)] == data.storm_isles[IsleId(1)]
     assert again.division_rounds[DivisionRoundId(-11)] == data.division_rounds[DivisionRoundId(-11)]
     assert (len(again.outer_realms_rank_points), len(again.daimyo_end_rewards)) == (3, 2)
+    assert not caplog.records
+
+
+TABLES = {
+    "outer_realms_rank_points": "tempServerRankPoints",
+    "outer_realms_rank_rewards": "tempServerRankRewards",
+    "outer_realms_daily_task_rewards": "tempServerDailyTaskRewards",
+    "storm_isles": "isles",
+    "storm_islands_alliance_rewards": "islandrewardranks",
+    "storm_islands_player_rewards": "islandPlayerRewards",
+    "kingdoms_league_settings": "seasonSettings",
+    "kingdoms_league_ranks": "seasonRanks",
+    "kingdoms_league_medals": "seasonMedals",
+    "kingdoms_league_end_rewards": "seasonEndRewards",
+    "kingdoms_league_event_rewards": "seasonEventRewards",
+    "kingdoms_league_promotion_rewards": "seasonPromotionRewards",
+    "daimyo_end_rewards": "daimyoEndRewards",
+    "division_rounds": "divisionRounds",
+    "raid_boss_levels": "raidBossLevels",
+    "raid_boss_stages": "raidBossStages",
+}
+
+
+def test_every_row_of_the_full_items_file_loads(caplog):
+    # The full items file is ~20 MB and not in the repo; point EMPIRE_CORE_ITEMS_JSON at it.
+    path = os.environ.get("EMPIRE_CORE_ITEMS_JSON")
+    if not path:
+        pytest.skip("EMPIRE_CORE_ITEMS_JSON is not set")
+        return
+    payload = json.loads(Path(path).read_text())
+    with caplog.at_level(logging.WARNING):
+        data = GameData.parse("full", payload)
+        counts = {name: len(getattr(data, name)) for name in TABLES}
+
+    assert counts == {name: len(payload.get(key, [])) for name, key in TABLES.items()}
     assert not caplog.records
