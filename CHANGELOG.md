@@ -2,6 +2,538 @@
 
 <!-- version list -->
 
+## v0.66.0 (2026-11-25)
+
+### Bug Fixes
+
+- **alliance**: Build the membership and alliance replies by name
+  ([`0b3f81d`](https://github.com/eschnitzler/EmpireCore/commit/0b3f81dc87aa3a83c2ab9dd515206b9e2620b04f))
+
+- **alliance**: Keep your alliance's auto war from a set_auto_war reply
+  ([`6dd42d3`](https://github.com/eschnitzler/EmpireCore/commit/6dd42d304738bcf7672fab0ba6e16a268a190955))
+
+- **alliance**: Keep your alliance's details from a diplomacy change
+  ([`b3783ce`](https://github.com/eschnitzler/EmpireCore/commit/b3783ce9582f6ca772691f369fdb766cb72e6d40))
+
+- **alliance**: Leave the Jade Desert phase unknown until a push names it
+  ([`4708bd0`](https://github.com/eschnitzler/EmpireCore/commit/4708bd0168b1759b903599a39667912f831f2243))
+
+- **alliance**: Name the Jade Desert's alliance buff series
+  ([`7578da1`](https://github.com/eschnitzler/EmpireCore/commit/7578da12b2d5483fef049cd6c8ccd84c51c359f2))
+
+- **alliance**: Read an auto join's movements as AASCommand does
+  ([`09c9141`](https://github.com/eschnitzler/EmpireCore/commit/09c91416f12419751395db5caf8d392799b79911))
+
+- **alliance**: Read the -1 rank of no alliance as None
+  ([`a1bdd06`](https://github.com/eschnitzler/EmpireCore/commit/a1bdd060b62dec5ebb721c2ea93814be04319f60))
+
+- **alliance**: Stop the Jade Desert phase 2 timer as the client does
+  ([`ed08335`](https://github.com/eschnitzler/EmpireCore/commit/ed083350b7d622eb01d296c4fa1a8b6e6da692ee))
+
+- **attack**: Read an attack reply's dialog values as none when no number
+  ([`ed678a6`](https://github.com/eschnitzler/EmpireCore/commit/ed678a64177485fbae47b5708d2669edb9e1ea8d))
+
+- **castle**: Leave the wishing well's skip-then-collect to the server's reply
+  ([`c648826`](https://github.com/eschnitzler/EmpireCore/commit/c6488267bce10aa2d392865c07d148ed2da3cc0d))
+
+- **castle**: Read a timer an mas reply lacks as 0, as the client does
+  ([`856ebd4`](https://github.com/eschnitzler/EmpireCore/commit/856ebd436bca79b5284579e8da1edb7272508543))
+
+- **castle**: Upgrade a ruby wishing well with rww, as the client does
+  ([`9f97bde`](https://github.com/eschnitzler/EmpireCore/commit/9f97bde10e74280d885414656f245f2b8878bf4c))
+
+- **events**: A pep without an EID changes nothing, quietly
+  ([`1ee5e78`](https://github.com/eschnitzler/EmpireCore/commit/1ee5e78ae44ced417ce77726c85b7958c48d5b30))
+
+- **events**: Build and dump an alliance camp push by its one camp
+  ([`110e4b8`](https://github.com/eschnitzler/EmpireCore/commit/110e4b89d447ff99cdbf772565442dc4c01edd37))
+
+- **events**: Buy only a failed campaign quest, matched by quest and place
+  ([`38e7b12`](https://github.com/eschnitzler/EmpireCore/commit/38e7b12523f5788c6e60612d394f790016af9905))
+
+- **gamedata**: Register the Jade Desert's tables with the typed-field and ruby checks
+  ([`eae347d`](https://github.com/eschnitzler/EmpireCore/commit/eae347dcbd4ffc0747f88453d42fa5b5140d34e2))
+
+- **map**: Owner positions keep a JSON schema and take a tuple
+  ([`4255483`](https://github.com/eschnitzler/EmpireCore/commit/4255483ba832a198b575a501cd34f5123b0e263a))
+
+- **movements**: Read each movement, block and area on its own
+  ([`c3f065c`](https://github.com/eschnitzler/EmpireCore/commit/c3f065cba8a7f8b448eb61d6b02c9194324b26f3))
+
+- **movements**: Take target area types as MapItemType and correct the travel guide example
+  ([`70e6ba6`](https://github.com/eschnitzler/EmpireCore/commit/70e6ba6cc4fb344bc402fd40f5cb931d38a6d674))
+
+- **player**: Export Feast, SceatSkill and SceatSkillTab where the new calls take them
+  ([`626f0eb`](https://github.com/eschnitzler/EmpireCore/commit/626f0eb10629740e3e9ce5e2b339dc0af41eb628))
+
+- **player**: Read the -1 feast id as no feast
+  ([`04edfd5`](https://github.com/eschnitzler/EmpireCore/commit/04edfd5e42e780360ded989b8f537bced6fbb523))
+
+- **player**: Skip only a sceat skill that is being activated
+  ([`5ac055d`](https://github.com/eschnitzler/EmpireCore/commit/5ac055dd90b947d86652fbb580ad4275ba8b5678))
+
+- **protocol**: Read an infinite or NaN event id as no event
+  ([`a6a3811`](https://github.com/eschnitzler/EmpireCore/commit/a6a38114064ae0bb8c763640f982c8bef78159f6))
+
+- **scripts**: Count dropped parses as ack and gbd-only sections as handled
+  ([`fe323f2`](https://github.com/eschnitzler/EmpireCore/commit/fe323f2fdbf874f38120653105af2a4473796cd5))
+
+- **scripts**: Read handlers from their own file and resolve every direct send
+  ([`5042355`](https://github.com/eschnitzler/EmpireCore/commit/50423557c28ee2c648849f465c28cec9b6bf1e45))
+
+- **shop**: Type the refused package, check random rewards against packets
+  ([`143e531`](https://github.com/eschnitzler/EmpireCore/commit/143e531c88d7dd37f5f73a19b135b1a3cae3fa21))
+
+- **state**: A pushed gaa leaves the joined castle as it was
+  ([`99b1891`](https://github.com/eschnitzler/EmpireCore/commit/99b189184eb63aa82db1b70d1e31d462c7ee21a6))
+
+- **state**: A refused send applies no coins, owners or movement
+  ([`e301f51`](https://github.com/eschnitzler/EmpireCore/commit/e301f51eafcfa1f11b72fb0a8baba7c300f2071a))
+
+- **state**: A skill reset drops the skills held until the next skill list
+  ([`edc37c7`](https://github.com/eschnitzler/EmpireCore/commit/edc37c727908d6d3548463aecded60e3db269e8b))
+
+- **state**: An mcd push keeps the counts of the types it leaves out
+  ([`0aca6cf`](https://github.com/eschnitzler/EmpireCore/commit/0aca6cff06a29919ef616a81bf6a1f53df4a8944))
+
+- **state**: Apply a faction join's kingdoms once, before its events
+  ([`516d320`](https://github.com/eschnitzler/EmpireCore/commit/516d3201011128d03ed668cdab9cc4af7fe36802))
+
+- **state**: Apply a join's buildings with the join it starts
+  ([`51c1955`](https://github.com/eschnitzler/EmpireCore/commit/51c19558a3cc064329aa8ca98873d3e8f79b8eac))
+
+- **state**: Apply a level-up push only on success
+  ([`241bf32`](https://github.com/eschnitzler/EmpireCore/commit/241bf32ea90f3b7de378142e35b5a7ec1ea3c438))
+
+- **state**: Apply a section push only from a successful reply
+  ([`eca8b0f`](https://github.com/eschnitzler/EmpireCore/commit/eca8b0fd101b3072fc29af05166df9635adde97f))
+
+- **state**: Apply a vip or mvf only from a successful reply
+  ([`b52cb0d`](https://github.com/eschnitzler/EmpireCore/commit/b52cb0d1843929c73dafcc1e1df1b7fbb245aba9))
+
+- **state**: Apply every successful ste reply in state
+  ([`33c7827`](https://github.com/eschnitzler/EmpireCore/commit/33c7827de2e4bacdf7bf6c304c68831fd5a31b0e))
+
+- **state**: Apply gam, abr, asr and mcm only from a successful reply
+  ([`f07a5c4`](https://github.com/eschnitzler/EmpireCore/commit/f07a5c4d68f9ba11f6cfa38fb2c206635c76f4a6))
+
+- **state**: Apply the coins and rubies the action replies bring
+  ([`19f8491`](https://github.com/eschnitzler/EmpireCore/commit/19f8491d5288c3dfbac434c8fa7a9a0045f5bc29))
+
+- **state**: Apply the login data's uht between its ufa and uar
+  ([`50f4197`](https://github.com/eschnitzler/EmpireCore/commit/50f4197e8e6c65cca5564008a04490786a015906))
+
+- **state**: Leave the error code out of the login data's sent sections
+  ([`308c936`](https://github.com/eschnitzler/EmpireCore/commit/308c93647adc1b901626190102b37cd9c61669cf))
+
+- **state**: Read the dcl, gms, dql and grc sections through their models
+  ([`de36f4f`](https://github.com/eschnitzler/EmpireCore/commit/de36f4f0f6a4f06c80d90dde613c8727eb3a889f))
+
+- **state**: Skip a daimyo taunt without a movement id quietly
+  ([`132cbfc`](https://github.com/eschnitzler/EmpireCore/commit/132cbfc5371ba23f3c339c3181c900a8474bf046))
+
+### Chores
+
+- **protocol**: Refresh the client command snapshot for release 58d319ef
+  ([`0cfddd9`](https://github.com/eschnitzler/EmpireCore/commit/0cfddd92339394971f9a6b79ebad9c7cb3ea8ecc))
+
+- **protocol**: Triage the client commands left without an owner
+  ([`80ca8be`](https://github.com/eschnitzler/EmpireCore/commit/80ca8becd88a515743e0722116c88ed4e3473d15))
+
+### Code Style
+
+- **castle**: Format the abandon timer tests and wrap the castle state docstring
+  ([`920783a`](https://github.com/eschnitzler/EmpireCore/commit/920783a152a95924b029f7c4ed4192a6c7293136))
+
+- **castle**: Tidy the imports left by merging the two ego models
+  ([`3ea2236`](https://github.com/eschnitzler/EmpireCore/commit/3ea2236c7b6cf5253035e1bfaf0b235d52e82f49))
+
+- **gamedata**: List LaboratoryLevelDef in alphabetical order
+  ([`4fb9d4a`](https://github.com/eschnitzler/EmpireCore/commit/4fb9d4ab6584c5af0ee819286377321d5cb30e00))
+
+- **movements**: Sort the movement filter request export
+  ([`100061b`](https://github.com/eschnitzler/EmpireCore/commit/100061bf749a3471a12b3d785f588638ec416bb3))
+
+- **protocol**: Read a float id with is_integer
+  ([`b904968`](https://github.com/eschnitzler/EmpireCore/commit/b904968af532d83a0ce6427716f01ad0b37a54fe))
+
+- **tests**: Format the castle list leniency test
+  ([`9f39256`](https://github.com/eschnitzler/EmpireCore/commit/9f39256e26f0657be43a8a1fa4e6d685166f1ceb))
+
+- **tests**: Format the untyped field check
+  ([`6842d2c`](https://github.com/eschnitzler/EmpireCore/commit/6842d2c301305143786b9b76e996b8da86302e20))
+
+- **tests**: Format the wrapper flag test
+  ([`befe5ff`](https://github.com/eschnitzler/EmpireCore/commit/befe5ff3c4a3d095e15a92d3fda4c31ba3e55d8f))
+
+### Documentation
+
+- Say the library, not the game, keeps the mines after a scan
+  ([`9170b55`](https://github.com/eschnitzler/EmpireCore/commit/9170b55e32a589db21ce55d1cc80f96cefa13ea7))
+
+- Say which commands move the session off the castle
+  ([`4edbdf8`](https://github.com/eschnitzler/EmpireCore/commit/4edbdf8e87b05c19424584e748238c3a477d44d7))
+
+- **castle**: Cite the castle state and abandon reply client code by split.js line
+  ([`48b1804`](https://github.com/eschnitzler/EmpireCore/commit/48b180417b96ee64ece7140ab4a3a733bf7f4fff))
+
+- **castle**: Note client.castle.construction_list in the castle guide
+  ([`70e6d89`](https://github.com/eschnitzler/EmpireCore/commit/70e6d8931260ab5bcd237d981d142f92c9ce0443))
+
+- **castle**: Say the client, not the server, marks a stopped abandon timer -1
+  ([`68f6565`](https://github.com/eschnitzler/EmpireCore/commit/68f6565291116df5da51ff6c700a25cb55fc2065))
+
+- **player**: Name the private offer a feast's PO carries
+  ([`cbfd1fb`](https://github.com/eschnitzler/EmpireCore/commit/cbfd1fbc244336c63c06a24742abe53f9234e513))
+
+- **state**: Cite GCUCommand.exec, where the gcu push is parsed
+  ([`7eed073`](https://github.com/eschnitzler/EmpireCore/commit/7eed07393813e53757b9bfdcd856ebea73434af5))
+
+- **state**: Cite split.js for the fki push, parse_FKI and hasNewExpiredItems
+  ([`37ce26e`](https://github.com/eschnitzler/EmpireCore/commit/37ce26ef08f085a1b40cd277ad129c28689895c7))
+
+- **state**: Cite the split.js owner lookup and every refused movement reply
+  ([`a3164a9`](https://github.com/eschnitzler/EmpireCore/commit/a3164a9a59be84ec17bf7b49f7bc97ffead5d012))
+
+- **state**: Name the skill reset among what changes the skills
+  ([`03c845a`](https://github.com/eschnitzler/EmpireCore/commit/03c845af097b02fd27d73a6446980ed4e2ea6b51))
+
+- **state**: Say plainly when the library drops the construction slots
+  ([`1650e67`](https://github.com/eschnitzler/EmpireCore/commit/1650e67d1abff201b6e66899a62e5ce0ed59678c))
+
+### Features
+
+- **alliance**: Beyond the Horizon's Jade Desert
+  ([`045c973`](https://github.com/eschnitzler/EmpireCore/commit/045c973e7748fdc6368ffe92661a18f6e259fa77))
+
+- **army**: Read the gpa and grc of hra, dup and bup replies
+  ([`f256500`](https://github.com/eschnitzler/EmpireCore/commit/f2565009f0e17ad94f71c40be517d2e10577d98e))
+
+- **army**: Unlock a production slot with rubies
+  ([`6b7b6b6`](https://github.com/eschnitzler/EmpireCore/commit/6b7b6b625fcb670d632c630a0606c90a4e9527ca))
+
+- **castle**: Count the space left in the gii and read the nec's placed items
+  ([`21c0cb1`](https://github.com/eschnitzler/EmpireCore/commit/21c0cb1269c81b8cf46e8b41478589e5b35d2a46))
+
+- **castle**: Finish the running research with rubies
+  ([`0b6e4c8`](https://github.com/eschnitzler/EmpireCore/commit/0b6e4c872c80d72e8b07a6d55613f06f1d1e932c))
+
+- **castle**: Keep each castle's abandon timers in state
+  ([`d5e4595`](https://github.com/eschnitzler/EmpireCore/commit/d5e4595527bdc929bef11a833371e4fad4a8d03e))
+
+- **castle**: Read a building change push's building, slots and discount
+  ([`b4a39bf`](https://github.com/eschnitzler/EmpireCore/commit/b4a39bf7f6a6a76277410cb5a522a989febb2c06))
+
+- **castle**: Read a join's area, owner, hunter and crafting queues through its model
+  ([`e5a59ff`](https://github.com/eschnitzler/EmpireCore/commit/e5a59ff5de5bbf8e9a84edbff4e47e25f083ca79))
+
+- **castle**: Read the joined castle's part of an ego push
+  ([`8b1383e`](https://github.com/eschnitzler/EmpireCore/commit/8b1383e8f7ed9109c4e98b0134e9f008fa538415))
+
+- **castle**: Start, finish, collect and upgrade the ruby wishing well
+  ([`93f5dac`](https://github.com/eschnitzler/EmpireCore/commit/93f5dac0c5558bf654f58575e4f4c0271a559e21))
+
+- **events**: Buy a time-limited campaign's quest or end reward with rubies
+  ([`774505e`](https://github.com/eschnitzler/EmpireCore/commit/774505ee2a886ab7bfc4a9fa7d795993d6dddd3f))
+
+- **events**: Name the packages an event's shop sells
+  ([`c45e979`](https://github.com/eschnitzler/EmpireCore/commit/c45e97969848ae622391c8749d1ba3e88a4fe8b1))
+
+- **gamedata**: Name an event tool copy by the event it is used in
+  ([`ce12e37`](https://github.com/eschnitzler/EmpireCore/commit/ce12e373bc0e708285f104d709adc59fcd4ac2dc))
+
+- **gamedata**: Read event packages' costs, rewards, levels and stock
+  ([`6162a5a`](https://github.com/eschnitzler/EmpireCore/commit/6162a5a4fb3a54a9b9059250bc28c08f6d739df2))
+
+- **gamedata**: Read the feasts and the sceat skill trees
+  ([`aec78aa`](https://github.com/eschnitzler/EmpireCore/commit/aec78aa3d90607165c836e2313f71669c8843b6d))
+
+- **gamedata**: Read the Jade Desert's oasis settlements, trades and citadel levels
+  ([`19c2dec`](https://github.com/eschnitzler/EmpireCore/commit/19c2dec2147ad8b25c0accf8041393cf20bc9e32))
+
+- **gamedata**: Read the King's Market level boosters and the VIP attack speed bonus
+  ([`9633957`](https://github.com/eschnitzler/EmpireCore/commit/9633957ea4009ba99a0bdb619a2a95c3bae46b5f))
+
+- **gamedata**: Read the monument and laboratory level tables
+  ([`2155926`](https://github.com/eschnitzler/EmpireCore/commit/2155926326038436d5fb64c963e93e55042e3a7c))
+
+- **gamedata**: Regenerate ids for items v790.02
+  ([`3999cfa`](https://github.com/eschnitzler/EmpireCore/commit/3999cfaa8dc97508754eb4d8fa3f6e54f1ddd0f7))
+
+- **gamedata**: Regenerate ids for items v790.06
+  ([`8a86f78`](https://github.com/eschnitzler/EmpireCore/commit/8a86f780345c9a38b1514f8ec178ed096198807e))
+
+- **messages**: Read a battle log tower's alliance crest
+  ([`d538472`](https://github.com/eschnitzler/EmpireCore/commit/d538472ba824294c48b410efbf0840c8d002f370))
+
+- **movements**: Read an Oasis Settlement trade movement
+  ([`5cff1ff`](https://github.com/eschnitzler/EmpireCore/commit/5cff1ff2794f4232e273177bd7b5cddcfb02de87))
+
+- **movements**: Show or hide a kind of movement on the map
+  ([`b7f5e86`](https://github.com/eschnitzler/EmpireCore/commit/b7f5e8684a718981489e2427d4fcca4cb18641b6))
+
+- **movements**: Work out travel time and carriage capacity as the client does
+  ([`1c20a7c`](https://github.com/eschnitzler/EmpireCore/commit/1c20a7c1545184d3967f42b94f740720d1b00f4d))
+
+- **player**: Buy sceat skills, and finish their activation with rubies
+  ([`e2794a0`](https://github.com/eschnitzler/EmpireCore/commit/e2794a0481821b990d4a61cc26b716582fa4cf1a))
+
+- **player**: Buy the next level and the premium flag with rubies
+  ([`de2c68c`](https://github.com/eschnitzler/EmpireCore/commit/de2c68c8ca0c1ea19bed9ba89f369a71e0ed9be5))
+
+- **player**: Drop OpenLootBoxResponse.raw_rewards
+  ([`b35db00`](https://github.com/eschnitzler/EmpireCore/commit/b35db00755db2f56c568d8d5929a0104f1f96ee0))
+
+- **player**: Hire boosters with rubies, and ask for the boosters
+  ([`ff9117e`](https://github.com/eschnitzler/EmpireCore/commit/ff9117eeb511722b5ea1a5565ea3a0911702e56d))
+
+- **player**: Hold a feast, or extend the one you hold
+  ([`5db9191`](https://github.com/eschnitzler/EmpireCore/commit/5db9191c709bd8e3d91bca7ff8f61d65a18775cf))
+
+- **player**: Request your VIP status
+  ([`ab670f3`](https://github.com/eschnitzler/EmpireCore/commit/ab670f3e0c644c93bbd527597b42386990b1e140))
+
+- **player**: Track whether you own the premium flag
+  ([`9d483d1`](https://github.com/eschnitzler/EmpireCore/commit/9d483d1be495eec98638e4e3cea10120db586a76))
+
+- **protocol**: Add js_round and js_int32 for the client's Math.round and | 0
+  ([`3719f38`](https://github.com/eschnitzler/EmpireCore/commit/3719f3865725de44f350082407359c7cf1076ec3))
+
+- **scripts**: Classify client command coverage per release
+  ([`a3b89fb`](https://github.com/eschnitzler/EmpireCore/commit/a3b89fb101ed30442a0e355729baa0947fdf90c3))
+
+- **scripts**: Count the room list the SmartFox client handles itself
+  ([`7e2c668`](https://github.com/eschnitzler/EmpireCore/commit/7e2c668ab0780a56ada9382f6feb614058244878))
+
+- **scripts**: Record which commands the client sends and handles
+  ([`5c7dd1b`](https://github.com/eschnitzler/EmpireCore/commit/5c7dd1bd1de41aa1489dbd748e750a84683a2475))
+
+- **shop**: Buy event packages and read how often you bought each
+  ([`fcbffc8`](https://github.com/eschnitzler/EmpireCore/commit/fcbffc88a14410dbb438e927b81dfb6e5fabdf7c))
+
+- **state**: Drop Castle.raw_data
+  ([`49d46c5`](https://github.com/eschnitzler/EmpireCore/commit/49d46c54d7a81c143d8f7e2d667f21567174d457))
+
+- **state**: Keep the joined castle's buildings, current from the server
+  ([`dd4c321`](https://github.com/eschnitzler/EmpireCore/commit/dd4c321753fe4a95e0afe36c27a66dec7fef346e))
+
+- **state**: Keep the joined castle's construction slots
+  ([`b6e633e`](https://github.com/eschnitzler/EmpireCore/commit/b6e633ea9771d3054dc0d02bca16a8d226dd9d90))
+
+- **state**: Set your monument's and laboratory's level from gmp and glp
+  ([`9d693f6`](https://github.com/eschnitzler/EmpireCore/commit/9d693f6f5e1bad5e1928d603b1cf807025481e6b))
+
+### Performance Improvements
+
+- **map**: Pack owner castle positions into one untracked tuple
+  ([`ece09ce`](https://github.com/eschnitzler/EmpireCore/commit/ece09ceb9482c732d95435db8f3234ad729d4f20))
+
+- **map**: Scans keep no raw row unless asked
+  ([`313024c`](https://github.com/eschnitzler/EmpireCore/commit/313024c2f979c93187d451fc3a5e250b55a28116))
+
+### Refactoring
+
+- **castle**: Read a join's kingdom as a Kingdom
+  ([`67f1118`](https://github.com/eschnitzler/EmpireCore/commit/67f1118afe60f6d54258aeed3db563b1a3570085))
+
+- **events**: Read pushed event ids through the reply models, as sent
+  ([`100d4d6`](https://github.com/eschnitzler/EmpireCore/commit/100d4d6d8649eaf3fd8dbebc68754f59fd6f3763))
+
+- **movements**: Keep an unreadable movement's reason as field, message and value
+  ([`3c2b729`](https://github.com/eschnitzler/EmpireCore/commit/3c2b729b83ffbdc41ed6ed334f72da5b0dba3f37))
+
+- **state**: Apply every login section through one typed entry
+  ([`ad3b92d`](https://github.com/eschnitzler/EmpireCore/commit/ad3b92d79a0311c19a55ab9d32f2b7520fe1c88f))
+
+- **state**: Apply the account and inventory sections through LoginDataResponse
+  ([`149c538`](https://github.com/eschnitzler/EmpireCore/commit/149c5381e188bff96f083d4138009ea2611f0f07))
+
+- **state**: Apply the castle list through GetCastlesResponse
+  ([`46431d7`](https://github.com/eschnitzler/EmpireCore/commit/46431d7ddacb093f94b2739749ffab0696018a0a))
+
+- **state**: Apply the login data through LoginDataResponse
+  ([`2a5757f`](https://github.com/eschnitzler/EmpireCore/commit/2a5757f1d90b6c0629e2d1e06def936e65c448bb))
+
+- **state**: Keep your own alliance only as a typed AllianceInfo
+  ([`6d2c42c`](https://github.com/eschnitzler/EmpireCore/commit/6d2c42ce34a928c2bee8fd626a039548fdfe3252))
+
+- **state**: Name the decoration storages and Shady Lady skip as what they hold
+  ([`91868a5`](https://github.com/eschnitzler/EmpireCore/commit/91868a5058b89e67d0ef3019fe79a8e5664c4e7e))
+
+- **state**: Read movements and sent replies through their models
+  ([`ffe8436`](https://github.com/eschnitzler/EmpireCore/commit/ffe8436a64332533a5291374bb0f90e801e2f219))
+
+- **state**: Read pep, apt and sll through their models
+  ([`50fa024`](https://github.com/eschnitzler/EmpireCore/commit/50fa024ac86212fa30e07e33735f2fb87ade3b60))
+
+### Testing
+
+- Fail on a model field with Any in its type
+  ([`15c8869`](https://github.com/eschnitzler/EmpireCore/commit/15c886928bdeeba1ec39f011ac92e1b92d494470))
+
+- **alliance**: Cover diplomacy replies without your alliance and saw without AW
+  ([`86a9954`](https://github.com/eschnitzler/EmpireCore/commit/86a99544bd0ba41c73f71d1fe308d36d33fb4e58))
+
+- **alliance**: Cover the ruby horse on an Oasis Settlement trade
+  ([`c935bb5`](https://github.com/eschnitzler/EmpireCore/commit/c935bb5099b2b02a0cd2c110e728636b60b55a5d))
+
+- **alliance**: Type the diplomacy tests' packet hook loosely for mypy
+  ([`ac594de`](https://github.com/eschnitzler/EmpireCore/commit/ac594de9b77b07e637b346ab94b6d6cd242e001c))
+
+- **castle**: An mas or mac reply that is no dict, or a raw frame, is logged and skipped
+  ([`4131383`](https://github.com/eschnitzler/EmpireCore/commit/41313834698fc691c0c93dae313c835976598eda))
+
+- **castle**: Compare the abandon end times approximately
+  ([`c938d90`](https://github.com/eschnitzler/EmpireCore/commit/c938d902d021e052af5fa88fefead42d053f8e79))
+
+- **castle**: Name the ego payload test after BuildingChanged
+  ([`b8aea53`](https://github.com/eschnitzler/EmpireCore/commit/b8aea53335c13a19c4426aaf0394655189082ba6))
+
+- **movements**: Pin how a wrapper reads ATT, SM and FC
+  ([`ad87311`](https://github.com/eschnitzler/EmpireCore/commit/ad8731132146482aff4c5f922eafd1568257f739))
+
+- **player**: Cover a feast the game data lacks, and cite the bfs handlers by split.js line
+  ([`0073b6b`](https://github.com/eschnitzler/EmpireCore/commit/0073b6beb428d47a7bd5dfa1f5c234b74e2b2428))
+
+- **player**: Drop the narrating comment from the late ste test
+  ([`78c93e4`](https://github.com/eschnitzler/EmpireCore/commit/78c93e46887a31eb0f911bc7dff21fb704dd6da4))
+
+- **player**: Read ole rewards from LTR rows when LTRR is unset
+  ([`c0e271f`](https://github.com/eschnitzler/EmpireCore/commit/c0e271fd4be52c58d3bb1fccca7b83273f6a7143))
+
+- **protocol**: Count lcb as a UI command in the coverage rules
+  ([`8e9fef8`](https://github.com/eschnitzler/EmpireCore/commit/8e9fef83586ae5bebb4f210f45503a9ca6972a52))
+
+- **protocol**: Exclude registration and account saving from coverage
+  ([`5b953d9`](https://github.com/eschnitzler/EmpireCore/commit/5b953d9c562a661c19f8b64d448ca923c7f68a2e))
+
+- **protocol**: The client command snapshot is release efded7cc
+  ([`73c1fc2`](https://github.com/eschnitzler/EmpireCore/commit/73c1fc27446f756271f06ed0d4c8765de0c1aef2))
+
+- **state**: A bgm reply leaves the gem inventory alone
+  ([`e45611e`](https://github.com/eschnitzler/EmpireCore/commit/e45611e00444a350ff2dc1463a5637a597e41be8))
+
+- **state**: Cover a map read sent without waiting and a join that beats it
+  ([`a8d1c00`](https://github.com/eschnitzler/EmpireCore/commit/a8d1c007b0c561d4038267e4b84ee8ceb2d2aa6a))
+
+- **state**: Cover a raw map read request and the placed items a pushed gaa keeps
+  ([`8bb6560`](https://github.com/eschnitzler/EmpireCore/commit/8bb6560ca7d266091c5b02b95ba7b3544639eb1a))
+
+- **state**: Drift cases for the spy screen and Shady Lady skip, current citations
+  ([`cd5c4d0`](https://github.com/eschnitzler/EmpireCore/commit/cd5c4d0451df4a924df418169d4ded986b4db2e4))
+
+- **state**: Flag subscript reads on payloads too
+  ([`a01262e`](https://github.com/eschnitzler/EmpireCore/commit/a01262e0772d5e6c9eab31d50e4ddc5762ac434b))
+
+- **state**: Follow loops, comprehensions and copies to payload reads
+  ([`cb17ef6`](https://github.com/eschnitzler/EmpireCore/commit/cb17ef6c5da7f15b3a470ea5bfb7c165e5d3cac2))
+
+- **state**: Guard all of state against payload reads
+  ([`5ad23bb`](https://github.com/eschnitzler/EmpireCore/commit/5ad23bbc14e8dd797172f626254215d0359e18da))
+
+- **state**: Guard state against reading a payload with .get
+  ([`ce96188`](https://github.com/eschnitzler/EmpireCore/commit/ce96188161575cbdd2bec211aec2562db540e926))
+
+- **state**: No login section value fails the whole login data
+  ([`a0cbe77`](https://github.com/eschnitzler/EmpireCore/commit/a0cbe77f2cf1ecc4b00af8687f0901d4a6ba6ba2))
+
+- **state**: Only the manager and movements still read payloads with get
+  ([`4e61654`](https://github.com/eschnitzler/EmpireCore/commit/4e61654606e86aca5eb13023b24958227ada1aff))
+
+- **state**: Parametrize the refused movement replies by payload
+  ([`3d7cb2b`](https://github.com/eschnitzler/EmpireCore/commit/3d7cb2bcad61603755a6aab099001901122f9bf0))
+
+### Breaking Changes
+
+- **army**: HealAllResponse.production_area, DismissUnitsResponse.production_area and
+  ProduceUnitsResponse.resources are models, not dicts; RawBlock is gone.
+
+- **castle**: AbandonCastleResponse.abandon_seconds and cancel_seconds are 0, not -1, when the reply
+  leaves the key out.
+
+- **castle**: SelectCastleResponse reads hin and crai into its hunter and crafting_queues fields, so
+  they are no longer in model_extra.
+
+- **castle**: SelectCastleResponse.kingdom_id (int) is now SelectCastleResponse.kingdom (Kingdom |
+  None).
+
+- **events**: AllianceCampInfoResponse.camps (a tuple) is now AllianceCampInfoResponse.camp, the
+  first entry or None. The EID of RagePointsResponse, AllianceCampInfo, GachaFreeChestResponse,
+  GrandTournamentQuestStatus and GrandTournamentQuestUpdate is read as sent: a whole-number float is
+  accepted and a numeric string now fails validation.
+
+- **events**: These shop events no longer read KL, so their kingdoms_league_mode stays False:
+  BuyPackagesEventVO.parseParamObject does not reach ASpecialEventVO.parseParamObject (split.js line
+  15885), which reads it.
+
+- **gamedata**: Gem.BRONZE_STALWART_HEARTSTONE is now Gem.BRONZE_STALWART_HEARTSTONE_514;
+  Gem.BRONZE_STALWART_KNIGHTSEAL is now Gem.BRONZE_STALWART_KNIGHTSEAL_517;
+  Gem.BRONZE_STALWART_OATHSHARD is now Gem.BRONZE_STALWART_OATHSHARD_515;
+  Gem.BRONZE_STALWART_VALORPLATE is now Gem.BRONZE_STALWART_VALORPLATE_516;
+  Gem.GOLD_STALWART_HEARTSTONE is now Gem.GOLD_STALWART_HEARTSTONE_522; Gem.GOLD_STALWART_KNIGHTSEAL
+  is now Gem.GOLD_STALWART_KNIGHTSEAL_525; Gem.GOLD_STALWART_OATHSHARD is now
+  Gem.GOLD_STALWART_OATHSHARD_523; Gem.GOLD_STALWART_VALORPLATE is now
+  Gem.GOLD_STALWART_VALORPLATE_524; Gem.SILVER_STALWART_HEARTSTONE is now
+  Gem.SILVER_STALWART_HEARTSTONE_518; Gem.SILVER_STALWART_KNIGHTSEAL is now
+  Gem.SILVER_STALWART_KNIGHTSEAL_521; Gem.SILVER_STALWART_OATHSHARD is now
+  Gem.SILVER_STALWART_OATHSHARD_519; Gem.SILVER_STALWART_VALORPLATE is now
+  Gem.SILVER_STALWART_VALORPLATE_520; PrebuiltCastle.OUTER_REALMS_CASTLE_TRANSPORTATION is now
+  PrebuiltCastle.CASTLE_TRANSPORTATION; Tool.SCEAT_SUPP_ATT_WAVES_L3 is now
+  Tool.SCEAT_SUPP_ATT_WAVES_L3_403; Tool.SCEAT_SUPP_DEF_WALL_AMOUNT_L10 is now
+  Tool.SCEAT_SUPP_DEF_WALL_AMOUNT_L10_450.
+
+- **map**: MapAreaItem.raw_data is list | None, None by default and for every item a scan returns
+  unless keep_raw_data=True is passed; a MapAreaItem built by field name without raw_data has None,
+  not [].
+
+- **map**: MapObject, PlayerProfileBase (so AllianceMember and the profile replies) and
+  MovementOwner type castle_positions and village_positions as OwnerPositions, a read-only sequence,
+  instead of list[OwnerCastlePosition]: it has no append and is not a list, but compares equal to a
+  list or tuple of the same positions. owner_positions() is gone; OwnerPositions.from_rows() reads
+  the rows, and OwnerPositions([...]) builds one by field name.
+
+- **messages**: BattleLogArea.alliance_crest is an AllianceCrest, not a dict.
+
+- **movements**: GetMovementsResponse no longer raises for an unreadable movement or owner record;
+  it leaves the entry out (see unreadable_movements). MovementRecord.kingdom_id is a Kingdom (an
+  unknown kingdom reads as GREEN), MovementRecord.movement_type a MovementType and
+  MovementWrapper.attack_type an AttackType where the client defines one. A reply movement without
+  an MID is now None.
+
+- **player**: Festival is renamed ActiveFeast, its festival_type is feast_id (a Feast, or the int
+  for an id the enum lacks), and BoosterInfoResponse.festival is BoosterInfoResponse.feast.
+
+- **player**: OpenLootBoxResponse.raw_rewards is gone; read rewards and reward_ids.
+
+- **state**: AutoJoinedAllianceResponse.membership and AllianceMembershipChange.membership are
+  AllianceMembershipResponse, the gal section's model, instead of its base AllianceMembership;
+  building either by name now takes an AllianceMembershipResponse.
+
+- **state**: Castle.raw_data is gone.
+
+- **state**: Client.castle.mines, construction_list, buildings and placed_construction_items now
+  survive a map scan; a pushed gaa no longer sets is_on_map or session_location;
+  get_last_packet_time("gaa") stays None; a relocation (rst) keeps the mines.
+
+- **state**: DailyQuests.from_section(section, previous) is removed; use
+  DailyQuests.model_validate(section).over(previous).
+
+- **state**: GameState.select_title_systems is removed with no replacement; the state applies every
+  successful ste reply on its own.
+
+- **state**: GetCastlesResponse has an unreadable_rows count, and a gcl whose C is no list now reads
+  with unreadable_rows 1 (and logs a warning) instead of silently as no castles.
+
+- **state**: GetEventPointsResponse no longer reads an EID sent as a string (it raises), reads one
+  sent as a whole float, and its own_ranks, own_points and max_points hold None for a null value.
+  AssignTitleResponse raises for a truthy PN that is no string, and reads TI and PN by JavaScript
+  truthiness.
+
+- **state**: LoginDataResponse reads a falsy section as None without a warning; its protection and
+  second_protection are KingdomProtection (was ProtectionResponse), commanders is CommanderRoster
+  (was GetCommandersResponse) and skills is SkillList (was GetSkillsResponse).
+
+
 ## v0.65.0 (2026-11-13)
 
 ### Bug Fixes
