@@ -20,9 +20,8 @@ Then it counts the gc-tracked objects one scan chunk of every type allocates (ne
 of those freed while it runs, as the collector counts them) and keeps, on the
 dense reply padded to 1,500 rows and 250 owner records of 27 castles and 3
 villages each, members of 20 alliances: the shape of a dense chunk in a crowded kingdom.
-It counts it cold, with no owner block shared yet (see ``Interned``); as the next chunk
-of a scan, after one whose owners are in the same alliances but have other crests; and
-read again, after the same chunk, with every block shared.
+It counts it cold, with no owner block shared yet (see ``Interned``), and as the next
+chunk of a scan, after one whose owners are in the same alliances but have other crests.
 """
 
 from __future__ import annotations
@@ -159,7 +158,7 @@ def main() -> None:
     for name, run in benchmarks(dense, chunk).items():
         print(f"  {name:<9} {median_seconds(run, args.runs) * 1000:7.2f} ms")
     first, second = crowded(dense), crowded(dense, chunk=1)
-    for name, payload, after in (("cold", first, None), ("next", second, first), ("again", first, first)):
+    for name, payload, after in (("cold", first, None), ("next", second, first)):
         allocated, kept = chunk_objects(payload, after)
         print(f"crowded chunk, {name:<5} {allocated:6} gc-tracked objects allocated (net), {kept:6} kept")
 

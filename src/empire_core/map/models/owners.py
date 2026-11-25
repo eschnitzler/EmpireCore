@@ -111,8 +111,8 @@ class OwnerFaction(BasePayload):
     @field_validator("title_id", mode="before")
     @classmethod
     def _title(cls, value: Any) -> Any:
-        # parseInt(e.FN.TID), looked up by getTitleByTitleID (FactionRankingItem.update, bundle line 95431),
-        # which finds no title for -1
+        # parseInt(e.FN.TID), looked up by getTitleByTitleID (FactionRankingItem.update, split.js line 490035),
+        # which has no title for -1
         title_id = js_parse_int(value)
         return None if title_id is None or title_id < 0 else title_id
 
@@ -123,7 +123,7 @@ class OwnerCastlePosition(NamedTuple):
     ``kingdom_id`` and ``area_id`` are read through the client's ``int()``; ``area_type``
     is None when the entry has none.
 
-    Client: ``MinWorldMapCastleInfoVO.fillFromParamObject`` (bundle line 18459).
+    Client: ``MinWorldMapCastleInfoVO.fillFromParamObject`` (split.js line 67077).
     """
 
     kingdom_id: ClientInt
@@ -302,7 +302,9 @@ class Interned:
         for shared in cls._shared.values():
             shared.clear()
 
-    def __get_pydantic_core_schema__(self, source: type[BasePayload], handler: GetCoreSchemaHandler) -> Any:
+    def __get_pydantic_core_schema__(
+        self, source: type[BasePayload], handler: GetCoreSchemaHandler
+    ) -> core_schema.CoreSchema:
         shared = Interned._shared.setdefault(source, {})
 
         def read(value: Any, build: core_schema.ValidatorFunctionWrapHandler) -> Any:
@@ -336,9 +338,9 @@ def _json_only(value: Any) -> bool:
 __all__ = [
     "AllianceCrest",
     "AllianceEmblem",
+    "Interned",
     "OwnerCastlePosition",
     "OwnerCrest",
     "OwnerFaction",
     "OwnerPositions",
-    "Interned",
 ]

@@ -1,5 +1,6 @@
 """Owner record alliance crest and Berimond blocks: frozen, and read into shared instances."""
 
+import json
 from typing import Any
 
 import pytest
@@ -9,6 +10,7 @@ from empire_core.alliance.models.info import AllianceMember
 from empire_core.gamedata import AllianceCrestColor
 from empire_core.map.models.areas import GetMapAreaResponse, MapObject
 from empire_core.map.models.owners import AllianceCrest, AllianceEmblem, Interned, OwnerFaction
+from empire_core.player.models.info import PlayerOwnerInfo
 
 CREST = {"IS": 1, "SPT": 0, "S1": 19, "SC1": 36, "S2": 13, "SC2": 35, "BGT": 2, "BGC1": 6, "BGC2": 30}
 ALLIANCE = {"ACCA": {"ACLI": 19, "ACCS": [1, 9, 18]}}
@@ -28,7 +30,7 @@ def _nothing_shared_yet() -> None:
     Interned.clear()
 
 
-@pytest.mark.parametrize("model", [MapObject, AllianceMember])
+@pytest.mark.parametrize("model", [MapObject, AllianceMember, PlayerOwnerInfo])
 @pytest.mark.parametrize("field", BLOCKS)
 def test_equal_blocks_are_one_instance(model: type[BaseModel], field: str):
     first, second = model.model_validate(_record(1)), model.model_validate(_record(2))
@@ -41,6 +43,12 @@ def test_player_crests_are_read_per_record(model: type[MapObject | AllianceMembe
     first, second = model.model_validate(_record(1)), model.model_validate(_record(2))
     assert first.emblem == second.emblem
     assert first.emblem is not second.emblem
+
+
+def test_a_record_read_from_json_text_shares_the_blocks():
+    first = MapObject.model_validate(_record(1))
+    second = MapObject.model_validate_json(json.dumps(_record(2)))
+    assert first.alliance_emblem is second.alliance_emblem and first.faction is second.faction
 
 
 def test_a_reply_shares_the_blocks_of_its_owners():
