@@ -129,6 +129,14 @@ class TestPopupDetails:
         assert isinstance(details, EventRewardPopup)
         assert (details.reward_ids, [(r.kind, r.amount) for r in details.rewards]) == (ids, rewards)
 
+    @pytest.mark.parametrize(("value", "threshold"), [({"TH": "2.5"}, 2.5), ({"TH": 0}, 0), ({}, None)])
+    def test_the_threshold_is_read_when_sent(self, value, threshold):
+        # createRewardList scales by TH whenever null != e.TH, so 0 is a threshold
+        details = Popup.model_validate({"POP": 84, "VAL": {"RIDS": [11], **value}}).details
+
+        assert isinstance(details, EventRewardPopup)
+        assert details.threshold == threshold
+
     def test_reward_rows_are_kept_beside_reward_ids(self):
         # CastleEquipmentData.parse_MSP reads t.R whatever createRewardList used
         details = Popup.model_validate({"POP": 84, "VAL": {"RIDS": [11], "R": [["GE", 3]]}}).details

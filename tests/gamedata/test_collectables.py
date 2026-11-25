@@ -342,12 +342,18 @@ class TestEntryDetails:
         assert Collectable.from_entry(key, entry).value == entry
 
     def test_items_columns_read_the_same_details(self):
-        row = {"longTermPointEventBooster": "15+3600", "allianceGift": "stone", "enchantedEquipmentIDs": "338+2"}
+        row = {
+            "longTermPointEventBooster": "15+3600",
+            "reputationPointBooster": "25+600",
+            "allianceGift": "stone",
+            "enchantedEquipmentIDs": "338+2",
+        }
 
         rewards = Collectable.from_reward_row(row, {})
 
         assert [(c.kind, c.item, c.percent, c.duration_seconds, c.enchantment_level, c.value) for c in rewards] == [
             (CollectableKind.GRAND_NOBILITY_PRIZE_BOOSTER, None, 15, 3600, None, None),
+            (CollectableKind.REPUTATION_BOOSTER, None, 25, 600, None, None),
             (CollectableKind.ALLIANCE_GIFT, AllianceGiftType.STONE, None, None, None, None),
             (CollectableKind.EQUIPMENT_UNIQUE_ENCHANTED, 338, None, None, 2, None),
         ]
