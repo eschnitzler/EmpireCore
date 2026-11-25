@@ -10,6 +10,7 @@ from pydantic import ValidationError
 from empire_core.enums.events import RaidBossCardStatus
 from empire_core.events.service.base import EventsBaseMixin
 from empire_core.exceptions import CommandError, PacketError, ReplyMismatchError
+from empire_core.gamedata import GrandTournamentQuestId
 from empire_core.gamedata.ids.events import Event
 from empire_core.protocol.base import BaseRequest, BaseResponse
 
@@ -99,7 +100,7 @@ class GrandTournamentMixin(EventsBaseMixin):
             return status
 
     def start_grand_tournament_quest(
-        self, slot_id: int, alliance_quest_id: int, *, timeout: float = 5.0
+        self, slot_id: int, alliance_quest_id: GrandTournamentQuestId, *, timeout: float = 5.0
     ) -> StartGrandTournamentQuestResponse:
         """Accept a quest, consuming an event ticket. The server checks ticket balance and assignments.
 
@@ -148,7 +149,7 @@ class GrandTournamentMixin(EventsBaseMixin):
         )
 
     def reroll_grand_tournament_quest(
-        self, slot_id: int, alliance_quest_id: int, *, timeout: float = 5.0
+        self, slot_id: int, alliance_quest_id: GrandTournamentQuestId, *, timeout: float = 5.0
     ) -> RerollGrandTournamentQuestResponse:
         """Reroll an unassigned quest; the client shows no currency charge.
 
@@ -165,7 +166,12 @@ class GrandTournamentMixin(EventsBaseMixin):
         )
 
     def skip_grand_tournament_cooldown(
-        self, slot_id: int, alliance_quest_id: int, *, spend_rubies: bool = False, timeout: float = 5.0
+        self,
+        slot_id: int,
+        alliance_quest_id: GrandTournamentQuestId,
+        *,
+        spend_rubies: bool = False,
+        timeout: float = 5.0,
     ) -> SkipGrandTournamentCooldownResponse:
         """Skip a quest slot cooldown for 999 rubies.
 

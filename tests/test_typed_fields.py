@@ -188,6 +188,9 @@ GAME_DATA_SCALAR_IDS: dict[str, str] = {
     "gamedata.tables.PalaceFortressDef.fortress_type_id": "palace fortress kinds have no table",
     "gamedata.tables.OasisSettlementDef.trade_group_id": "trade groups group oasis_trades rows; no table",
     "gamedata.tables.OasisTradeDef.trade_group_id": "trade groups group oasis_trades rows; no table",
+    "gamedata.tables_alliance.AllianceForgeLevelDef.forge_id": "the row's own id; the client keys the forge by level",
+    "gamedata.tables_alliance.AllianceTowerDef.commander_id": "default commanders have no name to make an enum of",
+    "gamedata.tables_alliance.AllianceTreasuryDonatableDef.resource_id": "a resources row; that table is not loaded",
 }
 """Game-data row fields named ``*_id`` that hold a plain int, each with why no enum types it."""
 

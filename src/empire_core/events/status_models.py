@@ -9,10 +9,10 @@ from typing import TYPE_CHECKING, Annotated, Any, ClassVar
 from pydantic import BeforeValidator, ConfigDict, Field, field_validator, model_validator
 
 from empire_core.enums.events import RaidBossCardStatus
-from empire_core.gamedata import EnumOrInt
+from empire_core.gamedata import EnumOrInt, GrandTournamentQuestId
 from empire_core.gamedata.ids.events import Event
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, readable_list
-from empire_core.protocol.js import ClientInt, js_int, js_loose_equals, js_map_key, js_string, js_truthy
+from empire_core.protocol.js import ClientInt, ClientIntOf, js_int, js_loose_equals, js_map_key, js_string, js_truthy
 
 if TYPE_CHECKING:
     from empire_core.gamedata import RaidBoss
@@ -69,7 +69,9 @@ class GrandTournamentQuestSlot(BasePayload):
 
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True, populate_by_name=True, extra="ignore")
     slot_id: int = Field(description="Zero-based slot position")
-    alliance_quest_id: ClientInt = Field(validation_alias="QID", description="Alliance quest definition id")
+    alliance_quest_id: ClientIntOf[GrandTournamentQuestId] = Field(
+        validation_alias="QID", description="The quest, a GameData.grand_tournament_quests row"
+    )
     player_id: ClientInt = Field(validation_alias="PID", description="Assigned player id; nonpositive when unassigned")
     player_name: str = Field(default="", validation_alias="PN", description="Assigned player's name")
     remaining_seconds: ClientInt = Field(validation_alias="RS", description="Quest or cooldown seconds at receipt")
@@ -328,7 +330,9 @@ class StartGrandTournamentQuestRequest(CompleteGrandTournamentQuestRequest):
 
     command: ClassVar[str] = "saq"
     slot_id: int = Field(ge=0, validation_alias="S", description="Zero-based quest slot")
-    alliance_quest_id: int = Field(gt=0, validation_alias="QID", description="Quest definition occupying the slot")
+    alliance_quest_id: GrandTournamentQuestId = Field(
+        gt=0, validation_alias="QID", description="The quest occupying the slot, a GameData.grand_tournament_quests row"
+    )
 
 
 class CancelGrandTournamentQuestRequest(CompleteGrandTournamentQuestRequest):
