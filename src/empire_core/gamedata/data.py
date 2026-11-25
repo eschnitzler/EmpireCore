@@ -39,6 +39,8 @@ from empire_core.enums import (
     BoosterId,
     HelpType,
     Kingdom,
+    MessageType,
+    RerollType,
     UnitRole,
 )
 from empire_core.exceptions import AmbiguousLookupError, GameDataNotLoadedError, NetworkError
@@ -236,6 +238,21 @@ from .tables_castle import (
     SlumLevelDef,
     WishingWellLevelDef,
 )
+from .tables_currency import (
+    MINUTE_SKIPS,
+    AlienRerollChanceDef,
+    AlienRerollChanceId,
+    CurrencyCapDef,
+    CurrencyRarenessDef,
+    CurrencyTypeDef,
+    CurrencyTypeId,
+    HiddenCurrencyDef,
+    MessageRestrictionDef,
+    MessageRestrictionId,
+    MinuteSkipDef,
+    RerollCostDef,
+    RerollCostId,
+)
 from .tables_progress import (
     GeneralAbilityEffectDef,
     GeneralSkillTierDef,
@@ -427,6 +444,14 @@ _CACHED_MODELS = (
     MightRankDef,
     HighscoreBonusDef,
     HighscoreUnitReward,
+    CurrencyTypeDef,
+    CurrencyCapDef,
+    CurrencyRarenessDef,
+    MinuteSkipDef,
+    HiddenCurrencyDef,
+    RerollCostDef,
+    AlienRerollChanceDef,
+    MessageRestrictionDef,
 )
 """Every row model the cache stores; the fingerprint covers each one's fields."""
 
@@ -726,6 +751,14 @@ _TABLES: dict[str, _TableSource] = {
     "sceat_skill_tiers": _TableSource("sceatSkillTiers", SceatSkillTierDef, "tier_id"),
     "level_up_prices": _TableSource("levelUpPrices", LevelUpPriceDef, "level_up_price_id"),
     "might_ranks": _TableSource("mightranks", MightRankDef, "might_rank_id"),
+    "currency_types": _TableSource("currencyTypes", CurrencyTypeDef, "type_id"),
+    "currency_caps": _TableSource("currencyCaps", CurrencyCapDef, "currency_id"),
+    "currency_rarenesses": _TableSource("currencyRarenesses", CurrencyRarenessDef, "currency_id"),
+    "minute_skips": _TableSource("currencyMinutesSkipValues", MinuteSkipDef, "currency_id"),
+    "hidden_currencies": _TableSource("currencyHiddenLists", HiddenCurrencyDef, "currency_id"),
+    "reroll_costs": _TableSource("rerollCosts", RerollCostDef, "reroll_cost_id", reads=is_cost_column),
+    "alien_reroll_chances": _TableSource("alienRerollChances", AlienRerollChanceDef, "chance_id"),
+    "message_restrictions": _TableSource("messageRestrictions", MessageRestrictionDef, "restriction_id"),
 }
 """The GameData tables read lazily, by attribute name: each a :class:`Table` built from these rows."""
 
@@ -1624,6 +1657,46 @@ class GameData(EmpireModel):
         """The might ranks (``mightranks``), by rank id; :meth:`next_might_rank` finds the next one."""
         return self._table("might_ranks")
 
+    @cached_property
+    def currency_types(self) -> Table[CurrencyTypeId, CurrencyTypeDef]:
+        """The ranges of currency ids that belong together (``currencyTypes``), by type id."""
+        return self._table("currency_types")
+
+    @cached_property
+    def currency_caps(self) -> Table[GameDataId["CurrencyId"], CurrencyCapDef]:
+        """The currencies' soft and hard caps (``currencyCaps``), by ``CurrencyId``."""
+        return self._table("currency_caps")
+
+    @cached_property
+    def currency_rarenesses(self) -> Table[GameDataId["CurrencyId"], CurrencyRarenessDef]:
+        """The currencies' rarenesses (``currencyRarenesses``), by ``CurrencyId``."""
+        return self._table("currency_rarenesses")
+
+    @cached_property
+    def minute_skips(self) -> Table[GameDataId["CurrencyId"], MinuteSkipDef]:
+        """The minutes each minute skip takes off (``currencyMinutesSkipValues``), by ``CurrencyId``."""
+        return self._table("minute_skips")
+
+    @cached_property
+    def hidden_currencies(self) -> Table[GameDataId["CurrencyId"], HiddenCurrencyDef]:
+        """The currencies the game leaves out of the inventory (``currencyHiddenLists``), by ``CurrencyId``."""
+        return self._table("hidden_currencies")
+
+    @cached_property
+    def reroll_costs(self) -> Table[RerollCostId, RerollCostDef]:
+        """The reroll prices (``rerollCosts``) by row id; :meth:`reroll_cost` finds a reroll's."""
+        return self._table("reroll_costs", context={"currency_ids": self._currency_ids()})
+
+    @cached_property
+    def alien_reroll_chances(self) -> Table[AlienRerollChanceId, AlienRerollChanceDef]:
+        """The alien camp reroll chances (``alienRerollChances``) by row id; :meth:`alien_reroll_odds` sorts them."""
+        return self._table("alien_reroll_chances")
+
+    @cached_property
+    def message_restrictions(self) -> Table[MessageRestrictionId, MessageRestrictionDef]:
+        """The message types' limits (``messageRestrictions``) by row id; :meth:`message_restriction` finds one."""
+        return self._table("message_restrictions")
+
     # ------------------------------------------------------------------
     # Lookups
     # ------------------------------------------------------------------
@@ -1832,6 +1905,84 @@ class GameData(EmpireModel):
             and row.reward_set_id == reward_set_id
             and (league_type_id == -1 or row.league_type_id == league_type_id)
         )
+
+    def is_minute_skip(self, currency_id: CurrencyId | int) -> bool:
+        """
+        Whether ``currency_id`` is a minute skip: in the minute skips' currency type.
+
+        Raises:
+            KeyError: The items have no minute skip currency type, where the client throws
+
+        Client: ``CurrencyData.getMinuteSkips`` and ``getCurrencyRangeByID`` (split.js lines 701896 and 701976)
+        """
+        return self.currency_types[MINUTE_SKIPS].contains(currency_id)
+
+    def reroll_cost(self, reroll_type: RerollType, count: int) -> RerollCostDef:
+        """
+        The price of reroll ``count`` of a type, 1 for the first: the row for that count, else the type's row of the
+        highest count.
+
+        Raises:
+            ValueError: The type has no price rows, where the client throws
+
+        Client: ``CastleRerollCostData.getRerollCostsByTypeAndCount`` (split.js line 125763)
+        """
+        highest = None
+        for row in self._reroll_costs_of(reroll_type):
+            if row.reroll_count == count:
+                return row
+            if highest is None or highest.reroll_count < row.reroll_count:
+                highest = row
+        if highest is None:
+            raise ValueError(f"no reroll prices for {reroll_type!r}")
+        return highest
+
+    def alien_reroll_cost(self, rerolls: int, *, rubies: bool) -> RerollCostDef:
+        """
+        The price of the next alien camp reroll after ``rerolls`` of its kind: the ``AlienRerollCountsResponse``
+        ``ruby_rerolls`` for one paid with rubies, else its ``soft_rerolls``. The alien prices go by position in
+        the table, not by ``reroll_count``: a soft reroll past the last costs the last's price.
+
+        Raises:
+            ValueError: No price at that position, where the client throws
+
+        Client: ``CastleAlienRerollData.getCostHard``, ``getCostSoftByKey``, ``softCountIndex`` and
+        ``hardCountIndex`` (split.js lines 666833-666878)
+        """
+        rows = self._reroll_costs_of(RerollType.ALIEN_CAMP)
+        index = min(rerolls, len(rows)) if rubies else min(rerolls, len(rows) - 1)
+        if not 0 <= index < len(rows):
+            raise ValueError(f"no alien camp reroll price after {rerolls} rerolls")
+        return rows[index]
+
+    def free_soft_rerolls(self, reroll_type: RerollType) -> int:
+        """
+        How many of a type's rerolls cost neither coins nor any event currency.
+
+        Client: ``CastleRerollCostData.getSoftCurrencyFreeRerollCountByType`` (split.js line 125776)
+        """
+        return sum(row.is_free_without_rubies for row in self._reroll_costs_of(reroll_type))
+
+    def _reroll_costs_of(self, reroll_type: RerollType) -> list[RerollCostDef]:
+        return [row for row in self.reroll_costs.values() if row.reroll_type == reroll_type]
+
+    def alien_reroll_odds(self, *, rubies: bool) -> list[AlienRerollChanceDef]:
+        """
+        The units an alien camp can gain on a reroll paid with rubies or without, fewest first.
+
+        Client: ``CastleAlienRerollData`` (split.js line 666801) and its ``rerollChanceSort``
+        """
+        rows = self.alien_reroll_chances.values()
+        kind = [row for row in rows if (row.for_ruby_rerolls if rubies else row.for_soft_rerolls)]
+        return sorted(kind, key=lambda row: row.added_units)
+
+    def message_restriction(self, message_type: MessageType | int) -> MessageRestrictionDef | None:
+        """
+        A message type's daily limit and level, the first row that names it; None when it has none.
+
+        Client: ``CastleMessageData.getMessageRestrictionVOByMessageType`` (split.js line 672421)
+        """
+        return next((row for row in self.message_restrictions.values() if row.message_type == message_type), None)
 
     def reward_list(self, reward_ids: Iterable[int], *, combine: bool = False) -> tuple[Collectable, ...]:
         """

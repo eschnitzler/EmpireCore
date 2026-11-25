@@ -1501,11 +1501,11 @@ class CurrencyDef(_Row):
     """
     A currency; ``json_key`` is the key the server uses for it in currency lists.
 
-    The caps, rareness and hidden flags the client reads from other tables are
-    not parsed.
+    The caps, rareness, minute skip value and hidden flag the client adds from other tables are
+    :attr:`GameData.currency_caps`, ``currency_rarenesses``, ``minute_skips`` and ``hidden_currencies``.
 
-    Client: ``XmlCurrencyVO.parseXml`` (bundle line 141282), read from the
-    ``currencies`` table by ``CurrencyData.parseXml`` (bundle line 141151)
+    Client: ``XmlCurrencyVO.parseXml`` (split.js line 702090), read from the
+    ``currencies`` table by ``CurrencyData.parseXml`` (split.js line 701703)
     """
 
     currency_id: GameDataId["CurrencyId"] = Field(

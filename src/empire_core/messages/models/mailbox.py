@@ -58,7 +58,7 @@ from empire_core.protocol.js import (
 from empire_core.protocol.text import decode_json_text, encode_json_text
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import BerimondSpecialCamp, LegendarySkill
+    from empire_core.gamedata import BerimondSpecialCamp, LegendarySkill, MessageRestrictionDef
 
 logger = logging.getLogger(__name__)
 
@@ -1147,7 +1147,7 @@ class WorldLinkResponse(BaseResponse):
 
 class MessagesSentToday(BaseResponse):
     """
-    How many messages of each limited type you have sent today; the game data's ``messageRestrictions`` sets
+    How many messages of each limited type you have sent today; ``GameData.message_restrictions`` sets
     each type's daily limit.
 
     Command: mcd, as a login section of ``gbd`` and a push.
@@ -1171,6 +1171,17 @@ class MessagesSentToday(BaseResponse):
             return value
         rows = [row for row in list_or_empty(value) if isinstance(row, list) and len(row) > 1]
         return {known(MessageType, js_int(row[0])): js_int(row[1]) for row in rows}
+
+    def limit_reached(self, restriction: MessageRestrictionDef) -> bool:
+        """
+        Whether today's messages of the restriction's type use up its daily limit, e.g. a player message's
+        from ``GameData.message_restriction(MessageType.USER_OUT)``.
+
+        Client: ``CastleMessageData.parse_MCD`` (split.js line 672695) counts each type's messages into its
+        restriction; ``CastlePlayerInfoDialog.updateMessageRestrictions`` (split.js line 21769) compares them
+        """
+        sent = 0 if restriction.message_type is None else self.sent.get(restriction.message_type, 0)
+        return restriction.limit_reached(sent)
 
 
 __all__ = [

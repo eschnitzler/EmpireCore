@@ -95,6 +95,17 @@ abilities a slot offers), `general_ability_effects` (the bonuses an ability's
 are lists in the items' order: `level_up(level)` finds a level's rewards and
 `highscore_bonus(league, rank)` a rank's weekly honour reward, whose
 `coins_at`, `unit_amount` and `tool_amount` give the amounts at a rank.
+
+The currencies' caps, rarenesses, minute skip values and hidden flags are
+`currency_caps`, `currency_rarenesses`, `minute_skips` and `hidden_currencies`,
+each by `CurrencyId`; `currency_types` holds the currency id ranges
+(`is_minute_skip(currency_id)` checks the minute skips'). The reroll prices are
+`reroll_costs`: `reroll_cost(RerollType.TRAINING_PROGRAMS, count)` finds one,
+`alien_reroll_cost(rerolls, rubies=...)` an alien camp's, and
+`alien_reroll_odds(rubies=...)` lists what an alien reroll can add. A message
+type's daily limit is `message_restriction(MessageType.USER_OUT)`, which
+`client.messages.sent_today.limit_reached(...)` checks.
+
 `raw("bossdungeons")` returns a table that is not modeled yet, exactly as the
 items file has it.
 
