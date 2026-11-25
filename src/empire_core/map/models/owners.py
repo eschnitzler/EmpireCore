@@ -7,22 +7,19 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Iterator, Sequence
 from contextlib import suppress
-from typing import TYPE_CHECKING, Annotated, Any, NamedTuple, overload
+from typing import TYPE_CHECKING, Any, NamedTuple, overload
 
-from pydantic import BeforeValidator, Field, GetCoreSchemaHandler, TypeAdapter, ValidationError, field_validator
+from pydantic import Field, GetCoreSchemaHandler, TypeAdapter, ValidationError, field_validator
 from pydantic_core import core_schema
 
 from empire_core.enums import CoatOfArmsBackground, SymbolLayout
 from empire_core.gamedata import CoatOfArmsSymbolId, EnumOrInt
 from empire_core.gamedata.lenient import known
 from empire_core.protocol.base import BasePayload, list_or_empty, object_or_none
-from empire_core.protocol.js import ClientInt, ParseInt, js_int, js_parse_int, js_truthy
+from empire_core.protocol.js import ClientInt, ClientIntOf, ParseInt, js_int, js_parse_int, js_truthy
 
 if TYPE_CHECKING:
     from empire_core.gamedata import AllianceCrestColor, AllianceCrestLayout, Title
-
-
-_SymbolId = Annotated[CoatOfArmsSymbolId, BeforeValidator(js_int)]
 
 
 class OwnerCrest(BasePayload):
@@ -48,11 +45,11 @@ class OwnerCrest(BasePayload):
     symbol_type: SymbolLayout | int = Field(
         validation_alias="SPT", default=SymbolLayout.NONE, description="Where the symbols show"
     )
-    symbol1: _SymbolId = Field(
+    symbol1: ClientIntOf[CoatOfArmsSymbolId] = Field(
         validation_alias="S1", default=CoatOfArmsSymbolId(0), description="The first symbol, -1 for none"
     )
     symbol1_color: ClientInt = Field(validation_alias="SC1", default=0, description="First symbol's colour")
-    symbol2: _SymbolId = Field(
+    symbol2: ClientIntOf[CoatOfArmsSymbolId] = Field(
         validation_alias="S2", default=CoatOfArmsSymbolId(0), description="The second symbol, -1 for none"
     )
     symbol2_color: ClientInt = Field(validation_alias="SC2", default=0, description="Second symbol's colour")
@@ -230,7 +227,7 @@ class AllianceCrest(BasePayload):
         default=None,
         description="The crest layout; None when the crest names none (0)",
     )
-    color_ids: list[Annotated[EnumOrInt["AllianceCrestColor"], BeforeValidator(js_int)]] = Field(
+    color_ids: list[ClientIntOf[EnumOrInt["AllianceCrestColor"]]] = Field(
         validation_alias="ACCS",
         default_factory=list,
         description="The colours, one per layout colour",

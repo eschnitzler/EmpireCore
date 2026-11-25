@@ -37,12 +37,21 @@ from empire_core.protocol.base import (
     BaseRequest,
     BaseResponse,
     CurrencyBlock,
+    IdArray,
     TimedPayload,
     TimedResponse,
     object_or_none,
     readable_list,
 )
-from empire_core.protocol.js import ClientInt, ClientNumber, js_int, js_loose_equals, js_parse_int, js_truthy
+from empire_core.protocol.js import (
+    ClientInt,
+    ClientIntOf,
+    ClientNumber,
+    js_int,
+    js_loose_equals,
+    js_parse_int,
+    js_truthy,
+)
 
 if TYPE_CHECKING:
     from empire_core.gamedata import Achievement, Feast, Title
@@ -57,12 +66,7 @@ def _numbers(value: Any) -> tuple[int | float, ...]:
     return tuple(entry for entry in value if isinstance(entry, (int, float)) and not isinstance(entry, bool))
 
 
-def _ints(value: Any) -> tuple[int, ...]:
-    return tuple(entry for entry in _numbers(value) if isinstance(entry, int))
-
-
 Numbers = Annotated[tuple[int | float, ...], BeforeValidator(_numbers)]
-Ints = Annotated[tuple[int, ...], BeforeValidator(_ints)]
 ParsedInt = Annotated[int | None, BeforeValidator(js_parse_int)]
 
 
@@ -595,9 +599,9 @@ class AchievementProgress(BasePayload):
 
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
-    achievement_id: Annotated[
-        Literal[0] | EnumOrInt["Achievement"], Field(union_mode="left_to_right"), BeforeValidator(js_int)
-    ] = Field(validation_alias="AID", default=0, description="The achievement; 0 when not sent")
+    achievement_id: ClientIntOf[Annotated[Literal[0] | EnumOrInt["Achievement"], Field(union_mode="left_to_right")]] = (
+        Field(validation_alias="AID", default=0, description="The achievement; 0 when not sent")
+    )
     progress: Numbers = Field(
         validation_alias="P",
         default=(),
@@ -620,7 +624,7 @@ class AchievementsResponse(TimedResponse):
     command = "vli"
 
     achievement_points: ClientInt = Field(validation_alias="AVP", default=0, description="Achievement points")
-    finished_achievement_ids: Annotated[tuple[EnumOrInt["Achievement"], ...], BeforeValidator(_ints)] = Field(
+    finished_achievement_ids: IdArray[EnumOrInt["Achievement"]] = Field(
         validation_alias="FA", default=(), description="Finished achievements"
     )
     progress: tuple[AchievementProgress, ...] = Field(

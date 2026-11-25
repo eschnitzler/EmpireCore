@@ -12,10 +12,9 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Annotated, Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import (
-    BeforeValidator,
     Field,
     ValidationInfo,
     ValidatorFunctionWrapHandler,
@@ -52,6 +51,7 @@ from empire_core.protocol.base import (
     BasePayload,
     BaseRequest,
     BaseResponse,
+    OptionalBlock,
     enum_or_none,
     int_entries,
     list_or_empty,
@@ -61,6 +61,7 @@ from empire_core.protocol.base import (
 )
 from empire_core.protocol.js import (
     ClientInt,
+    ClientIntOf,
     ClientNumber,
     js_int,
     js_loose_equals,
@@ -233,7 +234,7 @@ class BattleLogUnit(BasePayload):
     Client: ``LogUnitVO.initByParams`` (bundle line 61363)
     """
 
-    wod_id: Annotated[UnitOrTool, BeforeValidator(js_int)] = Field(description="The unit or tool")
+    wod_id: ClientIntOf[UnitOrTool] = Field(description="The unit or tool")
     amount: ClientInt = Field(description="How many took part")
     lost: ClientInt = Field(description="How many were lost; the server sends it as 0 or a negative number")
 
@@ -672,12 +673,12 @@ class BattleLogArea(SpyReportArea):
     ``AllianceCrestVO.fillWithData`` (bundle line 60469), drawing a random crest when it is unsent
     """
 
-    treasure_map_node_id: Annotated[TreasureMapNodeId, BeforeValidator(js_int)] = Field(
+    treasure_map_node_id: ClientIntOf[TreasureMapNodeId] = Field(
         validation_alias="NID",
         default=TreasureMapNodeId(0),
         description="The treasure map node fought over; 0 or less for none",
     )
-    alliance_crest: Annotated[AllianceCrest | None, BeforeValidator(object_or_none)] = Field(
+    alliance_crest: OptionalBlock[AllianceCrest] = Field(
         validation_alias="E",
         default=None,
         description="The crest of the alliance holding a Beyond the Horizon tower; None when unsent",
@@ -768,7 +769,7 @@ class BattleLogShortResponse(BaseResponse):
         default=0,
         description="The battle log id, for the middle and detail logs",
     )
-    message_type: Annotated[EnumOrInt[MessageType], BeforeValidator(js_int)] = Field(
+    message_type: ClientIntOf[EnumOrInt[MessageType]] = Field(
         validation_alias="MT",
         default=0,
         description="The message type: BATTLE_LOG for a battle log",

@@ -11,23 +11,17 @@ Finishing a research at once for rubies (``C2SResearchFinishInstantVO``, bundle 
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated, Any, Literal
+from typing import TYPE_CHECKING, Annotated, Literal
 
-from pydantic import BeforeValidator, Field
+from pydantic import Field
 
 from empire_core.castle.models.resources import CastleResources
 from empire_core.gamedata import EnumOrInt, EnumOrStr
-from empire_core.protocol.base import BaseRequest, BaseResponse, CurrencyBlock, TimedResponse
-from empire_core.protocol.js import ClientNumber, js_int
+from empire_core.protocol.base import BaseRequest, BaseResponse, CurrencyBlock, IdArray, TimedResponse
+from empire_core.protocol.js import ClientIntOf, ClientNumber, js_int
 
 if TYPE_CHECKING:
     from empire_core.gamedata import Currency, Research
-
-
-def _ints(value: Any) -> tuple[int, ...]:
-    if not isinstance(value, list):
-        return ()
-    return tuple(entry for entry in value if isinstance(entry, int) and not isinstance(entry, bool))
 
 
 class ResearchInfoRequest(BaseRequest):
@@ -56,11 +50,11 @@ class ResearchInfoResponse(TimedResponse):
 
     command = "rei"
 
-    bought_research_ids: Annotated[tuple[EnumOrInt["Research"], ...], BeforeValidator(_ints)] = Field(
+    bought_research_ids: IdArray[EnumOrInt["Research"]] = Field(
         validation_alias="BR", default=(), description="Finished researches"
     )
-    current_research_id: Annotated[
-        Literal[-1, 0] | EnumOrInt["Research"], Field(union_mode="left_to_right"), BeforeValidator(js_int)
+    current_research_id: ClientIntOf[
+        Annotated[Literal[-1, 0] | EnumOrInt["Research"], Field(union_mode="left_to_right")]
     ] = Field(
         validation_alias="ARID",
         default=0,

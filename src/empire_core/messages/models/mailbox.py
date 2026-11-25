@@ -15,10 +15,9 @@ import logging
 import re
 import time
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Annotated, Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from pydantic import (
-    BeforeValidator,
     ConfigDict,
     Field,
     ValidatorFunctionWrapHandler,
@@ -47,7 +46,15 @@ from empire_core.protocol.base import (
     read_or_none,
     readable_list,
 )
-from empire_core.protocol.js import ClientInt, js_int, js_loose_equals, js_number_or_none, js_parse_int, js_truthy
+from empire_core.protocol.js import (
+    ClientInt,
+    ClientIntOf,
+    js_int,
+    js_loose_equals,
+    js_number_or_none,
+    js_parse_int,
+    js_truthy,
+)
 from empire_core.protocol.text import decode_json_text, encode_json_text
 
 if TYPE_CHECKING:
@@ -133,7 +140,7 @@ class MessageInfo(BasePayload):
     """
 
     message_id: int = Field(description="Message id")
-    message_type: Annotated[EnumOrInt[MessageType], BeforeValidator(js_int)] = Field(
+    message_type: ClientIntOf[EnumOrInt[MessageType]] = Field(
         description="Message type; a plain int for a type the client does not define"
     )
     header: str = Field(

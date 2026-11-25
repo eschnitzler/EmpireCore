@@ -30,7 +30,7 @@ from empire_core.protocol.base import (
     build_command,
     readable_list,
 )
-from empire_core.protocol.js import ClientInt, js_int
+from empire_core.protocol.js import ClientInt, ClientIntOf, js_int
 
 from .objects import BuildingRow, building_or_none
 
@@ -67,7 +67,7 @@ class StoredDecoration(BasePayload):
     Client: ``DecoStorageRegularDecoVO.parseData`` (bundle line 141718)
     """
 
-    wod_id: Annotated[EnumOrInt["Building"], BeforeValidator(js_int)] = Field(description="The decoration's type")
+    wod_id: ClientIntOf[EnumOrInt["Building"]] = Field(description="The decoration's type")
     amount: ClientInt = Field(default=0, description="How many are stored")
     new_amount: ClientInt = Field(default=0, description="How many of them are new, not yet seen")
 
@@ -81,7 +81,7 @@ class StoredCustomDecoration(BasePayload):
     Client: ``DecoStorageCustomDecoVO.parseData`` (bundle line 141695)
     """
 
-    wod_id: Annotated[EnumOrInt["Building"], BeforeValidator(js_int)] = Field(description="The decoration's type")
+    wod_id: ClientIntOf[EnumOrInt["Building"]] = Field(description="The decoration's type")
     custom_id: ClientInt = Field(description="The decoration's own id, to place it with pio")
     value: ClientInt = Field(default=0, description="Its decoration (public order) value")
     is_new: bool = Field(default=False, description="Whether it is new, not yet seen")
@@ -101,7 +101,7 @@ class StoredUniqueDecoration(BasePayload):
     Client: ``DecoStorageUniqueDecoVO.parseData`` (bundle line 141743)
     """
 
-    wod_id: Annotated[EnumOrInt["Building"], BeforeValidator(js_int)] = Field(description="The decoration's type")
+    wod_id: ClientIntOf[EnumOrInt["Building"]] = Field(description="The decoration's type")
     unique_id: ClientInt = Field(description="The decoration's own id, to place or sell it")
     fusion_xp: ClientInt = Field(default=0, description="Fusion experience it has gathered")
     is_new: bool = Field(default=False, description="Whether it is new, not yet seen")

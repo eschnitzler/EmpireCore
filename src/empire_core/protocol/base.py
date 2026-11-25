@@ -580,6 +580,10 @@ def object_or_none(value: Any) -> Any:
     return value if isinstance(value, (dict, pydantic.BaseModel)) else None
 
 
+OptionalBlock = Annotated[T | None, BeforeValidator(object_or_none)]
+"""``OptionalBlock[M]``: a reply block read as ``M``, or None when it is missing or not an object."""
+
+
 def list_or_empty(value: Any) -> Any:
     """A reply value that is an array, else no entries."""
     return value if isinstance(value, list) else []
@@ -599,6 +603,23 @@ def int_entries(value: Any, *, warn: logging.Logger, what: str) -> list[int]:
         first = next(entry for entry in value if not isinstance(entry, int) or isinstance(entry, bool))
         warn.warning(f"Skipped {len(value) - len(ids)}/{len(value)} {what} that are not ids, first: {first!r:.200}")
     return ids
+
+
+def _int_ids(value: Any) -> tuple[int, ...]:
+    if not isinstance(value, list):
+        return ()
+    return tuple(entry for entry in value if isinstance(entry, int) and not isinstance(entry, bool))
+
+
+IdArray = Annotated[tuple[T, ...], BeforeValidator(_int_ids)]
+"""
+``IdArray[E]``: an id array the client walks, looking each entry up in a table keyed by int ids, read as ``E``.
+
+An entry that is no int finds no row and is dropped; anything but an array is no ids.
+
+Client: ``CastleResearchData.parse_REI`` (split.js line 694409) for ``BR``,
+``CastleAchievementData.parse_FA`` (split.js line 156176) for ``FA``
+"""
 
 
 _M = TypeVar("_M", bound=pydantic.BaseModel)
@@ -694,7 +715,7 @@ class CurrencyTotals(BasePayload):
         return value if isinstance(value, (int, float)) and not isinstance(value, bool) else None
 
 
-CurrencyBlock = Annotated[CurrencyTotals | None, BeforeValidator(object_or_none)]
+CurrencyBlock = OptionalBlock[CurrencyTotals]
 """A ``gcu`` block, or None when a reply sends none or something that is not an object."""
 
 
@@ -741,9 +762,11 @@ __all__ = [
     "PlayerInfo",
     # Utilities
     "enum_or_none",
+    "IdArray",
     "int_entries",
     "list_or_empty",
     "object_or_none",
+    "OptionalBlock",
     "read_or_none",
     "readable_list",
     # Response registry

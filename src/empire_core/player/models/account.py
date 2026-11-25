@@ -19,13 +19,13 @@ The timed models count from ``received_at``, as the client counts from its timer
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated, Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
-from pydantic import BeforeValidator, ConfigDict, Field, field_validator, model_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from empire_core.gamedata import EnumOrInt, PackageId
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, TimedPayload, TimedResponse, readable_list
-from empire_core.protocol.js import ClientInt, ClientNumber, js_int, js_loose_equals, js_number
+from empire_core.protocol.js import ClientInt, ClientIntOf, ClientNumber, js_loose_equals, js_number
 
 if TYPE_CHECKING:
     from empire_core.gamedata import Effect, GlobalEffect
@@ -268,7 +268,7 @@ class PlayerGift(BasePayload):
 
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
-    package_id: Annotated[PackageId, BeforeValidator(js_int)] = Field(
+    package_id: ClientIntOf[PackageId] = Field(
         default=PackageId(0), description="The package, a packages row of the game data"
     )
     amount: ClientInt = Field(default=0, description="How many you hold")

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import math
 import re
-from typing import Annotated, Any
+from typing import Annotated, Any, TypeVar
 
 from pydantic import BeforeValidator
 
@@ -229,6 +229,11 @@ def js_loose_equals(value: Any, number: float) -> bool:
 ClientInt = Annotated[int, BeforeValidator(js_int)]
 """An int read through the client's ``int()``."""
 
+_T = TypeVar("_T")
+
+ClientIntOf = Annotated[_T, BeforeValidator(js_int)]
+"""``ClientIntOf[T]``: an enum, id or literal the client reads through ``int()``, validated as ``T``."""
+
 ParseInt = Annotated[int, BeforeValidator(js_parse_int_or_zero)]
 """An int read through ``parseInt``, NaN as 0."""
 
@@ -244,6 +249,7 @@ ClientNumber = Annotated[int | float, BeforeValidator(_number_or_zero)]
 
 __all__ = [
     "ClientInt",
+    "ClientIntOf",
     "ClientNumber",
     "ParseInt",
     "js_falsy",
