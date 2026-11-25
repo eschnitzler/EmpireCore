@@ -34,9 +34,12 @@ from empire_core.events.status_models import GrandTournamentQuestStatus, RiftRai
 from empire_core.exceptions import ReplyMismatchError
 from empire_core.gamedata import (
     AllianceInvasionCampId,
+    DivisionRoundId,
     DonationSettingId,
     EnumOrInt,
     EventDifficultyId,
+    KingdomsLeagueRankId,
+    KingdomsLeagueRewardSetId,
     LeaderboardRewardSetId,
     OuterRealmsSettingId,
     PackageId,
@@ -74,12 +77,15 @@ from empire_core.ranking.models import (
 if TYPE_CHECKING:
     from empire_core.gamedata import (
         Collectable,
+        DivisionRoundDef,
         Event,
         GameData,
         GlobalEffect,
+        KingdomsLeagueEndRewardDef,
         LeaderboardRewardDef,
         LeagueType,
         LeagueTypeEventDef,
+        OuterRealmsRankRewardDef,
         PackageDef,
         QuestId,
         RaidBoss,
@@ -943,7 +949,11 @@ class RiftRaidEvent(SpecialEvent):
     alliance_points: int = Field(default=0, description="Your alliance's points, from the entry's A and the pep pushes")
     alliance_rank: int = Field(default=0, description="Your alliance's rank, from the pep pushes")
     subdivision_id: int = Field(default=0, description="Your alliance's subdivision, from the entry's A")
-    division_round_id: int = Field(default=0, validation_alias="DRI", description="The division round")
+    division_round_id: DivisionRoundId = Field(
+        default=DivisionRoundId(0),
+        validation_alias="DRI",
+        description="The division round, a GameData.division_rounds row",
+    )
     raid_boss_ids: tuple[EnumOrInt["RaidBoss"], ...] = Field(
         default=(), validation_alias="RBIDS", description="The bosses that can be fought"
     )
@@ -976,6 +986,15 @@ class RiftRaidEvent(SpecialEvent):
             values["league_id"] = js_int(alliance.get("LID"))
             values["subdivision_id"] = js_int(alliance.get("SDI"))
         values["division_round_id"] = js_int(entry.get("DRI"))
+
+    def division_round(self, *, game_data: GameData | None = None) -> DivisionRoundDef | None:
+        """
+        The division round's row; None for a round the items lack.
+
+        Client: ``AllianceRaidbossEventEventVO.parseData`` looks ``DRI`` up with ``getDivisionRoundByID`` (split.js
+        line 49173)
+        """
+        return _game_data(game_data).division_rounds.get(self.division_round_id)
 
     def with_points(self, ranks: Any, points: Any, maxima: Any) -> SpecialEvent:
         update: dict[str, Any] = {"score": _with_points(self.score, ranks, points, None)}
@@ -1021,6 +1040,43 @@ class OuterRealmsEvent(SpecialEvent):
         values["castle_bought"] = js_loose_equals(entry["IPS"], 1) if entry.get("IPS") is not None else True
         if js_truthy(entry.get("ICSE")):
             values["is_cross_play"] = js_loose_equals(entry["ICSE"], 1)
+
+    def rank_rewards(self, *, game_data: GameData | None = None) -> tuple[OuterRealmsRankRewardDef, ...]:
+        """
+        The run's rank and points rewards: the points rewards first, then each kind from the highest rank or points
+        down; none before the event named its settings.
+
+        Client: ``TempServerEventVO.getRewardList`` (split.js line 605259) takes ``getRewardsByRewardSetID`` of the
+        settings' ``rewardSetID`` (split.js line 697811) and sorts them with ``sortRewards`` (split.js line 605270)
+        """
+        data = _game_data(game_data)
+        setting = None if self.setting_id is None else data.outer_realms_settings.get(self.setting_id)
+        if setting is None:
+            return ()
+        rows = [
+            row
+            for row in data.outer_realms_rank_rewards.values()
+            if row.reward_set_id == setting.reward_set_id and row.gives_reward
+        ]
+        return tuple(
+            sorted(
+                rows,
+                key=lambda row: (not row.uses_points, -(row.participation_points if row.uses_points else row.rank)),
+            )
+        )
+
+    @staticmethod
+    def daily_task_rewards(points: int, *, game_data: GameData | None = None) -> tuple[Collectable, ...]:
+        """
+        What a day's daily task points (the ``ID_DAILY_TASK_POINTS_KEY`` currency) give: every step they reach, the
+        duplicates added up.
+
+        Client: ``CastleTemporaryServerEventDialogTasks.rewardList`` (split.js line 607100) passes them to
+        ``CastleTempServerData.getDailyTaskRewardsByPoints`` (split.js line 697737)
+        """
+        data = _game_data(game_data)
+        steps = [row for row in data.outer_realms_daily_task_rewards.values() if points >= row.min_daily_task_points]
+        return data.reward_list([row.reward_id for row in steps if row.reward_id > 0], combine=True)
 
 
 class ImperialPatronageEvent(SpecialEvent):
@@ -1085,7 +1141,11 @@ class KingdomsLeagueEvent(SpecialEvent):
 
     remaining_days: int = Field(default=0, validation_alias="KLRD", description="Days left")
     original_days: int = Field(default=0, validation_alias="KLRT", description="The league's length in days")
-    reward_set_id: int = Field(default=0, validation_alias="RSID", description="The reward set")
+    reward_set_id: KingdomsLeagueRewardSetId = Field(
+        default=KingdomsLeagueRewardSetId(0),
+        validation_alias="RSID",
+        description="The set of end, event and promotion rewards the league gives",
+    )
     has_alliance_ranking: bool = Field(
         default=False,
         validation_alias="KLARE",
@@ -1113,6 +1173,66 @@ class KingdomsLeagueEvent(SpecialEvent):
         if season is not None:
             return season.end_time
         return math.inf if days == 1 else now + days * _DAY
+
+    def end_reward_bands(self, *, game_data: GameData | None = None) -> tuple[KingdomsLeagueEndRewardDef, ...]:
+        """
+        The league's end reward bands for its league type, in the items' order.
+
+        Client: ``SeasonLeagueXml.getSeasonEndRewards`` (split.js line 707288)
+        """
+        return tuple(
+            row
+            for row in _game_data(game_data).kingdoms_league_end_rewards.values()
+            if row.reward_set_id == self.reward_set_id and row.matches_league_type(self.league_type_id)
+        )
+
+    def promotion_rewards(
+        self, rank_id: KingdomsLeagueRankId, *, season_pass: bool = False, game_data: GameData | None = None
+    ) -> tuple[Collectable, ...]:
+        """
+        What reaching a rank gives, with or without the season pass: the first matching row's rewards.
+
+        Client: ``SeasonLeagueXml.getPromotionRewards`` (split.js line 707490), called with the league's
+        ``rewardSetId`` and ``leaguetypeID`` (split.js line 486712)
+        """
+        data = _game_data(game_data)
+        row = next(
+            (
+                row
+                for row in data.kingdoms_league_promotion_rewards.values()
+                if row.reward_set_id == self.reward_set_id
+                and row.matches_league_type(self.league_type_id)
+                and row.rank_id == rank_id
+                and row.needs_season_pass == season_pass
+            ),
+            None,
+        )
+        return () if row is None else row.rewards(game_data=data)
+
+    def event_rewards(
+        self,
+        event: Event,
+        rank_id: KingdomsLeagueRankId,
+        *,
+        season_pass: bool = False,
+        game_data: GameData | None = None,
+    ) -> tuple[Collectable, ...]:
+        """
+        What a rank gives in a season event, with or without the season pass: every matching row's rewards.
+
+        Client: ``SeasonLeagueXml.getSeasonEventRewards`` (split.js line 707433), called with the league's
+        ``rewardSetId`` (split.js line 486749)
+        """
+        data = _game_data(game_data)
+        return tuple(
+            collectable
+            for row in data.kingdoms_league_event_rewards.values()
+            if row.reward_set_id == self.reward_set_id
+            and event in row.event_ids
+            and row.rank_id == rank_id
+            and row.needs_season_pass == season_pass
+            for collectable in row.rewards(game_data=data)
+        )
 
     def end_with(self, events: Mapping[int, SpecialEvent], now: float) -> float:
         """When the league ends while ``events`` run."""
@@ -1283,7 +1403,11 @@ class GrandTournamentEvent(ScoredEvent):
     )
 
     subdivision_id: int = Field(default=0, description="Your alliance's subdivision, from the entry's A")
-    division_round_id: int = Field(default=0, validation_alias="DRI", description="The division round")
+    division_round_id: DivisionRoundId = Field(
+        default=DivisionRoundId(0),
+        validation_alias="DRI",
+        description="The division round, a GameData.division_rounds row",
+    )
 
     @classmethod
     def accepts(cls, entry: dict[str, Any]) -> bool:
@@ -1304,6 +1428,15 @@ class GrandTournamentEvent(ScoredEvent):
         if league >= 1:
             parts["A"] = EventPart.parse({**alliance, "LID": league, "RSID": reward_set}, sub_type=1)
         values["parts"] = parts
+
+    def division_round(self, *, game_data: GameData | None = None) -> DivisionRoundDef | None:
+        """
+        The division round's row; None for a round the items lack.
+
+        Client: ``AllianceMobilizationEventEventVO.parseData`` looks ``DRI`` up with ``getDivisionRoundByID``
+        (split.js line 29273)
+        """
+        return _game_data(game_data).division_rounds.get(self.division_round_id)
 
     def with_points(self, ranks: Any, points: Any, maxima: Any) -> SpecialEvent:
         parts = dict(self.parts)
