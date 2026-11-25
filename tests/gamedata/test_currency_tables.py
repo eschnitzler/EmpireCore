@@ -1,7 +1,7 @@
 """The currency and price tables, read as the client reads them.
 
 ``tests/data/currency_tables.json`` holds the whole tables of items 790.06; the expected values come from the
-client's own parsers and lookups run in node over that file.
+client's parsers and lookups, transcribed from the bundle and run in node over that file.
 """
 
 import json
@@ -10,7 +10,14 @@ from pathlib import Path
 import pytest
 
 from empire_core.enums import CollectableKind, MessageType, RerollType
-from empire_core.gamedata import MINUTE_SKIPS, Currency, CurrencyId, GameData
+from empire_core.gamedata import (
+    MINUTE_SKIPS,
+    AlienRerollChanceDef,
+    AlienRerollChanceId,
+    Currency,
+    CurrencyId,
+    GameData,
+)
 from empire_core.gamedata.collectables import MINUTE_SKIP_FIRST_ID
 from empire_core.messages.models import MessagesSentToday
 
@@ -152,6 +159,10 @@ class TestRerollCosts:
         ]
         assert parse(rerollCosts=rows).free_soft_rerolls(RerollType.TRAINING_PROGRAMS) == 1
 
+    def test_a_cost_column_naming_no_currency_costs_nothing(self):
+        rows = [{"id": "1", "type": "officersSchool", "rerollCount": "1", "c1Cost": "0", "costNoSuchCurrency": "5"}]
+        assert parse(rerollCosts=rows).free_soft_rerolls(RerollType.TRAINING_PROGRAMS) == 1
+
 
 class TestAlienRerollChances:
     def test_each_kind_by_units(self):
@@ -161,6 +172,13 @@ class TestAlienRerollChances:
         assert [row.added_units for row in ruby] == list(range(520, 1001, 20))
         assert (soft[0].chance, soft[9].chance, ruby[24].chance) == (0.625, 6.25, 0.625)
         assert sum(row.chance for row in soft) == sum(row.chance for row in ruby) == 100
+
+    def test_a_row_built_by_name_reads_back(self):
+        row = AlienRerollChanceDef(
+            chance_id=AlienRerollChanceId(1), added_units=20, chance_thousandths=625, for_soft_rerolls=True
+        )
+        assert (row.chance, row.for_soft_rerolls) == (0.625, True)
+        assert AlienRerollChanceDef.model_validate(row.model_dump(by_alias=True)) == row
 
     def test_rows_are_sorted_by_units(self):
         rows = [

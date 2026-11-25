@@ -10,13 +10,13 @@ from typing import TYPE_CHECKING, NewType
 
 from pydantic import Field, ValidationInfo, field_validator, model_validator
 
-from empire_core.enums import MessageType, RerollType
+from empire_core.enums import CollectableKind, MessageType, RerollType
 from empire_core.protocol.js import js_falsy, js_parse_int, js_string
 
 from .collectables import _XML_COST_PREFIX, Collectable
 from .lenient import GameDataId, GameDataKey
 from .models import _parse_int_or_default, _Row
-from .tables import row_id
+from .tables import _is_one, row_id
 
 if TYPE_CHECKING:
     from .ids import CurrencyId
@@ -221,7 +221,8 @@ class RerollCostDef(_Row):
 
         Client: ``CastleRerollCostData.getSoftCurrencyFreeRerollCountByType`` (split.js line 125776)
         """
-        return self.cost_coins == 0 and not any(cost.amount > 0 for cost in self.costs)
+        paid = (cost for cost in self.costs if cost.kind is not CollectableKind.OTHER and cost.amount > 0)
+        return self.cost_coins == 0 and next(paid, None) is None
 
 
 class AlienRerollChanceDef(_Row):
@@ -235,7 +236,7 @@ class AlienRerollChanceDef(_Row):
 
     chance_id: AlienRerollChanceId = Field(validation_alias="alienRerollChancesID", description="The row")
     added_units: int = Field(validation_alias="amountUnits", description="Units the camp gains")
-    chance: float = Field(description="Its chance, the column over 1000")
+    chance_thousandths: int = Field(validation_alias="chance", description="Its chance, in thousandths")
     for_soft_rerolls: bool = Field(
         validation_alias="isSoftCurrency", default=False, description="Whether it is a reroll paid without rubies"
     )
@@ -253,15 +254,20 @@ class AlienRerollChanceDef(_Row):
     def _units(cls, value: object) -> int:
         return _required_int(value, "amountUnits")
 
-    @field_validator("chance", mode="before")
+    @field_validator("chance_thousandths", mode="before")
     @classmethod
-    def _chance(cls, value: object) -> float:
-        return _required_int(value, "chance") / 1000
+    def _chance(cls, value: object) -> int:
+        return _required_int(value, "chance")
 
     @field_validator("for_soft_rerolls", "for_ruby_rerolls", mode="before")
     @classmethod
     def _flag(cls, value: object) -> bool:
-        return _parse_int_or(value, "0") == 1
+        return _is_one(value)
+
+    @property
+    def chance(self) -> float:
+        """Its chance as the client keeps it: :attr:`chance_thousandths` over 1000."""
+        return self.chance_thousandths / 1000
 
 
 def _required_int(value: object, column: str) -> int:
