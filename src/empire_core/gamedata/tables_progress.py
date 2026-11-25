@@ -129,14 +129,20 @@ class GeneralSkillTierDef(_Row):
         default=-1,
         description="Skill points spent on the general's skills that unlock it; -1 for none",
     )
-    min_star_level: int = Field(
+    min_star_level: int | None = Field(
         validation_alias="minGeneralStarTier",
         default=-1,
-        description="The star level the general needs as well; -1 for none",
+        description="The star level the general needs as well; -1 for none, None when unreadable, which no star "
+        "level reaches",
     )
 
     _general_id = field_validator("general_id", mode="before")(_int_or_minus_one)
-    _ints = field_validator("tier", "required_skill_points", "min_star_level", mode="before")(_int_or_minus_one)
+    _ints = field_validator("tier", "required_skill_points", mode="before")(_int_or_minus_one)
+
+    @field_validator("min_star_level", mode="before")
+    @classmethod
+    def _min_star_level(cls, value: object) -> int | None:
+        return _landmark_int(value, "-1")
 
     @field_validator("is_hidden", mode="before")
     @classmethod
@@ -409,9 +415,7 @@ class HighscoreBonusDef(_Row):
     )
     tool_min_amount: int = Field(validation_alias="toolMinAmount", default=0, description="The fewest tools it gives")
 
-    _ints = field_validator("coins", "min_amount", "tool_offset", "tool_min_amount", mode="before")(
-        _int_or_zero
-    )
+    _ints = field_validator("coins", "min_amount", "tool_offset", "tool_min_amount", mode="before")(_int_or_zero)
     _league = field_validator("league_type_id", mode="before")(_int_or_minus_one)
 
     @field_validator("highest_rank", mode="before")
@@ -439,7 +443,9 @@ class HighscoreBonusDef(_Row):
 
     def holds(self, rank: int) -> bool:
         """Whether ``rank`` is in the band; never for an unreadable best rank."""
-        return self.highest_rank is not None and self.highest_rank <= rank <= (self.lowest_rank if self.lowest_rank > 0 else math.inf)
+        return self.highest_rank is not None and self.highest_rank <= rank <= (
+            self.lowest_rank if self.lowest_rank > 0 else math.inf
+        )
 
     def coins_at(self, rank: int, level: int) -> int:
         """

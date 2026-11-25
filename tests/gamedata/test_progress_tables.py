@@ -179,6 +179,9 @@ class TestGeneralRows:
     def test_a_hidden_tier_is_parse_int_one(self, hidden, expected):
         assert GeneralSkillTierDef.model_validate({"tierID": "1", "hidden": hidden}).is_hidden is expected
 
+    def test_an_unreadable_star_level_is_none(self):
+        assert GeneralSkillTierDef.model_validate({"tierID": "1", "minGeneralStarTier": "x"}).min_star_level is None
+
     def test_a_tier_without_points_has_no_requirement(self):
         row = {"tierID": "1", "generalID": "101", "tier": "2", "previousTierRequiredSkillPoints": "0"}
 
