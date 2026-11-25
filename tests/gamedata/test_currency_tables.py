@@ -18,7 +18,7 @@ ITEMS = json.loads((Path(__file__).parents[1] / "data" / "currency_tables.json")
 DATA = GameData.parse("790.06", ITEMS)
 
 
-def parse(**tables: list[dict[str, object]]) -> GameData:
+def parse(**tables: object) -> GameData:
     return GameData.parse("test", {**ITEMS, **tables})
 
 
@@ -126,8 +126,9 @@ class TestRerollCosts:
             DATA.reroll_cost(RerollType.CHARGE_CAMP_EFFECT, 1)
 
     def test_alien_prices_go_by_position(self):
-        assert [DATA.alien_reroll_cost(n, rubies=False).reroll_cost_id for n in (0, 1, 19, 20, 25)] == [1, 2, 20, 20, 20]
-        assert [DATA.alien_reroll_cost(n, rubies=True).reroll_cost_id for n in (0, 1, 19)] == [1, 2, 20]
+        soft = [DATA.alien_reroll_cost(n, rubies=False).reroll_cost_id for n in (0, 1, 19, 20, 25)]
+        ruby = [DATA.alien_reroll_cost(n, rubies=True).reroll_cost_id for n in (0, 1, 19)]
+        assert (soft, ruby) == ([1, 2, 20, 20, 20], [1, 2, 20])
 
     def test_a_ruby_alien_reroll_past_the_last_price_raises(self):
         with pytest.raises(ValueError, match="after 20 rerolls"):
@@ -190,7 +191,9 @@ class TestMessageRestrictions:
         assert restriction.daily_limit == 75
         assert restriction.required_level() == 16
         assert restriction.required_level(special_server=True) == 1
-        assert DATA.message_restriction(MessageType.ALLIANCE_NEWSLETTER).restriction_id == 2
+        newsletter = DATA.message_restriction(MessageType.ALLIANCE_NEWSLETTER)
+        assert newsletter is not None
+        assert newsletter.restriction_id == 2
         assert DATA.message_restriction(99) is None
 
     def test_parse_int_of_the_value_or_its_default(self):
@@ -209,7 +212,9 @@ class TestMessageRestrictions:
             {"messageRestrictionID": "1", "messageType": "2", "dailyLimitPerPlayer": "5"},
             {"messageRestrictionID": "2", "messageType": "2", "dailyLimitPerPlayer": "9"},
         ]
-        assert parse(messageRestrictions=rows).message_restriction(MessageType.USER_OUT).daily_limit == 5
+        restriction = parse(messageRestrictions=rows).message_restriction(MessageType.USER_OUT)
+        assert restriction is not None
+        assert restriction.daily_limit == 5
 
     def test_the_limit_against_the_messages_sent_today(self):
         restriction = DATA.message_restriction(MessageType.USER_OUT)
