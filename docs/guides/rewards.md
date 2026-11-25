@@ -37,7 +37,9 @@ if in_alliance and bonus.has_anything_to_collect(in_alliance=True):
 
 Each reward is a `Collectable`: its `kind` (`CollectableKind.COINS`,
 `UNITS`, ...), its `amount`, and the `item` it names, such as the `Unit` of a
-units reward or the `Currency` of a minute skip. A pick goes out under
+units reward or the `Currency` of a minute skip. A booster also has its
+`duration_seconds`, a percentage booster its `percent`, an enchanted
+equipment its `enchantment_level`. A pick goes out under
 `send_key`, the key the client sends: mostly the one it came under, but a
 booster of a type of its own (`B` with a glory or XP booster id, ...) goes
 under that type's key, a hero equipment under `RE`, and a currency under its

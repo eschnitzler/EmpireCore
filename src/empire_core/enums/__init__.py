@@ -38,7 +38,7 @@ from .castle import (
     Weekday,
     WishingWellOption,
 )
-from .collectables import BoosterId, CollectableKind, RewardGrantType
+from .collectables import AllianceGiftType, BoosterId, CollectableKind, RewardGrantType
 from .combat import (
     AttackAdvisorType,
     AttackType,
@@ -105,7 +105,7 @@ from .player import (
     TitleSystem,
     VerificationLink,
 )
-from .popups import PopupType
+from .popups import GrandNobilityPrizeSkin, PopupType
 from .ranking import RankingType
 from .rewards import LoginBonusSpecial
 from .spy import SpyArmySection, SpyLogType, SpyOutcome, SpyStep, SpyType
@@ -188,6 +188,7 @@ __all__ = [
     # Movement
     "MovementFilter",
     "MovementType",
+    "GrandNobilityPrizeSkin",
     "PopupType",
     # Attack / combat
     "AttackType",
@@ -227,6 +228,7 @@ __all__ = [
     "Weekday",
     "KingdomTransferType",
     # Collectables
+    "AllianceGiftType",
     "BoosterId",
     "CollectableKind",
     "RewardGrantType",

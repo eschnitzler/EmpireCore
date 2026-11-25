@@ -177,3 +177,25 @@ class PopupType(IntEnum):
     RIFT_RAID_END_GENERIC = 290
     RIFT_RAID_THRESHOLD_REWARD = 291
     RIFT_RAID_BOSS_LEVEL_DEFEAT = 292
+
+
+class GrandNobilityPrizeSkin(IntEnum):
+    """
+    The look an event's reward popup takes, its ``SID``.
+
+    Client: ``LongTermPointEventSkin`` (split.js line 92306), by ``LongTermPointEventConst`` (dll)
+    """
+
+    DEFAULT = -1
+    HALLOWEEN = 2
+    WINTER = 3
+    SPRING = 4
+    INDIA = 5
+    NEW_KING = 6
+    ST_PATRICKS_DAY = 7
+    ANNIVERSARY = 8
+    OKTOBERFEST = 9
+    CHRISTMAS = 10
+    MAYA = 11
+    PIRATES = 12
+    DRAGON_RIDERS = 13

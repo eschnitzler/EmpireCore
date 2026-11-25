@@ -107,11 +107,14 @@ OPAQUE: dict[str, str] = {
         "the row as sent, which a scan keeps only on request (#357); typed accessors parse it as the client does"
     ),
     "quests.models.Popup.value": (
-        "deferred: each popup's dialog reads its own shape (CastlePopUpHelper.displayPopUp, bundle line 68586)"
+        "each popup's dialog reads its own shape (CastlePopUpHelper.displayPopUp, split.js line 68586); typed by "
+        "Popup.details for the event reward and rewards-unlocked popups, the rest deferred"
     ),
     "gamedata.collectables.Collectable.value": (
-        "deferred: the entry as sent for OTHER and the kinds whose parseServerObject is not modelled yet "
-        "(CollectableHelper.createVO, bundle line 9387)"
+        "an OTHER entry as sent, which the client drops (CollectableHelper.createVO, split.js line 9387); "
+        "deferred: a relic (CollectableItemRelicVO.parseServerObject, split.js line 56802), whose blueprints are in "
+        "relic data the library does not load, and an equipment row sent as a random equipment "
+        "(CollectableItemEquipmentRarenessVO.parseServerObject, split.js line 133302), read by the commanders models"
     ),
     "commanders.models.equipment.EquipmentBonus.values": (
         "deferred: laid out by the effect type's valueClass (BonusVO.parseFromValueArray, bundle line 32395)"

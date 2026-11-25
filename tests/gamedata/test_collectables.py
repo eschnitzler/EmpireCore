@@ -5,7 +5,7 @@ import logging
 import pytest
 from pydantic import BaseModel
 
-from empire_core.enums import BoosterId, CollectableKind, Rareness
+from empire_core.enums import AllianceGiftType, BoosterId, CollectableKind, Rareness
 from empire_core.gamedata import (
     AllianceCrestLayout,
     Building,
@@ -265,6 +265,106 @@ class TestKinds:
         assert (first.kind, first.item, first.amount) == (CollectableKind.UNITS, 987654, 2)
         assert type(first.item) is int
         assert len([r for r in caplog.records if "987654" in r.getMessage()]) == 1
+
+
+class TestEntryDetails:
+    """What each item class's ``parseServerObject`` reads beyond the item and the amount."""
+
+    @pytest.mark.parametrize(
+        ("key", "entry", "percent", "seconds"),
+        [
+            ("PG", [20, 3600], 20, 3600),
+            ("XPB", {"PB": 50, "D": 7200}, 50, 7200),
+            ("LTB", [10, 86400], 10, 86400),
+        ],
+    )
+    def test_a_percentage_booster_reads_its_percent_and_duration(self, key, entry, percent, seconds):
+        # ACollectableItemPercentageBoosterVO.parseServerObject: [percent, duration] or {PB, D}
+        booster = Collectable.from_entry(key, entry)
+
+        assert (booster.percent, booster.duration_seconds, booster.value) == (percent, seconds, None)
+
+    def test_a_booster_under_b_with_a_kind_of_its_own_reads_pb(self):
+        booster = Collectable.from_entry("B", {"ID": 21, "PB": 25, "D": 600})
+
+        assert (booster.kind, booster.item, booster.percent, booster.duration_seconds) == (
+            CollectableKind.XP_BOOSTER,
+            BoosterId.XP,
+            25,
+            600,
+        )
+
+    def test_a_plain_booster_reads_only_an_object(self):
+        # CollectableItemBoosterVO.parseServerObject reads t.ID and t.D
+        assert Collectable.from_entry("B", {"D": 60}).duration_seconds == 60
+        plain = Collectable.from_entry("B", [0, 60])
+        assert (plain.item, plain.duration_seconds, plain.percent, plain.value) == (None, None, None, None)
+
+    def test_a_skip_discount_reads_its_discount_and_duration(self):
+        discount = Collectable.from_entry("SD_DISABLED", [30, 900])
+
+        assert (discount.kind, discount.percent, discount.duration_seconds) == (CollectableKind.SKIP_DISCOUNT, 30, 900)
+
+    @pytest.mark.parametrize(
+        ("entry", "gift"),
+        [({"T": "wood"}, AllianceGiftType.WOOD), ({"T": "C1"}, AllianceGiftType.COINS), ({}, None)],
+    )
+    def test_an_alliance_gift_names_what_it_holds(self, entry, gift):
+        # AllianceGiftTypeEnum.getTypeByName lowers the first letter
+        collectable = Collectable.from_entry("AG", entry)
+
+        assert (collectable.kind, collectable.item, collectable.value) == (CollectableKind.ALLIANCE_GIFT, gift, None)
+
+    @pytest.mark.parametrize(("entry", "level"), [([338, 4], 4), (338, 0)])
+    def test_an_enchanted_equipment_reads_its_id_and_level(self, entry, level):
+        equipment = Collectable.from_entry("EUE", entry)
+
+        assert (equipment.item, equipment.enchantment_level, equipment.value) == (338, level, None)
+
+    def test_a_random_equipment_of_one_number_reads_as_the_number(self):
+        # CollectableItemEquipmentRarenessVO.parseServerObject takes [n] as n; a hero rareness stays GE
+        assert _short((Collectable.from_entry("GE", [3]), Collectable.from_entry("GE", [12]))) == [
+            (CollectableKind.EQUIPMENT_RARENESS, Rareness.EPIC, 1),
+            (CollectableKind.EQUIPMENT_RARENESS, Rareness.HERO_RARE, 1),
+        ]
+
+    @pytest.mark.parametrize("key", ["EF", "AIP", "DPT", "PUS", "PTS", "CIBP"])
+    def test_kinds_whose_entry_the_client_never_reads(self, key):
+        collectable = Collectable.from_entry(key, [1, 2], 3)
+
+        assert (collectable.amount, collectable.item, collectable.value) == (3, None, None)
+
+    @pytest.mark.parametrize(
+        ("key", "entry"),
+        [("RI", [5, 1, 3, []]), ("RI", {"GEM": [1, 2, 3, 4, [], 0]}), ("GE", [1, 2, 3, 4, 5]), ("HF", 240)],
+    )
+    def test_relics_whole_equipment_and_unknown_keys_keep_the_entry(self, key, entry):
+        assert Collectable.from_entry(key, entry).value == entry
+
+    def test_items_columns_read_the_same_details(self):
+        row = {
+            "longTermPointEventBooster": "15+3600",
+            "reputationPointBooster": "25+600",
+            "allianceGift": "stone",
+            "enchantedEquipmentIDs": "338+2",
+        }
+
+        rewards = Collectable.from_reward_row(row, {})
+
+        assert [(c.kind, c.item, c.percent, c.duration_seconds, c.enchantment_level, c.value) for c in rewards] == [
+            (CollectableKind.GRAND_NOBILITY_PRIZE_BOOSTER, None, 15, 3600, None, None),
+            (CollectableKind.REPUTATION_BOOSTER, None, 25, 600, None, None),
+            (CollectableKind.ALLIANCE_GIFT, AllianceGiftType.STONE, None, None, None, None),
+            (CollectableKind.EQUIPMENT_UNIQUE_ENCHANTED, 338, None, None, 2, None),
+        ]
+
+    @pytest.mark.parametrize(
+        ("key", "entry"), [("PG", [20, 3600]), ("AG", {"T": "units"}), ("EUE", [338, 4]), ("SD_DISABLED", [30, 900])]
+    )
+    def test_a_dumped_collectable_reads_back_equal(self, key, entry):
+        collectable = Collectable.from_entry(key, entry)
+
+        assert Collectable.model_validate(collectable.model_dump()) == collectable
 
 
 class TestSendKey:

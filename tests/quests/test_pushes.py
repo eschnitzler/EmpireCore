@@ -2,16 +2,19 @@
 
 import pytest
 
-from empire_core.enums import PopupType
-from empire_core.gamedata import CollectableKind
+from empire_core.enums import GrandNobilityPrizeSkin, PopupType, RewardGrantType
+from empire_core.gamedata import CollectableKind, RewardId
 from empire_core.protocol.models import parse_response
 from empire_core.quests.models import (
     CampaignQuestStatusResponse,
+    EventRewardPopup,
+    Popup,
     PopupsResponse,
     QuestFinishedResponse,
     QuestListResponse,
     QuestProgressResponse,
     QuestsStartedResponse,
+    RewardsUnlockedPopup,
 )
 
 
@@ -79,3 +82,79 @@ class TestPopups:
     @pytest.mark.parametrize("body", [{}, {"P": None}, {"P": "x"}])
     def test_no_popups(self, body):
         assert PopupsResponse.model_validate(body).popups == ()
+
+
+class TestPopupDetails:
+    """CastlePopUpHelper.displayPopUp hands VAL to the dialog of each popup, which reads its own shape."""
+
+    def test_an_event_reward_popup(self):
+        # CastleGenericRewardDialogProperties reads OP, OR, TX, EOID, GT and SID; createRewardList RIDS
+        popup = Popup.model_validate(
+            {
+                "POP": PopupType.GRAND_NOBILITY_PRIZE_TOPX,
+                "VAL": {"OP": "1200", "OR": 3, "TX": 100, "EOID": 2, "RIDS": [11, "12"], "GT": "1", "SID": 7},
+            }
+        )
+
+        assert popup.details == EventRewardPopup(
+            points=1200,
+            own_rank=3,
+            top_x=100,
+            option_id=2,
+            reward_ids=(RewardId(11), RewardId(12)),
+            grant_type=RewardGrantType.ALLIANCE,
+            skin=GrandNobilityPrizeSkin.ST_PATRICKS_DAY,
+        )
+
+    def test_the_client_reads_a_falsy_number_as_not_sent(self):
+        # int(i.OP ? i.OP : -1), i.GT ? parseInt(i.GT) : -1, a falsy SID the default skin
+        details = Popup.model_validate({"POP": 22, "VAL": {"OP": 0, "GT": 0, "SID": 0}}).details
+
+        assert isinstance(details, EventRewardPopup)
+        assert (details.points, details.grant_type, details.skin) == (None, None, GrandNobilityPrizeSkin.DEFAULT)
+
+    @pytest.mark.parametrize(
+        ("value", "ids", "rewards"),
+        [
+            ({"RID": 9, "R": [["C1", 5]]}, (9,), []),
+            ({"RIDS": [], "RID": 9, "RW": [["C1", 5]]}, (), []),
+            ({"R": [["C1", 5]]}, (), [(CollectableKind.COINS, 5)]),
+            ({"RW": [["C2", 3]], "R": [["C1", 5]]}, (), [(CollectableKind.RUBIES, 3)]),
+        ],
+    )
+    def test_reward_ids_come_before_reward_rows(self, value, ids, rewards):
+        # createRewardList: RIDS if set (an empty list too), else [RID], else the rows of RW or R
+        details = Popup.model_validate({"POP": PopupType.NOMAD_INVASION_REWARD, "VAL": value}).details
+
+        assert isinstance(details, EventRewardPopup)
+        assert (details.reward_ids, [(r.kind, r.amount) for r in details.rewards]) == (ids, rewards)
+
+    @pytest.mark.parametrize(("value", "threshold"), [({"TH": "2.5"}, 2.5), ({"TH": 0}, 0), ({}, None)])
+    def test_the_threshold_is_read_when_sent(self, value, threshold):
+        # createRewardList scales by TH whenever null != e.TH, so 0 is a threshold
+        details = Popup.model_validate({"POP": 84, "VAL": {"RIDS": [11], **value}}).details
+
+        assert isinstance(details, EventRewardPopup)
+        assert details.threshold == threshold
+
+    def test_reward_rows_are_kept_beside_reward_ids(self):
+        # CastleEquipmentData.parse_MSP reads t.R whatever createRewardList used
+        details = Popup.model_validate({"POP": 84, "VAL": {"RIDS": [11], "R": [["GE", 3]]}}).details
+
+        assert isinstance(details, EventRewardPopup)
+        assert (details.reward_ids, details.rewards) == ((11,), ())
+        assert [(r.kind, r.item) for r in details.reward_rows] == [(CollectableKind.EQUIPMENT_RARENESS, 3)]
+
+    def test_a_rewards_unlocked_popup(self):
+        popup = Popup.model_validate({"POP": 254, "VAL": {"RW": [["C2", 50]]}})
+
+        assert isinstance(popup.details, RewardsUnlockedPopup)
+        assert [(r.kind, r.amount) for r in popup.details.rewards] == [(CollectableKind.RUBIES, 50)]
+
+    @pytest.mark.parametrize("popup", [{"POP": 4, "VAL": {"QID": 5}}, {"POP": 84, "VAL": 3}])
+    def test_a_popup_the_library_does_not_read_has_no_details(self, popup):
+        assert Popup.model_validate(popup).details is None
+
+    def test_every_read_popup_is_a_popup_type(self):
+        for details in (EventRewardPopup, RewardsUnlockedPopup):
+            assert all(isinstance(popup, PopupType) for popup in details.POPUPS)
