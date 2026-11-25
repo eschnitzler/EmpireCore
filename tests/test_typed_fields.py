@@ -110,8 +110,10 @@ OPAQUE: dict[str, str] = {
         "deferred: each popup's dialog reads its own shape (CastlePopUpHelper.displayPopUp, bundle line 68586)"
     ),
     "gamedata.collectables.Collectable.value": (
-        "deferred: the entry as sent for OTHER and the kinds whose parseServerObject is not modelled yet "
-        "(CollectableHelper.createVO, bundle line 9387)"
+        "the entry as sent where nothing below the commanders area can read it: an OTHER entry, which the client "
+        "drops (CollectableHelper.createVO, split.js line 9387); a relic (CollectableItemRelicVO.parseServerObject, "
+        "split.js line 56802), whose blueprints are in relic data the library does not load; an equipment row sent "
+        "as a random equipment (CollectableItemEquipmentRarenessVO.parseServerObject, split.js line 133302)"
     ),
     "commanders.models.equipment.EquipmentBonus.values": (
         "deferred: laid out by the effect type's valueClass (BonusVO.parseFromValueArray, bundle line 32395)"

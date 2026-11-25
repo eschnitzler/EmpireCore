@@ -91,6 +91,19 @@ class CollectableKind(str, Enum):
     OTHER = "unknown", ""
 
 
+class AllianceGiftType(str, Enum):
+    """
+    What an alliance gift holds, by the name an ``AG`` entry's ``T`` sends.
+
+    Client: ``AllianceGiftTypeEnum`` (split.js line 267471), whose ``getTypeByName`` lowers the first letter
+    """
+
+    WOOD = "wood"
+    STONE = "stone"
+    COINS = "c1"
+    UNITS = "units"
+
+
 class BoosterId(IntEnum):
     """
     Booster ids, as a booster reward (``{"ID": booster id, "D": duration}``) names them.

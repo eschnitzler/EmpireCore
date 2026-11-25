@@ -38,7 +38,7 @@ from .castle import (
     Weekday,
     WishingWellOption,
 )
-from .collectables import BoosterId, CollectableKind, RewardGrantType
+from .collectables import AllianceGiftType, BoosterId, CollectableKind, RewardGrantType
 from .combat import (
     AttackAdvisorType,
     AttackType,
@@ -227,6 +227,7 @@ __all__ = [
     "Weekday",
     "KingdomTransferType",
     # Collectables
+    "AllianceGiftType",
     "BoosterId",
     "CollectableKind",
     "RewardGrantType",

@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Annotated, Any, ClassVar, TypeAlias
 
 from pydantic import BeforeValidator, ConfigDict, Field, PlainSerializer, PlainValidator
 
-from empire_core.enums import BoosterId, CollectableKind, Rareness
+from empire_core.enums import AllianceGiftType, BoosterId, CollectableKind, Rareness
 from empire_core.protocol.base import EmpireModel
 from empire_core.protocol.js import (
     js_int,
@@ -45,6 +45,7 @@ if TYPE_CHECKING:
         | LootBox
         | Gem
         | AllianceCrestLayout
+        | AllianceGiftType
         | BoosterId
         | Rareness
         | int
@@ -115,7 +116,29 @@ _BOOSTER_KINDS: dict[int, CollectableKind] = {
 Client: the booster switch of ``CollectableHelper.getTypeByServerKey`` (bundle lines 1606-1626)
 """
 
-_BOOSTER_FAMILY = frozenset({CollectableKind.BOOSTER, *_BOOSTER_KINDS.values()})
+_PERCENTAGE_BOOSTERS = frozenset(_BOOSTER_KINDS.values())
+"""The boosters whose item class reads a percentage and a duration: ``ACollectableItemPercentageBoosterVO``
+(split.js line 64583) and its ten subclasses.
+"""
+
+_BOOSTER_FAMILY = frozenset({CollectableKind.BOOSTER, *_PERCENTAGE_BOOSTERS})
+
+_UNREAD = frozenset(
+    {
+        CollectableKind.EXTINGUISH_FIRE,
+        CollectableKind.ALIEN_PROTECTION,
+        CollectableKind.DUNGEON_PROTECTION,
+        CollectableKind.PERMANENT_UNIT_SLOT,
+        CollectableKind.PERMANENT_TOOL_SLOT,
+        CollectableKind.CONSTRUCTION_ITEM_BLUEPRINT,
+    }
+)
+"""The kinds whose item class keeps ``ACollectableItemVO``'s empty ``parseServerObject`` (split.js line 20724):
+the client reads nothing of their entry. Client: ``CollectableItemExtinguishFireVO`` (451663),
+``CollectableItemAlienProtectionVO`` (451731), ``CollectableItemDungeonProtectionVO`` (193126),
+``CollectableItemPermanentUnitSlotVO`` (452423), ``CollectableItemPermanentToolSlotVO`` (452490),
+``CollectableItemConstructionItemBlueprintVO`` (253664)
+"""
 
 _HERO_RARENESSES = frozenset({Rareness.HERO_COMMON, Rareness.HERO_RARE, Rareness.HERO_EPIC, Rareness.HERO_LEGENDARY})
 
@@ -200,15 +223,44 @@ def _loot_box(entry: Any) -> dict[str, Any]:
     return {"item": known(LootBox, js_int(entry)), "amount": 1}
 
 
+def _booster_id(entry: Any) -> Any:
+    booster = entry.get("ID") if isinstance(entry, dict) else None
+    return known(BoosterId, booster) if _is_id(booster) else None
+
+
 def _booster(entry: Any) -> dict[str, Any]:
-    if isinstance(entry, dict):
-        booster = entry.get("ID")
-        return {
-            "item": known(BoosterId, booster) if _is_id(booster) else None,
-            "duration_seconds": _number(entry.get("D")),
-            "value": None if "ID" in entry else entry,
-        }
-    return {"duration_seconds": _number(_at(entry, 1)), "value": entry}
+    if not isinstance(entry, dict):
+        return {}
+    return {"item": _booster_id(entry), "duration_seconds": _number(entry.get("D"))}
+
+
+def _percentage_booster(entry: Any) -> dict[str, Any]:
+    if isinstance(entry, list | tuple):
+        return {"percent": _number(_at(entry, 0)), "duration_seconds": _number(_at(entry, 1))}
+    if not isinstance(entry, dict):
+        return {}
+    return {
+        "item": _booster_id(entry),
+        "percent": _number(entry.get("PB")),
+        "duration_seconds": _number(entry.get("D")),
+    }
+
+
+def _skip_discount(entry: Any) -> dict[str, Any]:
+    return {"percent": _number(_at(entry, 0)), "duration_seconds": _number(_at(entry, 1))}
+
+
+def _alliance_gift(name: Any) -> dict[str, Any]:
+    if not js_truthy(name):
+        return {}
+    text = js_string(name)
+    return {"item": known(AllianceGiftType, text[:1].lower() + text[1:])}
+
+
+def _enchanted_equipment(entry: Any) -> dict[str, Any]:
+    if isinstance(entry, list | tuple):
+        return {"item": js_int(_at(entry, 0)), "enchantment_level": js_int(_at(entry, 1))}
+    return {"item": js_int(entry), "enchantment_level": 0}
 
 
 def _gem(entry: Any) -> dict[str, Any]:
@@ -224,6 +276,8 @@ def _crest_layout(layout_id: Any) -> Any:
 
 
 def _rareness(entry: Any) -> dict[str, Any]:
+    if isinstance(entry, list | tuple) and len(entry) == 1:
+        entry = js_int(entry[0])
     if _is_id(entry):
         return {"item": known(Rareness, entry)}
     return {"value": entry}
@@ -249,6 +303,10 @@ def _opaque(entry: Any) -> dict[str, Any]:
     return {"value": entry}
 
 
+def _unread(entry: Any) -> dict[str, Any]:
+    return {}
+
+
 _GOODS = (
     CollectableKind.WOOD,
     CollectableKind.STONE,
@@ -268,7 +326,12 @@ _GOODS = (
 
 _READERS: dict[CollectableKind, Callable[[Any], dict[str, Any]]] = {
     **dict.fromkeys(_GOODS, _amount),
-    **dict.fromkeys(_BOOSTER_FAMILY, _booster),
+    **dict.fromkeys(_PERCENTAGE_BOOSTERS, _percentage_booster),
+    **dict.fromkeys(_UNREAD, _unread),
+    CollectableKind.BOOSTER: _booster,
+    CollectableKind.RELIC_EQUIPMENT: _opaque,
+    CollectableKind.SKIP_DISCOUNT: _skip_discount,
+    CollectableKind.ALLIANCE_GIFT: lambda entry: _alliance_gift(entry.get("T") if isinstance(entry, dict) else None),
     CollectableKind.CURRENCY: _currency_amount,
     CollectableKind.UNITS: _unit,
     CollectableKind.BUILDING: _building,
@@ -279,7 +342,7 @@ _READERS: dict[CollectableKind, Callable[[Any], dict[str, Any]]] = {
     CollectableKind.GEM: _gem,
     CollectableKind.GEM_RANDOM: lambda entry: {"item": -js_int(entry)},
     CollectableKind.EQUIPMENT_UNIQUE: _id,
-    CollectableKind.EQUIPMENT_UNIQUE_ENCHANTED: lambda entry: {"item": js_int(_at(entry, 0)), "value": entry},
+    CollectableKind.EQUIPMENT_UNIQUE_ENCHANTED: _enchanted_equipment,
     CollectableKind.CREST_SYMBOL: _id,
     CollectableKind.GIFT_PACKAGE: _id_and_amount,
     CollectableKind.MATERIAL_BAG: _id_and_amount,
@@ -295,17 +358,19 @@ _READERS: dict[CollectableKind, Callable[[Any], dict[str, Any]]] = {
         "duration_seconds": _number(entry.get("D")) if isinstance(entry, dict) else None,
     },
 }
-"""How each kind reads its entry, as its item class's ``parseServerObject`` does; any other kind keeps the entry.
+"""How each kind reads its entry, as its item class's ``parseServerObject`` does; a relic and any other kind keep
+the entry.
 
 Client: ``ACollectableItemGoodsVO`` (bundle line 40505), ``CollectableItemGenericCurrencyVO`` (5260),
 ``CollectableItemUnitVO`` (15479), ``CollectableItemBuildingVO`` (10641), ``CollectableItemConstructionItemVO``
-(12257), ``ACollectableItemLootBoxVO`` (52235), ``CollectableItemBoosterVO`` (88250),
-``ACollectableItemPercentageBoosterVO`` (11931), ``CollectableItemEquipmentRarenessVO`` (25148),
-``CollectableItemGemVO`` (34930), ``CollectableItemGemRandomVO`` (40614), ``CollectableItemEquipmentUniqueVO``
-(52111), ``CollectableItemEquipmentUniqueEnchantedVO`` (37046), ``CollectableItemCrestSymbolVO`` (88757),
-``CollectableItemGiftPackageVO`` (89065), ``CollectableItemMaterialBagVO`` (88909), ``CollectableItemXpVO``
-(40650), ``CollectableItemResourcePointVO`` (88714), ``CollectableItemVipTimeVO`` (45720),
-``CollectableItemAllianceCrestLayoutVO`` (89334)
+(12257), ``ACollectableItemLootBoxVO`` (52235), ``CollectableItemGemVO`` (34930), ``CollectableItemGemRandomVO``
+(40614), ``CollectableItemCrestSymbolVO`` (88757), ``CollectableItemGiftPackageVO`` (89065),
+``CollectableItemMaterialBagVO`` (88909), ``CollectableItemXpVO`` (40650), ``CollectableItemResourcePointVO``
+(88714), ``CollectableItemVipTimeVO`` (45720), ``CollectableItemAllianceCrestLayoutVO`` (89334); in split.js
+``CollectableItemBoosterVO`` (line 450258), ``ACollectableItemPercentageBoosterVO`` (64583),
+``CollectableItemSkipDiscountVO`` (451502), ``CollectableItemAllianceGiftVO`` (452311),
+``CollectableItemEquipmentRarenessVO`` (133302), ``CollectableItemEquipmentUniqueVO`` (267357),
+``CollectableItemEquipmentUniqueEnchantedVO`` (193011)
 """
 
 _KINDS_BY_XML_KEY: dict[str, CollectableKind] = {
@@ -360,7 +425,10 @@ _XML_READERS: dict[CollectableKind, Callable[[str], dict[str, Any]]] = {
     CollectableKind.GEM: _gem,
     CollectableKind.GEM_RANDOM: lambda text: {"item": -js_int(text)},
     CollectableKind.EQUIPMENT_UNIQUE: lambda text: {"item": js_int(text)},
-    CollectableKind.EQUIPMENT_UNIQUE_ENCHANTED: lambda text: {"item": _parts(text)[0], "value": text},
+    CollectableKind.EQUIPMENT_UNIQUE_ENCHANTED: lambda text: {
+        "item": _parts(text)[0],
+        "enchantment_level": js_int(_at(text.split("+"), 1)),
+    },
     CollectableKind.CREST_SYMBOL: lambda text: {"item": js_int(text)},
     CollectableKind.ALIEN_PROTECTION: lambda text: {"item": js_int(text)},
     CollectableKind.VIP_TIME: lambda text: {"duration_seconds": _number(text)},
@@ -368,12 +436,11 @@ _XML_READERS: dict[CollectableKind, Callable[[str], dict[str, Any]]] = {
         "item": known(BoosterId, _parts(text)[0]),
         "duration_seconds": _at(_parts(text), 1),
     },
-    CollectableKind.GRAND_NOBILITY_PRIZE_BOOSTER: lambda text: {
-        "duration_seconds": _at(_parts(text), 1),
-        "value": text,
-    },
-    CollectableKind.REPUTATION_BOOSTER: lambda text: {"duration_seconds": _at(_parts(text), 1), "value": text},
-    CollectableKind.ALLIANCE_GIFT: lambda text: {"value": text.split("+")[0]},
+    **dict.fromkeys(
+        (CollectableKind.GRAND_NOBILITY_PRIZE_BOOSTER, CollectableKind.REPUTATION_BOOSTER),
+        lambda text: {"percent": js_int(_at(text.split("+"), 0)), "duration_seconds": js_int(_at(text.split("+"), 1))},
+    ),
+    CollectableKind.ALLIANCE_GIFT: lambda text: _alliance_gift(text.split("+")[0]),
     CollectableKind.MATERIAL_BAG: lambda text: {
         "item": js_parse_int(text.split("+")[0]),
         "amount": js_parse_int(_at(text.split("+"), 1)),
@@ -458,9 +525,11 @@ class Collectable(EmpireModel):
 
     ``item`` is what the entry names, for the kinds that name one: the unit or tool for
     ``UNITS``, the ``Currency`` for ``CURRENCY``, the ``BoosterId`` for a booster, the loot box,
-    building, construction item, gem or crest layout, the rareness of a random equipment, or the
-    id of an equipment, crest symbol, gift package or material bag, which no enum names.
-    ``amount`` is how many; an entry that names an item without a count is 1.
+    building, construction item, gem or crest layout, what an alliance gift holds, the rareness
+    of a random equipment, or the id of an equipment, crest symbol, gift package or material
+    bag, which no enum names. ``amount`` is how many; an entry that names an item without a
+    count is 1. A percentage booster or a skip discount gives ``percent`` for
+    ``duration_seconds``; an enchanted equipment has its ``enchantment_level``.
 
     Client: ``CollectableHelper.getTypeByServerKey`` and ``createVO`` (bundle lines 1603-1629),
     then the item class's ``parseServerObject``
@@ -478,12 +547,20 @@ class Collectable(EmpireModel):
         default=None, description="What the entry names; None for a kind that names nothing"
     )
     duration_seconds: int | float | None = Field(
-        default=None, description="How long it lasts, for a booster, VIP time or crest layout; None otherwise"
+        default=None,
+        description="How long it lasts, for a booster, skip discount, VIP time or crest layout; None otherwise",
+    )
+    percent: int | float | None = Field(
+        default=None,
+        description="The boost of a percentage booster or the discount of a skip discount, in percent; None otherwise",
+    )
+    enchantment_level: int | None = Field(
+        default=None, description="An enchanted equipment's enchantment level; None for any other kind"
     )
     value: Any = Field(
         default=None,
-        description="The entry as sent, for an OTHER entry and a kind whose layout is not read here "
-        "(relics, equipment sent whole, alliance gifts); None otherwise",
+        description="The entry as sent, for an OTHER entry, a relic, or an equipment sent whole as a random "
+        "equipment; None otherwise",
     )
 
     @classmethod
