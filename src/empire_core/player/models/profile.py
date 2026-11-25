@@ -9,14 +9,14 @@ from __future__ import annotations
 
 import time
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 from pydantic import Field, field_validator, model_validator
 
 from empire_core.enums import AllianceRank
 from empire_core.gamedata import EnumOrInt
 from empire_core.map.models.areas import AllianceEmblem
-from empire_core.map.models.owners import OwnerCrest, OwnerFaction, OwnerPositions
+from empire_core.map.models.owners import Interned, OwnerCrest, OwnerFaction, OwnerPositions
 from empire_core.protocol.base import BasePayload, enum_or_none, object_or_none
 from empire_core.protocol.js import ParseInt, js_loose_equals, js_parse_int, js_parse_int_or_zero, js_truthy
 
@@ -88,8 +88,10 @@ class PlayerProfileBase(BasePayload):
         default=0,
         description="Seconds until the player's castle relocation ends",
     )
-    faction: OwnerFaction | None = Field(validation_alias="FN", default=None, description="Berimond standing")
-    alliance_emblem: AllianceEmblem | None = Field(
+    faction: Annotated[OwnerFaction, Interned()] | None = Field(
+        validation_alias="FN", default=None, description="Berimond standing"
+    )
+    alliance_emblem: Annotated[AllianceEmblem, Interned()] | None = Field(
         validation_alias="aee",
         default=None,
         description="The alliance's crest; None outside an alliance",

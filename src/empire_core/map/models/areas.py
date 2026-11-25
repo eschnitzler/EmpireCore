@@ -10,7 +10,7 @@ Commands:
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar
 
 from pydantic import ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
@@ -35,7 +35,7 @@ from empire_core.protocol.js import (
 )
 
 from .items import MapAreaItem, parse_area_rows
-from .owners import AllianceEmblem, OwnerCrest, OwnerFaction, OwnerPositions
+from .owners import AllianceEmblem, Interned, OwnerCrest, OwnerFaction, OwnerPositions
 
 if TYPE_CHECKING:
     from empire_core.gamedata import Title
@@ -165,7 +165,7 @@ class MapObject(BasePayload):
     alliance_id: int | None = Field(validation_alias="AID", default=None, description="Alliance id; negative for none")
     alliance_rank: ParseInt = Field(validation_alias="AR", default=0, description="Rank in the alliance")
     alliance_name: str = Field(validation_alias="AN", default="", description="Alliance name")
-    alliance_emblem: AllianceEmblem | None = Field(
+    alliance_emblem: Annotated[AllianceEmblem, Interned()] | None = Field(
         validation_alias="aee", default=None, description="The alliance's crest"
     )
     remaining_protection_time: ParseInt = Field(
@@ -188,7 +188,9 @@ class MapObject(BasePayload):
     remaining_noob_protection: ParseInt = Field(
         validation_alias="RNP", default=0, description="Seconds of beginner protection left"
     )
-    faction: OwnerFaction | None = Field(validation_alias="FN", default=None, description="Berimond standing")
+    faction: Annotated[OwnerFaction, Interned()] | None = Field(
+        validation_alias="FN", default=None, description="Berimond standing"
+    )
     via_refer_a_friend: bool = Field(validation_alias="IRF", default=False, description="Joined through refer-a-friend")
 
     @property

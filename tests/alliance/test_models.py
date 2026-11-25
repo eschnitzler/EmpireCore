@@ -414,7 +414,7 @@ class TestAllianceInfoOffersAndCrests:
             {"AID": 1, "aee": {"ACCA": {"ACLI": 3, "ACCS": [9, 8]}, "ACFB": {"ACLI": 1, "ACCS": [2]}}}
         )
         assert info.crests is not None and info.crests.crest is not None and info.crests.fallback_crest is not None
-        assert (info.crests.crest.layout_id, info.crests.crest.color_ids) == (3, [9, 8])
+        assert (info.crests.crest.layout_id, info.crests.crest.color_ids) == (3, (9, 8))
         assert info.crests.fallback_crest.layout_id == 1
 
     def test_a_fallback_needs_both_layout_and_colours(self):

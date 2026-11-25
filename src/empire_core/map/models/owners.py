@@ -1,15 +1,27 @@
 """Owner records and the pieces they share with movements and player profiles.
 
 A player's crest, Berimond standing, castle positions and alliance crest.
+
+The Berimond and alliance crest blocks are frozen, and an owner record reads equal blocks into
+one shared instance (see :class:`Interned`): a crowded map chunk names hundreds of owners, and
+the members of one alliance all send its crest.
 """
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterable, Iterator, Sequence
 from contextlib import suppress
-from typing import TYPE_CHECKING, Any, NamedTuple, overload
+from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple, overload
 
-from pydantic import Field, GetCoreSchemaHandler, TypeAdapter, ValidationError, field_validator
+from pydantic import (
+    ConfigDict,
+    Field,
+    GetCoreSchemaHandler,
+    TypeAdapter,
+    ValidationError,
+    field_validator,
+)
 from pydantic_core import core_schema
 
 from empire_core.enums import CoatOfArmsBackground, SymbolLayout
@@ -26,9 +38,9 @@ class OwnerCrest(BasePayload):
     """A player's crest: an owner record's ``E``, and your own crest.
 
     A layout past the last the client knows stays a plain int; the client draws it as the last one
-    (``setSymbols`` and ``setBackground``, bundle lines 10589-10590).
+    (``setSymbols`` and ``setBackground``, split.js lines 57253 and 57236).
 
-    Client: ``CrestVO.loadFromParamObject`` (bundle line 10594)
+    Client: ``CrestVO.loadFromParamObject`` (split.js line 57284)
     """
 
     is_set: bool = Field(
@@ -75,10 +87,13 @@ def _layout(layouts: type[SymbolLayout] | type[CoatOfArmsBackground], value: Any
 
 
 class OwnerFaction(BasePayload):
-    """Berimond standing: an owner record's ``FN``.
+    """Berimond standing: an owner record's ``FN``. Frozen.
 
-    Client: ``WorldMapOwnerInfoVO.fillFromParamObject`` (bundle line 10794), which reads each key through ``parseInt``.
+    Client: ``WorldMapOwnerInfoVO.fillFromParamObject`` (split.js line 58409), which reads each key through
+    ``parseInt``.
     """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     faction_id: ParseInt = Field(validation_alias="FID", default=0, description="Faction id")
     protection_status: ParseInt = Field(validation_alias="PMS", default=0, description="Berimond protection status")
@@ -215,21 +230,23 @@ class OwnerPositions(Sequence[OwnerCastlePosition]):
 
 class AllianceCrest(BasePayload):
     """
-    An alliance's crest: a layout and its colours.
+    An alliance's crest: a layout and its colours. Frozen.
 
-    Client: ``AllianceCrestVO.fillWithData`` (bundle line 11233); ``fillFromArray``
-    (bundle line 11237) reads the same two values from ``[layout_id, color_ids]``; each colour is
-    looked up through ``int()`` (bundle line 11216).
+    Client: ``AllianceCrestVO.fillWithData`` (split.js line 60469); ``fillFromArray``
+    (split.js line 60481) reads the same two values from ``[layout_id, color_ids]``; each colour is
+    looked up through ``int()`` (``AllianceCrestVO.colors``, split.js line 60424).
     """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     layout_id: EnumOrInt["AllianceCrestLayout"] | None = Field(
         validation_alias="ACLI",
         default=None,
         description="The crest layout; None when the crest names none (0)",
     )
-    color_ids: list[ClientIntOf[EnumOrInt["AllianceCrestColor"]]] = Field(
+    color_ids: tuple[ClientIntOf[EnumOrInt["AllianceCrestColor"]], ...] = Field(
         validation_alias="ACCS",
-        default_factory=list,
+        default=(),
         description="The colours, one per layout colour",
     )
 
@@ -242,17 +259,19 @@ class AllianceCrest(BasePayload):
     @field_validator("color_ids", mode="before")
     @classmethod
     def _stored_raw(cls, value: Any) -> Any:
-        # The client stores ACCS as it arrives, so a missing list is no colours
-        return list_or_empty(value)
+        # The client stores ACCS as it arrives, so a missing list is no colours; a tuple is the colours by field name
+        return value if isinstance(value, tuple) else list_or_empty(value)
 
 
 class AllianceEmblem(BasePayload):
     """
-    The alliance crest block of an owner record: its ``aee``.
+    The alliance crest block of an owner record: its ``aee``. Frozen.
 
-    Client: ``WorldMapOwnerInfoVO.fillFromParamObject`` (bundle line 10794)
+    Client: ``WorldMapOwnerInfoVO.fillFromParamObject`` (split.js line 58409)
     reads only ``ACCA``, and only for a player in an alliance.
     """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     crest: AllianceCrest | None = Field(
         validation_alias="ACCA", default=None, description="The alliance's current crest"
@@ -264,6 +283,56 @@ class AllianceEmblem(BasePayload):
         return object_or_none(value)
 
 
+class Interned:
+    """
+    Marks a frozen block model field whose equal wire blocks are read into one shared instance.
+
+    ``Annotated[OwnerFaction, Interned()]`` reads a block of JSON values once per model and returns
+    the same instance for every equal block after it; any other value is read as usual. A shared
+    instance equals the one a fresh read would build, keys present included. Each model keeps up
+    to ``MAXSIZE`` blocks and forgets them all when full.
+    """
+
+    MAXSIZE: ClassVar[int] = 4096
+    _shared: ClassVar[dict[type[BasePayload], dict[str, BasePayload]]] = {}
+
+    @classmethod
+    def clear(cls) -> None:
+        """Forget every shared instance."""
+        for shared in cls._shared.values():
+            shared.clear()
+
+    def __get_pydantic_core_schema__(self, source: type[BasePayload], handler: GetCoreSchemaHandler) -> Any:
+        shared = Interned._shared.setdefault(source, {})
+
+        def read(value: Any, build: core_schema.ValidatorFunctionWrapHandler) -> Any:
+            if type(value) is not dict or not _json_only(value):
+                return build(value)
+            # A text key: the collector never tracks a str
+            key = _BLOCK_TEXT(value)
+            block = shared.get(key)
+            if block is None:
+                block = build(value)
+                if len(shared) >= Interned.MAXSIZE:
+                    shared.clear()
+                shared[key] = block
+            return block
+
+        return core_schema.no_info_wrap_validator_function(read, handler(source))
+
+
+_BLOCK_TEXT = json.JSONEncoder(separators=(",", ":"), check_circular=False).encode
+
+
+def _json_only(value: Any) -> bool:
+    """Whether ``value`` holds only JSON values its text tells apart: no floats, tuples or keys that are not text."""
+    if type(value) is dict:
+        return all(type(key) is str and _json_only(item) for key, item in value.items())
+    if type(value) is list:
+        return all(map(_json_only, value))
+    return value is None or type(value) in (int, str, bool)
+
+
 __all__ = [
     "AllianceCrest",
     "AllianceEmblem",
@@ -271,4 +340,5 @@ __all__ = [
     "OwnerCrest",
     "OwnerFaction",
     "OwnerPositions",
+    "Interned",
 ]

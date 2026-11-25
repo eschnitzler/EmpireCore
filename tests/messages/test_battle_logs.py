@@ -178,7 +178,7 @@ class TestShortLog:
         assert area is not None
         assert (area.alliance_id, area.name, area.victory_count, area.daimyo_rank) == (77, "Tower", 3, 2)
         assert area.alliance_crest is not None
-        assert (area.alliance_crest.layout_id, area.alliance_crest.color_ids) == (1, [1])
+        assert (area.alliance_crest.layout_id, area.alliance_crest.color_ids) == (1, (1,))
 
     def test_charge_points_read_as_int_of_max_with_zero(self):
         payload = {**BLS, "CPO": 120, "CRO": -3, "CPN": "45.7", "DCPO": None}

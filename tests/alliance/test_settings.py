@@ -154,7 +154,7 @@ def emblem_client(script=None):
 def test_emblem_uses_client_game_data_and_acknowledges_without_fabricated_push():
     client = emblem_client()
     result = client.alliance.set_emblem(900001, [900003, 900004], timeout=0.2)
-    assert result.layout_id == 900001 and result.color_ids == [900003, 900004]
+    assert result.layout_id == 900001 and result.color_ids == (900003, 900004)
     assert conn(client).request_payloads == [("sae", {"ACLI": 900001, "ACCS": [900003, 900004]})]
     assert client.alliance.own_alliance is not None and client.alliance.own_alliance.crests is None
 

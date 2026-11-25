@@ -240,7 +240,7 @@ class AllianceSettingsMixin(OwnAllianceMixin):
                 timeout=timeout,
             )
         self.client.state.apply_alliance_settings({}, membership_revision=revision, alliance_id=alliance_id)
-        return AllianceCrest(layout_id=layout_id, color_ids=list(color_ids))
+        return AllianceCrest(layout_id=layout_id, color_ids=tuple(color_ids))
 
     def _change_settings(
         self,
