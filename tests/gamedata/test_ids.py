@@ -25,6 +25,7 @@ from empire_core.gamedata import (
     DaimyoCastleDef,
     EquipmentEffectDef,
     GameData,
+    GeneralSlotId,
     HorseStats,
     LeagueBracketDef,
     QuestCondition,
@@ -382,7 +383,7 @@ class TestMemberData:
     def test_members_go_on_the_wire_as_plain_values(self):
         request = SetGeneralAbilitiesRequest(
             general_id=ids.General.TORIL,
-            abilities=[SelectedAbility(slot_id=0, ability_id=ids.GeneralAbility.POWER_SURGE_L1)],
+            abilities=[SelectedAbility(slot_id=GeneralSlotId(0), ability_id=ids.GeneralAbility.POWER_SURGE_L1)],
         )
         payload = request.to_payload()
         assert payload == {"GID": 101, "SAIDS": [[0, 10011]]}

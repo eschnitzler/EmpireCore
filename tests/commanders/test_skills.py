@@ -5,7 +5,15 @@ import logging
 
 import pytest
 
-from empire_core.gamedata import General, GeneralAbility, GeneralDef, GeneralSkill, LegendarySkill, SceatSkill
+from empire_core.gamedata import (
+    General,
+    GeneralAbility,
+    GeneralDef,
+    GeneralSkill,
+    GeneralSlotId,
+    LegendarySkill,
+    SceatSkill,
+)
 from empire_core.protocol.models import (
     AddGeneralXpRequest,
     AssignGeneralRequest,
@@ -238,7 +246,10 @@ class TestGeneralCommands:
             (
                 SetGeneralAbilitiesRequest(
                     general_id=103,
-                    abilities=[SelectedAbility(slot_id=101031, ability_id=10073), SelectedAbility(slot_id=101033)],
+                    abilities=[
+                        SelectedAbility(slot_id=GeneralSlotId(101031), ability_id=10073),
+                        SelectedAbility(slot_id=GeneralSlotId(101033)),
+                    ],
                 ),
                 "gaae",
                 '{"GID": 103, "SAIDS": [[101031, 10073], [101033, -1]]}',
