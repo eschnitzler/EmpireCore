@@ -193,8 +193,8 @@ class StandingMixin(ServiceMixin):
 
     @property
     def might_to_next_rank(self) -> int | None:
-        """Might points from your current might to :attr:`next_might_rank`'s threshold; 0 past the last rank, None
-        while your might is unreadable.
+        """Might points from your current might to :attr:`next_might_rank`'s threshold; 0 when there is no next rank,
+        as the client shows it, None while your current might is unreadable.
 
         Client: ``MightData.userMightToNextLevel`` (split.js line 582073)
 

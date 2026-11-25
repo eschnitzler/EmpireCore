@@ -319,6 +319,15 @@ class TestHighscoreBonuses:
 
         assert (bonus.league_type_id, bonus.highest_rank, bonus.lowest_rank) == (-1, 0, 0)
 
+    def test_an_unreadable_best_rank_holds_nothing_and_prices_nothing(self):
+        bonus = HighscoreBonusDef.model_validate(
+            {"highestRank": "x", "c1Reward": "7500", "minAmount": "10", "unitReward": "9+50"}
+        )
+
+        assert bonus.highest_rank is None
+        assert not bonus.holds(1)
+        assert bonus.coins_at(1, 30) == bonus.unit_amount(bonus.units[0], 1) == 0
+
     # Expected amounts from HighscoreBonusConst (dll line 237) run in node.
     @pytest.mark.parametrize(
         ("rank", "level", "expected"), [(500, 30, 4510), (201, 70, 7500), (1200, 5, 60), (5000, 1, 10)]

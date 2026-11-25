@@ -388,7 +388,9 @@ class HighscoreBonusDef(_Row):
     league_type_id: GameDataId["LeagueType"] = Field(
         validation_alias="leaguetypeID", default=-1, description="The league; -1 for none"
     )
-    highest_rank: int = Field(validation_alias="highestRank", default=0, description="The band's best rank")
+    highest_rank: int | None = Field(
+        validation_alias="highestRank", default=0, description="The band's best rank; None when unreadable"
+    )
     lowest_rank: int = Field(
         validation_alias="lowestRank", default=0, description="The band's worst rank; 0 for every rank below"
     )
@@ -407,10 +409,15 @@ class HighscoreBonusDef(_Row):
     )
     tool_min_amount: int = Field(validation_alias="toolMinAmount", default=0, description="The fewest tools it gives")
 
-    _ints = field_validator("highest_rank", "coins", "min_amount", "tool_offset", "tool_min_amount", mode="before")(
+    _ints = field_validator("coins", "min_amount", "tool_offset", "tool_min_amount", mode="before")(
         _int_or_zero
     )
     _league = field_validator("league_type_id", mode="before")(_int_or_minus_one)
+
+    @field_validator("highest_rank", mode="before")
+    @classmethod
+    def _highest_rank(cls, value: object) -> int | None:
+        return _landmark_int(value, "0")
 
     @field_validator("lowest_rank", mode="before")
     @classmethod
@@ -431,15 +438,19 @@ class HighscoreBonusDef(_Row):
         return tool if tool > 0 else None
 
     def holds(self, rank: int) -> bool:
-        """Whether ``rank`` is in the band."""
-        return self.highest_rank <= rank <= (self.lowest_rank if self.lowest_rank > 0 else math.inf)
+        """Whether ``rank`` is in the band; never for an unreadable best rank."""
+        return self.highest_rank is not None and self.highest_rank <= rank <= (self.lowest_rank if self.lowest_rank > 0 else math.inf)
 
     def coins_at(self, rank: int, level: int) -> int:
         """
-        The coins it gives at ``rank`` to a player of ``level``.
+        The coins it gives at ``rank`` to a player of ``level``, without legendary levels; 0 for an unreadable best
+        rank.
 
-        Client: ``HighscoreBonusConst.calcHighscoreBonusForC1`` (dll line 237)
+        Client: ``HighscoreBonusConst.calcHighscoreBonusForC1`` (dll line 237), which
+        ``CastleWeeklyHighscoreRewardDialog.setReward`` (split.js line 235013) passes ``userData.userLevel``
         """
+        if self.highest_rank is None:
+            return 0
         by_rank = max(self.min_amount, self.coins - 10 * (rank - self.highest_rank))
         # Math.pow of a negative level is NaN, which `| 0` reads as 0
         by_level = 10 * js_int32(js_round(level**1.1)) if level >= 0 else 0
@@ -451,7 +462,7 @@ class HighscoreBonusDef(_Row):
 
         Client: ``HighscoreBonusConst.calcHighscoreBonusForUnits`` (dll line 237)
         """
-        if unit.amount is None:
+        if unit.amount is None or self.highest_rank is None:
             return 0  # Math.max with NaN is NaN, which `| 0` reads as 0
         return js_int32(js_round(max(self.min_amount, (1 - (rank - self.highest_rank + 1) / 100 + 0.01) * unit.amount)))
 
