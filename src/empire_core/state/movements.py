@@ -48,7 +48,7 @@ MOVEMENT_PARSE_WARN_INTERVAL = 60.0
 
 # The movement clock wakes at least this often, as a far-off arrival's wait would overflow Condition.wait
 MOVEMENT_CLOCK_MAX_WAIT = 3600.0
-# Library mitigation: local return expiry may precede server commander release.
+# The client drops an ended movement on its army data's next update, at most _updateInterval (1e3 ms) later
 RETURN_COMMANDER_HOLD = 1.0
 
 
@@ -230,9 +230,9 @@ class MovementState(StateBase):
     Commander availability follows the tracked movements, as in the client.
     An expired outbound movement releases its commander unless another own
     movement references it. Returning commanders remain unavailable for one
-    second after estimated end to mitigate early reuse, and outbound attacks
-    get the same margin. Movement expiry and arrival callbacks are not
-    delayed. This estimate is not server confirmation.
+    second after estimated end, the longest the client keeps them, and
+    outbound attacks get the same margin. Movement expiry and arrival callbacks
+    are not delayed. This estimate is not server confirmation.
 
     Two signatures are supported, picked per callback from its own
     parameter list::
@@ -655,18 +655,19 @@ class MovementState(StateBase):
 
         Returning movements and armies waiting at their target count until
         their estimated end. A returning commander stays unavailable for
-        ``RETURN_COMMANDER_HOLD`` seconds after that end. This mitigates the
-        server rejecting immediate reuse. Outbound attacks get the same bounded
-        margin to bridge the arrival of a return packet; other outbound movements do not.
+        ``RETURN_COMMANDER_HOLD`` seconds after that end, the longest the client
+        keeps it busy. Outbound attacks get the same bounded margin to bridge
+        the arrival of a return packet; other outbound movements do not.
 
-        Client: ``LordVO.isAvailableForMovement`` and
-        ``CastleArmyData.updateMapmovements``, Game.bundle.e2ca3c4ee155ea53c7c7.js.
-        The former scans own map movements for a matching lord; the latter
-        removes movements when ``BasicMapmovementVO.currentProgress >= 1``,
-        including any server-provided waiting duration. The extra one-second
-        margin is library policy, beyond the client: 20 live recalled-attack
-        and transfer reuses at one second succeeded without confirmation polling.
-        It reduces premature reuse without guaranteeing server availability.
+        Client: ``LordVO.isAvailableForMovement`` (bundle line 140072) is false while an own
+        map movement (``BasicMapmovementVO.isMyMovement``, bundle line 87910) has the lord.
+        ``CastleArmyData.updateMapmovements`` (bundle line 667375) removes a movement once its
+        ``currentProgress`` (bundle line 87668), any waiting duration included, reaches 1, but
+        runs only from ``executeUpdate``, which ``BasicData.update`` (ggs.dll.js) calls at most
+        once per ``_updateInterval`` of 1e3 ms. ``CastleGame.onEnterFrame`` (bundle line 71137)
+        drives that update through ``modelObserverManager``, which ``subscribeCommonModels``
+        (bundle line 71859) subscribes the army data to. So the client keeps a commander
+        unavailable for up to one second after its movement ends.
         """
         with self._lock:
             self._advance_movements()

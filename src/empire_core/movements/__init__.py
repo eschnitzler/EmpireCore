@@ -77,6 +77,7 @@ from .service import MovementsService
 from .tracked import Movement, MovementResources
 from .travel import (
     attack_travel_time,
+    conquest_travel_speed,
     corrected_attack_distance,
     low_level_boost,
     lowest_travel_speed,
@@ -86,6 +87,7 @@ from .travel import (
     support_travel_time,
     trade_capacity,
     trade_travel_time,
+    travel_distance,
     travel_time,
     travel_time_with_horse,
     troop_speed,
@@ -171,6 +173,7 @@ __all__ = [
     "Event",
     "TreasureMapId",
     "attack_travel_time",
+    "conquest_travel_speed",
     "corrected_attack_distance",
     "low_level_boost",
     "lowest_travel_speed",
@@ -180,6 +183,7 @@ __all__ = [
     "support_travel_time",
     "trade_capacity",
     "trade_travel_time",
+    "travel_distance",
     "travel_time",
     "travel_time_with_horse",
     "troop_speed",

@@ -107,18 +107,17 @@ class CommandersService(GeneralsMixin, BaseService):
 
         Availability follows the locally tracked movements, including any server-provided
         waiting duration. After a return expires, the commander remains listed for one
-        second to mitigate the server still considering it busy. Outbound attacks also get
-        one second to bridge the return packet;
-        other outbound movements add no hold.
+        second, as in the client. Outbound attacks also get one second to bridge the
+        return packet; other outbound movements add no hold.
 
         Raises:
             StateNotLoadedError: No login has brought the roster
 
-        Client: ``LordVO.isAvailableForMovement`` (bundle line 26656), false while any map movement
-        that ``isMyMovement`` (``BasicMapmovementVO``, bundle line 19436) has the lord as its ``lordVO``,
-        whichever way it travels. ``CastleArmyData.updateMapmovements`` removes an expired
-        movement without an additional commander hold. The one-second margin is
-        library policy beyond the client.
+        Client: ``LordVO.isAvailableForMovement`` (bundle line 140072), false while any map movement
+        that ``isMyMovement`` (``BasicMapmovementVO``, bundle line 87910) has the lord as its ``lordVO``,
+        whichever way it travels. ``CastleArmyData.updateMapmovements`` (bundle line 667375) removes an
+        ended movement only on the army data's next update, which ``BasicData.update`` (ggs.dll.js)
+        runs at most once per ``_updateInterval`` of 1e3 ms, so the lord stays busy up to one second.
         """
         away = {c.commander_id for c in self.client.state.get_away_commanders()}
         return [c for c in self.roster.commanders if c.commander_id in away]

@@ -38,10 +38,10 @@ movements is travelling until that movement leaves state, its way home
 included. A returning commander stays travelling for one additional second
 before appearing in `idle_commanders`.
 
-The one-second return hold mitigates a measured timing race: the server can
-still consider the commander busy after the local movement timer expires.
-It is library policy beyond the game client, not confirmation of server
-readiness. Movement expiry and arrival callbacks still happen on time.
+The one-second return hold is the game client's own: it drops an ended
+movement on its army data's next update, which runs at most once a second,
+and until then the commander is not available. It is not confirmation of
+server readiness. Movement expiry and arrival callbacks still happen on time.
 Outbound attacks get the same one-second margin to bridge the return packet.
 A return movement keeps the commander busy for its full trip and return margin.
 If no return arrives, the outbound margin expires rather than reserving the

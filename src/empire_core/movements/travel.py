@@ -12,7 +12,9 @@ Client: ``TravelConst`` (ggs.dll.js), ``CastleAttackInfoVO.calculateTravelTime``
 ``CastleSupportDefenceVO.getBoostedTravelTime`` (bundle line 697495),
 ``CastlePostSendGoodsDialog.getBoostedTravelTime`` (bundle line 174648),
 ``CastlePostSpyDialog.getBoostedTravelTime`` (bundle line 201005),
-``CastleTradeVO.getMaxCapacityForCurrentLevel`` (bundle line 698512)
+``CastleTradeVO.getMaxCapacityForCurrentLevel`` (bundle line 698512),
+``CastleConquerInfoVO.getLowestTravelSpeed`` (bundle line 668495),
+``MapHelper.getDistanceByMapobjects`` (bundle line 34742)
 """
 
 from __future__ import annotations
@@ -20,8 +22,17 @@ from __future__ import annotations
 import math
 from collections.abc import Iterable, Mapping
 
-from empire_core.enums import MapItemType, SpyType
-from empire_core.gamedata import GameData, HorseStats, ToolStats, UnitOrTool, UnitStats, VipLevelDef
+from empire_core.enums import Kingdom, MapItemType, SpyType
+from empire_core.gamedata import (
+    BerimondSpecialCamp,
+    GameData,
+    HorseStats,
+    ToolStats,
+    UnitOrTool,
+    UnitStats,
+    VipLevelDef,
+)
+from empire_core.map.models.items import MapAreaItem
 from empire_core.protocol.js import js_int32, js_round
 
 BASIC_FIELD_TRAVEL_TIME = 600
@@ -44,6 +55,43 @@ SABOTAGE_TRAVEL_SPEED = 50
 """The speed of saboteurs (``SpyConst.TRAVELSPEED_SABOTAGE``)."""
 RESOURCES_PER_CARRIAGE = 100
 """What a carriage carries before boosts (``MarketConst.RESOURCES_PER_CARRIAGE``)."""
+BARON_SPEED = 2
+"""The fastest an outpost or Berimond camp conquest travels (``TravelConst.BARON_SPEED``)."""
+CAPITAL_CONQUEST_SPEED = 5
+"""The fastest a capital conquest travels (``TravelConst.CAPITAL_CONQUER_SPEED``)."""
+METROPOLIS_CONQUEST_SPEED = 5
+"""The fastest a trading metropolis conquest travels (``TravelConst.METROPOL_CONQUER_SPEED``)."""
+COLLECTOR_TRAVEL_DISTANCE = 50
+"""The distance of every collector attack (``TravelConst.COLLECTOR_TRAVEL_DISTANCE``)."""
+OUTER_REALMS_RANK_SWAP_TRAVEL_DISTANCE = 25.2
+"""The distance of an Outer Realms rank swap attack (``TravelConst.TEMPSERVER_RANKSWAP_TRAVEL_DISTANCE``)."""
+FIXED_TRAVEL_DISTANCES: Mapping[MapItemType, float] = {
+    MapItemType.ALIEN_CAMP: 50,
+    MapItemType.BLOODCROW_CAMP: 50,
+    MapItemType.NOMAD_CAMP: 2,
+    MapItemType.ALLIANCE_NOMAD_CAMP: 2,
+    MapItemType.SAMURAI_CAMP: 2,
+    MapItemType.DAIMYO_CASTLE: 2,
+    MapItemType.DAIMYO_TOWNSHIP: 2,
+    MapItemType.BERIMOND_INVASION_CAMP: 5,
+    MapItemType.HORIZON_TOWER: 25,
+    MapItemType.HORIZON_RESOURCE_TOWER: 10,
+    MapItemType.ARE_PORTAL: ALLIANCE_RAID_PORTAL_TRAVEL_DISTANCE,
+}
+"""
+Area types every trip to or from is a fixed distance, in the order the client checks them.
+
+Client: ``MapHelper.getDistanceByMapobjects`` (bundle line 34742) with ``TravelConst``'s
+``ALIEN_TRAVEL_DISTANCE``, ``NOMAD_TRAVEL_DISTANCE``, ``ALLIANCE_INVASION_CAMP_TRAVEL_DISTANCE``,
+``SAMURAI_TRAVEL_DISTANCE``, ``DAIMYO_CASTLE_TRAVEL_DISTANCE``, ``DAIMYO_TOWNSHIP_TRAVEL_DISTANCE``,
+``FACTION_TRAVEL_DISTANCE``, ``ALLIANCE_BATTLE_GROUND_TOWER_DISTANCE``,
+``ALLIANCE_BATTLE_GROUND_RESOURCE_TOWER_DISTANCE`` and ``ALLIANCE_RAID_PORTAL_TRAVEL_DISTANCE`` (ggs.dll.js)
+"""
+_BERIMOND_DISTANCE_TARGETS = (
+    MapItemType.BERIMOND_RESOURCE_VILLAGE,
+    MapItemType.BERIMOND_WATCHTOWER,
+    MapItemType.BERIMOND_CAPITAL,
+)
 
 
 def travel_time(speed: float, distance: float, speed_factor: float, area_bonus: float = 0) -> int:
@@ -115,6 +163,70 @@ def corrected_attack_distance(distance: float, area_type: MapItemType) -> float:
     return distance
 
 
+def travel_distance(
+    source: MapAreaItem,
+    target: MapAreaItem,
+    map_width: int,
+    *,
+    collector_attack: bool = False,
+    outer_realms_rank_swap: bool = False,
+    berimond_event_running: bool = True,
+    game_data: GameData | None = None,
+) -> float:
+    """
+    The fields between two map objects as the client measures every trip: the distance the travel times take.
+
+    A collector attack is :data:`COLLECTOR_TRAVEL_DISTANCE`. A trip from or to an area type in
+    :data:`FIXED_TRAVEL_DISTANCES` is that type's distance, the first in its order that either end has.
+    A Berimond resource village, watchtower or capital target is its special camp's ``distance`` while
+    the Battle for Berimond runs; otherwise an Outer Realms rank swap attack on a castle in the Great
+    Empire is :data:`OUTER_REALMS_RANK_SWAP_TRAVEL_DISTANCE`. Every other trip is the straight line,
+    the shorter way round the map's wrapping x edge, to one decimal.
+
+    Args:
+        source: where the trip starts.
+        target: where it goes; a Berimond watchtower's or capital's row names its special camp.
+        map_width: the kingdom's map width in fields (``ClientConstCastle.WORLD_WIDTH``, bundle line 5397),
+            ``client.map.map_size(kingdom).width``.
+        collector_attack: the trip is a collector attack.
+        outer_realms_rank_swap: the trip is an attack on an Outer Realms server whose event scores by rank swap.
+        berimond_event_running: the Battle for Berimond runs.
+        game_data: the game data with the Berimond special camps; the loaded data when None.
+
+    Raises:
+        KeyError: a Berimond target whose special camp the game data does not have; the client has no
+            distance for it either.
+
+    Client: ``MapHelper.getDistanceByMapobjects`` (bundle line 34742), ``MapHelper.getShortestDistance``
+    (bundle line 34842), ``MapHelper.isTempServerRankSwapAttack`` (bundle line 34901),
+    ``FactionEventVO.parseAdditionalXmlFromRoot`` (bundle line 41132),
+    ``FactionVillageMapobjectVO.VILLAGE_SPECIAL_CAMP_ID`` (bundle line 149190); every call site leaves
+    the fixed distances on
+    """
+    if collector_attack:
+        return COLLECTOR_TRAVEL_DISTANCE
+    ends = (source.item_type, target.item_type)
+    for area_type, distance in FIXED_TRAVEL_DISTANCES.items():
+        if area_type in ends:
+            return distance
+    if target.item_type in _BERIMOND_DISTANCE_TARGETS:
+        if berimond_event_running:
+            camp = (
+                BerimondSpecialCamp.RESOURCE_VILLAGE
+                if target.item_type == MapItemType.BERIMOND_RESOURCE_VILLAGE
+                else int(target.special_camp_id or 0)
+            )
+            game_data = game_data if game_data is not None else GameData.require()
+            return game_data.berimond_special_camps[camp].distance
+    elif outer_realms_rank_swap and target.item_type == MapItemType.CASTLE and target.kingdom == Kingdom.GREEN:
+        return OUTER_REALMS_RANK_SWAP_TRAVEL_DISTANCE
+    dx = abs(source.x - target.x)
+    dy = source.y - target.y
+    across = min(dx, map_width - dx)
+    shortest = js_round(10 * math.sqrt(across * across + dy * dy)) / 10
+    return js_round(shortest * 10) / 10
+
+
 def troop_speed(troop: UnitStats | ToolStats, *, research_bonus: int = 0, commander_boost: float = 0) -> int:
     """
     A unit's or tool's travel speed.
@@ -159,6 +271,28 @@ def lowest_travel_speed(
     return min(speeds)
 
 
+def conquest_travel_speed(speed: int, target_area_type: MapItemType) -> int:
+    """
+    The speed a conquest's army travels at: its :func:`lowest_travel_speed`, capped by the target.
+
+    A capital caps it at :data:`CAPITAL_CONQUEST_SPEED`, a trading metropolis at
+    :data:`METROPOLIS_CONQUEST_SPEED` and every other conquest (outposts, Berimond camps) at
+    :data:`BARON_SPEED`. Pass it to :func:`attack_travel_time` as the speed.
+
+    Client: ``CastleConquerInfoVO.getLowestTravelSpeed`` (bundle line 668495); ``CastleAttackData.parse_CCI``
+    and ``parse_CTI`` (bundle lines 667949, 667959) mark a capital's and a metropolis's conquest, which
+    ``CastleStartAttackDialog.onClickYes`` (bundle line 79675) asks for by ``CapitalMapobjectVO`` and
+    ``MetropolMapobjectVO``, the area types ``CAPITAL`` and ``TRADING_METROPOLIS``
+    """
+    if target_area_type == MapItemType.CAPITAL:
+        cap = CAPITAL_CONQUEST_SPEED
+    elif target_area_type == MapItemType.TRADING_METROPOLIS:
+        cap = METROPOLIS_CONQUEST_SPEED
+    else:
+        cap = BARON_SPEED
+    return min(cap, speed)
+
+
 def attack_travel_time(
     speed: int,
     distance: float,
@@ -177,17 +311,14 @@ def attack_travel_time(
     """
     Seconds an attack takes to reach its target.
 
-    A conquest's army is slower still (``CastleConquerInfoVO.getLowestTravelSpeed``), which is not ported.
-
     Args:
-        speed: the army's :func:`lowest_travel_speed`.
-        distance: fields to the target as the client measures them (``MapHelper.getDistanceByMapobjects``,
-            which gives some camps and towers fixed distances), before :func:`corrected_attack_distance`.
+        speed: the army's :func:`lowest_travel_speed`; a conquest's :func:`conquest_travel_speed`.
+        distance: fields to the target, :func:`travel_distance`, before :func:`corrected_attack_distance`.
         target_area_type: the target's area type.
         player_level: the attacking player's level.
         horse: the horse sent along; its ``unit_boost`` counts.
-        commander_bonus: the commander's equipment ``SPEED_BONUS`` and ``SPEED_BONUS_PVP`` in percent,
-            each truncated to an int.
+        commander_bonus: the commander's equipment ``SPEED_BONUS`` and ``SPEED_BONUS_PVP`` in percent, or
+            ``SPEED_BONUS`` and ``CONQUER_SPEED_BONUS`` for a conquest, each truncated to an int.
         vip_level: the active VIP level, None while VIP time does not run.
         target_is_npc: the target's owner is an NPC (player id below 0).
         legend_travel_boost: the legend skills' ``TRAVEL_ATTACK_BOOST`` in percent, given when the
@@ -355,21 +486,28 @@ def trade_capacity(
 
 __all__ = [
     "ALLIANCE_RAID_PORTAL_TRAVEL_DISTANCE",
+    "BARON_SPEED",
     "BASIC_FIELD_TRAVEL_TIME",
+    "CAPITAL_CONQUEST_SPEED",
     "CAPITAL_MAX_ATTACK_DISTANCE",
     "CAPITAL_MIN_ATTACK_DISTANCE",
+    "COLLECTOR_TRAVEL_DISTANCE",
+    "FIXED_TRAVEL_DISTANCES",
     "HORSE_BOOST_FIELDS",
     "LOW_DISTANCE_BOOST_FIELDS",
     "MARKET_TRAVEL_SPEED",
     "MAX_LEVEL_FOR_LOW_LEVEL_TRAVEL_BOOST",
+    "METROPOLIS_CONQUEST_SPEED",
     "METROPOLIS_MAX_ATTACK_DISTANCE",
     "METROPOLIS_MIN_ATTACK_DISTANCE",
+    "OUTER_REALMS_RANK_SWAP_TRAVEL_DISTANCE",
     "RESOURCES_PER_CARRIAGE",
     "SABOTAGE_TRAVEL_SPEED",
     "SPY_TRAVEL_SPEED",
     "TRAVEL_BOOST_TUTORIAL",
     "TUTORIAL_END_LEVEL",
     "attack_travel_time",
+    "conquest_travel_speed",
     "corrected_attack_distance",
     "low_level_boost",
     "lowest_travel_speed",
@@ -379,6 +517,7 @@ __all__ = [
     "support_travel_time",
     "trade_capacity",
     "trade_travel_time",
+    "travel_distance",
     "travel_time",
     "travel_time_with_horse",
     "troop_speed",
