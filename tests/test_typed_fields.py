@@ -111,10 +111,10 @@ OPAQUE: dict[str, str] = {
         "Popup.details for the event reward and rewards-unlocked popups, the rest deferred"
     ),
     "gamedata.collectables.Collectable.value": (
-        "the entry as sent where nothing below the commanders area can read it: an OTHER entry, which the client "
-        "drops (CollectableHelper.createVO, split.js line 9387); a relic (CollectableItemRelicVO.parseServerObject, "
-        "split.js line 56802), whose blueprints are in relic data the library does not load; an equipment row sent "
-        "as a random equipment (CollectableItemEquipmentRarenessVO.parseServerObject, split.js line 133302)"
+        "an OTHER entry as sent, which the client drops (CollectableHelper.createVO, split.js line 9387); "
+        "deferred: a relic (CollectableItemRelicVO.parseServerObject, split.js line 56802), whose blueprints are in "
+        "relic data the library does not load, and an equipment row sent as a random equipment "
+        "(CollectableItemEquipmentRarenessVO.parseServerObject, split.js line 133302), read by the commanders models"
     ),
     "commanders.models.equipment.EquipmentBonus.values": (
         "deferred: laid out by the effect type's valueClass (BonusVO.parseFromValueArray, bundle line 32395)"

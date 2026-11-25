@@ -305,7 +305,8 @@ class EventRewardPopup(EmpireModel):
 
     ``reward_ids`` name the rewards when the server sends them, else ``rewards`` holds them. With a
     ``threshold`` the client shows only the units of the named rewards, their amounts scaled by it
-    (``BeggingKnightsConst.calculateRewardAmount``).
+    (``BeggingKnightsConst.calculateRewardAmount``). ``reward_rows`` are read on their own as well: a
+    ``*_REWARD`` popup adds the equipment among them to the inventory (``CastleEquipmentData.parse_MSP``).
 
     Client: ``CastleGenericRewardDialogProperties`` (split.js line 276596), ``CastlePopUpHelper.createRewardList``
     and ``setGrantType`` (split.js lines 69958, 69989), for each popup of ``POPUPS``
@@ -390,6 +391,11 @@ class EventRewardPopup(EmpireModel):
     rewards: CollectableRows = Field(
         validation_alias="RW", default=(), description="What was won, where the popup names no reward ids"
     )
+    reward_rows: CollectableRows = Field(
+        validation_alias="R",
+        default=(),
+        description="The rewards sent as rows; a reward popup adds the equipment among them to your inventory",
+    )
     grant_type: EnumOrInt[RewardGrantType] | None = Field(
         validation_alias="GT", default=None, description="Who the rewards go to; None when not sent"
     )
@@ -404,13 +410,12 @@ class EventRewardPopup(EmpireModel):
             return data
         data = dict(data)
         rid = data.pop("RID", None)
-        rows = data.pop("R", None)
         if js_truthy(data.get("RIDS")) or js_truthy(rid):
             data.pop("RW", None)
             if not js_truthy(data.get("RIDS")):
                 data["RIDS"] = [rid]
-        elif not js_truthy(data.get("RW")) and js_truthy(rows):
-            data["RW"] = rows
+        elif not js_truthy(data.get("RW")) and js_truthy(data.get("R")):
+            data["RW"] = data["R"]
         return data
 
     @field_validator("points", "own_rank", "top_x", "option_id", mode="before")
@@ -428,7 +433,7 @@ class EventRewardPopup(EmpireModel):
     def _threshold(cls, value: Any) -> int | float | None:
         return js_number_or_none(value)
 
-    @field_validator("rewards", mode="before")
+    @field_validator("rewards", "reward_rows", mode="before")
     @classmethod
     def _rows(cls, value: Any) -> Any:
         return value if js_truthy(value) else ()

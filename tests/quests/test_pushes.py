@@ -129,6 +129,14 @@ class TestPopupDetails:
         assert isinstance(details, EventRewardPopup)
         assert (details.reward_ids, [(r.kind, r.amount) for r in details.rewards]) == (ids, rewards)
 
+    def test_reward_rows_are_kept_beside_reward_ids(self):
+        # CastleEquipmentData.parse_MSP reads t.R whatever createRewardList used
+        details = Popup.model_validate({"POP": 84, "VAL": {"RIDS": [11], "R": [["GE", 3]]}}).details
+
+        assert isinstance(details, EventRewardPopup)
+        assert (details.reward_ids, details.rewards) == ((11,), ())
+        assert [(r.kind, r.item) for r in details.reward_rows] == [(CollectableKind.EQUIPMENT_RARENESS, 3)]
+
     def test_a_rewards_unlocked_popup(self):
         popup = Popup.model_validate({"POP": 254, "VAL": {"RW": [["C2", 50]]}})
 
