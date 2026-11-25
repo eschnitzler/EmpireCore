@@ -9,6 +9,7 @@ from empire_core.events.status_models import RiftRaidStatus
 from empire_core.gamedata import (
     DivisionRoundId,
     GameData,
+    KingdomsLeagueMedalId,
     KingdomsLeagueRankId,
     KingdomsLeagueRewardSetId,
     OuterRealmsRewardSetId,
@@ -17,6 +18,7 @@ from empire_core.gamedata import (
     RaidBossStageId,
     ids,
 )
+from empire_core.ranking.event_models import GetSeasonInfoResponse
 from tests.gamedata.test_tables_seasons import ITEMS
 
 
@@ -134,3 +136,18 @@ class TestRiftRaidStatus:
         assert status.level(game_data=data) is data.raid_boss_levels[RaidBossLevelId(60)]
         assert status.stage(game_data=data) is data.raid_boss_stages[RaidBossStageId(396)]
         assert RiftRaidStatus.model_validate({}).level(game_data=data) is None
+
+
+class TestSeasonInfo:
+    def test_the_season_info_names_ranks_and_medals(self, data):
+        info = GetSeasonInfoResponse.model_validate(
+            {"KLM": [[1, 3], ["7", 0]], "KLSP": {"KLP": 0, "KLPP": [21]}, "KLR": {"KLRID": "21", "KLMP": 2100}}
+        )
+        assert info.rank is not None and info.passes is not None and info.player_medals is not None
+        assert data.kingdoms_league_ranks[info.rank.promotion_id].min_medal_points == 2000
+        assert data.kingdoms_league_ranks[info.passes.promotions[0].promotion_id].rank_id == KingdomsLeagueRankId(21)
+        assert [data.kingdoms_league_medals[medal.medal_id].medal_type for medal in info.player_medals] == [
+            "goldMedal",
+            "woodMedal",
+        ]
+        assert info.player_medals[1].medal_id == KingdomsLeagueMedalId(7)
