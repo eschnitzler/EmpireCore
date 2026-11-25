@@ -225,6 +225,10 @@ class TestProductionList:
     def test_a_block_without_lid_is_ignored_by_the_client(self):
         assert GetProductionListResponse.model_validate({"QS": []}).list_id is None
 
+    def test_a_list_without_lid_stays_without_one_through_a_dump(self):
+        reply = GetProductionListResponse.model_validate({"QS": []})
+        assert GetProductionListResponse.model_validate(reply.model_dump()).list_id is None
+
     def test_an_unknown_list_keeps_its_id(self):
         assert GetProductionListResponse.model_validate({"LID": "99"}).list_id == 99
 

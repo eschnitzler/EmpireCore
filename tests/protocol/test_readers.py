@@ -1,19 +1,25 @@
 """The shared readers that let one unreadable entry or block cost only itself."""
 
 import logging
+from pathlib import Path
 
 import pytest
-from pydantic import Field
+from pydantic import Field, TypeAdapter
 
+import empire_core
+from empire_core.enums import Kingdom
 from empire_core.movements.models import MovementSpy, MovementWrapper
 from empire_core.protocol.base import (
     BasePayload,
     CurrencyTotals,
+    IdArray,
+    OptionalBlock,
     list_or_empty,
     object_or_none,
     read_or_none,
     readable_list,
 )
+from empire_core.protocol.js import ClientIntOf
 
 logger = logging.getLogger("tests.readers")
 
@@ -98,3 +104,31 @@ class TestBlockGuards:
     @pytest.mark.parametrize(("value", "expected"), [([1], [1]), ([], []), ({}, []), (None, []), ("ab", [])])
     def test_list_or_empty(self, value, expected):
         assert list_or_empty(value) == expected
+
+
+class TestSharedAnnotations:
+    @pytest.mark.parametrize(("value", "expected"), [("1", Kingdom.SANDS), (2.9, Kingdom.ICE), (None, Kingdom.GREEN)])
+    def test_client_int_of_reads_through_int_then_the_type(self, value, expected):
+        assert TypeAdapter(ClientIntOf[Kingdom]).validate_python(value) is expected
+
+    @pytest.mark.parametrize(("value", "expected"), [({"ID": 4}, Row(row_id=4)), ([], None), (None, None), ("x", None)])
+    def test_optional_block(self, value, expected):
+        assert TypeAdapter(OptionalBlock[Row]).validate_python(value) == expected
+
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [([3, True, 2.0, "4", None, 0], (Kingdom.FIRE, Kingdom.GREEN)), ((1,), ()), ({}, ()), (None, ())],
+    )
+    def test_id_array_keeps_the_int_entries(self, value, expected):
+        assert TypeAdapter(IdArray[Kingdom]).validate_python(value) == expected
+
+    def test_models_use_the_named_annotations(self):
+        package = Path(empire_core.__file__).parent
+        inline = [
+            f"{path.relative_to(package)}:{number}"
+            for path in sorted(package.rglob("*.py"))
+            if path.relative_to(package).as_posix() not in ("protocol/js.py", "protocol/base.py")
+            for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
+            if "BeforeValidator(js_int)" in line or "BeforeValidator(object_or_none)" in line
+        ]
+        assert inline == [], "use ClientInt, ClientIntOf or OptionalBlock instead"
