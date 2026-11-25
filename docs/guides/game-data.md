@@ -106,6 +106,13 @@ each by `CurrencyId`; `currency_types` holds the currency id ranges
 type's daily limit is `message_restriction(MessageType.USER_OUT)`, which
 `client.messages.sent_today.limit_reached(...)` checks.
 
+The special servers and seasons have tables of their own, each keyed by an id type from
+`empire_core.gamedata`: the Outer Realms' `outer_realms_rank_points`, `outer_realms_rank_rewards`
+and `outer_realms_daily_task_rewards`; the Storm Islands' `storm_isles`,
+`storm_islands_alliance_rewards` and `storm_islands_player_rewards`; the Kingdom's League's
+`kingdoms_league_settings`, `kingdoms_league_ranks`, `kingdoms_league_medals` and its end, event
+and promotion rewards; `daimyo_end_rewards`; the Grand Tournament's and Rift Raid's
+`division_rounds`; and the Rift Raid's `raid_boss_levels` and `raid_boss_stages`.
 `raw("bossdungeons")` returns a table that is not modeled yet, exactly as the
 items file has it.
 

@@ -270,6 +270,40 @@ from .tables_progress import (
     SceatSkillTierId,
     is_single_effect_column,
 )
+from .tables_seasons import (
+    DaimyoEndRewardDef,
+    DaimyoEndRewardId,
+    DivisionRoundDef,
+    DivisionRoundId,
+    IsleId,
+    KingdomsLeagueEndRewardDef,
+    KingdomsLeagueEndRewardId,
+    KingdomsLeagueEventRewardDef,
+    KingdomsLeagueEventRewardId,
+    KingdomsLeagueMedalDef,
+    KingdomsLeagueMedalId,
+    KingdomsLeaguePromotionRewardDef,
+    KingdomsLeaguePromotionRewardId,
+    KingdomsLeagueRankDef,
+    KingdomsLeagueRankId,
+    KingdomsLeagueSettingDef,
+    KingdomsLeagueSettingId,
+    OuterRealmsDailyTaskRewardDef,
+    OuterRealmsDailyTaskRewardId,
+    OuterRealmsRankId,
+    OuterRealmsRankPointsDef,
+    OuterRealmsRankRewardDef,
+    OuterRealmsRankRewardId,
+    RaidBossLevelDef,
+    RaidBossLevelId,
+    RaidBossStageDef,
+    RaidBossStageId,
+    StormIslandsAllianceRewardDef,
+    StormIslandsAllianceRewardId,
+    StormIslandsPlayerRewardDef,
+    StormIslandsPlayerRewardId,
+    StormIsleDef,
+)
 
 if TYPE_CHECKING:
     from .ids import (
@@ -452,6 +486,22 @@ _CACHED_MODELS = (
     RerollCostDef,
     AlienRerollChanceDef,
     MessageRestrictionDef,
+    OuterRealmsRankPointsDef,
+    OuterRealmsRankRewardDef,
+    OuterRealmsDailyTaskRewardDef,
+    StormIsleDef,
+    StormIslandsAllianceRewardDef,
+    StormIslandsPlayerRewardDef,
+    KingdomsLeagueSettingDef,
+    KingdomsLeagueRankDef,
+    KingdomsLeagueMedalDef,
+    KingdomsLeagueEndRewardDef,
+    KingdomsLeagueEventRewardDef,
+    KingdomsLeaguePromotionRewardDef,
+    DaimyoEndRewardDef,
+    DivisionRoundDef,
+    RaidBossLevelDef,
+    RaidBossStageDef,
 )
 """Every row model the cache stores; the fingerprint covers each one's fields."""
 
@@ -759,6 +809,32 @@ _TABLES: dict[str, _TableSource] = {
     "reroll_costs": _TableSource("rerollCosts", RerollCostDef, "reroll_cost_id", reads=is_cost_column),
     "alien_reroll_chances": _TableSource("alienRerollChances", AlienRerollChanceDef, "chance_id"),
     "message_restrictions": _TableSource("messageRestrictions", MessageRestrictionDef, "restriction_id"),
+    "outer_realms_rank_points": _TableSource("tempServerRankPoints", OuterRealmsRankPointsDef, "rank_id"),
+    "outer_realms_rank_rewards": _TableSource("tempServerRankRewards", OuterRealmsRankRewardDef, "rank_reward_id"),
+    "outer_realms_daily_task_rewards": _TableSource(
+        "tempServerDailyTaskRewards", OuterRealmsDailyTaskRewardDef, "daily_task_reward_id"
+    ),
+    "storm_isles": _TableSource("isles", StormIsleDef, "isle_id"),
+    "storm_islands_alliance_rewards": _TableSource(
+        "islandrewardranks", StormIslandsAllianceRewardDef, "alliance_reward_id"
+    ),
+    "storm_islands_player_rewards": _TableSource(
+        "islandPlayerRewards", StormIslandsPlayerRewardDef, "player_reward_id"
+    ),
+    "kingdoms_league_settings": _TableSource("seasonSettings", KingdomsLeagueSettingDef, "setting_id"),
+    "kingdoms_league_ranks": _TableSource("seasonRanks", KingdomsLeagueRankDef, "rank_id"),
+    "kingdoms_league_medals": _TableSource("seasonMedals", KingdomsLeagueMedalDef, "medal_id"),
+    "kingdoms_league_end_rewards": _TableSource("seasonEndRewards", KingdomsLeagueEndRewardDef, "end_reward_id"),
+    "kingdoms_league_event_rewards": _TableSource(
+        "seasonEventRewards", KingdomsLeagueEventRewardDef, "event_reward_id"
+    ),
+    "kingdoms_league_promotion_rewards": _TableSource(
+        "seasonPromotionRewards", KingdomsLeaguePromotionRewardDef, "promotion_reward_id"
+    ),
+    "daimyo_end_rewards": _TableSource("daimyoEndRewards", DaimyoEndRewardDef, "end_reward_id"),
+    "division_rounds": _TableSource("divisionRounds", DivisionRoundDef, "division_round_id"),
+    "raid_boss_levels": _TableSource("raidBossLevels", RaidBossLevelDef, "raid_boss_level_id"),
+    "raid_boss_stages": _TableSource("raidBossStages", RaidBossStageDef, "raid_boss_stage_id"),
 }
 """The GameData tables read lazily, by attribute name: each a :class:`Table` built from these rows."""
 
@@ -1696,6 +1772,88 @@ class GameData(EmpireModel):
     def message_restrictions(self) -> Table[MessageRestrictionId, MessageRestrictionDef]:
         """The message types' limits (``messageRestrictions``) by row id; :meth:`message_restriction` finds one."""
         return self._table("message_restrictions")
+
+    @cached_property
+    def outer_realms_rank_points(self) -> Table[OuterRealmsRankId, OuterRealmsRankPointsDef]:
+        """The Outer Realms' daily rank points (``tempServerRankPoints``), a row per band of ranks, by band id."""
+        return self._table("outer_realms_rank_points")
+
+    @cached_property
+    def outer_realms_rank_rewards(self) -> Table[OuterRealmsRankRewardId, OuterRealmsRankRewardDef]:
+        """The Outer Realms' rank and points rewards (``tempServerRankRewards``), a row per reward set and reward."""
+        return self._table("outer_realms_rank_rewards")
+
+    @cached_property
+    def outer_realms_daily_task_rewards(self) -> Table[OuterRealmsDailyTaskRewardId, OuterRealmsDailyTaskRewardDef]:
+        """The Outer Realms' daily task reward steps (``tempServerDailyTaskRewards``), by step id."""
+        return self._table("outer_realms_daily_task_rewards")
+
+    @cached_property
+    def storm_isles(self) -> Table[IsleId, StormIsleDef]:
+        """The Storm Islands' isles (``isles``), by the isle id a map object names."""
+        return self._table("storm_isles")
+
+    @cached_property
+    def storm_islands_alliance_rewards(self) -> Table[StormIslandsAllianceRewardId, StormIslandsAllianceRewardDef]:
+        """The Storm Islands' alliance rewards (``islandrewardranks``), by row id."""
+        return self._table("storm_islands_alliance_rewards")
+
+    @cached_property
+    def storm_islands_player_rewards(self) -> Table[StormIslandsPlayerRewardId, StormIslandsPlayerRewardDef]:
+        """The Storm Islands' player rewards (``islandPlayerRewards``), by row id."""
+        return self._table("storm_islands_player_rewards")
+
+    @cached_property
+    def kingdoms_league_settings(self) -> Table[KingdomsLeagueSettingId, KingdomsLeagueSettingDef]:
+        """The Kingdom's League's season pass prices (``seasonSettings``), by setting id."""
+        return self._table("kingdoms_league_settings")
+
+    @cached_property
+    def kingdoms_league_ranks(self) -> Table[KingdomsLeagueRankId, KingdomsLeagueRankDef]:
+        """The Kingdom's League's ranks (``seasonRanks``), by rank id."""
+        return self._table("kingdoms_league_ranks")
+
+    @cached_property
+    def kingdoms_league_medals(self) -> Table[KingdomsLeagueMedalId, KingdomsLeagueMedalDef]:
+        """The Kingdom's League's medals (``seasonMedals``), by medal id."""
+        return self._table("kingdoms_league_medals")
+
+    @cached_property
+    def kingdoms_league_end_rewards(self) -> Table[KingdomsLeagueEndRewardId, KingdomsLeagueEndRewardDef]:
+        """The Kingdom's League's end reward bands (``seasonEndRewards``), by row id."""
+        return self._table("kingdoms_league_end_rewards")
+
+    @cached_property
+    def kingdoms_league_event_rewards(self) -> Table[KingdomsLeagueEventRewardId, KingdomsLeagueEventRewardDef]:
+        """The Kingdom's League's season event rewards (``seasonEventRewards``), by row id."""
+        return self._table("kingdoms_league_event_rewards")
+
+    @cached_property
+    def kingdoms_league_promotion_rewards(
+        self,
+    ) -> Table[KingdomsLeaguePromotionRewardId, KingdomsLeaguePromotionRewardDef]:
+        """The Kingdom's League's rank-up rewards (``seasonPromotionRewards``), by row id."""
+        return self._table("kingdoms_league_promotion_rewards")
+
+    @cached_property
+    def daimyo_end_rewards(self) -> Table[DaimyoEndRewardId, DaimyoEndRewardDef]:
+        """The daimyo's end reward bands (``daimyoEndRewards``), by row id."""
+        return self._table("daimyo_end_rewards")
+
+    @cached_property
+    def division_rounds(self) -> Table[DivisionRoundId, DivisionRoundDef]:
+        """The Grand Tournament's and the Rift Raid's division rounds (``divisionRounds``), by the id an event names."""
+        return self._table("division_rounds")
+
+    @cached_property
+    def raid_boss_levels(self) -> Table[RaidBossLevelId, RaidBossLevelDef]:
+        """The Rift Raid bosses' levels (``raidBossLevels``), by the level id a raid status names."""
+        return self._table("raid_boss_levels")
+
+    @cached_property
+    def raid_boss_stages(self) -> Table[RaidBossStageId, RaidBossStageDef]:
+        """The Rift Raid boss levels' stages (``raidBossStages``), by the stage id a raid status names."""
+        return self._table("raid_boss_stages")
 
     # ------------------------------------------------------------------
     # Lookups

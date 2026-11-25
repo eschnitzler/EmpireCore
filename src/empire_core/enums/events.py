@@ -77,6 +77,19 @@ class HorizonScoring(str, Enum):
     JADE_DESERT = "AllianceJade"
 
 
+class DivisionRoundType(str, Enum):
+    """
+    What a division round of the Grand Tournament or the Rift Raid does with the alliances in it.
+
+    Client: ``AllianceMobilizationEventEventVO.MODE_NORMAL``, ``MODE_QUALIFICATION`` and ``MODE_ADJUSTMENT``
+    (split.js lines 29663-29666), the same on ``AllianceRaidbossEventEventVO`` (split.js lines 49408-49410)
+    """
+
+    NORMAL = "normal"
+    QUALIFICATION = "qualification"
+    ADJUSTMENT = "adjustment"
+
+
 class BerimondFaction(IntEnum):
     """
     A side of the Battle for Berimond, by the name the game shows it: the blue House of Ursidae and the red House of
