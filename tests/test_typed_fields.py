@@ -94,6 +94,7 @@ ALLOWED: dict[str, str] = {
     "messages.models.mailbox.DeleteMessagesResponse.message_ids": "message ids",
     "messages.models.mailbox.ForwardSpyLogRequest.player_ids": "player ids",
     "messages.models.mailbox.MessagesSentToday.sent": "counts keyed by MessageType; the values are amounts",
+    "gamedata.tables_currency.CurrencyTypeDef.currency_id_range": "the bounds of an id range; not ids of rows",
     "player.models.progress.TopTitleRanking.thresholds": "points, one per top-X title of the system; not ids",
 }
 

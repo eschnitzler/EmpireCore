@@ -316,3 +316,17 @@ class EffectTemplate(Enum):
     EQUIPMENT = "equip_effect_description_"
     """``equip_effect_description_<name>``: an equipment item's or a gem's bonus (``BonusVO.descriptionText``,
     ``EquipmentBonusVO.descriptionText`` and ``GemBonusVO.descriptionText``, bundle lines 5711, 20944 and 46807)."""
+
+
+class RerollType(str, Enum):
+    """
+    What a reroll price row prices, the ``type`` column of ``rerollCosts``.
+
+    Client: ``CastleRerollCostData.REROLL_TYPE_ALIEN``, ``REROLL_TYPE_OFFICERS_SCHOOL``,
+    ``REROLL_TYPE_PROLONG_TRAINING`` and ``REROLL_TYPE_CHARGE_EFFECT`` (split.js lines 125797-125801)
+    """
+
+    ALIEN_CAMP = "alien"
+    TRAINING_PROGRAMS = "officersSchool"
+    TRAINING_PROGRAM_PROLONG = "prolongTraining"
+    CHARGE_CAMP_EFFECT = "chargeEffect"
