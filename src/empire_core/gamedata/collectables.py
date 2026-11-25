@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping
 from enum import Enum
-from typing import TYPE_CHECKING, Annotated, Any, ClassVar
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, TypeAlias
 
 from pydantic import BeforeValidator, ConfigDict, Field, PlainSerializer, PlainValidator
 
@@ -36,7 +36,7 @@ from .lenient import EnumOrInt, known
 if TYPE_CHECKING:
     from .ids import AllianceCrestLayout, Building, ConstructionItem, Currency, CurrencyId, Gem, LootBox, Tool, Unit
 
-    CollectableItem = (
+    CollectableItem: TypeAlias = (
         Unit
         | Tool
         | Building
