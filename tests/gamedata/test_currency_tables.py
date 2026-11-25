@@ -12,6 +12,7 @@ import pytest
 from empire_core.enums import CollectableKind, MessageType, RerollType
 from empire_core.gamedata import MINUTE_SKIPS, Currency, CurrencyId, GameData
 from empire_core.gamedata.collectables import MINUTE_SKIP_FIRST_ID
+from empire_core.messages.models import MessagesSentToday
 
 ITEMS = json.loads((Path(__file__).parents[1] / "data" / "currency_tables.json").read_text())
 DATA = GameData.parse("790.06", ITEMS)
@@ -209,3 +210,15 @@ class TestMessageRestrictions:
             {"messageRestrictionID": "2", "messageType": "2", "dailyLimitPerPlayer": "9"},
         ]
         assert parse(messageRestrictions=rows).message_restriction(MessageType.USER_OUT).daily_limit == 5
+
+    def test_the_limit_against_the_messages_sent_today(self):
+        restriction = DATA.message_restriction(MessageType.USER_OUT)
+        assert restriction is not None
+        assert not MessagesSentToday.model_validate({"MTC": [[2, 74], [22, 400]]}).limit_reached(restriction)
+        assert MessagesSentToday.model_validate({"MTC": [[2, 75]]}).limit_reached(restriction)
+        assert not MessagesSentToday.model_validate({}).limit_reached(restriction)
+
+    def test_without_a_limit_it_is_never_reached(self):
+        rows = [{"messageRestrictionID": "1", "messageType": "2"}]
+        restriction = parse(messageRestrictions=rows).message_restrictions[1]
+        assert not MessagesSentToday.model_validate({"MTC": [[2, 10**6]]}).limit_reached(restriction)
