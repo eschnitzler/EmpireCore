@@ -4,10 +4,25 @@ from __future__ import annotations
 
 from empire_core.castle.models.wishing_well import WishingWellRequest, WishingWellResponse, wishing_well_skip_rubies
 from empire_core.enums import WishingWellOption
+from empire_core.gamedata import WishingWellLevelDef
 from empire_core.services.base import ServiceMixin
 
 
 class WishingWellMixin(ServiceMixin):
+    @property
+    def wishing_well_level(self) -> WishingWellLevelDef | None:
+        """
+        The game data row of the wishing well's level, from the last ``rww``: its entry rubies, lucky pennies and
+        running time. None until one arrived, or for a level the game data lacks.
+
+        Raises:
+            GameDataNotLoadedError: The game data cannot be loaded
+
+        Client: ``CastleRubyWishingWellData.parse_RWW`` and ``getCurrentNode`` (split.js lines 110466, 110463)
+        """
+        well = self.client.state.get_wishing_well()
+        return None if well is None else self._require_game_data().wishing_well_levels.get(well.level)
+
     def get_wishing_well(self, *, timeout: float = 5.0) -> WishingWellResponse:
         """
         Read the wishing well's level and time from the server; its reply also updates :attr:`wishing_well`.

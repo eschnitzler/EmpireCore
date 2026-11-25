@@ -7,6 +7,7 @@ import pytest
 from empire_core.castle import WishingWellRequest, wishing_well_skip_rubies
 from empire_core.enums import GGEError, WishingWellOption
 from empire_core.exceptions import CommandError
+from empire_core.gamedata import GameData
 from empire_core.state.manager import GameState
 from tests.service_helpers import conn, logged_in_state, make_client, xt_packet
 
@@ -111,3 +112,16 @@ def test_a_refusal_raises_and_leaves_state():
     with pytest.raises(CommandError):
         client.castle.upgrade_wishing_well()
     assert client.castle.wishing_well is None
+
+
+def test_the_level_row_follows_the_last_reply():
+    client = replying({})
+    client.game_data = GameData.parse(
+        "test", {"wishingwells": [{"wodID": 603, "level": "2", "entryCosts": "2000", "costWishingWellCoin": "1"}]}
+    )
+    assert client.castle.wishing_well_level is None
+    client.state.update_from_packet("rww", {"L": 2, "RT": -1})
+    level = client.castle.wishing_well_level
+    assert level is not None and (level.wishing_well_id, level.entry_rubies, level.lucky_pennies) == (603, 2000, 1)
+    client.state.update_from_packet("rww", {"L": 3, "RT": -1})
+    assert client.castle.wishing_well_level is None
