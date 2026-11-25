@@ -146,11 +146,19 @@ def test_grand_tournament_quests(data):
 
 
 def test_grand_tournament_quest_defaults():
-    quest = GameData.parse("790.06", {"allianceQuests": [{"allianceQuestID": "7"}]}).grand_tournament_quests[
-        GrandTournamentQuestId(7)
-    ]
+    quest = GameData.parse(
+        "790.06", {"allianceQuests": [{"allianceQuestID": "7", "questType": "x"}]}
+    ).grand_tournament_quests[GrandTournamentQuestId(7)]
 
-    assert (quest.quest, quest.cancel_cost_rubies, quest.event_id, quest.quest_type) == (-1, 199, -1, "")
+    assert (quest.quest, quest.cancel_cost_rubies, quest.event_id, quest.quest_type) == (-1, 199, -1, "X")
+
+
+def test_a_grand_tournament_quest_without_a_type_is_left_out(caplog):
+    data = GameData.parse("790.06", {"allianceQuests": [{"allianceQuestID": "7", "questType": ""}]})
+
+    with caplog.at_level(logging.WARNING):
+        assert len(data.grand_tournament_quests) == 0
+    assert "grand_tournament_quests row 7" in caplog.text
 
 
 def test_forge_levels_and_treasury_donatables(data):

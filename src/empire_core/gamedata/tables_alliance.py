@@ -213,6 +213,8 @@ class GrandTournamentQuestDef(_Row):
     """
     A quest the Grand Tournament can put in an alliance's quest slots.
 
+    A row without a ``questType`` fails, as the client fails capitalising its first letter.
+
     Client: ``AllianceQuestVO.fillFromParamXML`` (split.js line 573015), kept by ``allianceQuestID`` in
     ``AllianceQuestData`` (split.js line 572978)
     """
@@ -223,9 +225,7 @@ class GrandTournamentQuestDef(_Row):
         validation_alias="questID", default=-1, description="The quest whose conditions it plays; -1 for none"
     )
     reward_points: int = Field(validation_alias="rewardPoints", default=0, description="Points it gives")
-    quest_type: str = Field(
-        validation_alias="questType", default="", description="What it asks for, with a capital first letter"
-    )
+    quest_type: str = Field(validation_alias="questType", description="What it asks for, with a capital first letter")
     cancel_cost_rubies: int = Field(validation_alias="cancelCostC2", default=199, description="Rubies to cancel it")
     event_id: GameDataId["Event"] = Field(
         validation_alias="eventID", default=-1, description="The event it belongs to; -1 for none named"
@@ -255,7 +255,9 @@ class GrandTournamentQuestDef(_Row):
     @classmethod
     def _quest_type(cls, value: object) -> str:
         text = _text(value)
-        return text[:1].upper() + text[1:]
+        if not text:
+            raise ValueError("no questType")
+        return text[0].upper() + text[1:]
 
 
 class AllianceForgeLevelDef(_Row):
