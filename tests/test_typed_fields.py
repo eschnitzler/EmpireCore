@@ -78,6 +78,9 @@ ALLOWED: dict[str, str] = {
     "gamedata.tables.GeneralRarityDef.xp_requirements": "xp totals, one per level; not ids",
     "gamedata.tables.BuildingDef.construction_item_group_ids": "construction item groups have no name",
     "gamedata.tables.CitadelLevelDef.scatter_weights": "weights, not ids",
+    "gamedata.tables_progress.GeneralSlotDef.ability_group_ids": (
+        "ability groups have no table; GameData.general_slot_abilities gives their GeneralAbilityDef rows"
+    ),
     "gamedata.tables.BuildingDef.low_level_build_durations": "durations in seconds, not ids",
     "gamedata.tables.BuildingDef.low_level_main_castle_cost_rubies": "ruby amounts, not ids",
     "gamedata.tables.CraftingQueueDef.production_slot_unlock_coins": "coin amounts, one per slot; not ids",
@@ -155,8 +158,6 @@ GAME_DATA_SCALAR_IDS: dict[str, str] = {
     "gamedata.models.EquipmentSetDef.row_id": "a row number, not referenced",
     "gamedata.models.EquipmentSetDef.set_id": "equipment sets have no name to make an enum of",
     "gamedata.models.GemDef.set_id": "equipment sets have no name to make an enum of",
-    "gamedata.models.GeneralAbilityDef.ability_attack_effect_id": "a generalAbilityEffects row, which has no enum",
-    "gamedata.models.GeneralAbilityDef.ability_defense_effect_id": "a generalAbilityEffects row, which has no enum",
     "gamedata.models.GeneralAbilityDef.ability_group_id": "ability groups have no table",
     "gamedata.models.GeneralAbilityDef.ability_trigger_id": "ability triggers: the client names none",
     "gamedata.models.GeneralSkillDef.skill_group_id": "skill groups have no table",
@@ -191,6 +192,7 @@ GAME_DATA_SCALAR_IDS: dict[str, str] = {
     "gamedata.tables_alliance.AllianceForgeLevelDef.forge_id": "the row's own id; the client keys the forge by level",
     "gamedata.tables_alliance.AllianceTowerDef.commander_id": "default commanders have no name to make an enum of",
     "gamedata.tables_alliance.AllianceTreasuryDonatableDef.resource_id": "a resources row; that table is not loaded",
+    "gamedata.tables_progress.SceatSkillTierDef.skill_tree_id": "a sceat_skill_trees key; trees have no name or enum",
 }
 """Game-data row fields named ``*_id`` that hold a plain int, each with why no enum types it."""
 

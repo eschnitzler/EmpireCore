@@ -70,8 +70,10 @@ from .models import (
     FortificationDef,
     GemDef,
     GeneralAbilityDef,
+    GeneralAbilityEffectId,
     GeneralDef,
     GeneralSkillDef,
+    GeneralSlotId,
     GlobalEffectDef,
     HorseStats,
     LaboratoryLevelDef,
@@ -234,6 +236,23 @@ from .tables_castle import (
     SlumLevelDef,
     WishingWellLevelDef,
 )
+from .tables_progress import (
+    GeneralAbilityEffectDef,
+    GeneralSkillTierDef,
+    GeneralSkillTierId,
+    GeneralSlotDef,
+    GeneralXpItemDef,
+    HighscoreBonusDef,
+    HighscoreUnitReward,
+    LevelUpDef,
+    LevelUpPriceDef,
+    LevelUpPriceId,
+    MightRankDef,
+    MightRankId,
+    SceatSkillTierDef,
+    SceatSkillTierId,
+    is_single_effect_column,
+)
 
 if TYPE_CHECKING:
     from .ids import (
@@ -266,6 +285,7 @@ if TYPE_CHECKING:
         GlobalEffect,
         Horse,
         Judgement,
+        LeagueType,
         LegendarySkill,
         LootBox,
         LootBoxType,
@@ -397,6 +417,16 @@ _CACHED_MODELS = (
     HorizonDungeonDef,
     HorizonPhaseTriggerDef,
     HorizonRankRewardDef,
+    GeneralSlotDef,
+    GeneralSkillTierDef,
+    GeneralXpItemDef,
+    GeneralAbilityEffectDef,
+    SceatSkillTierDef,
+    LevelUpDef,
+    LevelUpPriceDef,
+    MightRankDef,
+    HighscoreBonusDef,
+    HighscoreUnitReward,
 )
 """Every row model the cache stores; the fingerprint covers each one's fields."""
 
@@ -687,6 +717,15 @@ _TABLES: dict[str, _TableSource] = {
         "allianceBattleGroundPhaseTriggers", HorizonPhaseTriggerDef, "phase_trigger_id"
     ),
     "horizon_rank_rewards": _TableSource("allianceBattleGroundRankRewards", HorizonRankRewardDef, "rank_reward_id"),
+    "general_slots": _TableSource("generalSlots", GeneralSlotDef, "slot_id"),
+    "general_skill_tiers": _TableSource("generalSkillTiers", GeneralSkillTierDef, "tier_id"),
+    "general_xp_items": _TableSource("generalXpItems", GeneralXpItemDef, "currency_id"),
+    "general_ability_effects": _TableSource(
+        "generalAbilityEffects", GeneralAbilityEffectDef, "ability_effect_id", reads=is_single_effect_column
+    ),
+    "sceat_skill_tiers": _TableSource("sceatSkillTiers", SceatSkillTierDef, "tier_id"),
+    "level_up_prices": _TableSource("levelUpPrices", LevelUpPriceDef, "level_up_price_id"),
+    "might_ranks": _TableSource("mightranks", MightRankDef, "might_rank_id"),
 }
 """The GameData tables read lazily, by attribute name: each a :class:`Table` built from these rows."""
 
@@ -812,6 +851,10 @@ class GameData(EmpireModel):
     """Every kingdom's slum levels, in the order listed; :meth:`slum` finds one."""
     building_positions: list[BuildingPositionDef] = Field(default_factory=list)
     """The buildings the prebuilt castles come with; :meth:`prebuilt_castle_buildings` counts a castle's."""
+    level_ups: list[LevelUpDef] = Field(default_factory=list)
+    """The level-up rewards (``levelups``), in the order listed; :meth:`level_up` finds a level's."""
+    highscore_bonuses: list[HighscoreBonusDef] = Field(default_factory=list)
+    """The weekly honour rewards (``highscoreboni``), in the order listed; :meth:`highscore_bonus` finds a rank's."""
     raw_tables: dict[str, list[Any]] = Field(default_factory=dict)
     _table_rows: _TableRows = PrivateAttr(default_factory=lambda: _TableRows({}))
 
@@ -1546,6 +1589,41 @@ class GameData(EmpireModel):
         """
         return tuple(row for row in self.horizon_rank_rewards.values() if row.reward_set_id == reward_set_id)
 
+    @cached_property
+    def general_slots(self) -> Table[GeneralSlotId, GeneralSlotDef]:
+        """The generals' ability slots (``generalSlots``), by the slot id a general and set_general_abilities name."""
+        return self._table("general_slots")
+
+    @cached_property
+    def general_skill_tiers(self) -> Table[GeneralSkillTierId, GeneralSkillTierDef]:
+        """The generals' skill tree tiers (``generalSkillTiers``), by row id; :meth:`general_skill_tier` finds one."""
+        return self._table("general_skill_tiers")
+
+    @cached_property
+    def general_xp_items(self) -> Table[GameDataId["CurrencyId"], GeneralXpItemDef]:
+        """The general xp items (``generalXpItems``), by their ``CurrencyId``."""
+        return self._table("general_xp_items")
+
+    @cached_property
+    def general_ability_effects(self) -> Table[GeneralAbilityEffectId, GeneralAbilityEffectDef]:
+        """The bonuses general abilities grant (``generalAbilityEffects``), by the id an ability names."""
+        return self._table("general_ability_effects")
+
+    @cached_property
+    def sceat_skill_tiers(self) -> Table[SceatSkillTierId, SceatSkillTierDef]:
+        """The sceat skill trees' tiers (``sceatSkillTiers``), by row id; :meth:`sceat_skill_tier` finds one."""
+        return self._table("sceat_skill_tiers")
+
+    @cached_property
+    def level_up_prices(self) -> Table[LevelUpPriceId, LevelUpPriceDef]:
+        """What buying a level costs (``levelUpPrices``), by row id; :meth:`level_up_cost` finds a level's."""
+        return self._table("level_up_prices")
+
+    @cached_property
+    def might_ranks(self) -> Table[MightRankId, MightRankDef]:
+        """The might ranks (``mightranks``), by rank id; :meth:`next_might_rank` finds the next one."""
+        return self._table("might_ranks")
+
     # ------------------------------------------------------------------
     # Lookups
     # ------------------------------------------------------------------
@@ -1603,6 +1681,119 @@ class GameData(EmpireModel):
         """
         pair = next((row for row in self.officers_school_unit_pairs.values() if unit in row.unit_ids), None)
         return None if pair is None else pair.unlock_building_id
+
+    def general_slot_abilities(self, slot_id: GeneralSlotId) -> tuple[tuple[GeneralAbilityDef, ...], ...]:
+        """
+        The abilities a general's slot offers: one tuple of ability levels per group, in the slot's order; a group
+        without abilities is left out, as the client leaves it out. Empty for a slot the table lacks.
+
+        Client: ``GeneralGeneralSlotXmlVO.fillFromParamXml`` and ``abilityGroups`` (split.js lines 581073-581095)
+        """
+        slot = self.general_slots.get(slot_id)
+        if slot is None:
+            return ()
+        groups: dict[int, list[GeneralAbilityDef]] = {}
+        for ability in self.general_abilities.values():
+            groups.setdefault(ability.ability_group_id, []).append(ability)
+        return tuple(tuple(groups[group]) for group in slot.ability_group_ids if group in groups)
+
+    def general_skill_tier(self, general_id: General | int, tier: int) -> GeneralSkillTierDef | None:
+        """
+        A general's skill tree tier; None for none.
+
+        Client: ``GeneralsData.init`` (split.js line 580466) finds the tier by its general and number
+
+        Raises:
+            AmbiguousLookupError: Several rows have the general and tier
+        """
+        matches = [
+            row for row in self.general_skill_tiers.values() if row.general_id == general_id and row.tier == tier
+        ]
+        return _single(f"general {general_id} skill tier {tier}", matches, lambda row: row.tier_id)
+
+    def sceat_skill_tier(self, skill_tree_id: int, tier: int) -> SceatSkillTierDef | None:
+        """
+        A sceat skill tree's tier; None for none.
+
+        Client: ``CastleLegendSkillData.parseXML`` (split.js line 576563) finds the tier by its tree and number
+
+        Raises:
+            AmbiguousLookupError: Several rows have the tree and tier
+        """
+        matches = [
+            row for row in self.sceat_skill_tiers.values() if row.skill_tree_id == skill_tree_id and row.tier == tier
+        ]
+        return _single(f"sceat skill tree {skill_tree_id} tier {tier}", matches, lambda row: row.tier_id)
+
+    def level_up(self, level: int, *, legendary: bool = False, skip_group: bool = False) -> LevelUpDef | None:
+        """
+        The rewards for reaching ``level``, a legendary level when ``legendary``, for players in the split-run skip
+        group when ``skip_group``: the first row that holds it; None for none.
+
+        Client: ``LevelUpData.getLevelUp`` (split.js line 581906)
+        """
+        return next(
+            (
+                row
+                for row in self.level_ups
+                if row.holds(level, legendary=legendary) and row.in_skip_group == skip_group
+            ),
+            None,
+        )
+
+    def level_up_cost(self, from_level: int, to_level: int) -> int | None:
+        """
+        The rubies buying ``to_level`` from ``from_level`` costs: the first row of the two levels, 0 for none, as the
+        client prices it; None when that row's cost is unreadable.
+
+        Client: ``CastleBuyLevelData.getLevelUpCost`` (split.js line 573872)
+        """
+        return next(
+            (
+                row.cost_rubies
+                for row in self.level_up_prices.values()
+                if row.from_level == from_level and row.to_level == to_level
+            ),
+            0,
+        )
+
+    def might_rank(self, might_points: int) -> MightRankDef | None:
+        """
+        The highest might rank whose threshold ``might_points`` is past; None for none.
+
+        Client: ``MightData.getMightRank`` (split.js line 582008)
+        """
+        best: MightRankDef | None = None
+        for row in self.might_ranks.values():
+            if row.threshold is not None and row.threshold < might_points:
+                if best is None or best.threshold is None or row.threshold > best.threshold:
+                    best = row
+        return best
+
+    def next_might_rank(self, might_points: int) -> MightRankDef | None:
+        """
+        The lowest might rank whose threshold is above ``might_points``; None past the last.
+
+        Client: ``MightData.getNextMightRank`` (split.js line 582025)
+        """
+        best: MightRankDef | None = None
+        for row in self.might_ranks.values():
+            if row.threshold is not None and row.threshold > might_points:
+                if best is None or best.threshold is None or row.threshold < best.threshold:
+                    best = row
+        return best
+
+    def highscore_bonus(self, league_type_id: LeagueType | int, rank: int) -> HighscoreBonusDef | None:
+        """
+        The weekly honour reward for ``rank`` in a league: the first row of the league whose band holds it; None for
+        none.
+
+        Client: ``CastleHighscoreData.getHighscoreBonusVOForRank`` (split.js line 576153)
+        """
+        return next(
+            (row for row in self.highscore_bonuses if row.league_type_id == league_type_id and row.holds(rank)),
+            None,
+        )
 
     def league_type_event(
         self, event_id: int, league_type_id: int, *, sub_type: int = 0, reward_set_id: int = 0
@@ -2110,6 +2301,8 @@ class GameData(EmpireModel):
             league_brackets=_rows(items_data.get("leaguetypes"), LeagueBracketDef),
             slums=_rows(items_data.get("slums"), SlumLevelDef),
             building_positions=_rows(items_data.get("buildingPositions"), BuildingPositionDef),
+            level_ups=_rows(items_data.get("levelups"), LevelUpDef),
+            highscore_bonuses=_rows(items_data.get("highscoreboni"), HighscoreBonusDef),
             raw_tables={table: items_data[table] for table in RAW_TABLES if isinstance(items_data.get(table), list)},
         )
         data._table_rows = _TableRows(

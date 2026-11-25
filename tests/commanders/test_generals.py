@@ -66,6 +66,7 @@ PAYLOAD: dict[str, Any] = {
     "generalRarities": [RARITY_LEGENDARY],
     "characters": [FAT_KING],
     "rewards": [{"rewardID": "7", "addC1": "500"}],
+    "generalXpItems": [{"currencyID": "7001", "xpAmount": "250"}],
     "currencies": [
         {"currencyID": "10000", "Name": "ShardUniversal", "JSONKey": "SUN"},
         {"currencyID": "10001", "Name": "ShardToril", "JSONKey": "STL"},
@@ -257,6 +258,24 @@ class TestClearGeneralFlags:
         client.commanders.clear_general_flags(General.TORIL)
 
         assert conn(client).request_payloads == [("grf", {"GID": 101})]
+
+
+class TestAddGeneralXp:
+    """``GeneralsLevelUpDialogListItem.sendXPSelected``: only a currency of ``generalXpItems`` is fed as xp."""
+
+    def test_an_xp_item_is_sent(self):
+        client = generals_client()
+
+        client.commanders.add_general_xp(General.TORIL, CurrencyId.GENERALS_XP_250, 5)
+
+        assert conn(client).request_payloads == [("gaxp", {"GID": 101, "CID": 7001, "AMT": 5})]
+
+    def test_another_currency_sends_nothing(self):
+        client = generals_client()
+
+        with pytest.raises(ValueError, match="no general xp item"):
+            client.commanders.add_general_xp(General.TORIL, CurrencyId.TORILS_GENERAL_SHARD, 5)
+        assert conn(client).request_payloads == []
 
 
 class TestGeneralsHub:

@@ -82,6 +82,19 @@ row id (`berimond_invasion_camp(level, faction_id)` finds a camp's row) and
 Horizon's Jade Desert adds `palace_fortresses`, `oasis_settlements` and
 `oasis_trades`; a fortress or settlement names its season in
 `horizon_scorings` by `scoring_id`.
+
+The commander and progression tables: `general_slots` (a general's
+`attack_slots` and `defense_slots`; `general_slot_abilities(slot)` lists the
+abilities a slot offers), `general_ability_effects` (the bonuses an ability's
+`ability_attack_effect_id` and `ability_defense_effect_id` name),
+`general_xp_items` by `CurrencyId`, `general_skill_tiers` and
+`sceat_skill_tiers` (`general_skill_tier(general, tier)` and
+`sceat_skill_tier(tree, tier)` find one), `level_up_prices`
+(`level_up_cost(from_level, to_level)`) and `might_ranks` (`might_rank(points)`,
+`next_might_rank(points)`). `level_ups` and `highscore_bonuses` have no ids and
+are lists in the items' order: `level_up(level)` finds a level's rewards and
+`highscore_bonus(league, rank)` a rank's weekly honour reward, whose
+`coins_at`, `unit_amount` and `tool_amount` give the amounts at a rank.
 `raw("bossdungeons")` returns a table that is not modeled yet, exactly as the
 items file has it.
 

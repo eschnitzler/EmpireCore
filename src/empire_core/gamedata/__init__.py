@@ -120,8 +120,10 @@ from .models import (
     FortificationDef,
     GemDef,
     GeneralAbilityDef,
+    GeneralAbilityEffectId,
     GeneralDef,
     GeneralSkillDef,
+    GeneralSlotId,
     GlobalEffectDef,
     HorseStats,
     LaboratoryLevelDef,
@@ -294,6 +296,22 @@ from .tables_castle import (
     SlumLevelDef,
     WishingWellId,
     WishingWellLevelDef,
+)
+from .tables_progress import (
+    GeneralAbilityEffectDef,
+    GeneralSkillTierDef,
+    GeneralSkillTierId,
+    GeneralSlotDef,
+    GeneralXpItemDef,
+    HighscoreBonusDef,
+    HighscoreUnitReward,
+    LevelUpDef,
+    LevelUpPriceDef,
+    LevelUpPriceId,
+    MightRankDef,
+    MightRankId,
+    SceatSkillTierDef,
+    SceatSkillTierId,
 )
 from .troops import count_troops, get_troop_ids, troop_data_available
 
@@ -583,6 +601,22 @@ __all__ = [
     "HorizonRankRewardDef",
     "HorizonRankRewardId",
     "HorizonRewardSetId",
+    "GeneralAbilityEffectDef",
+    "GeneralAbilityEffectId",
+    "GeneralSkillTierDef",
+    "GeneralSkillTierId",
+    "GeneralSlotDef",
+    "GeneralSlotId",
+    "GeneralXpItemDef",
+    "HighscoreBonusDef",
+    "HighscoreUnitReward",
+    "LevelUpDef",
+    "LevelUpPriceDef",
+    "LevelUpPriceId",
+    "MightRankDef",
+    "MightRankId",
+    "SceatSkillTierDef",
+    "SceatSkillTierId",
 ]
 
 _IDS = frozenset(

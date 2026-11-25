@@ -30,7 +30,15 @@ from empire_core.commanders.models.skills import (
 from empire_core.services.base import ServiceMixin
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import Currency, CurrencyId, General, GeneralAbility, GeneralsHubCharacter, GeneralSkill
+    from empire_core.gamedata import (
+        Currency,
+        CurrencyId,
+        General,
+        GeneralAbility,
+        GeneralsHubCharacter,
+        GeneralSkill,
+        GeneralSlotId,
+    )
     from empire_core.gamedata.models import GeneralDef
 
     AnyGeneral = General | GeneralDef | OwnedGeneral
@@ -81,7 +89,11 @@ class GeneralsMixin(ServiceMixin):
         return self.request(request, AssignGeneralResponse, timeout=timeout).commander_roster
 
     def set_general_abilities(
-        self, general: AnyGeneral, abilities: Iterable[tuple[int, GeneralAbility | None]], *, timeout: float = 5.0
+        self,
+        general: AnyGeneral,
+        abilities: Iterable[tuple[GeneralSlotId, GeneralAbility | None]],
+        *,
+        timeout: float = 5.0,
     ) -> None:
         """
         Choose a general's abilities.
@@ -89,9 +101,10 @@ class GeneralsMixin(ServiceMixin):
         Args:
             general: The general: one of :meth:`get_generals`, its row from
                 ``GameData.require().general(name)``, or a ``General``
-            abilities: ``(slot_id, ability)`` pairs, ``None`` to clear a slot.
-                The client sends every slot it shows. An ability id comes from
-                ``GameData.require().general_ability(name, level)``
+            abilities: ``(slot, ability)`` pairs, ``None`` to clear a slot.
+                The client sends every slot it shows. A general's slots are its
+                ``GeneralDef.attack_slots`` and ``defense_slots``, and
+                ``GameData.general_slot_abilities(slot)`` lists the abilities a slot offers
             timeout: Timeout in seconds
         """
         slots = [SelectedAbility(slot_id=slot_id, ability_id=ability_id) for slot_id, ability_id in abilities]
@@ -122,23 +135,29 @@ class GeneralsMixin(ServiceMixin):
         """
         self.execute(ResetGeneralSkillsRequest(general_id=_general_id(general)), timeout=timeout)
 
-    def add_general_xp(
-        self, general: AnyGeneral, currency_id: CurrencyId, amount: int, *, timeout: float = 5.0
-    ) -> None:
+    def add_general_xp(self, general: AnyGeneral, xp_item: CurrencyId, amount: int, *, timeout: float = 5.0) -> None:
         """
         Feed a general xp items.
+
+        Client: ``GeneralsLevelUpDialogListItem.sendXPSelected`` (split.js line 385040) sends ``gaxp`` for a
+        currency ``isXPCurrency`` (split.js line 385083) finds among the general xp items
 
         Args:
             general: The general: one of :meth:`get_generals`, its row from
                 ``GameData.require().general(name)``, or a ``General``
-            currency_id: The xp item's ``currencyID``, e.g.
-                ``GameData.require().currency("GXP1").currency_id``
-                (``GeneralsLevelUpDialogListItem.sendXPSelected``, bundle line 74485)
+            xp_item: The xp item, a key of ``GameData.general_xp_items``, e.g. ``CurrencyId.GENERALS_XP_250``
             amount: How many of the item to use
             timeout: Timeout in seconds
+
+        Raises:
+            ValueError: ``xp_item`` is no general xp item
+            GameDataNotLoadedError: The game data cannot be loaded
+            CommandError / EmpireTimeoutError / ConnectionClosedError: The request failed
         """
+        if xp_item not in self._require_game_data().general_xp_items:
+            raise ValueError(f"currency {xp_item} is no general xp item")
         self.execute(
-            AddGeneralXpRequest(general_id=_general_id(general), currency_id=currency_id, amount=amount),
+            AddGeneralXpRequest(general_id=_general_id(general), currency_id=xp_item, amount=amount),
             timeout=timeout,
         )
 

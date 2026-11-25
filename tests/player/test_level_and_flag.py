@@ -1,8 +1,9 @@
-"""Buying the next level and the premium flag with rubies: blv and gbp."""
+"""Buying the next level and the premium flag with rubies (blv and gbp), the level's price and the next might rank."""
 
 import pytest
 
 from empire_core.exceptions import CommandError
+from empire_core.gamedata import GameData
 from empire_core.player import BuyLevelRequest, BuyLevelResponse, BuyPremiumFlagRequest, BuyPremiumFlagResponse
 from empire_core.protocol.base import parse_response
 from tests.service_helpers import conn, logged_in_state, make_client, xt_packet
@@ -71,3 +72,48 @@ def test_a_refused_premium_flag_raises():
     client = make_client({"gbp": xt_packet("gbp", error_code=1)}, state=logged_in_state())
     with pytest.raises(CommandError):
         client.player.buy_premium_flag(spend_rubies=True)
+
+
+def test_the_level_price_comes_from_the_game_data():
+    client = make_client(state=at_level(20))
+    client.game_data = GameData.parse(
+        "test", {"levelUpPrices": [{"levelUpPriceID": "20", "fromLevel": "20", "toLevel": "21", "c2Cost": "1490"}]}
+    )
+
+    assert client.player.buy_level_cost == 1490
+    assert conn(client).request_payloads == []
+
+
+def test_an_unpriced_level_costs_nothing_as_the_client_shows_it():
+    client = make_client(state=at_level(20))
+    client.game_data = GameData.parse("test", {})
+
+    assert client.player.buy_level_cost == 0
+
+
+MIGHT_RANKS = {"mightranks": [{"mightID": "1", "threshold": "500"}, {"mightID": "2", "threshold": "1000"}]}
+
+
+@pytest.mark.parametrize(
+    ("gmu", "rank", "to_go"),
+    [
+        ({"MP": 400, "TSBM": 0, "HMP": 600}, 2, 600),
+        ({"MP": 400, "TSBM": 0, "HMP": 400}, 1, 100),
+        ({"MP": 900, "TSBM": 0, "HMP": 1000}, None, 0),
+    ],
+)
+def test_the_next_might_rank_follows_the_highest_might(gmu, rank, to_go):
+    client = make_client(state=logged_in_state(gmu=gmu))
+    client.game_data = GameData.parse("test", MIGHT_RANKS)
+
+    next_rank = client.player.next_might_rank
+
+    assert (next_rank.might_rank_id if next_rank else None, client.player.might_to_next_rank) == (rank, to_go)
+    assert conn(client).request_payloads == []
+
+
+def test_unreadable_might_has_no_distance_to_the_next_rank():
+    client = make_client(state=logged_in_state(gmu={"MP": "x", "TSBM": 0, "HMP": 0}))
+    client.game_data = GameData.parse("test", MIGHT_RANKS)
+
+    assert client.player.might_to_next_rank is None

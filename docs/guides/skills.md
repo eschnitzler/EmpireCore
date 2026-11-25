@@ -15,20 +15,23 @@ for general in client.commanders.get_generals():
 ```
 
 Give a commander a general, or take it away with `general=None`, then choose
-the general's abilities as `(slot_id, ability)` pairs, `None` to clear a slot. A general's `selected_abilities` are its slots, each a
+the general's abilities as `(slot, ability)` pairs, `None` to clear a slot. A general's slots are its
+`attack_slots` and `defense_slots` in the game data, and `general_slot_abilities(slot)` lists the
+abilities each offers. A general's `selected_abilities` are its slots, each a
 `SelectedAbility` whose `ability_id` is a `GeneralAbility`, or None when empty:
 
 ```python
-from empire_core.commanders import General, GeneralAbility
+from empire_core.commanders import General
 
+data = client.load_game_data()
+slot = data.generals[General.TORIL].attack_slots[0]
+ability = data.general_slot_abilities(slot)[0][0]
 client.commanders.assign_general(commander_id=3, general=General.TORIL)
-client.commanders.set_general_abilities(
-    General.TORIL, [(1, GeneralAbility.POWER_SURGE_L1), (2, GeneralAbility.POWER_SURGE_L2)]
-)
+client.commanders.set_general_abilities(General.TORIL, [(slot, ability.ability_id)])
 ```
 
 `unlock_general_skill`, `reset_general_skills` and `add_general_xp` change a general's skill tree the
-same way. General, ability and skill ids differ between client releases, so
+same way; `add_general_xp` takes one of `data.general_xp_items`, such as `CurrencyId.GENERALS_XP_250`. General, ability and skill ids differ between client releases, so
 look them up by name. The general calls take the game data row itself, or one of
 `get_generals()`:
 

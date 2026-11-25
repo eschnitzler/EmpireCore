@@ -23,7 +23,7 @@ from pydantic import (
 from pydantic.functional_validators import ModelWrapValidatorHandler
 
 from empire_core.enums import EquipmentSlot, Kingdom
-from empire_core.gamedata import EnumOrInt
+from empire_core.gamedata import EnumOrInt, GeneralSlotId
 from empire_core.protocol.base import (
     BasePayload,
     BaseRequest,
@@ -122,7 +122,7 @@ class SelectedAbility(BasePayload):
     (bundle line 27850) sends ``-1`` for a cleared slot.
     """
 
-    slot_id: int = Field(description="The slot, matched against the general's attack and defense slots")
+    slot_id: GeneralSlotId = Field(description="The slot, one of the general's attack and defense slots")
     ability_id: EnumOrInt["GeneralAbility"] | None = Field(
         default=None, description="The ability; None for an empty slot"
     )

@@ -13,7 +13,7 @@ import math
 import sys
 from collections.abc import Mapping
 from contextvars import ContextVar
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, NewType
 
 from pydantic import ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
@@ -1432,12 +1432,26 @@ class DefaultCommanderDef(EquipmentEffectSpecRow):
     wearer_id: GameDataId[WearerType] = Field(validation_alias="wearerID", default=0, description="Who wears it")
 
 
+GeneralAbilityEffectId = NewType("GeneralAbilityEffectId", int)
+"""The id of a ``generalAbilityEffects`` row, the bonuses an ability grants, that
+:attr:`GameData.general_ability_effects` describes.
+
+The rows have no name, so no generated enum names them; this type marks the id space instead.
+"""
+
+GeneralSlotId = NewType("GeneralSlotId", int)
+"""The id of a ``generalSlots`` row, a general's ability slot, that :attr:`GameData.general_slots` describes.
+
+The rows have no name, so no generated enum names them; this type marks the id space instead.
+"""
+
+
 class GeneralAbilityDef(_Row):
     """
     One level of a general's ability, the value ``set_abilities`` sends per slot.
 
-    Client: ``GeneralAbilityXmlVO.fillFromParamXml`` (bundle line 113203), keyed by
-    ``abilityID`` in ``GeneralsData`` (bundle line 113021)
+    Client: ``GeneralAbilityXmlVO.fillFromParamXml`` (split.js line 580917), keyed by
+    ``abilityID`` in ``GeneralsData.init`` (split.js line 580422)
     """
 
     ability_id: GameDataId["GeneralAbility"] = Field(
@@ -1462,15 +1476,15 @@ class GeneralAbilityDef(_Row):
         default=0,
         description="Triggers per wave",
     )
-    ability_attack_effect_id: int = Field(
+    ability_attack_effect_id: GeneralAbilityEffectId = Field(
         validation_alias="abilityAttackEffectID",
-        default=0,
-        description="Effect while attacking",
+        default=GeneralAbilityEffectId(0),
+        description="The bonuses it grants while attacking, a general_ability_effects row",
     )
-    ability_defense_effect_id: int = Field(
+    ability_defense_effect_id: GeneralAbilityEffectId = Field(
         validation_alias="abilityDefenseEffectID",
-        default=0,
-        description="Effect while defending",
+        default=GeneralAbilityEffectId(0),
+        description="The bonuses it grants while defending, a general_ability_effects row",
     )
 
     @field_validator(
@@ -1772,12 +1786,14 @@ class GeneralDef(_Row):
         return not self.is_preview
 
     @property
-    def attack_slots(self) -> tuple[int, ...]:
-        return parse_ids(self.raw_attack_slots)
+    def attack_slots(self) -> tuple[GeneralSlotId, ...]:
+        """Its attack ability slots, general_slots rows."""
+        return tuple(GeneralSlotId(slot) for slot in parse_ids(self.raw_attack_slots))
 
     @property
-    def defense_slots(self) -> tuple[int, ...]:
-        return parse_ids(self.raw_defense_slots)
+    def defense_slots(self) -> tuple[GeneralSlotId, ...]:
+        """Its defense ability slots, general_slots rows."""
+        return tuple(GeneralSlotId(slot) for slot in parse_ids(self.raw_defense_slots))
 
 
 class DungeonDefence(_Row):

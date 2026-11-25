@@ -12,7 +12,7 @@ from empire_core.commanders import PREMIUM_COMMANDER_ID
 from empire_core.commanders.models.skills import OwnedGeneral
 from empire_core.enums import Kingdom
 from empire_core.exceptions import CommandError, GameDataNotLoadedError, PremiumCommanderCostError
-from empire_core.gamedata import GameData, General, GeneralAbility
+from empire_core.gamedata import GameData, General, GeneralAbility, GeneralSlotId
 from empire_core.gamedata.models import GeneralDef
 from empire_core.protocol.models import EquipmentSlot, EquipmentType, WearerType
 from tests.service_helpers import conn, logged_in_state, make_client, wave, xt_packet
@@ -82,7 +82,8 @@ class TestGeneralCommands:
         client = make_client()
 
         client.commanders.set_general_abilities(
-            General.ALYSSA, [(101031, GeneralAbility.HORDEBREAKER_L3), (101033, None)]
+            General.ALYSSA,
+            [(GeneralSlotId(101031), GeneralAbility.HORDEBREAKER_L3), (GeneralSlotId(101033), None)],
         )
 
         assert conn(client).request_payloads == [("gaae", {"GID": 103, "SAIDS": [[101031, 10073], [101033, -1]]})]
@@ -102,7 +103,6 @@ class TestGeneralCommands:
         [
             (lambda s: s.unlock_general_skill(10317), "guse", {"ID": 10317}),
             (lambda s: s.reset_general_skills(103), "grs", {"GID": 103}),
-            (lambda s: s.add_general_xp(103, 7001, 5), "gaxp", {"GID": 103, "CID": 7001, "AMT": 5}),
         ],
     )
     def test_the_no_body_commands(self, call, command, payload):
