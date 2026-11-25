@@ -31,6 +31,7 @@ from pydantic import ConfigDict, Field, PrivateAttr
 from empire_core.enums import BerimondFaction, BerimondLane, BerimondSpecialCampType, BoosterId, Kingdom, UnitRole
 from empire_core.exceptions import AmbiguousLookupError, GameDataNotLoadedError, NetworkError
 from empire_core.protocol.base import EmpireModel
+from empire_core.protocol.js import js_truthy
 
 from . import cache, cdn
 from .assets import AssetIndex
@@ -66,7 +67,6 @@ from .models import (
     LegendarySkillDef,
     LevelBoosterDef,
     MonumentLevelDef,
-    NpcCampDefence,
     RaidBossDef,
     RelicEffectDef,
     SceatSkillDef,
@@ -86,6 +86,8 @@ from .tables import (
     AllianceInvasionCampDef,
     AllianceInvasionCampId,
     AllianceTowerEffectDef,
+    BerimondInvasionCampDef,
+    BerimondInvasionCampId,
     BerimondSpecialCampDef,
     BuildingDef,
     CitadelLevelDef,
@@ -118,8 +120,11 @@ from .tables import (
     GemColorDef,
     GeneralRarityDef,
     GeneralsHubCharacterDef,
+    HorizonScoringDef,
+    HorizonScoringId,
     HorizonSettingDef,
     HorizonSettingId,
+    InvasionCampDef,
     JudgementDef,
     LeaderboardRewardDef,
     LeaderboardRewardId,
@@ -136,6 +141,8 @@ from .tables import (
     OuterRealmsSettingId,
     PackageDef,
     PackageId,
+    PalaceFortressDef,
+    PalaceFortressId,
     PartPayPriceDef,
     PartPayPriceId,
     PlayerNameChangeDef,
@@ -236,7 +243,6 @@ _CACHED_MODELS = (
     SceatSkillDef,
     SceatSkillTreeDef,
     GeneralSkillDef,
-    NpcCampDefence,
     DungeonDefence,
     ToolCategoryDef,
     DaimyoCastleDef,
@@ -298,7 +304,11 @@ _CACHED_MODELS = (
     FeastDef,
     OasisSettlementDef,
     OasisTradeDef,
+    PalaceFortressDef,
+    HorizonScoringDef,
     CitadelLevelDef,
+    InvasionCampDef,
+    BerimondInvasionCampDef,
     AllianceInvasionCampDef,
     BerimondSpecialCampDef,
     LeagueTypeEventDef,
@@ -402,7 +412,8 @@ class _TableRows:
 class _TableSource(NamedTuple):
     """Where a lazily read table's rows come from."""
 
-    items_table: str
+    items_table: str | tuple[str, ...]
+    """The items table, or the names JavaScript's ``a || b`` picks from: the first whose value is truthy."""
     model: type[EmpireModel]
     id_field: str
     where: Callable[[dict[str, Any]], bool] | None = None
@@ -413,7 +424,15 @@ class _TableSource(NamedTuple):
     def __repr__(self) -> str:
         where = f" where {self.where.__name__}" if self.where else ""
         reads = f" reading {self.reads.__name__}" if self.reads else ""
-        return f"{self.items_table}:{self.model.__name__}.{self.id_field}{where}{reads}"
+        table = self.items_table if isinstance(self.items_table, str) else " || ".join(self.items_table)
+        return f"{table}:{self.model.__name__}.{self.id_field}{where}{reads}"
+
+    def entries(self, items_data: Mapping[str, Any]) -> object:
+        """The items table's rows."""
+        if isinstance(self.items_table, str):
+            return items_data.get(self.items_table)
+        *first, last = self.items_table
+        return next((items_data[name] for name in first if js_truthy(items_data.get(name))), items_data.get(last))
 
     def rows(self, name: str, entries: object) -> dict[int, dict[str, Any]]:
         """
@@ -544,8 +563,13 @@ _TABLES: dict[str, _TableSource] = {
     "horizon_settings": _TableSource("allianceBattleGroundSettings", HorizonSettingDef, "setting_id"),
     "alliance_tower_effects": _TableSource("allianceTowerEffects", AllianceTowerEffectDef, "tower_effect_id"),
     "oasis_settlements": _TableSource("tradingCamps", OasisSettlementDef, "settlement_id"),
-    "oasis_trades": _TableSource("trades", OasisTradeDef, "trade_id", reads=is_cost_column),
+    "oasis_trades": _TableSource(("Trades", "trades"), OasisTradeDef, "trade_id", reads=is_cost_column),
+    "palace_fortresses": _TableSource("resourceCamps", PalaceFortressDef, "fortress_id"),
+    "horizon_scorings": _TableSource("allianceBattleGroundScorings", HorizonScoringDef, "scoring_id"),
     "citadel_levels": _TableSource("allianceCitadels", CitadelLevelDef, "citadel_level_id", reads=is_cost_column),
+    "nomad_camps": _TableSource("nomadCamps", InvasionCampDef, "count_victory"),
+    "samurai_camps": _TableSource("samuraiCamps", InvasionCampDef, "count_victory"),
+    "berimond_invasion_camps": _TableSource("factioninvasioncamps", BerimondInvasionCampDef, "camp_id"),
     "alliance_invasion_camps": _TableSource("allianceInvasionCamps", AllianceInvasionCampDef, "camp_id"),
     "equipment_effects": _TableSource("equipment_effects", EquipmentEffectDef, "equipment_effect_id"),
     "daimyo_castles": _TableSource("daimyoCastles", DaimyoCastleDef, "camp_id"),
@@ -556,16 +580,6 @@ _TABLES: dict[str, _TableSource] = {
 }
 """The GameData tables read lazily, by attribute name: each a :class:`Table` built from these rows."""
 
-
-BERIMOND_INVASION_CAMP_TABLE = "factioninvasioncamps"
-
-# Camp tables that share the NpcCampDefence shape.
-CAMP_TABLES = (
-    "nomadCamps",
-    "samuraiCamps",
-    BERIMOND_INVASION_CAMP_TABLE,
-    "allianceInvasionCamps",
-)
 
 RAW_TABLES = (
     "bossdungeons",
@@ -683,7 +697,6 @@ class GameData(EmpireModel):
     laboratory_levels: list[LaboratoryLevelDef] = Field(default_factory=list)
     """The laboratory levels of every kingdom, in the order listed."""
     dungeons: list[DungeonDefence] = Field(default_factory=list)
-    camps: dict[str, list[NpcCampDefence]] = Field(default_factory=dict)
     league_brackets: list[LeagueBracketDef] = Field(default_factory=list)
     raw_tables: dict[str, list[Any]] = Field(default_factory=dict)
     _table_rows: _TableRows = PrivateAttr(default_factory=lambda: _TableRows({}))
@@ -1044,13 +1057,41 @@ class GameData(EmpireModel):
 
     @cached_property
     def oasis_trades(self) -> Table[OasisTradeId, OasisTradeDef]:
-        """The trades Oasis Settlements offer (``trades``), by trade id."""
+        """The trades Oasis Settlements offer (``Trades``, else ``trades``), by trade id."""
         return self._table("oasis_trades", context={"currency_ids": self._currency_ids()})
+
+    @cached_property
+    def palace_fortresses(self) -> Table[PalaceFortressId, PalaceFortressDef]:
+        """Beyond the Horizon's Palace Fortresses (``resourceCamps``), one row per level, by fortress id."""
+        return self._table("palace_fortresses")
+
+    @cached_property
+    def horizon_scorings(self) -> Table[HorizonScoringId, HorizonScoringDef]:
+        """The seasons a Beyond the Horizon run can play (``allianceBattleGroundScorings``), by scoring id."""
+        return self._table("horizon_scorings")
 
     @cached_property
     def citadel_levels(self) -> Table[CitadelLevelId, CitadelLevelDef]:
         """The alliance Citadel's levels in Beyond the Horizon's Jade Desert (``allianceCitadels``), by row id."""
         return self._table("citadel_levels", context={"currency_ids": self._currency_ids()})
+
+    @cached_property
+    def nomad_camps(self) -> Table[int, InvasionCampDef]:
+        """The nomad camp levels (``nomadCamps``), by the camp level a camp's map object looks its row up with."""
+        return self._table("nomad_camps")
+
+    @cached_property
+    def samurai_camps(self) -> Table[int, InvasionCampDef]:
+        """The samurai camp levels (``samuraiCamps``), by the camp level a camp's map object looks its row up with."""
+        return self._table("samurai_camps")
+
+    @cached_property
+    def berimond_invasion_camps(self) -> Table[BerimondInvasionCampId, BerimondInvasionCampDef]:
+        """
+        The Berimond invasion camps (``factioninvasioncamps``) by row id, a row per faction and level;
+        :meth:`berimond_invasion_camp` finds a camp's row.
+        """
+        return self._table("berimond_invasion_camps")
 
     @cached_property
     def alliance_invasion_camps(self) -> Table[AllianceInvasionCampId, AllianceInvasionCampDef]:
@@ -1356,7 +1397,7 @@ class GameData(EmpireModel):
         camp = self.scaling_camps.get(scaling_camp_id) if scaling_camp_id > 0 else None
         return camp.level if camp is not None else None
 
-    def berimond_invasion_camp(self, level: int, faction_id: BerimondFaction | int) -> NpcCampDefence | None:
+    def berimond_invasion_camp(self, level: int, faction_id: BerimondFaction | int) -> BerimondInvasionCampDef | None:
         """
         A Berimond invasion camp's row: the one for its level and its owner's faction.
 
@@ -1365,13 +1406,13 @@ class GameData(EmpireModel):
         and cooldown come from this row.
 
         Client: ``CastleFactionInvasionCampData.parseXML`` and ``getFactionInvasion``
-        (bundle lines 111903-111912), used by ``FactionInvasionCampMapObjectVO`` (bundle lines 76367-76380)
+        (split.js lines 575986-576015), used by ``FactionInvasionCampMapObjectVO`` (split.js lines 395129-395193)
         """
         blue = faction_id == BerimondFaction.URSIDAE
         return next(
             (
                 camp
-                for camp in reversed(self.camps.get(BERIMOND_INVASION_CAMP_TABLE, []))
+                for camp in reversed(list(self.berimond_invasion_camps.values()))
                 if camp.count_victory == level and (camp.faction_id == BerimondFaction.URSIDAE) == blue
             ),
             None,
@@ -1630,14 +1671,11 @@ class GameData(EmpireModel):
             dungeons=_rows(
                 items_data.get("dungeons"), DungeonDefence, context={"default_commanders": default_commanders}
             ),
-            camps={
-                table: _rows(items_data.get(table), NpcCampDefence) for table in CAMP_TABLES if items_data.get(table)
-            },
             league_brackets=_rows(items_data.get("leaguetypes"), LeagueBracketDef),
             raw_tables={table: items_data[table] for table in RAW_TABLES if isinstance(items_data.get(table), list)},
         )
         data._table_rows = _TableRows(
-            {name: source.rows(name, items_data.get(source.items_table)) for name, source in _TABLES.items()}
+            {name: source.rows(name, source.entries(items_data)) for name, source in _TABLES.items()}
         )
         return data
 

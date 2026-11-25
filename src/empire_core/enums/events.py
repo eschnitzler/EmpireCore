@@ -51,6 +51,21 @@ class HorizonEntryConditionType(Enum):
     BUILDINGS = "BUILDINGS"
 
 
+class HorizonScoring(str, Enum):
+    """
+    The season a Beyond the Horizon run plays, by the name the game shows it.
+
+    Client: ``AllianceBattleGroundScoringVO.SCORING_SYSTEM_ALLIANCE_COLLECTOR``, ``SCORING_SYSTEM_ALLIANCE_TOWER`` and
+    ``SCORING_SYSTEM_ALLIANCE_JADE`` (split.js lines 95836-95841); names from the
+    ``dialog_beyondTheHorizon_main_journey_subtitle_`` text of each scoring (split.js line 370991) and
+    ``beyondTheHorizon_eventName_short_title_AllianceJade`` (split.js line 352165)
+    """
+
+    SECRET_CITIES = "AllianceCollector"
+    WAR_OF_THE_TOUCAN_GODS = "AllianceTower"
+    JADE_DESERT = "AllianceJade"
+
+
 class BerimondFaction(IntEnum):
     """
     A side of the Battle for Berimond, by the name the game shows it: the blue House of Ursidae and the red House of
@@ -64,6 +79,19 @@ class BerimondFaction(IntEnum):
     """The House of Ursidae, the blue faction."""
     GERBRANDT = 1
     """The House of Gerbrandt, the red faction."""
+
+
+class BerimondInvasionCampSize(IntEnum):
+    """
+    How big a Berimond invasion camp is drawn on the map.
+
+    Client: ``ClientConstXmlProperties.INVASION_CAMP_SIZE_SMALL``, ``_MEDIUM`` and ``_LARGE``
+    (split.js lines 183232-183234)
+    """
+
+    SMALL = 0
+    MEDIUM = 1
+    LARGE = 2
 
 
 class BerimondSpecialCampType(str, Enum):

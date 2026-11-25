@@ -10,8 +10,8 @@ from empire_core.combat import (
     event_camp_defense,
     robber_baron_camp_defense,
 )
-from empire_core.enums import Kingdom
-from empire_core.gamedata import GameData, UnitStats
+from empire_core.enums import BerimondFaction, Kingdom
+from empire_core.gamedata import AllianceInvasionCampId, GameData, UnitStats
 from tests.combat.combat_helpers import PAYLOAD, data, unit_of
 
 
@@ -142,34 +142,28 @@ class TestEventCampDefence:
     def data(self):
         return GameData.parse("test", self.PAYLOAD)
 
-    def test_wall_and_gate_are_read_as_fractions(self):
-        effects = event_camp_defense("nomadCamps", 48, game_data=self.data())
+    def nomad_camp(self):
+        data = self.data()
+        return event_camp_defense(data.nomad_camps[48], game_data=data)
 
-        assert effects is not None
-        middle = effects[Flank.MIDDLE]
+    def test_wall_and_gate_are_read_as_fractions(self):
+        middle = self.nomad_camp()[Flank.MIDDLE]
+
         assert (middle.wall_bonus, middle.gate_bonus) == (0.3, 0.3)
 
     def test_only_the_middle_keeps_the_gate(self):
         # Same rule as every other per-flank builder: getDefenceBonuses zeroes
         # the gate everywhere but the middle.
-        effects = event_camp_defense("nomadCamps", 48, game_data=self.data())
+        effects = self.nomad_camp()
 
-        assert effects is not None
         assert effects[Flank.MIDDLE].gate_bonus == 0.3
         for flank in (Flank.LEFT, Flank.RIGHT, Flank.YARD):
             assert effects[flank].gate_bonus == 0.0
-            # Only the gate is flank-specific.
             assert effects[flank].wall_bonus == 0.3
 
     def test_every_flank_is_defended(self):
-        effects = event_camp_defense("nomadCamps", 48, game_data=self.data())
-
         # These tables list one defending force rather than a per-flank split.
-        assert all(not e.is_empty() for e in flanks_of(effects).values())
-
-    def test_unknown_camp_or_table(self):
-        assert event_camp_defense("nomadCamps", 999, game_data=self.data()) is None
-        assert event_camp_defense("notATable", 48, game_data=self.data()) is None
+        assert all(not e.is_empty() for e in flanks_of(self.nomad_camp()).values())
 
     def test_a_berimond_camp_takes_its_factions_row(self):
         # CastleFactionInvasionCampData keeps a blue and a red map keyed by countVictory, the camp's level
@@ -179,6 +173,7 @@ class TestEventCampDefence:
                 PAYLOAD,
                 factioninvasioncamps=[
                     {
+                        "factionInvasionCampID": "1",
                         "countVictory": "5",
                         "factionID": "0",
                         "defenceUnits": "601",
@@ -186,6 +181,7 @@ class TestEventCampDefence:
                         "gateBonus": "20",
                     },
                     {
+                        "factionInvasionCampID": "2",
                         "countVictory": "5",
                         "factionID": "1",
                         "defenceUnits": "601",
@@ -195,16 +191,32 @@ class TestEventCampDefence:
                 ],
             ),
         )
+        blue_row = data.berimond_invasion_camp(5, BerimondFaction.URSIDAE)
+        red_row = data.berimond_invasion_camp(5, BerimondFaction.GERBRANDT)
+        assert blue_row is not None and red_row is not None
 
-        blue = event_camp_defense("factioninvasioncamps", 5, faction_id=0, game_data=data)
-        red = event_camp_defense("factioninvasioncamps", 5, faction_id=1, game_data=data)
+        blue = event_camp_defense(blue_row, game_data=data)
+        red = event_camp_defense(red_row, game_data=data)
 
-        assert blue is not None and red is not None
         assert (blue[Flank.MIDDLE].wall_bonus, blue[Flank.MIDDLE].gate_bonus) == (0.1, 0.2)
         assert (red[Flank.MIDDLE].wall_bonus, red[Flank.MIDDLE].gate_bonus) == (0.4, 0.5)
-        assert event_camp_defense("factioninvasioncamps", 6, faction_id=0, game_data=data) is None
-        with pytest.raises(ValueError, match="faction_id"):
-            event_camp_defense("factioninvasioncamps", 5, game_data=data)
+        assert data.berimond_invasion_camp(6, BerimondFaction.URSIDAE) is None
+
+    def test_an_alliance_invasion_camp_is_found_by_its_id(self):
+        # CastleAllianceInvasionCampData keys the rows by allianceInvasionCampID, not by victories
+        data = GameData.parse(
+            "test",
+            dict(
+                PAYLOAD,
+                allianceInvasionCamps=[
+                    {"allianceInvasionCampID": "85", "defenceUnits": "601", "wallBonus": "120", "gateBonus": "110"}
+                ],
+            ),
+        )
+
+        effects = event_camp_defense(data.alliance_invasion_camps[AllianceInvasionCampId(85)], game_data=data)
+
+        assert (effects[Flank.MIDDLE].wall_bonus, effects[Flank.MIDDLE].gate_bonus) == (1.2, 1.1)
 
 
 class TestNpcCampDefence:

@@ -57,8 +57,20 @@ def test_a_berimond_camp_takes_its_factions_protection_at_its_level():
         dict(
             PAYLOAD,
             factioninvasioncamps=[
-                {"countVictory": "24", "factionID": "0", "wallBonus": "10", "gateBonus": "20"},
-                {"countVictory": "24", "factionID": "1", "wallBonus": "40", "gateBonus": "50"},
+                {
+                    "factionInvasionCampID": "1",
+                    "countVictory": "24",
+                    "factionID": "0",
+                    "wallBonus": "10",
+                    "gateBonus": "20",
+                },
+                {
+                    "factionInvasionCampID": "2",
+                    "countVictory": "24",
+                    "factionID": "1",
+                    "wallBonus": "40",
+                    "gateBonus": "50",
+                },
             ],
         ),
     )
