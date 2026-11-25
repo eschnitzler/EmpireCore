@@ -19,7 +19,7 @@ scan drops, and a few dozen player castles.
 Then it counts the gc-tracked objects one scan chunk of every type allocates (net
 of those freed while it runs, as the collector counts them) and keeps, on the
 dense reply padded to 1,500 rows and 250 owner records of 27 castles and 3
-villages each: the shape of a dense chunk in a crowded kingdom.
+villages each, members of 20 alliances: the shape of a dense chunk in a crowded kingdom.
 """
 
 from __future__ import annotations
@@ -89,11 +89,19 @@ def benchmarks(dense: dict[str, Any], chunk: dict[str, Any]) -> dict[str, Callab
 
 
 def crowded(dense: dict[str, Any]) -> dict[str, Any]:
-    """The dense reply padded to 1,500 rows and 250 owner records of 27 castles and 3 villages each."""
+    """
+    The dense reply padded to 1,500 rows and 250 owner records of 27 castles and 3 villages each.
+
+    The owners in an alliance belong to one of 20 alliances, whose members share its name and crest.
+    """
     rows = [row for row in dense["AI"] if len(row) >= 4]
+    alliances = [record for record in dense["OI"] if record.get("aee")][:20]
     owners = []
     for index in range(250):
         record = dict(dense["OI"][index % len(dense["OI"])], OID=2_000_000 + index)
+        if record.get("aee"):
+            alliance = alliances[index % len(alliances)]
+            record.update(AID=alliance["AID"], AN=alliance["AN"], aee=alliance["aee"])
         record["AP"] = [[index % 4, 1_000_000 + 30 * index + n, n, index, 1] for n in range(27)]
         record["VP"] = [[0, 2_000_000 + 30 * index + n, n, index] for n in range(3)]
         owners.append(record)
