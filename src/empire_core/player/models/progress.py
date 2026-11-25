@@ -37,6 +37,7 @@ from empire_core.protocol.base import (
     BaseRequest,
     BaseResponse,
     CurrencyBlock,
+    IdArray,
     TimedPayload,
     TimedResponse,
     object_or_none,
@@ -65,12 +66,7 @@ def _numbers(value: Any) -> tuple[int | float, ...]:
     return tuple(entry for entry in value if isinstance(entry, (int, float)) and not isinstance(entry, bool))
 
 
-def _ints(value: Any) -> tuple[int, ...]:
-    return tuple(entry for entry in _numbers(value) if isinstance(entry, int))
-
-
 Numbers = Annotated[tuple[int | float, ...], BeforeValidator(_numbers)]
-Ints = Annotated[tuple[int, ...], BeforeValidator(_ints)]
 ParsedInt = Annotated[int | None, BeforeValidator(js_parse_int)]
 
 
@@ -628,7 +624,7 @@ class AchievementsResponse(TimedResponse):
     command = "vli"
 
     achievement_points: ClientInt = Field(validation_alias="AVP", default=0, description="Achievement points")
-    finished_achievement_ids: Annotated[tuple[EnumOrInt["Achievement"], ...], BeforeValidator(_ints)] = Field(
+    finished_achievement_ids: IdArray[EnumOrInt["Achievement"]] = Field(
         validation_alias="FA", default=(), description="Finished achievements"
     )
     progress: tuple[AchievementProgress, ...] = Field(

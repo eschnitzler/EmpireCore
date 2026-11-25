@@ -605,6 +605,20 @@ def int_entries(value: Any, *, warn: logging.Logger, what: str) -> list[int]:
     return ids
 
 
+def _int_ids(value: Any) -> tuple[int, ...]:
+    if not isinstance(value, list):
+        return ()
+    return tuple(entry for entry in value if isinstance(entry, int) and not isinstance(entry, bool))
+
+
+IdArray = Annotated[tuple[T, ...], BeforeValidator(_int_ids)]
+"""
+``IdArray[E]``: an id array the client walks, looking each entry up in a table keyed by int ids, read as ``E``.
+
+An entry that is no int finds no row and is dropped; anything but an array is no ids.
+"""
+
+
 _M = TypeVar("_M", bound=pydantic.BaseModel)
 
 
@@ -745,6 +759,7 @@ __all__ = [
     "PlayerInfo",
     # Utilities
     "enum_or_none",
+    "IdArray",
     "int_entries",
     "list_or_empty",
     "object_or_none",
