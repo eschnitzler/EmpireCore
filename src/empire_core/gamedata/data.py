@@ -18,6 +18,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import math
 import sys
 import threading
 import time
@@ -172,6 +173,32 @@ from .tables import (
     is_research_cost_column,
     row_id,
 )
+from .tables_castle import (
+    CASTLE_MODELS,
+    CatalystDef,
+    ExpansionDef,
+    ExpansionId,
+    ForgeMinuteSkipDef,
+    ForgeMinuteSkipId,
+    FusionCostSequenceDef,
+    FusionCostSequenceId,
+    FusionShopDef,
+    FusionShopId,
+    KingdomDef,
+    KingdomVillagesDef,
+    LandmarkDef,
+    LandmarkId,
+    MineTypeDef,
+    MineTypeId,
+    OfficersSchoolCurrencyDef,
+    OfficersSchoolCurrencyId,
+    OfficersSchoolUnitPairDef,
+    OfficersSchoolUnitPairId,
+    ResourceDef,
+    ResourceId,
+    SlumLevelDef,
+    WishingWellLevelDef,
+)
 
 if TYPE_CHECKING:
     from .ids import (
@@ -322,6 +349,7 @@ _CACHED_MODELS = (
     EffectValue,
     EquipmentEffectValue,
     CastleEffectValue,
+    *CASTLE_MODELS,
 )
 """Every row model the cache stores; the fingerprint covers each one's fields."""
 
@@ -577,6 +605,21 @@ _TABLES: dict[str, _TableSource] = {
     "berimond_special_camps": _TableSource("specialcamps", BerimondSpecialCampDef, "special_camp_id"),
     "league_type_events": _TableSource("leaguetypeevents", LeagueTypeEventDef, "league_type_event_id"),
     "leaderboard_rewards": _TableSource("leaderboardRewards", LeaderboardRewardDef, "leaderboard_reward_id"),
+    "kingdoms": _TableSource("kingdoms", KingdomDef, "kingdom_id"),
+    "kingdom_villages": _TableSource("villages", KingdomVillagesDef, "kingdom_id"),
+    "expansions": _TableSource("expansions", ExpansionDef, "expansion_id", reads=is_cost_column),
+    "resources": _TableSource("resources", ResourceDef, "resource_id"),
+    "mine_types": _TableSource("mineTypes", MineTypeDef, "mine_type_id"),
+    "landmarks": _TableSource("landmarks", LandmarkDef, "landmark_id"),
+    "wishing_well_levels": _TableSource("wishingwells", WishingWellLevelDef, "level"),
+    "catalysts": _TableSource("catalysts", CatalystDef, "currency_id"),
+    "forge_minute_skips": _TableSource("forgeMinuteSkips", ForgeMinuteSkipDef, "minute_skip_id"),
+    "fusion_cost_sequences": _TableSource("fusionCostSequences", FusionCostSequenceDef, "sequence_id"),
+    "fusion_shops": _TableSource("fusionShops", FusionShopDef, "shop_id"),
+    "officers_school_currencies": _TableSource(
+        "officersSchoolCurrencies", OfficersSchoolCurrencyDef, "officers_school_currency_id"
+    ),
+    "officers_school_unit_pairs": _TableSource("officersSchoolUnitPairs", OfficersSchoolUnitPairDef, "pair_id"),
 }
 """The GameData tables read lazily, by attribute name: each a :class:`Table` built from these rows."""
 
@@ -698,6 +741,8 @@ class GameData(EmpireModel):
     """The laboratory levels of every kingdom, in the order listed."""
     dungeons: list[DungeonDefence] = Field(default_factory=list)
     league_brackets: list[LeagueBracketDef] = Field(default_factory=list)
+    slums: list[SlumLevelDef] = Field(default_factory=list)
+    """Every kingdom's slum levels, in the order listed; :meth:`slum` finds one."""
     raw_tables: dict[str, list[Any]] = Field(default_factory=dict)
     _table_rows: _TableRows = PrivateAttr(default_factory=lambda: _TableRows({}))
 
@@ -1164,9 +1209,113 @@ class GameData(EmpireModel):
         """
         return self._table("leaderboard_rewards")
 
+    @cached_property
+    def kingdoms(self) -> Table[GameDataId[Kingdom], KingdomDef]:
+        """Kingdoms by ``Kingdom``: their unlock levels, travel and village caps."""
+        return self._table("kingdoms")
+
+    @cached_property
+    def kingdom_villages(self) -> Table[GameDataId[Kingdom], KingdomVillagesDef]:
+        """What each kingdom's villages are built of and add (``villages``), by ``Kingdom``."""
+        return self._table("kingdom_villages")
+
+    @cached_property
+    def expansions(self) -> Table[ExpansionId, ExpansionDef]:
+        """The castle expansions' prices by row id; :meth:`expansion` finds one for a kingdom and level."""
+        return self._table("expansions", context={"currency_ids": self._currency_ids()})
+
+    @cached_property
+    def resources(self) -> Table[ResourceId, ResourceDef]:
+        """The resources the items name by id."""
+        return self._table("resources")
+
+    @cached_property
+    def mine_types(self) -> Table[MineTypeId, MineTypeDef]:
+        """What each mine type yields (``mineTypes``), by mine type id."""
+        return self._table("mine_types")
+
+    @cached_property
+    def landmarks(self) -> Table[LandmarkId, LandmarkDef]:
+        """The capitals' and metropolises' levels (``landmarks``), by landmark id."""
+        return self._table("landmarks")
+
+    @cached_property
+    def wishing_well_levels(self) -> Table[int, WishingWellLevelDef]:
+        """The ruby wishing well's levels (``wishingwells``), by level."""
+        return self._table("wishing_well_levels")
+
+    @cached_property
+    def catalysts(self) -> Table[GameDataId["CurrencyId"], CatalystDef]:
+        """The fusion catalysts by their ``CurrencyId``."""
+        return self._table("catalysts")
+
+    @cached_property
+    def forge_minute_skips(self) -> Table[ForgeMinuteSkipId, ForgeMinuteSkipDef]:
+        """The minute skips the fusion forges take (``forgeMinuteSkips``), by row id."""
+        return self._table("forge_minute_skips")
+
+    @cached_property
+    def fusion_cost_sequences(self) -> Table[FusionCostSequenceId, FusionCostSequenceDef]:
+        """The fusion forges' goods cost cycles by row id; :meth:`fusion_cost_step` finds a fusion's."""
+        return self._table("fusion_cost_sequences")
+
+    @cached_property
+    def fusion_shops(self) -> Table[FusionShopId, FusionShopDef]:
+        """The packages the fusion forge's shops sell, by shop id."""
+        return self._table("fusion_shops")
+
+    @cached_property
+    def officers_school_currencies(self) -> Table[OfficersSchoolCurrencyId, OfficersSchoolCurrencyDef]:
+        """The currencies the officers' school takes, by row id."""
+        return self._table("officers_school_currencies", context={"currency_ids": self._currency_ids()})
+
+    @cached_property
+    def officers_school_unit_pairs(self) -> Table[OfficersSchoolUnitPairId, OfficersSchoolUnitPairDef]:
+        """The unit pairs the officers' school buildings unlock, by row id."""
+        return self._table("officers_school_unit_pairs")
+
     # ------------------------------------------------------------------
     # Lookups
     # ------------------------------------------------------------------
+
+    def slum(self, kingdom: Kingdom | int, level: int) -> SlumLevelDef | None:
+        """
+        A kingdom's slum level; the next one's price is ``slum(kingdom, KingdomUnlock.slum_level + 1)``.
+
+        Client: ``CastleKingdomVO.getSlumVOByLevel`` (split.js line 671531)
+        """
+        return next((row for row in self.slums if row.kingdom_id == kingdom and row.level == level), None)
+
+    def expansion(self, space_id: Kingdom | int, level: int) -> ExpansionDef | None:
+        """
+        The price of a castle's ``level``-th expansion in a kingdom or on a season event's map; None past the last.
+
+        Client: ``ExpansionCostsData._getCurrentExpansionCostsVO`` (split.js line 579765), asked for the castle's
+        expansions plus one
+        """
+        return next((row for row in self.expansions.values() if space_id in row.space_ids and row.level == level), None)
+
+    def fusion_cost_step(self, forge_id: FusionForgeId | int, target_level: int) -> FusionCostSequenceDef | None:
+        """
+        The goods besides dust a fusion to ``target_level`` costs in a forge: its cost cycle's step for that level.
+
+        Client: ``FusionForgeDataXml.getCostSequenceByTargetLevel`` (split.js line 704315) with
+        ``ClientConstFusion.getSequenceCostIterationIndex`` (split.js line 43896)
+        """
+        steps = [row for row in self.fusion_cost_sequences.values() if row.forge_id == forge_id]
+        if not steps:
+            return None
+        step = int(math.fmod(target_level, len(steps))) or len(steps)
+        return next((row for row in steps if row.step == step), None)
+
+    def officers_school_unlock_building(self, unit: Unit | int) -> Building | int | None:
+        """
+        The officers' school building that unlocks a unit; None for a unit no pair names.
+
+        Client: ``OfficersSchoolData.getUnlockBuildingWodIDByUnitWodID`` (split.js line 715079)
+        """
+        pair = next((row for row in self.officers_school_unit_pairs.values() if unit in row.unit_ids), None)
+        return None if pair is None else pair.unlock_building_id
 
     def league_type_event(
         self, event_id: int, league_type_id: int, *, sub_type: int = 0, reward_set_id: int = 0
@@ -1672,6 +1821,7 @@ class GameData(EmpireModel):
                 items_data.get("dungeons"), DungeonDefence, context={"default_commanders": default_commanders}
             ),
             league_brackets=_rows(items_data.get("leaguetypes"), LeagueBracketDef),
+            slums=_rows(items_data.get("slums"), SlumLevelDef),
             raw_tables={table: items_data[table] for table in RAW_TABLES if isinstance(items_data.get(table), list)},
         )
         data._table_rows = _TableRows(
