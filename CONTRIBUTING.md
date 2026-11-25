@@ -552,6 +552,13 @@ release version and changelog are derived from them.
 > now means only "no candidates".
 > ```
 
+### Versioning before 1.0
+
+The library stays on 0.x until its most important features are implemented and
+stable; only then does it go 1.0. Until then a breaking change bumps the minor
+version (`major_on_zero = false` in `pyproject.toml`), ships without a
+deprecation alias, and is announced only by its `BREAKING CHANGE:` footer.
+
 If you change dependencies, run `uv lock` and commit `uv.lock` with the
 change; CI installs with `--locked` and will reject a stale lockfile.
 
