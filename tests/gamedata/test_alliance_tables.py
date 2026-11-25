@@ -205,6 +205,13 @@ def test_towers_match_the_client(data):
     assert data.alliance_tower_by_level(6) is None
 
 
+def test_no_tower_below_the_first_row_s_victories():
+    data = GameData.parse("790.06", {"allianceTowers": [{"allianceTowerID": "1", "countVictory": "10"}]})
+
+    assert data.alliance_tower_by_victories(9) is None
+    assert data.alliance_tower_by_victories(10) == data.alliance_towers[AllianceTowerId(1)]
+
+
 def test_tower_points_to_loot():
     tower = AllianceTowerDef.model_validate(
         {"allianceTowerID": "3", "addStatuette": "5", "defeatedPVPBasePoints": "5", "allianceTowerLevelMultiplier": "8"}
@@ -214,6 +221,8 @@ def test_tower_points_to_loot():
     assert tower.points_to_loot(2) == (5 + 5 * 4) * 8
     assert tower.points_to_loot(32) == 5 * 8
     assert tower.points_to_loot(-1) == 5 * 8
+    assert tower.points_to_loot(31) == (5 + 5 * -(2**31)) * 8
+    assert tower.points_to_loot(5000) == 5 * 8
 
 
 def test_robber_barons_match_the_client(data):

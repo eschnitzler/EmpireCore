@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, NewType
 from pydantic import Field, field_validator, model_validator
 
 from empire_core.enums import AllianceRank, AllianceRight, CollectableKind, HelpType, HorizonPhaseTriggerType
-from empire_core.protocol.js import js_parse_float, js_parse_int, js_truthy
+from empire_core.protocol.js import js_int32, js_parse_float, js_parse_int, js_truthy
 
 from .collectables import Collectable
 from .lenient import GameDataId
@@ -369,14 +369,9 @@ class AllianceTowerDef(_Row):
         """
         if defeated_connections == 0:
             return self.add_statuette
-        return (self.add_statuette + self.defeated_pvp_base_points * _js_int32(int(2**defeated_connections))) * (
+        return (self.add_statuette + self.defeated_pvp_base_points * js_int32(2 ** min(defeated_connections, 32))) * (
             self.level_multiplier
         )
-
-
-def _js_int32(number: int) -> int:
-    """JavaScript's ``number | 0`` of a whole number."""
-    return (number + 2**31) % 2**32 - 2**31
 
 
 class AllianceTowerEffectActivationDef(_Row):
