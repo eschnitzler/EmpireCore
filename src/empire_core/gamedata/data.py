@@ -22,6 +22,7 @@ import math
 import sys
 import threading
 import time
+from collections import Counter
 from collections.abc import Callable, Iterable, Mapping
 from functools import cached_property
 from pathlib import Path
@@ -175,6 +176,7 @@ from .tables import (
 )
 from .tables_castle import (
     CASTLE_MODELS,
+    BuildingPositionDef,
     CatalystDef,
     ExpansionDef,
     ExpansionId,
@@ -743,6 +745,8 @@ class GameData(EmpireModel):
     league_brackets: list[LeagueBracketDef] = Field(default_factory=list)
     slums: list[SlumLevelDef] = Field(default_factory=list)
     """Every kingdom's slum levels, in the order listed; :meth:`slum` finds one."""
+    building_positions: list[BuildingPositionDef] = Field(default_factory=list)
+    """The buildings the prebuilt castles come with; :meth:`prebuilt_castle_buildings` counts a castle's."""
     raw_tables: dict[str, list[Any]] = Field(default_factory=dict)
     _table_rows: _TableRows = PrivateAttr(default_factory=lambda: _TableRows({}))
 
@@ -1286,7 +1290,7 @@ class GameData(EmpireModel):
         """
         return next((row for row in self.slums if row.kingdom_id == kingdom and row.level == level), None)
 
-    def expansion(self, space_id: Kingdom | int, level: int) -> ExpansionDef | None:
+    def expansion(self, space_id: Kingdom | TreasureMapId | int, level: int) -> ExpansionDef | None:
         """
         The price of a castle's ``level``-th expansion in a kingdom or on a season event's map; None past the last.
 
@@ -1307,6 +1311,21 @@ class GameData(EmpireModel):
             return None
         step = int(math.fmod(target_level, len(steps))) or len(steps)
         return next((row for row in steps if row.step == step), None)
+
+    def prebuilt_castle_buildings(self, prebuilt_castle: PrebuiltCastle | int) -> dict[Building | int, int]:
+        """
+        How many of each building a prebuilt castle comes with, its grounds left out. Not the base gate and wall
+        the client's list adds when these name none (``PrebuiltCastleData.createBuildingsVector``).
+
+        Client: ``PrebuiltCastleData.parseBuildingPositions`` (split.js line 705221)
+        """
+        return dict(
+            Counter(
+                row.building_id
+                for row in self.building_positions
+                if row.prebuilt_castle_id == prebuilt_castle and row.building_id is not None and not row.is_ground
+            )
+        )
 
     def officers_school_unlock_building(self, unit: Unit | int) -> Building | int | None:
         """
@@ -1822,6 +1841,7 @@ class GameData(EmpireModel):
             ),
             league_brackets=_rows(items_data.get("leaguetypes"), LeagueBracketDef),
             slums=_rows(items_data.get("slums"), SlumLevelDef),
+            building_positions=_rows(items_data.get("buildingPositions"), BuildingPositionDef),
             raw_tables={table: items_data[table] for table in RAW_TABLES if isinstance(items_data.get(table), list)},
         )
         data._table_rows = _TableRows(

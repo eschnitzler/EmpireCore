@@ -62,8 +62,49 @@ def test_every_table_survives_the_cache(real: GameData, tmp_path: Path) -> None:
         assert dict(getattr(cached, attribute)) == dict(getattr(real, attribute)), attribute
 
 
-def test_every_real_slum_reads(real: GameData) -> None:
+def test_every_real_slum_and_building_position_reads(real: GameData) -> None:
     assert len(real.slums) == len(REAL["slums"])
+    assert len(real.building_positions) == len(REAL["buildingPositions"])
+
+
+def test_a_zero_survives_the_cache(tmp_path: Path) -> None:
+    data = parse(
+        resources=[{"resourceID": "0", "name": "wood"}],
+        catalysts=[{"currencyID": "5", "forgeID": "0"}],
+        fusionCostSequences=[{"id": "0", "forgeID": "0", "fusionTargetLevelIterationIndex": "0"}],
+        officersSchoolUnitPairs=[{"id": "0", "wodID": "1", "unlockBuildingWodID": "0"}],
+        wishingwells=[{"level": "0", "upgradeWodID": "0", "downgradeWodID": "0"}],
+    )
+    cache_file = tmp_path / "items.json"
+    data._write_cache(cache_file)
+    cached = GameData._read_cache(cache_file, "0.01")
+    assert cached is not None
+    assert cached.resources[0].resource_id == 0
+    assert (cached.catalysts[5].forge_id, cached.fusion_cost_sequences[0].step) == (0, 0)
+    assert cached.officers_school_unit_pairs[0].unlock_building_id == 0
+    assert (cached.wishing_well_levels[0].upgrade_id, cached.wishing_well_levels[0].downgrade_id) == (0, 0)
+
+
+class TestPrebuiltCastleBuildings:
+    def test_a_real_castle_counts_its_buildings(self, real: GameData) -> None:
+        buildings = real.prebuilt_castle_buildings(37)
+        assert (buildings[Building.GUARD_L1], buildings[Building.DECO_PARK2_L1]) == (20, 10)
+        assert (len(buildings), sum(buildings.values())) == (14, 42)
+
+    def test_grounds_and_unread_rows_are_left_out(self) -> None:
+        data = parse(
+            buildingPositions=[
+                {"buildingWodID": "200", "preBuiltCastleID": "5"},
+                {"buildingWodID": "201", "preBuiltCastleID": "5"},
+                {"buildingWodID": "402", "preBuiltCastleID": "5"},
+                {"buildingWodID": "402", "preBuiltCastleID": "5"},
+                {"buildingWodID": "x", "preBuiltCastleID": "5"},
+                {"buildingWodID": "402"},
+            ]
+        )
+        assert data.prebuilt_castle_buildings(5) == {Building.GUARD_L1: 2}
+        assert data.building_positions[-1].prebuilt_castle_id is None
+        assert data.prebuilt_castle_buildings(6) == {}
 
 
 class TestKingdoms:
@@ -74,7 +115,7 @@ class TestKingdoms:
         assert ice.required_kingdom_id is Kingdom.GREEN
         assert (ice.unit_travel_tax_percent, ice.goods_travel_tax_percent) == (30, 20)
         assert (ice.village_cap_wood, ice.village_cap_coal) == (5, 0)
-        assert ice.beginner_protection_seconds == 172800
+        assert ice.noob_protection_time == 172800
 
     def test_a_missing_nan_column_is_none(self, real: GameData) -> None:
         berimond = real.kingdoms[Kingdom.BERIMOND]
@@ -122,6 +163,7 @@ class TestSlums:
         cached = GameData._read_cache(cache_file, "790.06")
         assert cached is not None
         assert cached.slums == real.slums
+        assert cached.building_positions == real.building_positions
 
 
 class TestExpansions:

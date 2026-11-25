@@ -105,15 +105,17 @@ class KingdomDef(_Row):
         description="Rubies that finish a goods transfer to it; None if unread",
     )
     unit_travel_tax_percent: int | None = Field(
-        validation_alias="unitTravelTaxRate", default=None, description="Percent tax on units sent to it"
+        validation_alias="unitTravelTaxRate",
+        default=None,
+        description="Percent of the units' coin travel cost that sending them to it costs",
     )
     goods_travel_tax_percent: int | None = Field(
         validation_alias="resourceTravelTaxRate", default=None, description="Percent tax on goods sent to it"
     )
-    beginner_protection_seconds: int | None = Field(
+    noob_protection_time: int | None = Field(
         validation_alias="noobProtectionTime",
         default=None,
-        description="Seconds a new castle in it is protected; None if unread",
+        description="The noobProtectionTime column, which the client reads nowhere; None if unread",
     )
     required_kingdom_id: GameDataId[Kingdom] | None = Field(
         validation_alias="requiredKingdomID",
@@ -155,7 +157,7 @@ class KingdomDef(_Row):
     @field_validator(
         "unit_travel_seconds", "goods_travel_seconds", "max_villages", "skip_unit_travel_rubies",
         "skip_goods_travel_rubies", "unit_travel_tax_percent", "goods_travel_tax_percent",
-        "beginner_protection_seconds", "required_kingdom_id", "village_cap_wood", "village_cap_food",
+        "noob_protection_time", "required_kingdom_id", "village_cap_wood", "village_cap_food",
         "village_cap_stone",
         mode="before",
     )  # fmt: skip
@@ -276,6 +278,35 @@ class SlumLevelDef(_Row):
     @classmethod
     def _packages(cls, value: object) -> list[int]:
         return _plus_ids(value)
+
+
+class BuildingPositionDef(_Row):
+    """
+    A building a prebuilt castle comes with; :meth:`GameData.prebuilt_castle_buildings` counts a castle's.
+
+    Client: ``PrebuiltCastleData.parseBuildingPositions`` (split.js line 705221), which reads only these two columns
+    """
+
+    building_id: GameDataId["Building"] | None = Field(
+        validation_alias="buildingWodID", default=None, description="The building; None if unread"
+    )
+    prebuilt_castle_id: GameDataId["PrebuiltCastle"] | None = Field(
+        validation_alias="preBuiltCastleID", default=None, description="The prebuilt castle; None if unread"
+    )
+
+    @field_validator("building_id", "prebuilt_castle_id", mode="before")
+    @classmethod
+    def _nan_column(cls, value: object) -> int | None:
+        return _nan_int(value)
+
+    @property
+    def is_ground(self) -> bool:
+        """
+        Whether it is the castle's ground or an expansion's, which the client does not count.
+
+        Client: ``ClientConstCastle.START_GROUND_WOD_ID`` and ``EXTENSION_GROUND_WOD_ID`` (split.js lines 5668-5669)
+        """
+        return self.building_id in (200, 201)
 
 
 class ExpansionDef(_Row):
@@ -684,6 +715,7 @@ class OfficersSchoolUnitPairDef(_Row):
 
 
 CASTLE_MODELS = (
+    BuildingPositionDef,
     KingdomDef,
     KingdomVillagesDef,
     SlumLevelDef,
@@ -703,6 +735,7 @@ CASTLE_MODELS = (
 
 
 __all__ = [
+    "BuildingPositionDef",
     "CatalystDef",
     "ExpansionDef",
     "ExpansionId",

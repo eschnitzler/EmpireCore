@@ -243,6 +243,7 @@ from .tables import (
     WheelOfFortuneWinClassId,
 )
 from .tables_castle import (
+    BuildingPositionDef,
     CatalystDef,
     ExpansionDef,
     ExpansionId,
@@ -485,6 +486,7 @@ __all__ = [
     "WheelOfFortuneWinClassDef",
     "WheelOfFortuneWinClassId",
     "TitleDef",
+    "BuildingPositionDef",
     "CatalystDef",
     "ExpansionDef",
     "ExpansionId",
