@@ -25,7 +25,16 @@ from empire_core.enums import Kingdom, ProductionListId, RecruitmentMode, SlotTy
 from empire_core.gamedata import UnitOrTool
 from empire_core.gamedata.lenient import EnumOrInt
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, CurrencyBlock, OptionalBlock
-from empire_core.protocol.js import ParseInt, js_int, js_loose_equals, js_number, js_same_number, js_truthy
+from empire_core.protocol.js import (
+    ClientInt,
+    ClientIntOf,
+    ParseInt,
+    js_int,
+    js_loose_equals,
+    js_number,
+    js_same_number,
+    js_truthy,
+)
 
 from .units import BUY_UNIT_PACKAGE_SK, UnitInventoryBlock
 
@@ -237,12 +246,12 @@ class ProductionList(BasePayload):
         default_factory=lambda: CurrentProductionSlot.model_validate({"position": 0}),
         description="The slot producing now",
     )
-    recruitment_mode: RecruitmentMode = Field(
+    recruitment_mode: ClientIntOf[RecruitmentMode] = Field(
         validation_alias="RM",
         default=RecruitmentMode.FINISH_FIRST_STACK,
         description="The order the queue is worked through; soldier, tool and auxiliary lists only",
     )
-    remaining_seconds: int = Field(
+    remaining_seconds: ClientInt = Field(
         validation_alias="TCT",
         default=0,
         description="Seconds until the list's production is done",
@@ -260,15 +269,9 @@ class ProductionList(BasePayload):
 
     @model_validator(mode="before")
     @classmethod
-    def _client_ints(cls, data: Any) -> Any:
-        if not isinstance(data, dict):
-            return data
-        data = dict(data)
-        if "LID" in data:
-            data["LID"] = js_int(data["LID"])
-        for key in ("RM", "TCT"):
-            if key in data:
-                data[key] = js_int(data[key])
+    def _list_id(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "LID" in data:
+            return {**data, "LID": js_int(data["LID"])}
         return data
 
 
@@ -333,17 +336,10 @@ class AddedUnit(BasePayload):
     ``unitInventory.addUnit(O.W, O.AMT)`` when ``O`` is set and not 0
     """
 
-    wod_id: Annotated[Literal[0] | UnitOrTool, Field(union_mode="left_to_right")] = Field(
+    wod_id: ClientIntOf[Annotated[Literal[0] | UnitOrTool, Field(union_mode="left_to_right")]] = Field(
         validation_alias="W", default=0, description="The unit or tool added; 0 when not sent"
     )
-    amount: int = Field(validation_alias="AMT", default=0)
-
-    @model_validator(mode="before")
-    @classmethod
-    def _client_ints(cls, data: Any) -> Any:
-        if not isinstance(data, dict):
-            return data
-        return {**data, "W": js_int(data.get("W")), "AMT": js_int(data.get("AMT"))}
+    amount: ClientInt = Field(validation_alias="AMT", default=0)
 
 
 class ProduceUnitsResponse(BaseResponse):

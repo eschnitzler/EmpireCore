@@ -8,11 +8,11 @@ from __future__ import annotations
 
 import math
 
-from pydantic import Field, field_validator
+from pydantic import Field
 
 from empire_core.enums import Kingdom, OpenGateDuration, OpenGateRefusal
 from empire_core.protocol.base import BaseRequest, BaseResponse, CurrencyBlock, EmpireModel
-from empire_core.protocol.js import js_int
+from empire_core.protocol.js import ClientInt
 
 CLOSE_GATE = -1
 """The ``mos`` duration that closes an open gate."""
@@ -62,14 +62,12 @@ class OpenGateResponse(BaseResponse):
 
     command = "mos"
 
-    castle_id: int = Field(validation_alias="CID", default=0, description="The castle's object id")
+    castle_id: ClientInt = Field(validation_alias="CID", default=0, description="The castle's object id")
     kingdom: Kingdom = Field(validation_alias="KID", default=Kingdom.GREEN, description="The castle's kingdom")
-    open_seconds: int = Field(
+    open_seconds: ClientInt = Field(
         validation_alias="RPT", default=0, description="Seconds the gate stays open; not positive once closed"
     )
     currencies: CurrencyBlock = Field(validation_alias="gcu", default=None, description="Coins and rubies after")
-
-    _ints = field_validator("castle_id", "open_seconds", mode="before")(js_int)
 
 
 class OpenGateQuote(EmpireModel):

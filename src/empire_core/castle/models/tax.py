@@ -15,7 +15,7 @@ from pydantic import Field, field_validator
 
 from empire_core.enums import TaxStatus
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, CurrencyBlock
-from empire_core.protocol.js import js_falsy, js_int, js_parse_int
+from empire_core.protocol.js import ClientInt, js_falsy, js_int, js_parse_int
 
 TAX_DURATIONS: tuple[int, ...] = (600, 1800, 5400, 10800, 21600, 43200, 86400)
 """Seconds each tax type collects for, by tax type 0 to 6.
@@ -42,28 +42,24 @@ class TaxInfo(BasePayload):
     Client: ``TaxInfoVO.fillFromParamObject`` (bundle line 29538)
     """
 
-    tax_type: int = Field(
+    tax_type: ClientInt = Field(
         validation_alias="TT",
         default=0,
         description="The running or finished collection's tax type, 0 to 6; -1 for none",
     )
-    remaining_seconds: int = Field(
+    remaining_seconds: ClientInt = Field(
         validation_alias="RT",
         default=0,
         description="Seconds until the collection is done, as of the reply",
     )
-    expected_income: int = Field(
+    expected_income: ClientInt = Field(
         validation_alias="EM",
         default=0,
         description="Coins the collection brings before boosts",
     )
-    population: int = Field(validation_alias="PO", default=0, description="The population the income is based on")
+    population: ClientInt = Field(validation_alias="PO", default=0, description="The population the income is based on")
     is_boosted: bool = Field(validation_alias="IB", default=False, description="Whether the collector was bribed")
-    vip_bonus: int = Field(validation_alias="VB", default=0, description="The VIP tax bonus in percent")
-
-    _ints = field_validator(
-        "tax_type", "remaining_seconds", "expected_income", "population", "vip_bonus", mode="before"
-    )(js_int)
+    vip_bonus: ClientInt = Field(validation_alias="VB", default=0, description="The VIP tax bonus in percent")
 
     @field_validator("is_boosted", mode="before")
     @classmethod

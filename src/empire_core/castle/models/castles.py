@@ -16,7 +16,7 @@ from empire_core.castle.models.landmarks import LaboratoryListResponse, Monument
 from empire_core.enums import Kingdom, MapItemType
 from empire_core.gamedata import EnumOrInt
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, Position, enum_or_none, object_or_none
-from empire_core.protocol.js import js_int, js_whole_number
+from empire_core.protocol.js import ClientInt, js_int, js_whole_number
 
 logger = logging.getLogger(__name__)
 
@@ -344,34 +344,25 @@ class CastleInfo(BasePayload):
         default=None, description="Unique id of the castle skin equipped; None for a type with none"
     )
     has_sabotage_protection: bool = Field(default=False, description="Whether a temporary sabotage protection is on")
-    open_gate_seconds: int = Field(validation_alias="OGT", default=0, description="Seconds the gate stays open")
-    open_gate_counter: int = Field(validation_alias="OGC", default=0, description="How often the gate has been opened")
-    abandon_outpost_seconds: int = Field(
+    open_gate_seconds: ClientInt = Field(validation_alias="OGT", default=0, description="Seconds the gate stays open")
+    open_gate_counter: ClientInt = Field(
+        validation_alias="OGC", default=0, description="How often the gate has been opened"
+    )
+    abandon_outpost_seconds: ClientInt = Field(
         validation_alias="AOT",
         default=0,
         description="Seconds until the castle is abandoned; not positive when it is not",
     )
-    cancel_abandon_seconds: int = Field(
+    cancel_abandon_seconds: ClientInt = Field(
         validation_alias="CAT",
         default=0,
         description="Seconds left to cancel abandoning the castle; not positive when it cannot be",
     )
-    no_abandon_seconds: int = Field(
+    no_abandon_seconds: ClientInt = Field(
         validation_alias="TA",
         default=0,
         description="Seconds until the castle has been held long enough to abandon",
     )
-
-    _entry_ints = field_validator(
-        *(
-            "open_gate_seconds",
-            "open_gate_counter",
-            "abandon_outpost_seconds",
-            "cancel_abandon_seconds",
-            "no_abandon_seconds",
-        ),
-        mode="before",
-    )(js_int)
 
     @property
     def is_occupied(self) -> bool:
