@@ -22,6 +22,10 @@ The items data: typed tables, lookups by name, and the generated id enums.
 
 ::: empire_core.gamedata.tables_progress
 
+## `gamedata.tables_seasons`
+
+::: empire_core.gamedata.tables_seasons
+
 ## `gamedata.table`
 
 ::: empire_core.gamedata.table

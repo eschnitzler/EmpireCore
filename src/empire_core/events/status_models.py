@@ -9,15 +9,22 @@ from typing import TYPE_CHECKING, Annotated, Any, ClassVar
 from pydantic import BeforeValidator, ConfigDict, Field, field_validator, model_validator
 
 from empire_core.enums.events import RaidBossCardStatus
-from empire_core.gamedata import EnumOrInt, GrandTournamentQuestId
+from empire_core.gamedata import EnumOrInt, GrandTournamentQuestId, RaidBossLevelId, RaidBossStageId
 from empire_core.gamedata.ids.events import Event
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, readable_list
 from empire_core.protocol.js import ClientInt, ClientIntOf, js_int, js_loose_equals, js_map_key, js_string, js_truthy
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import RaidBoss
+    from empire_core.gamedata import GameData, RaidBoss, RaidBossLevelDef, RaidBossStageDef
 
 logger = logging.getLogger(__name__)
+
+
+def _game_data(game_data: GameData | None) -> GameData:
+    from empire_core.gamedata.data import GameData
+
+    return game_data if game_data is not None else GameData.require()
+
 
 SentEventId = Annotated[EnumOrInt[Event], BeforeValidator(js_map_key)]
 """
@@ -200,12 +207,20 @@ class RiftRaidStatus(BasePayload):
 
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True, populate_by_name=True, extra="ignore")
     boss_id: EnumOrInt["RaidBoss"] = Field(default=0, validation_alias="BID", description="Current boss; 0 without one")
-    level_id: ClientInt = Field(default=0, validation_alias="BLID", description="Current boss level id; 0 without one")
+    level_id: ClientIntOf[RaidBossLevelId] = Field(
+        default=RaidBossLevelId(0),
+        validation_alias="BLID",
+        description="Current boss level, a GameData.raid_boss_levels row; 0 without one",
+    )
     health: float = Field(
         default=0, validation_alias="HP", description="Current boss health, rounded up to two decimals"
     )
     revive_unit_percent: float = Field(default=0, validation_alias="RUP", description="Percentage of units revived")
-    stage_id: ClientInt = Field(default=0, validation_alias="BS", description="Current boss stage id; 0 without one")
+    stage_id: ClientIntOf[RaidBossStageId] = Field(
+        default=RaidBossStageId(0),
+        validation_alias="BS",
+        description="Current boss stage, a GameData.raid_boss_stages row; 0 without one",
+    )
     walls: RaidBossWalls | None = Field(default=None, validation_alias="WI", description="Latest wall status")
     cards: tuple[RaidBossCard, ...] = Field(default=(), validation_alias="BCDS", description="Available boss cards")
 
@@ -257,6 +272,22 @@ class RiftRaidStatus(BasePayload):
     def active(self) -> bool:
         """Whether the response includes a current boss or boss level."""
         return self.boss_id > 0 or self.level_id > 0
+
+    def level(self, *, game_data: GameData | None = None) -> RaidBossLevelDef | None:
+        """
+        The current boss level's row; None without one or for a level the items lack.
+
+        Client: ``AllianceRaidbossServerDataVO.getCurrentXMLBossLevelDataVO`` (split.js line 394399)
+        """
+        return _game_data(game_data).raid_boss_levels.get(self.level_id)
+
+    def stage(self, *, game_data: GameData | None = None) -> RaidBossStageDef | None:
+        """
+        The current boss stage's row; None without one or for a stage the items lack.
+
+        Client: ``AllianceRaidbossServerDataVO.getCurrentXMLBossStageDataVO`` (split.js line 394405)
+        """
+        return _game_data(game_data).raid_boss_stages.get(self.stage_id)
 
     def with_previous(self, previous: RiftRaidStatus | None) -> RiftRaidStatus:
         """Retain identity, stage and walls for fields the client updates only when supplied."""

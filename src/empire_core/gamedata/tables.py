@@ -159,6 +159,10 @@ OuterRealmsSettingId = NewType("OuterRealmsSettingId", int)
 """The id of a ``tempServerSettings`` row, an Outer Realms run's settings that :attr:`GameData.outer_realms_settings`
 describes."""
 
+OuterRealmsRewardSetId = NewType("OuterRealmsRewardSetId", int)
+"""The reward set an Outer Realms run's settings name: which :attr:`GameData.outer_realms_rank_rewards` rows its
+ranks earn. Not a ``rewards`` row."""
+
 HorizonSettingId = NewType("HorizonSettingId", int)
 """The id of an ``allianceBattleGroundSettings`` row, a Beyond the Horizon run's settings that
 :attr:`GameData.horizon_settings` describes."""
@@ -2881,10 +2885,11 @@ class WheelOfFortuneWinClassDef(_Row):
 
 class OuterRealmsSettingDef(_Row):
     """
-    An Outer Realms run's settings. Only some columns are read: the presets and rewards are not.
+    An Outer Realms run's settings. The model reads only these columns: the client reads more, the presets, booster
+    currency and loot factors among them.
 
-    Client: ``TempServerConfigurationVO.parseXML`` (bundle line 14448), keyed by ``settingID`` in
-    ``CastleTempServerData`` (bundle line 140189)
+    Client: ``TempServerConfigurationVO.parseXML`` (split.js line 73767), keyed by ``settingID`` in
+    ``CastleTempServerData`` (split.js line 697679)
     """
 
     setting_id: OuterRealmsSettingId = Field(validation_alias="settingID", description="The settings")
@@ -2900,6 +2905,11 @@ class OuterRealmsSettingDef(_Row):
         validation_alias="boosterCurrencyPackageID",
         default=PackageId(0),
         description="The package that sells its booster currency; 0 for none",
+    )
+    reward_set_id: OuterRealmsRewardSetId = Field(
+        validation_alias="rewardSetID",
+        default=OuterRealmsRewardSetId(0),
+        description="The set of rank rewards the run gives",
     )
 
     @field_validator("setting_id", mode="before")
@@ -2917,7 +2927,7 @@ class OuterRealmsSettingDef(_Row):
     def _text_column(cls, value: object) -> str:
         return _text(value, "0")
 
-    @field_validator("start_currency_amount", "currency_id", "booster_package_id", mode="before")
+    @field_validator("start_currency_amount", "currency_id", "booster_package_id", "reward_set_id", mode="before")
     @classmethod
     def _int_column(cls, value: object, info: ValidationInfo) -> int:
         return _parse_int_or_default(value, cls.model_fields[str(info.field_name)].default)

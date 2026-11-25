@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Annotated, Any
 from pydantic import BeforeValidator, Field, model_validator
 
 from empire_core.enums import Kingdom, MapItemType
-from empire_core.gamedata import AllianceInvasionCampId, EnumOrInt, ScalingCampId
+from empire_core.gamedata import AllianceInvasionCampId, EnumOrInt, IsleId, ScalingCampId
 from empire_core.protocol.base import BasePayload, enum_or_none, readable_list
 from empire_core.protocol.js import ClientInt, js_int, js_loose_equals, js_truthy
 
@@ -556,7 +556,7 @@ class MapAreaItem(BasePayload):
     village_type: int | None = Field(default=None, description="Village type")
     monument_type: int | None = Field(default=None, description="Monument type")
     landmark_level: int | None = Field(default=None, description="A monument's or laboratory's level")
-    isle_id: int | None = Field(default=None, description="Isle blueprint id")
+    isle_id: IsleId | None = Field(default=None, description="The Storm Islands isle, a GameData.storm_isles row")
     remaining_occupier_seconds: int | None = Field(default=None, description="Seconds left on the occupier's timer")
     protector_positions: list[Any] | None = Field(
         default=None,

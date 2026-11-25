@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from pydantic import Field, field_validator
 
@@ -12,6 +12,9 @@ from empire_core.gamedata import EnumOrInt
 from empire_core.gamedata.ids.events import Event
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, readable_list
 from empire_core.protocol.js import ClientInt, js_int
+
+if TYPE_CHECKING:
+    from empire_core.gamedata import GameData
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +94,7 @@ class GetOuterRealmsRanksRequest(BaseRequest):
 
 
 class GetOuterRealmsRanksResponse(BaseResponse):
-    """Client: ``TempServerEventVO.parseOwnRanks`` (bundle line 118163)."""
+    """Client: ``TempServerEventVO.parseOwnRanks`` (split.js line 605182)."""
 
     command: ClassVar[str] = "tsh"
     daily_points: ClientInt = Field(validation_alias="DHS", description="Your daily points")
@@ -103,3 +106,16 @@ class GetOuterRealmsRanksResponse(BaseResponse):
     @classmethod
     def _rank(cls, value: Any) -> int:
         return max(0, js_int(value))
+
+    def daily_rank_points(self, *, game_data: GameData | None = None) -> int:
+        """
+        The points your daily rank earns: the first band in the items' order that holds it, 0 for none.
+
+        Client: ``CastleTemporaryServerEventDialogScoring.onPointsChanged`` (split.js line 606950) passes the
+        daily rank to ``CastleTempServerData.getDailyRankPointsByRank`` (split.js line 697873)
+        """
+        from empire_core.gamedata.data import GameData
+
+        data = game_data if game_data is not None else GameData.require()
+        band = next((row for row in data.outer_realms_rank_points.values() if row.covers(self.daily_rank)), None)
+        return 0 if band is None else band.rank_points

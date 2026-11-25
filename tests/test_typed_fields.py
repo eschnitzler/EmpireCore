@@ -96,6 +96,10 @@ ALLOWED: dict[str, str] = {
     "messages.models.mailbox.MessagesSentToday.sent": "counts keyed by MessageType; the values are amounts",
     "gamedata.tables_currency.CurrencyTypeDef.currency_id_range": "the bounds of an id range; not ids of rows",
     "player.models.progress.TopTitleRanking.thresholds": "points, one per top-X title of the system; not ids",
+    "gamedata.tables_seasons.DivisionRoundDef.subdivisions": "subdivision counts, one per division; not ids",
+    "gamedata.tables_seasons.DivisionRoundDef.subdivision_sizes": "subdivision sizes, one per division; not ids",
+    "gamedata.tables_seasons.DivisionRoundDef.promotes": "alliance counts, one per division; not ids",
+    "gamedata.tables_seasons.DivisionRoundDef.demotes": "alliance counts, one per division; not ids",
 }
 
 

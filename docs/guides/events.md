@@ -67,6 +67,12 @@ on `BerimondEvent`, or an `EventPart` given its event) gives your league's
 `leaderboard_rewards()` on a scored event or `ImperialPatronageEvent` gives the
 leaderboard's rank bands (`LeaderboardRewardDef`). Each row's `rewards()` reads
 what the rewards give, as typed collectables. Both load the game data.
+`KingdomsLeagueEvent` gives its `end_reward_bands()`, `promotion_rewards(rank_id)` and
+`event_rewards(event, rank_id)`, with or without the season pass. `OuterRealmsEvent` gives its
+`rank_rewards()` and `daily_task_rewards(points)`, and the reply of
+`client.events.get_outer_realms_ranks()` the `daily_rank_points()` of your daily rank. The Grand
+Tournament and Rift Raid give their `division_round()`, and a `RiftRaidStatus` its boss `level()`
+and `stage()`.
 
 ```python
 event = client.state.get_event(Event.MARAUDERS_CONTEST)

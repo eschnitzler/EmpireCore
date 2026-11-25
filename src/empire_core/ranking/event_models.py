@@ -8,9 +8,9 @@ from typing import Any, ClassVar, TypeVar
 from pydantic import Field, field_validator, model_validator
 
 from empire_core.enums import RankingType
-from empire_core.gamedata import EnumOrInt
+from empire_core.gamedata import EnumOrInt, KingdomsLeagueMedalId, KingdomsLeagueRankId
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, readable_list
-from empire_core.protocol.js import ClientInt, js_loose_equals, js_truthy
+from empire_core.protocol.js import ClientInt, ClientIntOf, js_loose_equals, js_truthy
 
 logger = logging.getLogger(__name__)
 T = TypeVar("T", bound=BasePayload)
@@ -64,9 +64,14 @@ class SeasonDivision(BasePayload):
 
 
 class SeasonMedal(BasePayload):
-    """A medal balance. Client: ``SeasonLeagueServer.parseMedalInfo`` (bundle lines 142656-142662)."""
+    """
+    A medal balance.
 
-    medal_id: ClientInt = Field(description="Season medal id")
+    Client: ``SeasonLeagueServer.parseMedalInfo`` (split.js line 706880), which finds the medal by its
+    ``seasonMedals`` id (``CollectableItemSeasonLeagueMedalVO.getXmlMedalVO``, split.js line 267751)
+    """
+
+    medal_id: ClientIntOf[KingdomsLeagueMedalId] = Field(description="The medal, a GameData.kingdoms_league_medals row")
     amount: ClientInt = Field(description="Medals held")
 
     @model_validator(mode="before")
@@ -76,9 +81,16 @@ class SeasonMedal(BasePayload):
 
 
 class SeasonPromotionPass(BasePayload):
-    """A purchased promotion pass. Client: ``SeasonLeagueServer.parsePassInfo`` (bundle line 142664)."""
+    """
+    A purchased promotion pass.
 
-    promotion_id: ClientInt = Field(description="Promotion whose pass was purchased")
+    Client: ``SeasonLeagueServer.parsePassInfo`` (split.js line 706906); ``boughtPromoPassForPromoID`` (split.js
+    line 706916) is asked with a rank's id
+    """
+
+    promotion_id: ClientIntOf[KingdomsLeagueRankId] = Field(
+        description="The rank whose pass was purchased, a GameData.kingdoms_league_ranks row"
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -114,9 +126,16 @@ class SeasonPasses(BasePayload):
 
 
 class SeasonRank(BasePayload):
-    """Client: ``SeasonLeagueServer.parseRankInfo`` (bundle line 142669)."""
+    """
+    Client: ``SeasonLeagueServer.parseRankInfo`` (split.js line 706932); ``getCurrentPlayerPromotion`` (split.js line
+    706542) looks ``KLRID`` up with ``getPromotion``
+    """
 
-    promotion_id: ClientInt = Field(default=0, validation_alias="KLRID", description="Current promotion id")
+    promotion_id: ClientIntOf[KingdomsLeagueRankId] = Field(
+        default=KingdomsLeagueRankId(0),
+        validation_alias="KLRID",
+        description="Your rank, a GameData.kingdoms_league_ranks row",
+    )
     medal_points: ClientInt = Field(default=0, validation_alias="KLMP", description="Promotion medal points")
 
 
