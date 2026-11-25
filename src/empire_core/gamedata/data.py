@@ -1405,7 +1405,7 @@ class GameData(EmpireModel):
         """Beyond the Horizon's end rewards (``allianceBattleGroundRankRewards``), by row id."""
         return self._table("horizon_rank_rewards")
 
-    def alliance_rank_has_right(self, rank: int, right: int) -> bool:
+    def alliance_rank_has_right(self, rank: GameDataId[AllianceRank], right: GameDataId[AllianceRight]) -> bool:
         """
         Whether members of ``rank`` have ``right``: false for a right the game data lacks.
 
@@ -1414,7 +1414,7 @@ class GameData(EmpireModel):
         row = self.alliance_rights.get(right)
         return row is not None and row.needed_rank >= rank
 
-    def alliance_rank_may_rerank(self, rank: int, target_rank: int) -> bool:
+    def alliance_rank_may_rerank(self, rank: GameDataId[AllianceRank], target_rank: GameDataId[AllianceRank]) -> bool:
         """
         Whether members of ``rank`` may give a member ``target_rank`` or take it away.
 

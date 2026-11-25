@@ -272,6 +272,33 @@ def test_rank_rewards(data):
     )
 
 
+def test_columns_the_current_items_leave_empty():
+    data = GameData.parse(
+        "790.06",
+        {
+            "allianceBattleGroundRankRewards": [
+                {
+                    "allianceBattleGroundRankRewardID": "1",
+                    "rewardSetID": "2",
+                    "rewardID": "7",
+                    "participationPoints": "500",
+                }
+            ],
+            "allianceBattleGroundPhaseTriggers": [{"phaseTriggerID": "2", "type": "2", "warningShare": "70"}],
+            "allianceFundsDonatables": [
+                {"allianceFundsDonatableID": "1"},
+                {"allianceFundsDonatableID": "2", "directlyByPlayer": "0"},
+                {"allianceFundsDonatableID": "3", "directlyByPlayer": "1"},
+            ],
+        },
+    )
+
+    reward = data.horizon_rank_rewards[HorizonRankRewardId(1)]
+    assert (reward.reward_set_id, reward.reward_id, reward.rank, reward.participation_points) == (2, 7, 0, 500)
+    assert data.horizon_phase_triggers[HorizonPhaseTriggerId(2)].warning_share == 70
+    assert [row.directly_by_player for row in data.alliance_treasury_donatables.values()] == [False, False, True]
+
+
 def test_an_alliance_reads_its_glory_levels(data):
     alliance = AllianceInfo.model_validate({"AID": 1, "CF": "34000", "HF": 7999})
 
