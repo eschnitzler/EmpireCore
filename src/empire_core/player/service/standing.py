@@ -31,7 +31,7 @@ from empire_core.player.titles import player_title_ids
 from empire_core.services.base import ServiceMixin
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import Title
+    from empire_core.gamedata import MightRankDef, Title
     from empire_core.player.models.progress import (
         BoosterInfoResponse,
         GallantryPointsResponse,
@@ -46,8 +46,8 @@ class StandingMixin(ServiceMixin):
         Buy your next level with rubies; see "Spending rubies" in the guides.
 
         The client offers it from level 10 to 69 to a split-run test group it reads from the server, so the
-        server may refuse an account outside that group. The price is not worked out here, so this always
-        needs ``spend_rubies``.
+        server may refuse an account outside that group. It always needs ``spend_rubies``;
+        :attr:`buy_level_cost` gives the price.
 
         Args:
             spend_rubies: Allow the rubies it costs; without it nothing is sent
@@ -69,6 +69,23 @@ class StandingMixin(ServiceMixin):
         self._require_spend_rubies(spend_rubies, "buying a level costs rubies")
         request = BuyLevelRequest(new_level=player.level + player.legendary_level + 1)
         self.request(request, BuyLevelResponse, timeout=timeout, spend_rubies=spend_rubies)
+
+    @property
+    def buy_level_cost(self) -> int | None:
+        """
+        The rubies :meth:`buy_level` costs at your level: 0 when the game data prices no such level, as the client
+        shows it, None when the price is unreadable.
+
+        Client: ``ButtonBuyLevelComponent.onClickButton`` (split.js line 548838) prices
+        ``CastleBuyLevelData.getLevelUpCost(level, level + 1)`` (split.js line 573872)
+
+        Raises:
+            StateNotLoadedError: No login has brought your level
+            GameDataNotLoadedError: The game data cannot be loaded
+        """
+        player = self.client.state.get_local_player()
+        level = player.level + player.legendary_level
+        return self._require_game_data().level_up_cost(level, level + 1)
 
     def get_vip_status(self, *, timeout: float = 5.0) -> VipStatusResponse:
         """
@@ -158,6 +175,37 @@ class StandingMixin(ServiceMixin):
             StateNotLoadedError: No login has brought it
         """
         return self.client.state.get_might()
+
+    @property
+    def next_might_rank(self) -> MightRankDef | None:
+        """The might rank after your highest might points, from the last ``gmu``; None past the last rank or
+        while your highest might is unreadable.
+
+        Client: ``CastleUserStatePanel.onChangeMight`` (split.js line 162857) shows
+        ``MightData.getNextMightRank(userHighestMightAchieved)``
+
+        Raises:
+            StateNotLoadedError: No login has brought your might
+            GameDataNotLoadedError: The game data cannot be loaded
+        """
+        highest = self.might.highest_might_points
+        return None if highest is None else self._require_game_data().next_might_rank(highest)
+
+    @property
+    def might_to_next_rank(self) -> int | None:
+        """Might points from your current might to :attr:`next_might_rank`'s threshold; 0 past the last rank, None
+        while your might is unreadable.
+
+        Client: ``MightData.userMightToNextLevel`` (split.js line 582073)
+
+        Raises:
+            StateNotLoadedError: No login has brought your might
+            GameDataNotLoadedError: The game data cannot be loaded
+        """
+        rank, current = self.next_might_rank, self.might.might_points
+        if rank is None:
+            return 0
+        return None if rank.threshold is None or current is None else rank.threshold - current
 
     @property
     def glory_points(self) -> GloryPointsResponse:
