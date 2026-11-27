@@ -5,6 +5,7 @@ import sys
 
 from empire_core.combat import Bonus, effect_value_bonuses
 from empire_core.enums import (
+    AllianceQuestType,
     BerimondFaction,
     BuildingGroundType,
     BuildingGroup,
@@ -22,8 +23,10 @@ from empire_core.enums import (
     TreasureMapType,
     WearerType,
 )
+from empire_core.events import GrandTournamentQuestSlot
 from empire_core.gamedata import (
     AllianceInvasionCampId,
+    AllianceQuestId,
     BuildingDef,
     CitadelLevelId,
     DailyQuestDef,
@@ -612,3 +615,89 @@ class TestFeastsAndSceatSkillTrees:
         banquet = again.feasts[ids.Feast.IMPERIAL_BANQUET]
         assert (banquet.cost_rubies, banquet.sort_order) == (1750, 1)
         assert again.sceat_skill_trees[4].tab_id is SceatSkillTab.UNITS
+
+
+class TestAllianceQuests:
+    ITEMS = {
+        "allianceQuests": [
+            {
+                "allianceQuestID": "2",
+                "comment1": "AME",
+                "comment4": "countDungeons+10+10",
+                "questID": "3601",
+                "questType": "defeatTarget",
+                "chance": "1",
+                "duration": "3600",
+                "rewardPoints": "60",
+                "cancelCostC2": "199",
+            },
+            {
+                "allianceQuestID": "178",
+                "questID": "3777",
+                "questType": "bloodcrowInvasion",
+                "chance": "2",
+                "duration": "43200",
+                "rewardPoints": "380",
+                "cancelCostC2": "149",
+                "eventID": "103",
+            },
+            {"allianceQuestID": "5", "questType": "upgrade"},
+        ],
+        "quests": [
+            {"questID": "3601", "eventID": "129", "conditions": "countDungeons+10+10", "hidden": "1"},
+            {"questID": "3777", "eventID": "129", "conditions": "alienFame+550000000", "hidden": "1"},
+        ],
+    }
+
+    def test_a_row_reads_its_points_type_duration_and_costs(self):
+        data = GameData.parse("790.06", self.ITEMS)
+
+        quest = data.alliance_quests[AllianceQuestId(178)]
+        # questType[0].toUpperCase() + questType.slice(1)
+        assert quest.quest_type is AllianceQuestType.BLOODCROW_INVASION
+        assert (quest.reward_points, quest.duration, quest.cancel_cost_rubies, quest.chance) == (380, 43200, 149, 2)
+        assert quest.event_id is ids.Event.BLOODCROW_INVASION
+        assert data.alliance_quests[AllianceQuestId(2)].quest_type is AllianceQuestType.DEFEAT_TARGET
+
+    def test_missing_columns_take_the_client_defaults(self):
+        quest = GameData.parse("790.06", self.ITEMS).alliance_quests[AllianceQuestId(5)]
+
+        assert quest.quest_type is AllianceQuestType.UPGRADE
+        assert (quest.quest_id, quest.event_id, quest.cancel_cost_rubies) == (-1, -1, 199)
+        assert (quest.reward_points, quest.duration, quest.chance) == (0, 0, 0)
+
+    def test_its_quest_id_is_the_quests_row_with_the_conditions(self):
+        data = GameData.parse("790.06", self.ITEMS)
+
+        quest = data.quests[data.alliance_quests[AllianceQuestId(2)].quest_id]
+        assert quest.conditions == (
+            QuestCondition(condition_type=QuestConditionType.COUNT_DUNGEONS, amount=10, raw_data="10"),
+        )
+
+    def test_a_quest_slot_looks_up_its_definition_and_quest(self):
+        data = GameData.parse("790.06", self.ITEMS)
+        slot = GrandTournamentQuestSlot(slot_id=0, alliance_quest_id=178, player_id=-1, remaining_seconds=0)
+        unknown = slot.model_copy(update={"alliance_quest_id": 999})
+        no_quest = slot.model_copy(update={"alliance_quest_id": 5})
+
+        definition = slot.definition(game_data=data)
+        assert definition is not None and definition.reward_points == 380
+        quest = slot.quest(game_data=data)
+        assert quest is not None
+        assert quest.conditions == (QuestCondition(condition_type="alienFame", amount=550000000),)
+        assert unknown.definition(game_data=data) is None and unknown.quest(game_data=data) is None
+        assert no_quest.definition(game_data=data) is not None and no_quest.quest(game_data=data) is None
+
+    def test_they_survive_the_cache(self, tmp_path):
+        GameData.parse("790.06", self.ITEMS)._write_cache(tmp_path / "cache.json")
+
+        again = GameData._read_cache(tmp_path / "cache.json", "790.06")
+
+        assert again is not None
+        quest = again.alliance_quests[AllianceQuestId(178)]
+        assert (quest.quest_type, quest.reward_points, quest.event_id) == (
+            AllianceQuestType.BLOODCROW_INVASION,
+            380,
+            103,
+        )
+        assert again.quests[quest.quest_id].conditions[0].amount == 550000000

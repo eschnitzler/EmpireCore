@@ -42,6 +42,16 @@ taking its `len()` validates every row once. Besides the ones above, these are
 (by `SceatSkill.skill_tree_id`, each with its Hall of Legends tab),
 `daimyo_castle_contracts` and `daimyo_township_contracts`, the daimyo event's
 alliance contracts (`DaimyoContractDef`) in the items' order.
+`alliance_quests` is a `Table` by `AllianceQuestId`, the Grand Tournament's
+quests: each `AllianceQuestDef` has the points it gives, its type, duration,
+cancel cost and the `quest_id` of the `quests` row with its conditions. A
+quest slot looks both up:
+
+```python
+slot.definition().reward_points           # AllianceQuestDef, or None
+slot.quest().conditions                   # the QuestDef's QuestConditions
+data.alliance_quests[AllianceQuestId(1)].quest_type   # AllianceQuestType.SPEND_CURRENCIES_OR_RESOURCES
+```
 
 `rewards` is a `Table` by `RewardId`: each `RewardDef` holds the `Collectable`s
 a reward gives, read from the items' reward columns as the client reads them.

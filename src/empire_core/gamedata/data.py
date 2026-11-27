@@ -85,6 +85,8 @@ from .tables import (
     AllianceCrestLayoutDef,
     AllianceInvasionCampDef,
     AllianceInvasionCampId,
+    AllianceQuestDef,
+    AllianceQuestId,
     AllianceTowerEffectDef,
     BerimondSpecialCampDef,
     BuildingDef,
@@ -266,6 +268,7 @@ _CACHED_MODELS = (
     DifficultyTypeDef,
     QuestDef,
     DailyQuestDef,
+    AllianceQuestDef,
     QuestCondition,
     TitleDef,
     ConstructionItemRecipeDef,
@@ -492,6 +495,7 @@ _TABLES: dict[str, _TableSource] = {
     "difficulty_types": _TableSource("eventAutoScalingDifficultyTypes", DifficultyTypeDef, "difficulty_type_id"),
     "quests": _TableSource("quests", QuestDef, "quest_id"),
     "daily_quests": _TableSource("dailyactivities", DailyQuestDef, "quest_id"),
+    "alliance_quests": _TableSource("allianceQuests", AllianceQuestDef, "alliance_quest_id"),
     "titles": _TableSource("titles", TitleDef, "title_id"),
     "gems": _TableSource("gems", GemDef, "gem_id"),
     "gem_colors": _TableSource("gemColors", GemColorDef, "color_id"),
@@ -812,6 +816,16 @@ class GameData(EmpireModel):
     def daily_quests(self) -> Table[GameDataId["DailyQuestId"], DailyQuestDef]:
         """Daily quests by ``DailyQuestId``."""
         return self._table("daily_quests")
+
+    @cached_property
+    def alliance_quests(self) -> Table[AllianceQuestId, AllianceQuestDef]:
+        """
+        The Grand Tournament's alliance quests (``allianceQuests``) by the id a quest slot names; each row's
+        ``quest_id`` is the :attr:`quests` row with its conditions.
+
+        Client: ``AllianceQuestData.getAllianceQuestByID`` (split.js line 572990)
+        """
+        return self._table("alliance_quests")
 
     @cached_property
     def titles(self) -> Table[GameDataId["Title"], TitleDef]:

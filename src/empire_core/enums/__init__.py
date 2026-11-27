@@ -65,6 +65,7 @@ from .events import (
     WorldCupVote,
 )
 from .gamedata import (
+    AllianceQuestType,
     BuildingGroundType,
     BuildingGroup,
     CastleEffect,
@@ -264,6 +265,7 @@ __all__ = [
     # Rewards
     "LoginBonusSpecial",
     # Game data
+    "AllianceQuestType",
     "BuildingGroundType",
     "CastleEffect",
     "BuildingGroup",

@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 from empire_core.enums import (
     AllianceBuffType,
+    AllianceQuestType,
     BerimondFaction,
     BerimondLane,
     BerimondSpecialCampType,
@@ -155,6 +156,8 @@ from .tables import (
     AllianceCrestLayoutDef,
     AllianceInvasionCampDef,
     AllianceInvasionCampId,
+    AllianceQuestDef,
+    AllianceQuestId,
     AllianceTowerEffectDef,
     BerimondSpecialCampDef,
     BuildingDef,
@@ -243,6 +246,7 @@ __all__ = [
     "BuildingGroup",
     "PlayerRelation",
     "QuestConditionType",
+    "AllianceQuestType",
     "RelicEffectType",
     "TitleDisplayType",
     "ToolCategory",
@@ -410,6 +414,8 @@ __all__ = [
     "StartResourcesId",
     "AllianceInvasionCampDef",
     "AllianceInvasionCampId",
+    "AllianceQuestDef",
+    "AllianceQuestId",
     "AllianceTowerEffectDef",
     "FeastDef",
     "DaimyoContractId",
