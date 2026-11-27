@@ -198,6 +198,43 @@ class QuestConditionType(str, Enum):
     VISIT_GENERALS_OVERVIEW = "visitGeneralsOverview"
 
 
+class AllianceQuestType(str, Enum):
+    """
+    The kind of a Grand Tournament alliance quest, an ``allianceQuests`` row's ``questType`` with its first letter
+    upper-cased, as the client stores it; it picks the quest's icon and banner.
+
+    Client: ``AllianceQuestVO.QUEST_TYPE_*`` (split.js line 573293)
+    """
+
+    OBTAIN_CURRENCIES_OR_RESOURCES = "ObtainCurrenciesOrResources"
+    OBTAIN_UNITS = "ObtainUnits"
+    DEFEAT_TARGET = "DefeatTarget"
+    SPEND_CURRENCIES_OR_RESOURCES = "SpendCurrenciesOrResources"
+    UPGRADE = "Upgrade"
+    NOMAD_INVASION = "NomadInvasion"
+    SAMURAI_INVASION = "SamuraiInvasion"
+    ALIEN_INVASION = "AlienInvasion"
+    BLOODCROW_INVASION = "BloodcrowInvasion"
+    STORM_ISLANDS = "StormIslands"
+    BERIMOND_KINGDOM = "BerimondKingdom"
+    KILL_UNITS = "KillUnits"
+    CONSUME_TOOL = "ConsumeTool"
+    OPEN_LOOT_BOX = "OpenLootBox"
+    COMPLETE_ATTACK = "CompleteAttack"
+    OBTAIN_RIFT_POINT = "ObtainRiftPoint"
+    BUY_CURRENCY = "BuyCurrency"
+    KILL_WALL_UNITS = "KillWallUnits"
+    KILL_WALL_UNITS_ANY = "KillWallUnitsAny"
+    KILL_COURTYARD_UNITS = "KillCourtyardUnits"
+    KILL_COURTYARD_UNITS_ANY = "KillCourtyardUnitsAny"
+    OBTAIN_RIFT_POINTS_WALL = "ObtainRiftPointsWall"
+    OBTAIN_RIFT_POINTS_COURTYARD = "ObtainRiftPointsCourtyard"
+    OFF_MELEE_UNITS = "OffMeleeUnits"
+    OFF_RANGE_UNITS = "OffRangeUnits"
+    DEF_MELEE_UNITS = "DefMeleeUnits"
+    DEF_RANGE_UNITS = "DefRangeUnits"
+
+
 class TitleDisplayType(str, Enum):
     """
     Whether a title goes before or after the name, a title's ``displayType`` column.

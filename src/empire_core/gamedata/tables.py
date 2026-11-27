@@ -1,7 +1,7 @@
 """
 Typed rows of the items tables the generated id enums name: buildings, researches, events, loot boxes,
 equipment groups, difficulty types, quests, daily quests, titles, achievements and alliance crest layouts
-and colours, plus difficulty scaling camps and the rewards.
+and colours, plus difficulty scaling camps, the Grand Tournament's alliance quests and the rewards.
 
 Each model reads the columns its client value object reads, with the same defaults. The ``rewards``
 rows are read into collectables (``CollectableParserX2CRewards``, bundle line 62897); the costs and
@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, NewType
 from pydantic import Field, ValidationInfo, field_validator, model_validator
 
 from empire_core.enums import (
+    AllianceQuestType,
     BerimondLane,
     BerimondSpecialCampType,
     BuildingGroundType,
@@ -181,6 +182,10 @@ ScalingCampId = NewType("ScalingCampId", int)
 AllianceInvasionCampId = NewType("AllianceInvasionCampId", int)
 """The id of an ``allianceInvasionCamps`` row, an alliance invasion camp that :attr:`GameData.alliance_invasion_camps`
 describes."""
+
+AllianceQuestId = NewType("AllianceQuestId", int)
+"""The id of an ``allianceQuests`` row, a Grand Tournament alliance quest that :attr:`GameData.alliance_quests`
+describes and a quest slot names (``GrandTournamentQuestSlot.alliance_quest_id``)."""
 
 RewardSetId = NewType("RewardSetId", int)
 """The reward set a league score event's ``RSID`` names: which :attr:`GameData.league_type_events` rows give its
@@ -1230,6 +1235,53 @@ class DailyQuestDef(_Row):
     @classmethod
     def _conditions(cls, value: object) -> object:
         return QuestCondition.parse_list(value)
+
+
+class AllianceQuestDef(_Row):
+    """
+    A Grand Tournament alliance quest: the points it gives the alliance, how long it runs, what cancelling it costs,
+    and the ``quests`` row whose conditions it counts (``GameData.quests[row.quest_id].conditions``).
+
+    ``chance`` is not read by the client; it is the row's own column (``1`` or ``2`` in items 790.06), presumably
+    the weight the server draws the quest with.
+
+    Client: ``AllianceQuestVO.fillFromParamXML`` (split.js line 573015), keyed by ``allianceQuestID`` in
+    ``AllianceQuestData`` (split.js line 572981); its ``questVO`` (split.js line 573088) is the ``quests`` row
+    """
+
+    alliance_quest_id: AllianceQuestId = Field(validation_alias="allianceQuestID", description="The alliance quest")
+    quest_id: GameDataId["QuestId"] = Field(
+        validation_alias="questID", default=-1, description="The quests row whose conditions it counts; -1 for none"
+    )
+    quest_type: GameDataKey[AllianceQuestType] = Field(
+        validation_alias="questType", default="", description="Its kind, which picks its icon"
+    )
+    reward_points: int = Field(validation_alias="rewardPoints", default=0, description="Points it gives the alliance")
+    duration: int = Field(default=0, description="Seconds it runs")
+    cancel_cost_rubies: int = Field(
+        validation_alias="cancelCostC2", default=199, description="Rubies to cancel it while it runs"
+    )
+    chance: int = Field(default=0, description="Not read by the client; presumably its weight in the server's draw")
+    event_id: GameDataId["Event"] = Field(
+        validation_alias="eventID", default=-1, description="The event it is tied to; -1 for none"
+    )
+
+    @field_validator("alliance_quest_id", mode="before")
+    @classmethod
+    def _id(cls, value: object) -> int:
+        return row_id(value)
+
+    @field_validator("quest_id", "reward_points", "duration", "cancel_cost_rubies", "chance", "event_id", mode="before")
+    @classmethod
+    def _int_column(cls, value: object, info: ValidationInfo) -> int:
+        return _parse_int_or_default(value, cls.model_fields[str(info.field_name)].default)
+
+    @field_validator("quest_type", mode="before")
+    @classmethod
+    def _quest_type(cls, value: object) -> str:
+        # questType[0].toUpperCase() + questType.slice(1)
+        text = _text(value)
+        return text[:1].upper() + text[1:]
 
 
 class TitleDef(EffectSpecRow):
@@ -3513,6 +3565,8 @@ __all__ = [
     "StartResourcesDef",
     "StartResourcesId",
     "AllianceInvasionCampDef",
+    "AllianceQuestDef",
+    "AllianceQuestId",
     "AllianceInvasionCampId",
     "AllianceTowerEffectDef",
     "FeastDef",

@@ -9,13 +9,13 @@ from typing import TYPE_CHECKING, Annotated, Any, ClassVar
 from pydantic import BeforeValidator, ConfigDict, Field, field_validator, model_validator
 
 from empire_core.enums.events import RaidBossCardStatus
-from empire_core.gamedata import EnumOrInt
+from empire_core.gamedata import AllianceQuestId, EnumOrInt
 from empire_core.gamedata.ids.events import Event
 from empire_core.protocol.base import BasePayload, BaseRequest, BaseResponse, readable_list
 from empire_core.protocol.js import ClientInt, js_int, js_loose_equals, js_map_key, js_string, js_truthy
 
 if TYPE_CHECKING:
-    from empire_core.gamedata import RaidBoss
+    from empire_core.gamedata import AllianceQuestDef, GameData, QuestDef, RaidBoss
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +90,33 @@ class GrandTournamentQuestSlot(BasePayload):
         if not isinstance(value, list):
             raise ValueError("Expected quest progress list")
         return value[0] if value else None
+
+    def definition(self, *, game_data: GameData | None = None) -> AllianceQuestDef | None:
+        """
+        The alliance quest the slot holds: its points, duration, cancel cost and ``quests`` row; None when the game
+        data lacks it.
+
+        Client: ``AllianceQuestSlotVO.fillFromParams`` (split.js line 182397) looks it up with
+        ``AllianceQuestData.getAllianceQuestByID`` (split.js line 572990)
+        """
+        from empire_core.gamedata.data import GameData
+
+        data = game_data if game_data is not None else GameData.require()
+        return data.alliance_quests.get(AllianceQuestId(self.alliance_quest_id))
+
+    def quest(self, *, game_data: GameData | None = None) -> QuestDef | None:
+        """
+        The ``quests`` row of the slot's alliance quest, with the conditions :attr:`progress` counts; None when the
+        game data lacks either.
+
+        Client: ``AllianceQuestSlotVO.fillFromParams`` (split.js line 182397) creates it from the alliance quest's
+        ``questID``
+        """
+        from empire_core.gamedata.data import GameData
+
+        data = game_data if game_data is not None else GameData.require()
+        definition = self.definition(game_data=data)
+        return None if definition is None else data.quests.get(definition.quest_id)
 
 
 class GetGrandTournamentStatusRequest(BaseRequest):

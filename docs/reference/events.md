@@ -20,7 +20,11 @@ Active game events and their scoreboards behind `client.events`.
 The running `GrandTournamentEvent.quest_status` retains the last successful response,
 using a new event snapshot for each update. Slot ids preserve their original zero-based
 positions even when a malformed row is skipped with a warning. Quest definition ids remain
-integers because no generated alliance quest enum is available.
+integers, as the alliance quests have no names to generate an enum from. A slot's
+`definition()` is its `GameData.alliance_quests` row (`AllianceQuestDef`: reward points,
+type, duration, cancel cost, event) and its `quest()` the `quests` row whose `conditions`
+its `progress` counts; each is `None` when the game data lacks it and takes an optional
+`game_data=`.
 
 `get_grand_tournament_contributions()` requests ranked player contributions. Both methods
 require a running Grand Tournament and accept keyword-only `timeout`. Refusals and transport
